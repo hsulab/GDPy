@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import inspect
 from typing import Any
@@ -80,14 +76,21 @@ def instantiate_a_genetic_operator(
     if op_cls is None:
         raise Exception(f"Operator {method} is not found in {category} if {GENETIC_OPERATORS[category].keys()}.")
 
-    init_args = inspect.getargspec(op_cls.__init__).args[1:]  # skip self
+    sig = inspect.signature(op_cls.__init__)
+    init_args = [
+        name
+        for name, param in sig.parameters.items()
+        # skip `self` and *args/**kwargs
+        if name != "self"
+        and param.kind
+        in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    ]
     for k, v in specific_params.items():
         if k in init_args:
             op_params.update(**{k: v})
     op = op_cls(**op_params)
 
     return op
-
-
-if __name__ == "__main__":
-    ...
