@@ -1,10 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-import copy
 import collections
-import itertools
+import copy
 
 from ase import Atoms
 
@@ -26,7 +21,7 @@ def get_tags_per_species(
         .. code-block:: python
 
             >>> atoms = Atoms("PtPtPtCOCO")
-            >>> tags = [0, 0, 0, 1, 1, 2, 2]
+            >>> tags = [0, 0, 0, 1, 1, 2, 2]  # or incontiguous [0,0,0,1,2,1,2]
             >>> atoms.set_tags(tags)
             >>> get_tags_per_species(atoms)
             >>> {'Pt3': [(0, [0,1,2])], 'CO': [(1, [3,4]), (2, [5,6])]}
@@ -35,15 +30,27 @@ def get_tags_per_species(
     # Get tags which is all zero for default
     tags = atoms.get_tags()
 
-    # Group atoms by tags
-    tags_dict = {}
-    for key, group in itertools.groupby(enumerate(tags), key=lambda x: x[1]):
-        atomic_indices = [x[0] for x in group]
-        entity = atoms[atomic_indices]  # This gives an Atoms object
-        formula = entity.get_chemical_formula()  # type: ignore
+    # Group all indices by tags
+    tag_to_indices: dict[int, list[int]] = {}
+    for idx, tag in enumerate(tags):
+        tag = int(tag)
+        if tag not in tag_to_indices:
+            tag_to_indices[tag] = []
+        tag_to_indices[tag].append(idx)
+
+    # Sort tags so output is deterministic
+    tags_dict: dict[str, list[tuple[int, list[int]]]] = {}
+    for tag in sorted(tag_to_indices.keys()):
+        atomic_indices = sorted(tag_to_indices[tag])
+
+        # Build sub-Atoms object
+        entity = atoms[atomic_indices]
+        formula = entity.get_chemical_formula()
+
         if formula not in tags_dict:
             tags_dict[formula] = []
-        tags_dict[formula].append((key, atomic_indices))
+
+        tags_dict[formula].append((tag, atomic_indices))
 
     return tags_dict
 
@@ -57,21 +64,15 @@ def reassign_tags_by_species(atoms: Atoms) -> Atoms:
     num_atoms_in_substrate: int = 0
     for k, v in tags_dict.items():
         num_instances = len(v)
-        v_ = sorted(
-            v, key=lambda x: x[0]
-        )  # Make sure we have the entry that has tag=0 at the first
+        v_ = sorted(v, key=lambda x: x[0])  # Make sure we have the entry that has tag=0 at the first
         if v[0][0] == 0:
-            assert (
-                num_instances == 1
-            ), f"`{atoms}` must have only one substrate (tag==0)."
+            assert num_instances == 1, f"`{atoms}` must have only one substrate (tag==0)."
             substrate = k
             num_atoms_in_substrate = len(v[0][1])  # type: ignore
             break
     else:
         tag_min = atoms.get_tags().min()
-        assert (
-            tag_min > 0
-        ), f"`{atoms}` must have tags greater than 0 if no substrate (tag==0) is found."
+        assert tag_min > 0, f"`{atoms}` must have tags greater than 0 if no substrate (tag==0) is found."
 
     new_tags = [0] * num_atoms_in_substrate
     new_indices = list(range(num_atoms_in_substrate))
@@ -104,9 +105,7 @@ def sort_structures_by_tags(frames: list[Atoms]) -> list[Atoms]:
     return new_frames
 
 
-def get_structure_chemical_notation(
-    atoms: Atoms, chemical_types: list[str], padding_length: int = 4
-) -> str:
+def get_structure_chemical_notation(atoms: Atoms, chemical_types: list[str], padding_length: int = 4) -> str:
     """Get the chemical notation of a structure that can be sorted easily.
 
     Args:
@@ -124,27 +123,17 @@ def get_structure_chemical_notation(
     for k in chemical_types:
         num = counter.get(k, 0)
         if num >= 10**padding_length:
-            raise RuntimeError(
-                f"Too many atoms {num} for the padding length {padding_length}."
-            )
+            raise RuntimeError(f"Too many atoms {num} for the padding length {padding_length}.")
         notation += f"{num:>0{padding_length}d}"
 
     return notation
 
 
-def sort_structures_by_natoms_per_type(
-    frames: list[Atoms], chemical_types: list[str]
-) -> list[Atoms]:
+def sort_structures_by_natoms_per_type(frames: list[Atoms], chemical_types: list[str]) -> list[Atoms]:
     """"""
     frames = sorted(
         frames,
-        key=lambda a: get_structure_chemical_notation(
-            a, chemical_types, padding_length=4
-        ),
+        key=lambda a: get_structure_chemical_notation(a, chemical_types, padding_length=4),
     )
 
     return frames
-
-
-if __name__ == "__main__":
-    ...
