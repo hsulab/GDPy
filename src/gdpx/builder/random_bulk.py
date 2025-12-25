@@ -1,15 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import ase
+import ase.data
 import numpy as np
 from ase import Atoms
-from ase.data import atomic_numbers, covalent_radii
 from ase.ga.startgenerator import StartGenerator
 from ase.ga.utilities import CellBounds
 
@@ -91,7 +87,9 @@ def get_a_bulk_generator(
     rng=np.random,
 ) -> StartGenerator:
     """"""
-    composition_chemical_numbers = [atomic_numbers[s] for s in itertools.chain(*[[s] * n for s, n in composition])]
+    composition_chemical_numbers = [
+        ase.data.atomic_numbers[s] for s in itertools.chain(*[[s] * n for s, n in composition])
+    ]
 
     substrate = Atoms("", cell=box_to_place_in[1], pbc=True)
     if number_of_variable_cell_vectors == 0:
@@ -103,7 +101,7 @@ def get_a_bulk_generator(
         ...
 
         # Get the cell volume
-        radii = np.array([covalent_radii[x] for x in composition_chemical_numbers])
+        radii = np.array([ase.data.covalent_radii[x] for x in composition_chemical_numbers])
         regular_volume = np.sum([4 / 3.0 * np.pi * r**3 for r in radii])
         if cell_volume is None:
             cell_volume = regular_volume * (atomic_radius_ratio**3)
@@ -128,7 +126,6 @@ def get_a_bulk_generator(
 
 
 class RandomBulkBuilder(StructureModifier):
-
     name: str = "random_bulk"
 
     def __init__(
@@ -159,7 +156,7 @@ class RandomBulkBuilder(StructureModifier):
         super().__init__(*args, **kwargs)
 
         # Save init params
-        _init_params = dict(
+        _init_params: dict[str, Any] = dict(
             composition=composition,
             region=region,
             box=box,
@@ -351,16 +348,6 @@ class RandomBulkBuilder(StructureModifier):
 
         return frames
 
-    def _build_tolerance(self, unique_atom_types: list[int], ratio: float = 1.0):
-        """"""
-        blmin = closest_distances_generator(
-            atom_numbers=unique_atom_types,
-            # be careful with test too far
-            ratio_of_covalent_radii=ratio,
-        )
-
-        return blmin
-
     def _print_blmin(self, blmin):
         """"""
         elements = []
@@ -412,7 +399,6 @@ class RandomBulkBuilder(StructureModifier):
 
 
 class RandomClusterBuilder(StructureModifier):
-
     name: str = "random_cluster"
 
     def __init__(self, *args, **kwargs):
@@ -423,7 +409,6 @@ class RandomClusterBuilder(StructureModifier):
 
 
 class RandomSurfaceBuilder(StructureModifier):
-
     name: str = "random_surface"
 
     def __init__(self, *args, **kwargs):
@@ -431,7 +416,3 @@ class RandomSurfaceBuilder(StructureModifier):
         super().__init__(*args, **kwargs)
 
         raise Exception("Use `random_structure_improved` instead.")
-
-
-if __name__ == "__main__":
-    ...
