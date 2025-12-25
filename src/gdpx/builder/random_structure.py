@@ -1,11 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-import collections
 import copy
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import joblib
 import numpy as np
@@ -35,21 +30,14 @@ def stratified_random_structures(
     bond_distance_dict,
     outer_max_attempts: int,
     inner_max_attempts: int,
-    n_jobs,
-    rng,
-) -> list[list[Atoms]]:
+    n_jobs: int,
+    rng: np.random.Generator,
+) -> list[Atoms]:
     """"""
     # prepare inputs for parallel
-    prepared_substrates = [
-        copy.deepcopy(substrate) for _ in range(outer_max_attempts)
-    ]
-    prepared_fragments = [
-        composition_space.get_fragments_from_one_composition(rng)
-        for _ in range(outer_max_attempts)
-    ]
-    prepared_random_states = rng.integers(
-        low=0, high=RANDOM_INTEGER_HIGH, size=outer_max_attempts
-    )
+    prepared_substrates = [copy.deepcopy(substrate) for _ in range(outer_max_attempts)]
+    prepared_fragments = [composition_space.get_fragments_from_one_composition(rng) for _ in range(outer_max_attempts)]
+    prepared_random_states = rng.integers(low=0, high=RANDOM_INTEGER_HIGH, size=outer_max_attempts)
 
     backend = "loky"
     ret = joblib.Parallel(n_jobs=n_jobs, backend=backend)(
@@ -64,18 +52,15 @@ def stratified_random_structures(
             random_state=random_state,
             max_attempts=inner_max_attempts,
         )
-        for substrate, fragments, random_state in zip(
-            prepared_substrates, prepared_fragments, prepared_random_states
-        )
+        for substrate, fragments, random_state in zip(prepared_substrates, prepared_fragments, prepared_random_states)
     )
 
     structures = [a for a in ret if a is not None]
 
-    return structures  # type: ignore
+    return structures
 
 
 class RandomStructureImprovedModifier(StructureModifier):
-
     name: str = "random_structure_improved"
 
     def __init__(
@@ -98,7 +83,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         super().__init__(*args, **kwargs)
 
         # Save init params
-        self._init_params = dict(
+        self._init_params: dict[str, Any] = dict(
             composition=composition,
             region=region,
             box=box,
@@ -133,9 +118,7 @@ class RandomStructureImprovedModifier(StructureModifier):
             else:
                 self.box = None
         except:
-            raise RuntimeError(
-                f"box must be a (3,) or (3,3) array but `{box}` is given."
-            )
+            raise RuntimeError(f"box must be a (3,) or (3,3) array but `{box}` is given.")
 
         self.pbc = pbc
 
@@ -148,9 +131,7 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         self.use_tags = use_tags
         if not self.use_tags:
-            raise Exception(
-                "`random_structure_improved` must have use_tags to be True."
-            )
+            raise Exception("`random_structure_improved` must have use_tags to be True.")
 
         # Check region
         self.region = RegionVariable(**region).value
@@ -199,9 +180,7 @@ class RandomStructureImprovedModifier(StructureModifier):
     def get_bond_distance_dict(self, ratio: float = 1.0) -> dict:
         """"""
         chemical_numbers = self._infer_chemical_numbers_in_composition_space()
-        bond_distance_dict = get_bond_distance_dict(
-            chemical_numbers, ratio=ratio
-        )
+        bond_distance_dict = get_bond_distance_dict(chemical_numbers, ratio=ratio)
 
         return bond_distance_dict
 
@@ -219,9 +198,7 @@ class RandomStructureImprovedModifier(StructureModifier):
             ...
         else:
             if self.box is None:
-                raise RuntimeError(
-                    f"box must be set when substrates are not given."
-                )
+                raise RuntimeError(f"box must be set when substrates are not given.")
             self.substrates = [Atoms("", cell=self.box, pbc=self.pbc)]
 
         # Infer chemical species may occur in structures
@@ -233,17 +210,13 @@ class RandomStructureImprovedModifier(StructureModifier):
         #       enough structures are generated.
         frames = []
         for isub, substrate in enumerate(self.substrates):
-            self._print(
-                f"generating structures based on substrate-{isub:>04d}."
-            )
+            self._print(f"generating structures based on substrate-{isub:>04d}.")
             curr_frames = []
             for i in range(self.max_times_size):
                 num_curr_frames = len(curr_frames)
                 if num_curr_frames == size:
                     break
-                max_attempts = self.njobs * 2 ** int(
-                    np.log(size - num_curr_frames)
-                )
+                max_attempts = self.njobs * 2 ** int(np.log(size - num_curr_frames))
                 st = time.time()
                 batch_frames = stratified_random_structures(
                     substrate,
@@ -259,20 +232,16 @@ class RandomStructureImprovedModifier(StructureModifier):
                 )
                 et = time.time()
                 self._print(
-                    f"stride-{i:>04d} generates {len(batch_frames)} structures with {max_attempts} attempts in {et-st:.2f} seconds."
+                    f"stride-{i:>04d} generates {len(batch_frames)} structures with {max_attempts} attempts in {et - st:.2f} seconds."
                 )
                 for atoms in batch_frames:
                     curr_frames.append(atoms)
                     if len(curr_frames) == size:
-                        self._print(
-                            f"stride-{i:>04d} has already obtained {size} structures."
-                        )
+                        self._print(f"stride-{i:>04d} has already obtained {size} structures.")
                         break
             num_curr_frames = len(curr_frames)
             if num_curr_frames != size:
-                raise RuntimeError(
-                    f"Need {size} but only {num_curr_frames} are generated."
-                )
+                raise RuntimeError(f"Need {size} but only {num_curr_frames} are generated.")
             frames.extend(curr_frames)
 
         # Sort atoms in each structure by tags
@@ -293,7 +262,3 @@ class RandomStructureImprovedModifier(StructureModifier):
         params["method"] = self.name
 
         return params
-
-
-if __name__ == "__main__":
-    ...
