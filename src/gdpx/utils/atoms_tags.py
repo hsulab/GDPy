@@ -45,6 +45,7 @@ def get_tags_per_species(
 
         # Build sub-Atoms object
         entity = atoms[atomic_indices]
+        assert isinstance(entity, Atoms)
         formula = entity.get_chemical_formula()
 
         if formula not in tags_dict:
@@ -64,7 +65,7 @@ def reassign_tags_by_species(atoms: Atoms) -> Atoms:
     num_atoms_in_substrate: int = 0
     for k, v in tags_dict.items():
         num_instances = len(v)
-        v_ = sorted(v, key=lambda x: x[0])  # Make sure we have the entry that has tag=0 at the first
+        # v_ = sorted(v, key=lambda x: x[0])  # Make sure we have the entry that has tag=0 at the first
         if v[0][0] == 0:
             assert num_instances == 1, f"`{atoms}` must have only one substrate (tag==0)."
             substrate = k
