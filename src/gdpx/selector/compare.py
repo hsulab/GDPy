@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import io
 
@@ -23,10 +19,11 @@ from .selector import BaseSelector
 
 
 class CompareSelector(BaseSelector):
-
     name: str = "compare"
 
-    def __init__(self, comparator: dict, write_report: bool=False, *args, **kwargs) -> None:
+    print_period: int = 50
+
+    def __init__(self, comparator: dict, write_report: bool = False, *args, **kwargs) -> None:
         """Initialise the selector.
 
         Args:
@@ -60,13 +57,13 @@ class CompareSelector(BaseSelector):
         # Start from the first structure and compare structures by a given comparator
         if not hasattr(self.comparator, "prepare_data"):
             # Compare structures directly
-            selected_indices, scores = [0], []
+            selected_indices = [0]
             for i, a1 in enumerate(structures[1:]):
                 # Assume structures are sorted by energy,
                 # close structures may have a high possibility to be similar,
                 # so we compare reversely.
                 for j in selected_indices[::-1]:
-                    self._print(f"compare: {i+1} and {j}")
+                    self._print(f"compare: {i + 1} and {j}")
                     a2 = structures[j]
                     if self.comparator(a1, a2):
                         break
@@ -75,10 +72,14 @@ class CompareSelector(BaseSelector):
                     self._print(f"--->>> current indices: {selected_indices}")
         else:
             # Compare structure based on fingerprint
+            assert hasattr(self.comparator, "compare_fingerprints")
             fingerprints = self.comparator.prepare_data(structures)
+            num_fingerprints = len(fingerprints)
 
-            selected_indices, unique_groups, scores = [], {}, []
+            selected_indices, unique_groups = [], {}
             for i, fp in enumerate(fingerprints):
+                if i % self.print_period == 0:
+                    self._print(f"processing [{i:>4d}/{num_fingerprints:>4d}] structures")
                 for j in selected_indices[::-1]:  # j -> unique_group_index
                     # --- average ---
                     # # TODO: The ditribution maybe too wide?
@@ -88,8 +89,7 @@ class CompareSelector(BaseSelector):
                     # if self.comparator(fp, fp_avg):
                     #     unique_groups[j].append(i)
                     #     break
-                    # --- normal ---
-                    if self.comparator(fp, fingerprints[unique_groups[j][0]]):
+                    if self.comparator.compare_fingerprints(fp, fingerprints[unique_groups[j][0]]):
                         unique_groups[j].append(i)
                         break
                 else:
@@ -217,7 +217,3 @@ class CompareSelector(BaseSelector):
         image.drawHeight = 100
 
         return image
-
-
-if __name__ == "__main__":
-    ...
