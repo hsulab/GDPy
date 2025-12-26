@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+from typing import Optional
 
 import numpy as np
+from ase import Atoms
 from ase.geometry import find_mic
 
 from gdpx.group import evaluate_group_expression
@@ -11,18 +10,24 @@ from .comparator import BaseComparator
 
 
 class CartesianComparator(BaseComparator):
-
-    dtol_avg: float = 0.1  # displacement tolerance tolerance, Ang
-    dtol_std: float = 0.02  # displacement tolerance tolerance, Ang
-
-    mic: bool = True
-
-    group: str = None
-
     def __init__(
-        self, dtol_avg=0.1, dtol_std=0.02, mic=True, group=None, *args, **kwargs
+        self,
+        dtol_avg: float = 0.1,
+        dtol_std: float = 0.02,
+        mic: bool = True,
+        group: Optional[str] = None,
+        *args,
+        **kwargs,
     ):
-        """"""
+        """Initialise the comparator.
+
+        Args:
+            dtol_avg: The average displacement tolerance in Angstrom.
+            dtol_std: The standard deviation of displacement tolerance in Angstrom.
+            mic: Whether to apply minimum image convention (MIC) when calculating displacements.
+            group: The group expression to select atoms for comparison.
+
+        """
         super().__init__(*args, **kwargs)
 
         self.dtol_avg = dtol_avg
@@ -33,7 +38,7 @@ class CartesianComparator(BaseComparator):
 
         return
 
-    def looks_like(self, a1, a2) -> bool:
+    def looks_like(self, a1: Atoms, a2: Atoms) -> bool:
         """"""
         is_similar = False
         na1, na2 = len(a1), len(a2)
@@ -65,13 +70,13 @@ class CartesianComparator(BaseComparator):
                     #    dstd = np.sqrt(np.var(disps))
                     #    self._print(f"davg: {davg} dstd: {dstd}")
                     if self.mic:
-                        vectors, distances = find_mic(pos1 - pos2, c1, pbc=True)
+                        vectors, _ = find_mic(pos1 - pos2, c1, pbc=True)
                     else:
                         vectors = pos1 - pos2
                     disps = np.linalg.norm(vectors, axis=1)
                     davg = np.average(disps)
                     dstd = np.sqrt(np.var(disps))
-                    if davg <= self.dtol_avg:
+                    if davg <= self.dtol_avg and dstd <= self.dtol_std:
                         is_similar = True
             else:
                 ...
@@ -79,8 +84,3 @@ class CartesianComparator(BaseComparator):
             ...
 
         return is_similar
-
-
-if __name__ == "__main__":
-    ...
-
