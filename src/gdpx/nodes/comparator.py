@@ -5,7 +5,7 @@ from gdpx.session.variable import DummyVariable, Variable
 
 @registers.variable.register
 class ComparatorVariable(Variable):
-    def __init__(self, directory="./", *args, **kwargs):
+    def __init__(self, directory="./", **kwargs):
         """"""
         method = kwargs.pop("method", None)
         comparator = registers.create("comparator", method, convert_name=False, **kwargs)
