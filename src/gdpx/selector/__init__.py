@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from gdpx import config
 from gdpx.core.register import BaseRegister
 
@@ -35,6 +31,10 @@ from .scf import ScfSelector
 
 REGISTER.register("scf")(ScfSelector)
 
+from .sinfo import StructureInfoSelector
+
+REGISTER.register("structure_info")(StructureInfoSelector)
+
 try:
     # This selector depends on an external package dscribe.
     from .descriptor import DescriptorSelector
@@ -42,7 +42,3 @@ try:
     REGISTER.register("descriptor")(DescriptorSelector)
 except ImportError as e:
     config._print(f"  {'Selector':<16s} {'`descriptor`':<16s} -> require `{e.name}`.")
-
-
-if __name__ == "__main__":
-    ...
