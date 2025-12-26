@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import numpy as np
 from ase import Atoms
 
@@ -9,7 +5,6 @@ from gdpx.core.component import BaseComponent
 
 
 class BaseComparator(BaseComponent):
-
     def compare_composition(self, a1: Atoms, a2: Atoms) -> bool:
         """Compare two atoms based on number of atoms, chell, and chemical formula sequentially.
 
@@ -42,7 +37,3 @@ class BaseComparator(BaseComponent):
         """"""
 
         return self.looks_like(a1, a2)
-
-
-if __name__ == "__main__":
-    ...

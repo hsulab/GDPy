@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from gdpx.core.register import registers
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
@@ -9,7 +5,6 @@ from gdpx.session.variable import DummyVariable, Variable
 
 @registers.variable.register
 class ComparatorVariable(Variable):
-
     def __init__(self, directory="./", *args, **kwargs):
         """"""
         method = kwargs.pop("method", None)
@@ -21,7 +16,6 @@ class ComparatorVariable(Variable):
 
 @registers.operation.register
 class compare(Operation):
-
     status = "finished"  # Always finished since it is not time-consuming
 
     def __init__(self, reference, prediction=DummyVariable(), comparator=DummyVariable(), directory="./") -> None:
@@ -38,7 +32,3 @@ class compare(Operation):
         comparator.run(prediction, reference)
 
         return
-
-
-if __name__ == "__main__":
-    ...

@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("comparator")
@@ -25,7 +21,3 @@ REGISTER.register("single_point")(SinglePointComparator)
 from .reaction import ReactionComparator
 
 REGISTER.register("reaction")(ReactionComparator)
-
-
-if __name__ == "__main__":
-    ...

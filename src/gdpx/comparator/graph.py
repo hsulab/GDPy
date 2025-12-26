@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from typing import Optional
 
 import networkx as nx
@@ -84,7 +80,6 @@ def calculate_inertia_tensor(coordinates, atomic_masses):
 
 
 class GraphComparator(BaseComparator):
-
     def __init__(self, group=None, *args, **kwargs):
         """Initialise the comparator.
 
@@ -115,7 +110,15 @@ class GraphComparator(BaseComparator):
 
         return graphs
 
-    def looks_like(self, fp1, fp2):
+    def looks_like(self, a1: Atoms, a2: Atoms) -> bool:
+        """"""
+        fingerprints = self.prepare_data([a1, a2])
+        fp1, fp2 = fingerprints
+        is_similar = self.compare_fingerprints(fp1, fp2)
+
+        return is_similar
+
+    def compare_fingerprints(self, fp1, fp2):
         """"""
         is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(fp1, fp2, edge_match=bond_match)
 
@@ -171,7 +174,3 @@ class GraphComparator(BaseComparator):
         self._print(f" similar: {is_similar}")
 
         return is_similar
-
-
-if __name__ == "__main__":
-    ...
