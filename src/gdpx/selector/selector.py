@@ -11,7 +11,7 @@ from gdpx.core.component import BaseComponent
 from gdpx.data.array import AtomsNDArray
 
 
-def save_cache(fpath, data, random_seed: Optional[int] = None):
+def save_cache(fpath: pathlib.Path, data: list, random_seed: Optional[int] = None):
     """"""
     header = ("#{:>11s}  {:>8s}  {:>8s}  {:>8s}  " + "{:>12s}" * 4 + "\n").format(
         *"index confid step natoms ene aene maxfrc score".split()
@@ -29,22 +29,22 @@ def save_cache(fpath, data, random_seed: Optional[int] = None):
     return
 
 
-def load_cache(fpath, random_seed: Optional[int] = None):
+def load_cache(fpath: pathlib.Path) -> list:
     """"""
     with open(fpath, "r") as fopen:
         lines = fopen.readlines()
 
-    # - header
-    header = lines[0]
+    # Get header
+    # header = lines[0]
 
-    # - data
+    # Get data
     data = lines[1:-1]  # TODO: test empty data
 
+    # Parse data
     raw_markers = []
     if data:
-        # NOTE: new_markers looks like [(0,1),(0,2),(1,0)]
-        #       If no structures are selected, the info file should only contain
-        #       the header and the footer
+        # The new_markers looks like [(0,1),(0,2),(1,0)]
+        # If no structures are selected, the info file should only contain the header and the footer.
         new_markers = [[int(x) for x in (d.strip().split()[0]).split(",")] for d in data]
         # new_markers = []
         # for d in data:
@@ -57,9 +57,9 @@ def load_cache(fpath, random_seed: Optional[int] = None):
         #    new_markers.append(curr_marker)
         raw_markers = new_markers
 
-    # - footer
-    footer = lines[-1]
-    cache_random_seed = int(footer.strip().split()[-1])  # TODO: random state
+    # Get footer
+    # footer = lines[-1]
+    # cache_random_seed = int(footer.strip().split()[-1])  # TODO: random state
     # assert cache_random_seed == random_seed
 
     return raw_markers
@@ -117,14 +117,6 @@ class BaseSelector(BaseComponent):
         for k in self.parameters:
             if k in kwargs.keys():
                 self.parameters[k] = kwargs[k]
-
-        return
-
-    def set(self, *args, **kwargs):
-        """Set parameters."""
-        for k, v in kwargs.items():
-            if k in self.parameters:
-                self.parameters[k] = v
 
         return
 
@@ -233,13 +225,12 @@ class BaseSelector(BaseComponent):
 
     def _write_cached_results(self, aa: AtomsNDArray) -> None:
         """Write selection results into file that can be used for restart."""
-        # -
         markers = aa.markers
 
-        # - output
         data = []
         for ind in markers:
-            atoms: Atoms = aa[tuple(ind)]
+            atoms = aa[tuple(ind)]
+            assert isinstance(atoms, Atoms)
             # - gather info
             confid = atoms.info.get("confid", -1)
             step = atoms.info.get("step", -1)  # step number in the trajectory
