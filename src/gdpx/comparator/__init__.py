@@ -2,9 +2,9 @@ from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("comparator")
 
-from .cartesian import CartesianComparator
+from .cartesian import CartesianCoordinateComparator
 
-REGISTER.register("cartesian")(CartesianComparator)
+REGISTER.register("cartesian_coordinate")(CartesianCoordinateComparator)
 
 from .coordination import CoordinationComparator
 

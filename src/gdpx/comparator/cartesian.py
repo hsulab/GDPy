@@ -9,7 +9,7 @@ from gdpx.group import evaluate_group_expression
 from .comparator import BaseComparator
 
 
-class CartesianComparator(BaseComparator):
+class CartesianCoordinateComparator(BaseComparator):
     def __init__(
         self,
         dtol_avg: float = 0.1,
