@@ -38,15 +38,19 @@ def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
         skin=0.2,
         sorted=False,
         self_interaction=False,
-        bothways=False,
+        bothways=True,
     )
     nl.update(atoms)
+    used_pairs = set()
     for i in indices:
         nei_indices, _ = nl.get_neighbors(i)
         s_i = chemical_symbols[i]
         for j in nei_indices:
             s_j = chemical_symbols[j]
-            graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond="{}{}".format(*sorted([s_i, s_j])))
+            pair = tuple(sorted([i, j]))
+            if pair not in used_pairs:
+                graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond="{}{}".format(*sorted([s_i, s_j])))
+                used_pairs.add(pair)
 
     return graph
 
