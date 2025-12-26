@@ -14,7 +14,9 @@ from .comparator import BaseComparator
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
 
-def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
+def create_a_graph(
+    atoms: Atoms, indices: Optional[list[int]] = None, ignored_bonds: Optional[list[str]] = None
+) -> nx.Graph:
     """Create a graph from an ASE atoms object.
 
     This creates a graph simply based on the connectivities between atoms.
@@ -26,6 +28,9 @@ def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
     natoms = len(atoms)
     if indices is None:
         indices = list(range(natoms))
+
+    if ignored_bonds is None:
+        ignored_bonds = []
 
     chemical_symbols = atoms.get_chemical_symbols()
 
@@ -41,6 +46,7 @@ def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
         bothways=True,
     )
     nl.update(atoms)
+
     used_pairs = set()
     for i in indices:
         nei_indices, _ = nl.get_neighbors(i)
@@ -48,8 +54,9 @@ def create_a_graph(atoms: Atoms, indices: Optional[list[int]] = None):
         for j in nei_indices:
             s_j = chemical_symbols[j]
             pair = tuple(sorted([i, j]))
-            if pair not in used_pairs:
-                graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond="{}{}".format(*sorted([s_i, s_j])))
+            bond = "{}{}".format(*sorted([s_i, s_j]))
+            if pair not in used_pairs and bond not in ignored_bonds:
+                graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond=bond)
                 used_pairs.add(pair)
 
     return graph
@@ -84,7 +91,9 @@ def calculate_inertia_tensor(coordinates, atomic_masses):
 
 
 class GraphComparator(BaseComparator):
-    def __init__(self, group=None, *args, **kwargs):
+    def __init__(
+        self, group: Optional[str] = None, ignored_pairs: Optional[list[tuple[str, str]]] = None, *args, **kwargs
+    ):
         """Initialise the comparator.
 
         Args:
@@ -95,13 +104,20 @@ class GraphComparator(BaseComparator):
 
         self.group = group
 
+        ignore_pairs_ = []
+        if ignored_pairs is not None:
+            for s1, s2 in ignored_pairs:
+                ignore_pairs_.append("".join([s1, s2]))
+                ignore_pairs_.append("".join([s2, s1]))
+        self.ignored_pairs = ignore_pairs_
+
         return
 
     @staticmethod
-    def _process_single_structure(atoms: Atoms, group: str) -> nx.Graph:
+    def _process_single_structure(atoms: Atoms, group: str, ignored_pairs: list[str]) -> nx.Graph:
         """"""
         group_indices = evaluate_group_expression(atoms, group)
-        graph = create_a_graph(atoms, group_indices)
+        graph = create_a_graph(atoms, group_indices, ignored_pairs)
 
         return graph
 
@@ -109,7 +125,7 @@ class GraphComparator(BaseComparator):
         """"""
         with CustomTimer(name="creating graphs", func=self._print):
             graphs = Parallel(n_jobs=self.njobs)(
-                delayed(self._process_single_structure)(atoms, self.group) for atoms in frames
+                delayed(self._process_single_structure)(atoms, self.group, self.ignored_pairs) for atoms in frames
             )
 
         return graphs
