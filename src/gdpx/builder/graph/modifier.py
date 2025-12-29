@@ -4,7 +4,7 @@ from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
-from gdpx.graph.comparison import unique_chem_envs
+from gdpx.graph.expand import get_unique_chemical_environments_among_goups
 from gdpx.utils.profiler import CustomTimer
 
 from ..builder import StructureModifier
@@ -60,31 +60,30 @@ class GraphModifier(StructureModifier):
     def _compare_structures(self, ret_frames: list[Atoms], graph_params: dict, group: str):
         """"""
         with CustomTimer(name="create-graphs", func=self._print):
-            ret = Parallel(n_jobs=self.njobs)(
+            chem_env_groups = Parallel(n_jobs=self.njobs)(
                 delayed(single_create_structure_graph)(a, group, **graph_params) for a in ret_frames
             )
 
         # Check if the ret is empty, it happens when all species are removed/exchanged...
         chemical_environments = []
-        for x in ret:
+        for x in chem_env_groups:
             chemical_environments.extend(x)  # type: ignore
 
         if chemical_environments:
-            ret_env_groups = ret
             self._print("Typical Chemical Environment " + str(chemical_environments[0]))
             with CustomTimer(name="check-uniqueness", func=self._print):
-                _, unique_groups = unique_chem_envs(ret_env_groups, list(enumerate(ret_frames)))
+                _, unique_groups = get_unique_chemical_environments_among_goups(chem_env_groups)  # type: ignore
 
             # Get unique structures
             created_frames = []
             for x in unique_groups:
-                created_frames.append(x[0][1])
+                created_frames.append(ret_frames[x[0]])
             num_candidates = len(created_frames)
 
             unique_data = []
             for i, x in enumerate(unique_groups):
                 data = ["ug" + str(i)]
-                data.extend([a[0] for a in x])
+                data.extend([a for a in x])
                 unique_data.append(data)
             content = "# unique, indices\n"
             content += f"# ncandidates {num_candidates}\n"

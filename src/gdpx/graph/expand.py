@@ -208,6 +208,74 @@ def get_unique_chemical_environments_by_bonds(chem_envs: list[nx.Graph]) -> list
     return unique_indices
 
 
+def compare_chemical_environments_within_two_groups(chem_envs1: list[nx.Graph], chem_envs2: list[nx.Graph]) -> bool:
+    """Compares two sets of chemical environments to see if they are the same in chemical identity.
+
+    Useful for detecting if two sets of adsorbates are in the same configurations.
+
+    Args:
+        chem_envs1: A list of chemical environments including duplicate adsorbates
+        chem_envs2: A list of chemical environments, including duplicate adsorbates
+
+    Returns:
+        bool: Is there a matching graph (site / adsorbate) for each graph.
+
+    """
+    # Check the number of environments first
+    if len(chem_envs1) != len(chem_envs2):
+        return False
+
+    envs_copy = chem_envs2[:]  # Make copy of list
+
+    # Check if chem_envs1 matches chem_envs2 by removing from envs_copy
+    for env1 in chem_envs1:
+        for env2 in envs_copy:
+            if nx.algorithms.isomorphism.is_isomorphic(env1, env2, edge_match=edge_match):
+                # Remove this from envs_copy and move onto next env in chem_envs1
+                envs_copy.remove(env2)
+                break
+
+    # Everything should have been removed from envs_copy if everything had a match
+    if len(envs_copy) > 0:
+        return False
+
+    return True
+
+
+def get_unique_chemical_environments_among_goups(chem_envs_groups: list[list[nx.Graph]]):
+    """Given a list of chemical environments, find the unique environments and keep track of metadata if required.
+
+    This function exists largely to help with unique site detection
+    but its performance will scale badly with extremely large numbers
+    of chemical environments to check.  This may be split into parallel
+    jobs.
+
+    Args:
+        chem_env_groups: Chemical environments to compare against each other
+
+    Returns:
+        list[list[list[networkx.Graph]]]: A list of unique chemical environments
+                                          with their duplicates
+        list[list[object]]: A matching list of metadata
+    """
+    if len(chem_envs_groups) == 0:
+        return [[], []]
+
+    # Keep track of known unique environments
+    unique_env_groups = []
+
+    for i, env_group in enumerate(chem_envs_groups):
+        for _, (unique_indices, unique_env_group) in enumerate(unique_env_groups):
+            if compare_chemical_environments_within_two_groups(env_group, unique_env_group):
+                unique_indices.append(i)
+                break
+        else:  # was unique
+            unique_env_groups.append(([i], env_group))
+
+    # Zip trick to split into two lists to return
+    return zip(*[(env, indices) for (indices, env) in unique_env_groups])
+
+
 expand_graph_functions = ExpandGraphFunctions(
     node_id_func=node_id_func,
     add_edge_func=add_edge_func,
