@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import dataclasses
 import pathlib
@@ -38,7 +34,6 @@ class GraphRadius:
 
 
 class NeighGraphCreator:
-
     # Parameters for ASE neighbor list.
     covalent_ratio: float = 1.0  #: Multiplier for the covalent bond distance.
     skin = 0.0  # TODO: the neighbours will be in cutoff + skin
@@ -118,7 +113,6 @@ class StruGraphCreator:
 
     @property
     def directory(self):
-
         return self._directory
 
     @directory.setter
@@ -130,12 +124,10 @@ class StruGraphCreator:
 
     @property
     def DIS_SURF2SURF(self):
-
         return 2
 
     @property
     def DIS_ADS2SURF(self):
-
         return 1
 
     def add_atoms_node(self, graph, sym1, a1, o1, **kwargs):
@@ -379,7 +371,3 @@ def extract_chem_envs(
     # chem_envs.sort(key=lambda x: len(x.edges()))
 
     return chem_envs.copy()
-
-
-if __name__ == "__main__":
-    ...

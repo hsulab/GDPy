@@ -25,7 +25,9 @@ def single_remove_adsorbate(
 ) -> Tuple[list[Atoms], list[nx.Graph]]:
     """Remove selected particles from the structure.
 
-    Currently, only single atom can be removed. TODO: molecule.
+    Currently, only single atom can be removed.
+
+    TODO: molecule.
 
     Args:
         graph_params: Parameters for creating graphs.
@@ -36,30 +38,28 @@ def single_remove_adsorbate(
     stru_creator = StruGraphCreator(**graph_params)
 
     # Check if spec_indices are all species
-    group_indices = evaluate_group_expression(atoms, group)
+    group_indices = sorted(evaluate_group_expression(atoms, group))
     debug_func(f"group_indices to remove {group_indices}")
 
-    # TODO: tags for molecule?
     chemical_symbols = atoms.get_chemical_symbols()
     for i in group_indices:
         if chemical_symbols[i] != species:
             raise RuntimeError("Species to remove is inconsistent for those by indices.")
 
-    # - get chem envs
+    # Get chemical environments from graph
     graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
     chem_envs = extract_chem_envs(graph, atoms, group_indices, stru_creator.graph_radius)
 
-    # NOTE: for single atom adsorption,
+    # Make sure only single atoms are removed
     assert len(chem_envs) == len(group_indices), (
         "Single atoms group into one adsorbate. Try reducing the covalent radii."
     )
-    # TODO: for molecule adsorption
 
-    # - find unique sites to remove for this structure
+    # Find unique sites to remove for this structure
     unique_indices = get_unique_environments_based_on_bonds(chem_envs)
     unique_envs = [chem_envs[i] for i in unique_indices]
 
-    # - create sctructures
+    # Create sctructures with removed adsorbate
     unique_frames = []
     for g in unique_envs:
         for u, d in g.nodes.data():
@@ -82,7 +82,7 @@ class GraphRemoveModifier(GraphModifier):
 
     def __init__(
         self,
-        species: list[str],
+        species: str,
         spectators: list[str],
         group: str,
         substrates: Optional[list[Atoms]] = None,
@@ -99,11 +99,6 @@ class GraphRemoveModifier(GraphModifier):
 
         self.spectators = spectators
         self.graph_params = graph
-
-        # self.check_site_unique = True
-        # adsorbate_indices
-        # site_radius
-        # region
 
         return
 
