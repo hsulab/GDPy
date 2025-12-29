@@ -1,7 +1,6 @@
 import networkx as nx
 import numpy as np
 from ase import Atom, Atoms
-from ase.neighborlist import NeighborList
 
 from gdpx.group import evaluate_group_expression
 
@@ -168,45 +167,5 @@ def find_adsorption_sites_by_graph(
         else:  # fall back to default normal
             avg_normal = default_surface_normal
         site["normal"] = avg_normal
-
-    return sites
-
-
-def find_adsorption_sites_by_pair(
-    atoms: Atoms,
-    group_expr: str,
-    cutoff: float = 3.0,
-    max_order: int = 2,
-    surf_index: int = 2,
-):
-    """Find adsorption sites on a surface."""
-    num_atoms = len(atoms)
-    box = atoms.get_cell()
-
-    selected_indices = sorted(evaluate_group_expression(atoms, group_expr))
-
-    nlist = NeighborList([cutoff / 2.0] * num_atoms, self_interaction=False, bothways=False)
-    nlist.update(atoms)
-
-    pairs = []
-    for i in selected_indices:
-        n_indices, n_offsets = nlist.get_neighbors(i)
-        for j, o in zip(n_indices, n_offsets):
-            if j in selected_indices:
-                pairs.append(((i, j), o))
-
-    sites = []
-    for (i, j), o in pairs:
-        pos_i = atoms.positions[i]
-        pos_j = atoms.positions[j] + np.dot(o, box)
-        site_position = (pos_i + pos_j) / 2
-        site_direction = pos_j - pos_i
-        sites.append(
-            {
-                "atoms": (i, j),
-                "position": site_position,
-                "direction": site_direction,
-            }
-        )
 
     return sites
