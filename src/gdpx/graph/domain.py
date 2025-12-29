@@ -8,11 +8,12 @@ from .base import NeighbourData
 
 
 class NodeID(NamedTuple):
+    sym: str
     idx: int
     shift: tuple[int, int, int]
 
 
-def canonicalize_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, int, int]:
+def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, int, int]:
     """
     Convert any integer-like iterable (possibly np.int32 or np.int64) into a tuple of Python ints.
     This ensures consistent hashing and equality in NetworkX.
@@ -23,27 +24,43 @@ def canonicalize_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, i
 
 
 def build_domain_graph(atoms: Atoms, neigh: NeighbourData, group_indices: list[int]) -> nx.Graph:
-    """"""
-    group_indices = sorted(group_indices)
+    """Build a domain graph from ASE Atoms and neighbor data.
 
-    box = atoms.get_cell(complete=True)
+    The nodes include both local (shift=(0,0,0)) and ghost atoms.
+    The ghost atoms are implicitly added when adding edges.
+
+    Args:
+        atoms: ASE Atoms object representing the structure.
+        neigh: Neighbor data containing senders, receivers, distances, and shifts.
+        group_indices: List of atom indices to include in the graph.
+
+    Returns:
+        A NetworkX graph representing the domain.
+
+    """
+    group_indices = sorted(group_indices)
 
     senders, receivers, distances, shifts = neigh.senders, neigh.receivers, neigh.distances, neigh.shifts
 
+    # Create graph
     graph = nx.Graph()
 
+    # add nodes and edges
+    chemical_symbols = atoms.get_chemical_symbols()
     for i in group_indices:
         graph.add_node(
-            NodeID(int(i), canonicalize_shift((0, 0, 0))),
+            NodeID(chemical_symbols[i], int(i), canonicalise_shift((0, 0, 0))),
         )
 
     used_pairs = set()
     for i, j, d, s in zip(senders, receivers, distances, shifts):
         pair = tuple(sorted([i, j]))
         if (i in group_indices and j in group_indices) and (i != j) and pair not in used_pairs:
-            u = NodeID(idx=int(i), shift=canonicalize_shift((0, 0, 0)))
-            v = NodeID(idx=int(j), shift=canonicalize_shift(s))
-            graph.add_edge(u, v, distance=d)
+            s_i, s_j = chemical_symbols[i], chemical_symbols[j]
+            bond = "{}-{}".format(*sorted([s_i, s_j]))
+            u = NodeID(sym=s_i, idx=int(i), shift=canonicalise_shift((0, 0, 0)))
+            v = NodeID(sym=s_j, idx=int(j), shift=canonicalise_shift(s))
+            graph.add_edge(u, v, bond=bond, distance=d)
             used_pairs.add(pair)
 
     return graph

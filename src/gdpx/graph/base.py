@@ -10,11 +10,6 @@ from ase import Atoms
 from ase.neighborlist import neighbor_list
 
 
-class NodeID(NamedTuple):
-    idx: int
-    shift: tuple[int, int, int]
-
-
 class NeighbourData(NamedTuple):
     senders: np.ndarray
     receivers: np.ndarray
@@ -80,7 +75,7 @@ def build_partial_graph(
         pair = tuple(sorted([i, j]))
         if is_edge_valid(i, j) and (i != j) and pair not in used_pairs:
             # No information of ghost atoms is stored in the graph!!
-            # If the box is too small, the edge between two atoms may appear multiple times with different shifts, 
+            # If the box is too small, the edge between two atoms may appear multiple times with different shifts,
             # which are not considered here.
             s_i, s_j = chemical_symbols[i], chemical_symbols[j]
             n_i, n_j = ase.data.atomic_numbers[s_i], ase.data.atomic_numbers[s_j]
