@@ -11,6 +11,7 @@ from ase.ga.standardmutations import RattleMutation, StrainMutation
 
 from .comparator.interatomic_distance import InteratomicDistanceComparator
 from .mutation.bounce import BounceMutation
+from .mutation.cluster import ClusterRattleMutation
 from .mutation.exchange import ExchangeMutation
 from .mutation.mirror import MirrorMutation
 from .mutation.rattle import RattleBufferMutation
@@ -38,6 +39,7 @@ MUTATIONS: dict[str, Any] = dict(
     strain=StrainMutation,
     # Custom mutations
     bounce=BounceMutation,
+    cluster_rattle=ClusterRattleMutation,
     exchange=ExchangeMutation,
     rattle_buffer=RattleBufferMutation,
     swap=SwapMutation,
