@@ -209,7 +209,7 @@ def get_unique_chemical_environments_by_bonds(chem_envs: list[nx.Graph]) -> list
 
 
 def compare_chemical_environments_within_two_groups(chem_envs1: list[nx.Graph], chem_envs2: list[nx.Graph]) -> bool:
-    """Compares two sets of chemical environments to see if they are the same in chemical identity.
+    """Compares two sets of chemical environments to see if they are one-to-one matching.
 
     Useful for detecting if two sets of adsorbates are in the same configurations.
 
@@ -221,23 +221,24 @@ def compare_chemical_environments_within_two_groups(chem_envs1: list[nx.Graph], 
         bool: Is there a matching graph (site / adsorbate) for each graph.
 
     """
-    # Check the number of environments first
     if len(chem_envs1) != len(chem_envs2):
         return False
 
-    envs_copy = chem_envs2[:]  # Make copy of list
+    used = [False] * len(chem_envs2)
 
-    # Check if chem_envs1 matches chem_envs2 by removing from envs_copy
-    for env1 in chem_envs1:
-        for env2 in envs_copy:
-            if nx.algorithms.isomorphism.is_isomorphic(env1, env2, edge_match=edge_match):
-                # Remove this from envs_copy and move onto next env in chem_envs1
-                envs_copy.remove(env2)
+    for e1 in chem_envs1:
+        found = False
+        for j, e2 in enumerate(chem_envs2):
+            if used[j]:
+                continue
+            if nx.algorithms.isomorphism.is_isomorphic(e1, e2, edge_match=edge_match):
+                used[j] = True
+                found = True
                 break
+        if not found:
+            return False
 
-    # Everything should have been removed from envs_copy if everything had a match
-    if len(envs_copy) > 0:
-        return False
+    assert all(used)
 
     return True
 
