@@ -132,22 +132,27 @@ def prune_graph_by_ignored_bonds(
 
 
 class AtomicGraph:
-    def __init__(self, atoms: Atoms, graph_type: str = "partial"):
+    def __init__(self, atoms: Atoms, graph_type: str = "partial", **kwargs) -> None:
         """"""
         match graph_type:
             case "partial":
+                build_func = build_atomic_graph
                 graph_functions = partial_graph_functions
                 self.self_interaction = False
             case "domain":
+                build_func = build_atomic_graph
                 graph_functions = domain_graph_functions
                 self.self_interaction = True
             case _:
                 raise Exception(f"Unknown graph building method `{graph_type}`.")
 
+        self.graph_type = graph_type
+
         self._build = functools.partial(
-            build_atomic_graph,
+            build_func,
             node_id_func=graph_functions.node_id_func,
             add_edge_func=graph_functions.add_edge_func,
+            **kwargs,
         )
 
         self._atoms: Atoms = atoms
@@ -161,7 +166,6 @@ class AtomicGraph:
         cutoff: Optional[float] = None,
         ratio: float = 1.03,
         skin: float = 0.0,
-        include_edges_outside: bool = False,
         ignored_bonds: Optional[list[str]] = None,
     ) -> None:
         """"""
@@ -186,7 +190,6 @@ class AtomicGraph:
             self._atoms,
             self._neigh,
             group_indices=group_indices,
-            include_edges_outside=include_edges_outside,
         )
         if ignored_bonds is not None:
             self._graph = prune_graph_by_ignored_bonds(

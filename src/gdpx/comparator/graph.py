@@ -41,10 +41,8 @@ class GraphComparator(BaseComparator):
         """"""
         group_indices = evaluate_group_expression(atoms, group)
 
-        graph_builder = AtomicGraph(atoms, graph_type="partial")
-        graph_builder.build(
-            group_indices=group_indices, ratio=1.0, skin=0.2, include_edges_outside=True, ignored_bonds=ignored_pairs
-        )
+        graph_builder = AtomicGraph(atoms, graph_type="partial", include_edges_outside=True)
+        graph_builder.build(group_indices=group_indices, ratio=1.0, skin=0.2, ignored_bonds=ignored_pairs)
         graph = graph_builder.graph
         assert isinstance(graph, nx.Graph)
 
