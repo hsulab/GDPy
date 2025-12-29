@@ -1,6 +1,6 @@
 import copy
 import itertools
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import ase.data
 import networkx as nx
@@ -8,14 +8,8 @@ import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
 
+from .data import NeighbourData
 from .domain import build_domain_graph
-
-
-class NeighbourData(NamedTuple):
-    senders: np.ndarray
-    receivers: np.ndarray
-    distances: np.ndarray
-    shifts: np.ndarray
 
 
 def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02, skin: float = 0.0) -> dict[tuple[int, int], float]:

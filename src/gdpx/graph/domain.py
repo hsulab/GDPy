@@ -4,12 +4,7 @@ import networkx as nx
 import numpy as np
 from ase import Atoms
 
-
-class NeighbourData(NamedTuple):
-    senders: np.ndarray
-    receivers: np.ndarray
-    distances: np.ndarray
-    shifts: np.ndarray
+from .data import NeighbourData
 
 
 class NodeID(NamedTuple):
