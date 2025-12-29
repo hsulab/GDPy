@@ -22,7 +22,7 @@ class NeighbourData(NamedTuple):
     shifts: np.ndarray
 
 
-def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02) -> dict[tuple[int, int], float]:
+def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02, skin: float = 0.0) -> dict[tuple[int, int], float]:
     """"""
     chemical_symbols = atoms.get_chemical_symbols()
     bond_pairs = itertools.combinations_with_replacement(set(chemical_symbols), 2)
@@ -30,32 +30,10 @@ def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02) -> dict[tuple[int,
     for s1, s2 in bond_pairs:
         n1, n2 = ase.data.atomic_numbers[s1], ase.data.atomic_numbers[s2]
         r1, r2 = ase.data.covalent_radii[n1], ase.data.covalent_radii[n2]
-        bond_distance_dict[(n1, n2)] = (r1 + r2) * ratio
-        bond_distance_dict[(n2, n1)] = (r1 + r2) * ratio
+        bond_distance_dict[(n1, n2)] = (r1 + r2) * ratio + skin * 2
+        bond_distance_dict[(n2, n1)] = (r1 + r2) * ratio + skin * 2
 
     return bond_distance_dict
-
-
-def build_domain_graph(
-    atoms: Atoms,
-    neigh: NeighbourData,
-    indices: Optional[list[int]] = None,
-    bond_distance_dict: Optional[dict[tuple[int, int], float]] = None,
-):
-    """"""
-
-    return
-
-
-def build_periodic_graph(
-    atoms: Atoms,
-    neigh: NeighbourData,
-    indices: Optional[list[int]] = None,
-    bond_distance_dict: Optional[dict[tuple[int, int], float]] = None,
-):
-    """"""
-
-    return
 
 
 def build_partial_graph(
@@ -63,10 +41,19 @@ def build_partial_graph(
     neigh: NeighbourData,
     indices: Optional[list[int]] = None,
     bond_distance_dict: Optional[dict[tuple[int, int], float]] = None,
+    include_neighbors: bool = False,
 ) -> nx.Graph:
     """Build graph from partial atoms.
 
-    Nodes and edges are created only for the given indices.
+    Nodes are created only for the given indices.
+    Edges are created only between the given indices if include_neighbors is False.
+
+    Args:
+        atoms: The ASE Atoms object.
+        neigh: The neighbour data containing senders, receivers, distances, and shifts.
+        indices: The indices of atoms to include in the graph. If None, include all atoms.
+        bond_distance_dict: A dictionary mapping atomic number pairs to bond distance thresholds. If None, it will be computed.
+        include_neighbors: Whether to include edges to neighboring atoms outside.
 
     """
     num_atoms = len(atoms)
@@ -84,9 +71,13 @@ def build_partial_graph(
     for i in indices:
         graph.add_node(chemical_symbols[i] + "_" + str(i))
 
+    is_edge_valid = (
+        lambda i, j: (i in indices and j in indices) if not include_neighbors else (i in indices or j in indices)
+    )
+
     used_pairs = set()
     for i, j, d, s in zip(senders, receivers, distances, shifts):
-        if (i in indices and j in indices) and i != j:  # no periodic images
+        if is_edge_valid(i, j) and i != j:  # no periodic images
             # check bond distance
             s_i, s_j = chemical_symbols[i], chemical_symbols[j]
             n_i, n_j = ase.data.atomic_numbers[s_i], ase.data.atomic_numbers[s_j]
@@ -182,10 +173,6 @@ class AtomicGraph:
     def __init__(self, atoms: Atoms, graph_type: str = "partial"):
         """"""
         match graph_type:
-            case "domain":
-                self._build = build_domain_graph
-            case "periodic":
-                self._build = build_periodic_graph
             case "partial":
                 self._build = functools.partial(build_partial_graph)
             case _:
@@ -196,9 +183,15 @@ class AtomicGraph:
 
         return
 
-    def build(self, indices: Optional[list[int]] = None) -> None:
+    def build(
+        self,
+        indices: Optional[list[int]] = None,
+        ratio: float = 1.03,
+        skin: float = 0.0,
+        include_neighbors: bool = False,
+    ) -> None:
         """"""
-        bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=1.03)
+        bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
         cutoff = max(bond_distance_dict.values())
         self._neigh = prune_neighbour_data_by_bond_distance(
             self._atoms,
@@ -206,9 +199,20 @@ class AtomicGraph:
             bond_distance_dict=bond_distance_dict,
         )
 
-        self._graph = self._build(self._atoms, self._neigh, indices=indices, bond_distance_dict=bond_distance_dict)
+        self._graph = self._build(
+            self._atoms,
+            self._neigh,
+            indices=indices,
+            bond_distance_dict=bond_distance_dict,
+            include_neighbors=include_neighbors,
+        )
 
         return
+
+    @property
+    def graph(self) -> Optional[nx.Graph]:
+        """"""
+        return self._graph
 
     def get_cluster_indices(self) -> list[list[int]]:
         """"""

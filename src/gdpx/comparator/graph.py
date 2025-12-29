@@ -3,9 +3,9 @@ from typing import Optional
 import networkx as nx
 import numpy as np
 from ase import Atoms
-from ase.neighborlist import NeighborList, natural_cutoffs
 from joblib import Parallel, delayed
 
+from gdpx.graph.base import AtomicGraph
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
 
@@ -14,50 +14,34 @@ from .comparator import BaseComparator
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
 
-def create_a_graph(
+def build_graph(
     atoms: Atoms, indices: Optional[list[int]] = None, ignored_bonds: Optional[list[str]] = None
 ) -> nx.Graph:
-    """Create a graph from an ASE atoms object.
+    """"""
+    indices = indices if indices is not None else list(range(len(atoms)))
 
-    This creates a graph simply based on the connectivities between atoms.
-    Thus, the spatial information is lost.
+    graph_builder = AtomicGraph(atoms, graph_type="partial")
+    graph_builder.build(indices=indices, ratio=1.0, skin=0.2, include_neighbors=True)
 
-    TODO: Better strategy to treat periodic boundary conditions.
-
-    """
-    natoms = len(atoms)
-    if indices is None:
-        indices = list(range(natoms))
-
-    if ignored_bonds is None:
-        ignored_bonds = []
-
-    chemical_symbols = atoms.get_chemical_symbols()
-
-    graph = nx.Graph()
-    for i in indices:
-        graph.add_node(chemical_symbols[i] + "_" + str(i))
-
-    nl = NeighborList(
-        cutoffs=natural_cutoffs(atoms, mult=1),
-        skin=0.2,
-        sorted=False,
-        self_interaction=False,
-        bothways=True,
-    )
-    nl.update(atoms)
-
-    used_pairs = set()
-    for i in indices:
-        nei_indices, _ = nl.get_neighbors(i)
-        s_i = chemical_symbols[i]
-        for j in nei_indices:
-            s_j = chemical_symbols[j]
-            pair = tuple(sorted([i, j]))
-            bond = "{}{}".format(*sorted([s_i, s_j]))
-            if pair not in used_pairs and bond not in ignored_bonds:
-                graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond=bond)
-                used_pairs.add(pair)
+    # Remove edges by ignored bonds
+    graph = graph_builder.graph
+    assert isinstance(graph, nx.Graph)
+    if ignored_bonds is not None:
+        edges_to_remove = []
+        for u, v, data in graph.edges(data=True):
+            bond = data.get("bond", "")
+            if bond in ignored_bonds:
+                edges_to_remove.append((u, v))
+        graph.remove_edges_from(edges_to_remove)
+        # we keep only nodes that are in edges or in indices
+        node_ids_in_edges = set()
+        for u, v in graph.edges():
+            node_ids_in_edges.add(u)
+            node_ids_in_edges.add(v)
+        nodes_to_remove = [
+            u for u in graph.nodes() if u not in node_ids_in_edges and int(u.split("_")[-1]) not in indices
+        ]
+        graph.remove_nodes_from(nodes_to_remove)
 
     return graph
 
@@ -107,8 +91,8 @@ class GraphComparator(BaseComparator):
         ignore_pairs_ = []
         if ignored_pairs is not None:
             for s1, s2 in ignored_pairs:
-                ignore_pairs_.append("".join([s1, s2]))
-                ignore_pairs_.append("".join([s2, s1]))
+                ignore_pairs_.append("-".join([s1, s2]))
+                ignore_pairs_.append("-".join([s2, s1]))
         self.ignored_pairs = ignore_pairs_
 
         return
@@ -117,7 +101,7 @@ class GraphComparator(BaseComparator):
     def _process_single_structure(atoms: Atoms, group: str, ignored_pairs: list[str]) -> nx.Graph:
         """"""
         group_indices = evaluate_group_expression(atoms, group)
-        graph = create_a_graph(atoms, group_indices, ignored_pairs)
+        graph = build_graph(atoms, group_indices, ignored_pairs)
 
         return graph
 
@@ -165,8 +149,8 @@ class GraphComparator(BaseComparator):
             else:
                 ...
             # Create graphs
-            graph_1 = create_a_graph(a1, group_indices)
-            graph_2 = create_a_graph(a2, group_indices)
+            graph_1 = build_graph(a1, group_indices)
+            graph_2 = build_graph(a2, group_indices)
             # matcher = nx.algorithms.isomorphism.GraphMatcher(
             #     graph_1, graph_2, edge_match=bond_match
             # )
