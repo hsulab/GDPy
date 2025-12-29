@@ -169,6 +169,29 @@ def prune_neighbour_data_by_bond_distance(
     return NeighbourData(senders, receivers, distances, shifts)
 
 
+def prune_graph_by_ignored_bonds(
+    graph: nx.Graph,
+    indices: list[int],
+    ignored_bonds: list[str],
+) -> nx.Graph:
+    """"""
+    edges_to_remove = []
+    for u, v, data in graph.edges(data=True):
+        bond = data.get("bond", "")
+        if bond in ignored_bonds:
+            edges_to_remove.append((u, v))
+    graph.remove_edges_from(edges_to_remove)
+    # we keep only nodes that are in edges or in indices
+    node_ids_in_edges = set()
+    for u, v in graph.edges():
+        node_ids_in_edges.add(u)
+        node_ids_in_edges.add(v)
+    nodes_to_remove = [u for u in graph.nodes() if u not in node_ids_in_edges and int(u.split("_")[-1]) not in indices]
+    graph.remove_nodes_from(nodes_to_remove)
+
+    return graph
+
+
 class AtomicGraph:
     def __init__(self, atoms: Atoms, graph_type: str = "partial"):
         """"""
@@ -189,8 +212,11 @@ class AtomicGraph:
         ratio: float = 1.03,
         skin: float = 0.0,
         include_neighbors: bool = False,
+        ignored_bonds: Optional[list[str]] = None,
     ) -> None:
         """"""
+        indices = indices if indices is not None else list(range(len(self._atoms)))
+
         bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
         cutoff = max(bond_distance_dict.values())
         self._neigh = prune_neighbour_data_by_bond_distance(
@@ -206,6 +232,12 @@ class AtomicGraph:
             bond_distance_dict=bond_distance_dict,
             include_neighbors=include_neighbors,
         )
+        if ignored_bonds is not None:
+            self._graph = prune_graph_by_ignored_bonds(
+                self._graph,
+                indices=indices,
+                ignored_bonds=ignored_bonds,
+            )
 
         return
 

@@ -14,38 +14,6 @@ from .comparator import BaseComparator
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
 
 
-def build_graph(
-    atoms: Atoms, indices: Optional[list[int]] = None, ignored_bonds: Optional[list[str]] = None
-) -> nx.Graph:
-    """"""
-    indices = indices if indices is not None else list(range(len(atoms)))
-
-    graph_builder = AtomicGraph(atoms, graph_type="partial")
-    graph_builder.build(indices=indices, ratio=1.0, skin=0.2, include_neighbors=True)
-
-    # Remove edges by ignored bonds
-    graph = graph_builder.graph
-    assert isinstance(graph, nx.Graph)
-    if ignored_bonds is not None:
-        edges_to_remove = []
-        for u, v, data in graph.edges(data=True):
-            bond = data.get("bond", "")
-            if bond in ignored_bonds:
-                edges_to_remove.append((u, v))
-        graph.remove_edges_from(edges_to_remove)
-        # we keep only nodes that are in edges or in indices
-        node_ids_in_edges = set()
-        for u, v in graph.edges():
-            node_ids_in_edges.add(u)
-            node_ids_in_edges.add(v)
-        nodes_to_remove = [
-            u for u in graph.nodes() if u not in node_ids_in_edges and int(u.split("_")[-1]) not in indices
-        ]
-        graph.remove_nodes_from(nodes_to_remove)
-
-    return graph
-
-
 def point_mass_inertia_tensor(mass, position):
     """Function to calculate the inertia tensor for a point mass."""
     I = np.zeros((3, 3))
@@ -98,10 +66,16 @@ class GraphComparator(BaseComparator):
         return
 
     @staticmethod
-    def _process_single_structure(atoms: Atoms, group: str, ignored_pairs: list[str]) -> nx.Graph:
+    def _process_single_structure(atoms: Atoms, group: Optional[str], ignored_pairs: list[str]) -> nx.Graph:
         """"""
         group_indices = evaluate_group_expression(atoms, group)
-        graph = build_graph(atoms, group_indices, ignored_pairs)
+
+        graph_builder = AtomicGraph(atoms, graph_type="partial")
+        graph_builder.build(
+            indices=group_indices, ratio=1.0, skin=0.2, include_neighbors=True, ignored_bonds=ignored_pairs
+        )
+        graph = graph_builder.graph
+        assert isinstance(graph, nx.Graph)
 
         return graph
 
@@ -149,8 +123,8 @@ class GraphComparator(BaseComparator):
             else:
                 ...
             # Create graphs
-            graph_1 = build_graph(a1, group_indices)
-            graph_2 = build_graph(a2, group_indices)
+            graph_1 = self._process_single_structure(a1, self.group, [])
+            graph_2 = self._process_single_structure(a2, self.group, [])
             # matcher = nx.algorithms.isomorphism.GraphMatcher(
             #     graph_1, graph_2, edge_match=bond_match
             # )
