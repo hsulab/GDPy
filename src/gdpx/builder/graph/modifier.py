@@ -1,50 +1,20 @@
 from typing import Optional
 
-import networkx as nx
 from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
 from gdpx.graph.comparison import unique_chem_envs
-from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
-from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
 
 from ..builder import StructureModifier
+from .utils import single_create_structure_graph
 
 DEFAULT_GRAPH_PARAMS = dict(
     pbc_grid=[2, 2, 0],
     graph_radius=2,
     neigh_params=dict(covalent_ratio=1.1, skin=0.25),
 )
-
-
-def single_create_structure_graph(graph_params: dict, group: str, atoms: Atoms) -> list[nx.Graph]:
-    """Create structure graph and get selected chemical environments.
-
-    Find atoms with selected chemical symbols or in the defined region.
-
-    Args:
-        graph_params: Parameters for the graph representation.
-        target_indices: A List of Integers.
-        atoms: Input structure.
-
-    Returns:
-        A list of graphs that represent the chemical environments of selected atoms.
-
-    """
-    stru_creator = StruGraphCreator(**graph_params)
-
-    natoms = len(atoms)
-    group_indices = list(range(natoms))
-    group_indices = evaluate_group_expression(atoms, group)
-
-    graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
-
-    graph_radius = stru_creator.graph_radius
-    chem_envs = extract_chem_envs(graph, atoms, group_indices, graph_radius)
-
-    return chem_envs
 
 
 class GraphModifier(StructureModifier):
@@ -87,11 +57,11 @@ class GraphModifier(StructureModifier):
 
         raise NotImplementedError()
 
-    def _compare_structures(self, ret_frames: list[Atoms], graph_params: dict, spec_params: str):
+    def _compare_structures(self, ret_frames: list[Atoms], graph_params: dict, group: str):
         """"""
         with CustomTimer(name="create-graphs", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_create_structure_graph)(graph_params, spec_params, a) for a in ret_frames
+                delayed(single_create_structure_graph)(a, group, **graph_params) for a in ret_frames
             )
 
         # Check if the ret is empty, it happens when all species are removed/exchanged...

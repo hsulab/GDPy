@@ -1,4 +1,3 @@
-import copy
 from typing import Optional
 
 import ase.data
@@ -8,7 +7,7 @@ from joblib import Parallel, delayed
 
 from gdpx.utils.profiler import CustomTimer
 
-from .modifier import DEFAULT_GRAPH_PARAMS, GraphModifier
+from .modifier import GraphModifier
 from .utils import single_remove_adsorbate
 
 
@@ -20,7 +19,6 @@ class GraphRemoveModifier(GraphModifier):
         species: str,
         group: str,
         substrates: Optional[list[Atoms]] = None,
-        graph: dict = DEFAULT_GRAPH_PARAMS,
         gmax: tuple[int, int, int] = (2, 2, 0),
         ratio: float = 1.1,
         skin: float = 0.25,
@@ -36,8 +34,6 @@ class GraphRemoveModifier(GraphModifier):
 
         self.group = group
 
-        self.graph_params = graph
-
         # Graph-building parameters
         self.gmax = gmax
         self.ratio = ratio
@@ -48,11 +44,6 @@ class GraphRemoveModifier(GraphModifier):
     def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
         """Remove atoms/molecules/adsorbates."""
         self._print("---run remove---")
-        graph_params = copy.deepcopy(self.graph_params)
-        graph_params.update(
-            adsorbate_elements=[self.species],
-        )
-
         # Get chemical environments of selected species that may be removed
         with CustomTimer(name="remove-adsorbate", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
@@ -81,6 +72,11 @@ class GraphRemoveModifier(GraphModifier):
         # Get unique structures among substrates.
         # If O atoms were to remove, the chem envs of the rest O atoms
         # are used to compare the structure difference.
+        graph_params = dict(
+            gmax=self.gmax,
+            ratio=self.ratio,
+            skin=self.skin,
+        )
         created_frames = self._compare_structures(ret_frames, graph_params, self.group)
 
         return created_frames

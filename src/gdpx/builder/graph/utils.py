@@ -9,6 +9,31 @@ from gdpx.graph.expand import extract_chemical_environments, get_unique_chemical
 from gdpx.group import evaluate_group_expression
 
 
+def single_create_structure_graph(
+    atoms: Atoms, group: str, gmax: tuple[int, int, int], ratio: float, skin: float
+) -> list[nx.Graph]:
+    """Create structure graph and get selected chemical environments.
+
+    Find atoms with selected chemical symbols or in the defined region.
+
+    Args:
+        atoms: Input structure.
+
+    Returns:
+        A list of graphs that represent the chemical environments of selected atoms.
+
+    """
+    group_indices = evaluate_group_expression(atoms, group)
+    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
+    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
+    graph = graph_builder.graph
+    assert isinstance(graph, nx.Graph)
+
+    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+
+    return chem_envs
+
+
 def single_remove_adsorbate(
     atoms: Atoms,
     group: str,
