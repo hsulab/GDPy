@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from typing import Optional
 
 import networkx as nx
@@ -23,7 +19,7 @@ DEFAULT_GRAPH_PARAMS = dict(
 )
 
 
-def single_create_structure_graph(graph_params: dict, target_group: list[str], atoms: Atoms) -> list[nx.Graph]:
+def single_create_structure_graph(graph_params: dict, group: str, atoms: Atoms) -> list[nx.Graph]:
     """Create structure graph and get selected chemical environments.
 
     Find atoms with selected chemical symbols or in the defined region.
@@ -41,10 +37,7 @@ def single_create_structure_graph(graph_params: dict, target_group: list[str], a
 
     natoms = len(atoms)
     group_indices = list(range(natoms))
-    for command in target_group:
-        curr_indices = evaluate_group_expression(atoms, command)
-        group_indices = [i for i in group_indices if i in curr_indices]
-    # config._print(f"{group_indices = }")
+    group_indices = evaluate_group_expression(atoms, group)
 
     graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
 
@@ -56,7 +49,6 @@ def single_create_structure_graph(graph_params: dict, target_group: list[str], a
 
 
 class GraphModifier(StructureModifier):
-
     def run(
         self,
         substrates: Optional[list[Atoms]] = None,
@@ -96,7 +88,7 @@ class GraphModifier(StructureModifier):
 
         raise NotImplementedError()
 
-    def _compare_structures(self, ret_frames: list[Atoms], graph_params, spec_params):
+    def _compare_structures(self, ret_frames: list[Atoms], graph_params: dict, spec_params: str):
         """"""
         with CustomTimer(name="create-graphs", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
@@ -154,7 +146,3 @@ class GraphModifier(StructureModifier):
             ncandidates = len(created_frames)
 
         return created_frames
-
-
-if __name__ == "__main__":
-    ...
