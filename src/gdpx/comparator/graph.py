@@ -1,7 +1,6 @@
 from typing import Optional
 
 import networkx as nx
-import numpy as np
 from ase import Atoms
 from joblib import Parallel, delayed
 
@@ -12,34 +11,6 @@ from gdpx.utils.profiler import CustomTimer
 from .comparator import BaseComparator
 
 bond_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
-
-
-def point_mass_inertia_tensor(mass, position):
-    """Function to calculate the inertia tensor for a point mass."""
-    I = np.zeros((3, 3))
-    r_squared = np.dot(position, position)
-
-    for i in range(3):
-        for j in range(3):
-            if i == j:
-                I[i, j] = mass * (r_squared - position[i] ** 2)
-            else:
-                I[i, j] = -mass * position[i] * position[j]
-
-    return I
-
-
-def calculate_inertia_tensor(coordinates, atomic_masses):
-    """Function to calculate the total inertia tensor for the nanoparticle."""
-    total_inertia_tensor = np.zeros((3, 3))
-
-    # Iterate through each copper atom and add its contribution to the total inertia tensor
-    for i in range(len(coordinates)):
-        atom_position, atomic_mass = coordinates[i], atomic_masses[i]
-        atom_inertia_tensor = point_mass_inertia_tensor(atomic_mass, atom_position)
-        total_inertia_tensor += atom_inertia_tensor
-
-    return total_inertia_tensor
 
 
 class GraphComparator(BaseComparator):
@@ -90,9 +61,11 @@ class GraphComparator(BaseComparator):
 
     def looks_like(self, a1: Atoms, a2: Atoms) -> bool:
         """"""
-        fingerprints = self.prepare_data([a1, a2])
-        fp1, fp2 = fingerprints
-        is_similar = self.compare_fingerprints(fp1, fp2)
+        is_similar = super().looks_like(a1, a2)
+        if is_similar:
+            fingerprints = self.prepare_data([a1, a2])
+            fp1, fp2 = fingerprints
+            is_similar = self.compare_fingerprints(fp1, fp2)
 
         return is_similar
 
@@ -101,54 +74,3 @@ class GraphComparator(BaseComparator):
         is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(fp1, fp2, edge_match=bond_match)
 
         return is_isomorphic
-
-    def _looks_like_with_atoms(self, a1, a2):
-        """"""
-        is_similar = self.compare_composition(a1, a2)
-        if is_similar:
-            group_indices = list(range(len(a1)))  # number of atoms have been checked to be the same
-            if self.group is not None:
-                g1 = evaluate_group_expression(a1, self.group)
-                g2 = evaluate_group_expression(a2, self.group)
-                if g1 == g2:  # can be []
-                    group_indices = g1
-                else:
-                    group_indices = []
-                if len(group_indices) > 0:
-                    self._print(f"natoms: {len(group_indices)}")
-                    self._print(f"{a1[group_indices].get_chemical_formula()}")
-                    # write("xxx.xyz", a1[ainds])
-                else:
-                    ...
-            else:
-                ...
-            # Create graphs
-            graph_1 = self._process_single_structure(a1, self.group, [])
-            graph_2 = self._process_single_structure(a2, self.group, [])
-            # matcher = nx.algorithms.isomorphism.GraphMatcher(
-            #     graph_1, graph_2, edge_match=bond_match
-            # )
-            # is_isomorphic = matcher.is_isomorphic()
-            is_isomorphic = nx.algorithms.isomorphism.is_isomorphic(graph_1, graph_2, edge_match=bond_match)
-            self._print(f"  isomorphic: {is_isomorphic}")
-            if is_isomorphic:
-                ...
-                # inertia_1 = calculate_inertia_tensor(
-                #    a1.positions[ainds, :], a1.get_masses()[ainds]
-                # )
-                # eig_1 = np.linalg.eigvals(inertia_1)
-                # inertia_2 = calculate_inertia_tensor(
-                #    a2.positions[ainds, :], a2.get_masses()[ainds]
-                # )
-                # eig_2 = np.linalg.eigvals(inertia_2)
-                # self._print("  "+str(eig_1 - eig_2))
-                # self._print("  "+str(np.linalg.norm(eig_1 - eig_2)))
-                # if np.linalg.norm(eig_1 - eig_2) >= 40.:
-                #    is_similar = False
-            else:
-                is_similar = False
-        else:
-            ...
-        self._print(f" similar: {is_similar}")
-
-        return is_similar
