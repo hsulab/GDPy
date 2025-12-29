@@ -174,6 +174,40 @@ def extract_chemical_environments(
     return chemical_environments
 
 
+#: Handles isomorphism for bonds.
+edge_match = nx.algorithms.isomorphism.categorical_edge_match("bond", "")
+
+#: Handles isomorphism for atoms with regards to perodic boundary conditions.
+node_match = nx.algorithms.isomorphism.categorical_node_match(["index", "ads"], [-1, False])
+
+
+def get_unique_chemical_environments_by_bonds(chem_envs: list[nx.Graph]) -> list[int]:
+    """Find unique environments based on graph edges.
+
+    This method compares one graph with another.
+
+    Args:
+        chem_envs: A list of graph representation of an atom.
+
+    Returns:
+        Indices of unique graphs.
+
+    """
+
+    nsites = len(chem_envs)
+
+    unique_indices = [0]
+    for i in range(1, nsites):
+        for j in unique_indices:
+            env_i, env_j = chem_envs[i], chem_envs[j]
+            if nx.algorithms.isomorphism.is_isomorphic(env_i, env_j, edge_match=edge_match):
+                break
+        else:
+            unique_indices.append(i)
+
+    return unique_indices
+
+
 expand_graph_functions = ExpandGraphFunctions(
     node_id_func=node_id_func,
     add_edge_func=add_edge_func,

@@ -7,8 +7,7 @@ from ase.io import write
 from joblib import Parallel, delayed
 
 from gdpx.graph.base import AtomicGraph
-from gdpx.graph.comparison import get_unique_environments_based_on_bonds
-from gdpx.graph.expand import extract_chemical_environments
+from gdpx.graph.expand import extract_chemical_environments, get_unique_chemical_environments_by_bonds
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
 
@@ -68,7 +67,7 @@ def single_remove_adsorbate(
     )
 
     # Find unique sites to remove for this structure
-    unique_indices = get_unique_environments_based_on_bonds(chem_envs)
+    unique_indices = get_unique_chemical_environments_by_bonds(chem_envs)
     unique_envs = [chem_envs[i] for i in unique_indices]
 
     # Create sctructures with removed adsorbate
