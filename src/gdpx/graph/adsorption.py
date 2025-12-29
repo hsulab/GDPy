@@ -1,8 +1,6 @@
-from typing import NamedTuple
-
 import networkx as nx
 import numpy as np
-from ase import Atoms
+from ase import Atom, Atoms
 from ase.neighborlist import NeighborList, neighbor_list
 
 from gdpx.group import evaluate_group_expression
@@ -18,11 +16,13 @@ def get_atop_sites(atoms: Atoms, graph: nx.Graph):
     for node in graph.nodes:
         if node.shift != (0, 0, 0):
             continue
+        a0 = atoms[node.idx]
+        assert isinstance(a0, Atom)
         site_info = {
             "type": "atop",
             "atoms": (node,),
-            "symbols": [atoms[node.idx].symbol],
-            "position": atoms[node.idx].position,
+            "symbols": [a0.symbol],
+            "position": a0.position,
         }
         sites.append(site_info)
 
@@ -35,12 +35,15 @@ def get_bridge_sites(atoms: Atoms, graph: nx.Graph):
     for u, v, d in graph.edges(data=True):
         if u.shift != (0, 0, 0) and v.shift != (0, 0, 0):
             continue
-        direction = (atoms[v.idx].position + d["shift"]) - atoms[u.idx].position
+        a0, a1 = atoms[u.idx], atoms[v.idx]
+        assert isinstance(a0, Atom)
+        assert isinstance(a1, Atom)
+        direction = (a1.position + d["shift"]) - a0.position
         site_info = {
             "type": "bridge",
             "atoms": (u, v),
-            "symbols": [atoms[u.idx].symbol, atoms[v.idx].symbol],
-            "position": (atoms[u.idx].position + atoms[v.idx].position) / 2 + d["shift"] / 2,
+            "symbols": [a0.symbol, a1.symbol],
+            "position": (a0.position + a1.position) / 2 + d["shift"] / 2,
             "direction": np.array([direction]),
         }
         sites.append(site_info)
@@ -60,26 +63,22 @@ def get_hollow_sites(atoms: Atoms, graph: nx.Graph):
         shifts = [node.shift for node in nodes]
         if not (shifts.count((0, 0, 0)) > 0):
             continue
-        position = (
-            sum(
-                (atoms[node.idx].position + np.array(node.shift) @ box for node in nodes),
-                np.zeros(3),
-            )
-            / 3
-        )
-        direction1 = (atoms[nodes[1].idx].position + np.array(nodes[1].shift) @ box) - (
-            atoms[nodes[0].idx].position + np.array(nodes[0].shift) @ box
-        )  # i -> j
-        direction2 = (atoms[nodes[2].idx].position + np.array(nodes[2].shift) @ box) - (
-            atoms[nodes[0].idx].position + np.array(nodes[0].shift) @ box
-        )  # i -> k
-        direction3 = (atoms[nodes[2].idx].position + np.array(nodes[2].shift) @ box) - (
-            atoms[nodes[1].idx].position + np.array(nodes[1].shift) @ box
-        )  # j -> k
+        symbols, shifted_positions = [], []
+        for node in nodes:
+            a = atoms[node.idx]
+            assert isinstance(a, Atom)
+            p = a.position + np.array(node.shift) @ box
+            shifted_positions.append(p)
+            symbols.append(a.symbol)
+        p0, p1, p2 = shifted_positions
+        position = sum([p0, p1, p2], np.zeros(3)) / 3
+        direction1 = p1 - p0  # i -> j
+        direction2 = p2 - p0  # i -> k
+        direction3 = p2 - p1  # j -> k
         site_info = {
             "type": "hollow",
             "atoms": tuple(nodes),
-            "symbols": [atoms[node.idx].symbol for node in nodes],
+            "symbols": symbols,
             "position": position,
             "direction": np.array([direction1, direction2, direction3]),
         }
@@ -132,9 +131,12 @@ def find_adsorption_sites_by_graph(
         num_neighbors = np.sum(masks)
         if num_neighbors > 0:
             bond_vectors = []
+            a_i = atoms[i]
+            assert isinstance(a_i, Atom)
             for j, s in zip(neigh.receivers[masks], neigh.shifts[masks]):
-                shift = s @ box
-                vec = atoms[i].position - (atoms[j].position + shift)
+                a_j = atoms[j]
+                assert isinstance(a_j, Atom)
+                vec = a_i.position - (a_j.position + s @ box)
                 bond_vectors.append(vec)
             s_vec = np.sum(bond_vectors, axis=0)
             s_norm = np.linalg.norm(s_vec)
