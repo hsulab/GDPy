@@ -6,8 +6,9 @@ from ase import Atoms
 from ase.io import write
 from joblib import Parallel, delayed
 
+from gdpx.graph.base import AtomicGraph
 from gdpx.graph.comparison import get_unique_environments_based_on_bonds
-from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
+from gdpx.graph.creator import extract_chem_envs
 from gdpx.graph.utils import unpack_node_name
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
@@ -34,9 +35,6 @@ def single_remove_adsorbate(
         spec_params: Parameters for finding species to remove.
 
     """
-    # Create graph from structure
-    stru_creator = StruGraphCreator(**graph_params)
-
     # Check if spec_indices are all species
     group_indices = sorted(evaluate_group_expression(atoms, group))
     debug_func(f"group_indices to remove {group_indices}")
@@ -47,8 +45,20 @@ def single_remove_adsorbate(
             raise RuntimeError("Species to remove is inconsistent for those by indices.")
 
     # Get chemical environments from graph
-    graph = stru_creator.generate_graph(atoms, ads_indices=group_indices)
-    chem_envs = extract_chem_envs(graph, atoms, group_indices, stru_creator.graph_radius)
+    graph_builder = AtomicGraph(
+        atoms,
+        graph_type="expand",
+        gmax=graph_params.get("pbc_grid"),
+    )
+    graph_builder.build(
+        group_indices=group_indices,
+        ratio=graph_params.get("neigh_params", {}).get("covalent_ratio"),
+        skin=graph_params.get("neigh_params", {}).get("skin"),
+    )
+    graph = graph_builder.graph
+    assert isinstance(graph, nx.Graph)
+
+    chem_envs = extract_chem_envs(graph, atoms, group_indices, graph_radius=2)
 
     # Make sure only single atoms are removed
     assert len(chem_envs) == len(group_indices), (
