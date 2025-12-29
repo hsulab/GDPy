@@ -132,6 +132,48 @@ def build_expand_graph(
     return graph
 
 
+def extract_chemical_environments(
+    graph: nx.Graph, atoms: Atoms, group_indices: list[int], graph_radius: int
+) -> list[nx.Graph]:
+    """Extract chemical environments from the graph.
+
+    Args:
+        graph: The input graph.
+        atoms: ASE Atoms object representing the structure.
+        group_indices: List of atom indices to extract environments for.
+        graph_radius: The radius of the chemical environment.
+
+    Returns:
+        A list of subgraphs representing the chemical environments.
+    """
+
+    # Get nodes corresponding to group_indices (single atom or molecule)
+    group_nodes = [node_id_func(atoms[i], index=i, shift=(0, 0, 0)) for i in group_indices]  # type: ignore
+    group_graph = nx.subgraph(graph, group_nodes)
+
+    # nx.connected_component_subgraphs removed in v2.4
+    cluster_graphs = [group_graph.subgraph(c) for c in nx.connected_components(group_graph)]
+
+    chemical_environments = []
+    for _, cluster in enumerate(cluster_graphs):
+        start_node = list(cluster.nodes)[0]
+        cluster = nx.ego_graph(graph, start_node, radius=0, distance="ads_only")
+        chem_env = nx.ego_graph(
+            graph, start_node, radius=(graph_radius * DIS_SURF2SURF) + DIS_ADS2SURF, distance="dist"
+        )
+
+        # update attrs
+        for node in cluster.nodes():
+            chem_env.add_node(node, central_ads=True)  # node within (0,0,0) grid
+
+        for node in cluster.nodes():
+            chem_env.add_node(node, ads=True)  # node within cluster
+
+        chemical_environments.append(chem_env)
+
+    return chemical_environments
+
+
 expand_graph_functions = ExpandGraphFunctions(
     node_id_func=node_id_func,
     add_edge_func=add_edge_func,

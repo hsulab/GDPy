@@ -8,8 +8,7 @@ from joblib import Parallel, delayed
 
 from gdpx.graph.base import AtomicGraph
 from gdpx.graph.comparison import get_unique_environments_based_on_bonds
-from gdpx.graph.creator import extract_chem_envs
-from gdpx.graph.utils import unpack_node_name
+from gdpx.graph.expand import extract_chemical_environments
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
 
@@ -33,6 +32,9 @@ def single_remove_adsorbate(
     Args:
         graph_params: Parameters for creating graphs.
         spec_params: Parameters for finding species to remove.
+
+    Returns:
+        A list of structures with removed atoms.
 
     """
     # Check if spec_indices are all species
@@ -58,7 +60,7 @@ def single_remove_adsorbate(
     graph = graph_builder.graph
     assert isinstance(graph, nx.Graph)
 
-    chem_envs = extract_chem_envs(graph, atoms, group_indices, graph_radius=2)
+    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
 
     # Make sure only single atoms are removed
     assert len(chem_envs) == len(group_indices), (
@@ -72,12 +74,13 @@ def single_remove_adsorbate(
     # Create sctructures with removed adsorbate
     unique_frames = []
     for g in unique_envs:
-        for u, d in g.nodes.data():
+        for _, d in g.nodes.data():
             if d["central_ads"]:
-                chem_sym, idx, offset = unpack_node_name(u)
-                if chem_sym == species:
-                    new_atoms = atoms.copy()
-                    del new_atoms[idx]
+                i = d["index"]
+                chemical_symbol = chemical_symbols[i]
+                if chemical_symbol == species:
+                    new_atoms = copy.deepcopy(atoms)
+                    del new_atoms[i]
                     unique_frames.append(new_atoms)
                     break
         else:
