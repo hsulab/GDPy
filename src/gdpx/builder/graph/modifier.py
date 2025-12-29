@@ -5,7 +5,7 @@ from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
-from gdpx.graph.comparison import paragroup_unique_chem_envs
+from gdpx.graph.comparison import unique_chem_envs
 from gdpx.graph.creator import StruGraphCreator, extract_chem_envs
 from gdpx.group import evaluate_group_expression
 from gdpx.utils.profiler import CustomTimer
@@ -43,7 +43,6 @@ def single_create_structure_graph(graph_params: dict, group: str, atoms: Atoms) 
 
     graph_radius = stru_creator.graph_radius
     chem_envs = extract_chem_envs(graph, atoms, group_indices, graph_radius)
-    # config._print(f"{graph_radius = }")
 
     return chem_envs
 
@@ -94,46 +93,31 @@ class GraphModifier(StructureModifier):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_create_structure_graph)(graph_params, spec_params, a) for a in ret_frames
             )
-        # not unique across substrates
-        # write(self.directory/f"possible_frames-{self.op_num}.xyz", ret_frames)
 
-        # - check if the ret is empty
-        #   it happens when all species are removed/exchanged...
-        ret_envs = []
+        # Check if the ret is empty, it happens when all species are removed/exchanged...
+        chemical_environments = []
         for x in ret:
-            ret_envs.extend(x)
+            chemical_environments.extend(x)  # type: ignore
 
-        if ret_envs:
+        if chemical_environments:
             ret_env_groups = ret
-            self._print("Typical Chemical Environment " + str(ret_envs[0]))
+            self._print("Typical Chemical Environment " + str(chemical_environments[0]))
             with CustomTimer(name="check-uniqueness", func=self._print):
-                # compare chem envs
-                # unique_envs, unique_groups = unique_chem_envs(
-                #    chem_groups, list(enumerate(frames))
-                # )
-                unique_envs, unique_groups = paragroup_unique_chem_envs(
-                    ret_env_groups,
-                    list(enumerate(ret_frames)),
-                    directory=self.directory,
-                    # n_jobs=self.njobs
-                    n_jobs=1,
-                )
-                # self._print("number of unique groups: ", len(unique_groups))
+                _, unique_groups = unique_chem_envs(ret_env_groups, list(enumerate(ret_frames)))
 
-            # - get unique structures
-            created_frames = []  # graphly unique
+            # Get unique structures
+            created_frames = []
             for x in unique_groups:
                 created_frames.append(x[0][1])
-            ncandidates = len(created_frames)
+            num_candidates = len(created_frames)
 
-            # -- unique info
             unique_data = []
             for i, x in enumerate(unique_groups):
                 data = ["ug" + str(i)]
                 data.extend([a[0] for a in x])
                 unique_data.append(data)
             content = "# unique, indices\n"
-            content += f"# ncandidates {ncandidates}\n"
+            content += f"# ncandidates {num_candidates}\n"
             for d in unique_data:
                 content += ("{:<8s}  " + "{:<8d}  " * (len(d) - 1) + "\n").format(*d)
 
@@ -141,8 +125,8 @@ class GraphModifier(StructureModifier):
             with open(unique_info_path, "w") as fopen:
                 fopen.write(content)
         else:
-            self._print("Cant find valid species...")
+            self._print("Cannot find valid species...")
             created_frames = ret_frames
-            ncandidates = len(created_frames)
+            num_candidates = len(created_frames)
 
         return created_frames
