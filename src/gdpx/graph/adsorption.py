@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from typing import NamedTuple
 
 import networkx as nx
@@ -11,21 +7,9 @@ from ase.neighborlist import NeighborList, neighbor_list
 
 from gdpx.group import evaluate_group_expression
 
+from .base import NeighbourData
+from .domain import build_domain_graph
 from .utils import grid_iterator
-
-
-class NodeID(NamedTuple):
-
-    idx: int
-    shift: tuple[int, int, int]
-
-
-def canonicalize_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, int, int]:
-    """
-    Convert any integer-like iterable (possibly np.int32 or np.int64) into a tuple of Python ints.
-    This ensures consistent hashing and equality in NetworkX.
-    """
-    return tuple(int(x) for x in np.asarray(shift, dtype=np.int32))
 
 
 def get_atop_sites(atoms: Atoms, graph: nx.Graph):
@@ -136,50 +120,26 @@ def find_adsorption_sites_by_graph(
     num_atoms = len(atoms)
     group_indices = sorted(evaluate_group_expression(atoms, group_expr))
 
-    # Add nodes
-    for grid in grids:
-        for idx in group_indices:
-            graph.add_node(
-                NodeID(int(idx), canonicalize_shift(grid)),
-            )
+    # Build graph
+    senders, receivers, distances, shifts = neighbor_list("ijdS", atoms, cutoff, self_interaction=True)
+    neigh = NeighbourData(senders, receivers, distances, shifts)
+    graph = build_domain_graph(atoms, neigh, group_indices, grids)
 
-    # Build neighbor list
-    # We need self_interaction and bothways to determine surface normals but skip them in adding edges
-    nl = NeighborList([cutoff / 2.0] * num_atoms, skin=0.0, self_interaction=True, bothways=True)
-    nl.update(atoms)
-
-    # Add edges
-    use_edges = set()
-    for i in group_indices:
-        indices, offsets = nl.get_neighbors(i)
-        for j, offset in zip(indices, offsets):
-            edge_index = tuple(sorted((i, j)))
-            if i == j or j not in group_indices or edge_index in use_edges:
-                continue
-            u = NodeID(int(i), canonicalize_shift((0, 0, 0)))
-            v = NodeID(int(j), canonicalize_shift(offset))
-            shift = offset @ box
-            graph.add_edge(
-                u,
-                v,
-                shift=shift,
-                # distance=distance,
-            )
-            use_edges.add(edge_index)
-
-    # Determin surface normals of selected atoms
+    # Use neighbour data to find surface normals
     surf_normals = np.zeros((num_atoms, 3))
     for i in group_indices:
-        indices, offsets = nl.get_neighbors(i)
-        bond_vectors = []
-        for j, o in zip(indices, offsets):
-            shift = o @ box
-            vec = atoms[i].position - (atoms[j].position + shift)
-            bond_vectors.append(vec)
-        s_vec = np.sum(bond_vectors, axis=0)
-        s_norm = np.linalg.norm(s_vec)
-        if s_norm > surf_normal_threshold:
-            surf_normals[i] = s_vec / s_norm
+        masks = [idx == i for idx in neigh.senders]
+        num_neighbors = np.sum(masks)
+        if num_neighbors > 0:
+            bond_vectors = []
+            for j, s in zip(neigh.receivers[masks], neigh.shifts[masks]):
+                shift = s @ box
+                vec = atoms[i].position - (atoms[j].position + shift)
+                bond_vectors.append(vec)
+            s_vec = np.sum(bond_vectors, axis=0)
+            s_norm = np.linalg.norm(s_vec)
+            if s_norm > surf_normal_threshold:
+                surf_normals[i] = s_vec / s_norm
 
     # Find sites
     sites = []
@@ -250,7 +210,3 @@ def find_adsorption_sites_by_pair(
         )
 
     return sites
-
-
-if __name__ == "__main__":
-    ...
