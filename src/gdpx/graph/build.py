@@ -33,8 +33,7 @@ def build_atomic_graph(
         a_i = atoms[i]
         assert isinstance(a_i, Atom)
         graph.add_node(
-            # NodeID(chemical_symbols[i], int(i), canonicalise_shift((0, 0, 0))),
-            node_id_func(a_i, idx=i, shift=(0, 0, 0)),
+            node_id_func(a_i, index=i, shift=(0, 0, 0)),
         )
 
     is_edge_valid = (
@@ -50,12 +49,9 @@ def build_atomic_graph(
             a_i, a_j = atoms[i], atoms[j]
             assert isinstance(a_i, Atom)
             assert isinstance(a_j, Atom)
-            # s_i, s_j = a_i.symbol, a_j.symbol
-            # bond = "{}-{}".format(*sorted([s_i, s_j]))
-            # u = NodeID(sym=s_i, idx=int(i), shift=canonicalise_shift((0, 0, 0)))
-            # v = NodeID(sym=s_j, idx=int(j), shift=canonicalise_shift(s))
-            # graph.add_edge(u, v, bond=bond)
-            u, v, edge_attrs = add_edge_func(a_i, a_j, idx_i=i, idx_j=j, shift_i=(0, 0, 0), shift_j=s)
+            u, v, edge_attrs = add_edge_func(
+                a_i, a_j, kw_i=dict(index=i, shift=(0, 0, 0)), kw_j=dict(index=j, shift=s)
+            )
             graph.add_edge(u, v, **edge_attrs)
             used_pairs.add(pair)
 

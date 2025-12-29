@@ -1,3 +1,4 @@
+import numbers
 from typing import Callable, NamedTuple
 
 import networkx as nx
@@ -25,20 +26,27 @@ def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, i
     """
     arr = np.asarray(shift, dtype=np.int32)
     assert arr.shape == (3,)
+
     return int(arr[0]), int(arr[1]), int(arr[2])
 
 
-def node_id_func(atom: Atom, idx: int, shift: tuple[int, int, int]) -> NodeID:
+def node_id_func(atom: Atom, **kwargs) -> NodeID:
     """The nodes include both local (shift=(0,0,0)) and ghost atoms."""
-    return NodeID(sym=atom.symbol, idx=int(idx), shift=canonicalise_shift(shift))
+    index = kwargs.get("index")
+    assert isinstance(index, numbers.Integral)
+    shift = kwargs.get("shift")
+    assert isinstance(shift, (tuple, np.ndarray))
+
+    return NodeID(sym=atom.symbol, idx=int(index), shift=canonicalise_shift(shift))
 
 
-def add_edge_func(
-    a_i: Atom, a_j: Atom, idx_i: int, idx_j: int, shift_i: tuple[int, int, int], shift_j: tuple[int, int, int]
-):
+def add_edge_func(a_i: Atom, a_j: Atom, **kwargs) -> tuple[NodeID, NodeID, dict]:
     """The ghost atoms are implicitly added when adding edges."""
-    u = node_id_func(a_i, idx_i, shift_i)
-    v = node_id_func(a_j, idx_j, shift_j)
+    kw_i = kwargs.get("kw_i", {})
+    kw_j = kwargs.get("kw_j", {})
+    u = node_id_func(a_i, **kw_i)
+    v = node_id_func(a_j, **kw_j)
+
     s_i, s_j = a_i.symbol, a_j.symbol
     bond = "{}-{}".format(*sorted([s_i, s_j]))
     edge_attrs = {"bond": bond}
