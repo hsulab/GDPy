@@ -12,6 +12,7 @@ from ase.neighborlist import neighbor_list
 from .build import build_atomic_graph
 from .data import NeighbourData
 from .domain import domain_graph_functions
+from .expand import build_expand_graph, expand_graph_functions
 from .partial import partial_graph_functions
 
 
@@ -143,6 +144,10 @@ class AtomicGraph:
                 build_func = build_atomic_graph
                 graph_functions = domain_graph_functions
                 self.self_interaction = True
+            case "expand":
+                build_func = build_expand_graph
+                graph_functions = expand_graph_functions
+                self.self_interaction = False
             case _:
                 raise Exception(f"Unknown graph building method `{graph_type}`.")
 
