@@ -1,8 +1,8 @@
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import networkx as nx
 import numpy as np
-from ase import Atoms
+from ase import Atom, Atoms
 
 from .data import NeighbourData
 
@@ -13,6 +13,11 @@ class NodeID(NamedTuple):
     shift: tuple[int, int, int]
 
 
+class DomainGraphFunctions(NamedTuple):
+    node_id_func: Callable
+    add_edge_func: Callable
+
+
 def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, int, int]:
     """
     Convert any integer-like iterable (possibly np.int32 or np.int64) into a tuple of Python ints.
@@ -21,6 +26,30 @@ def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, i
     arr = np.asarray(shift, dtype=np.int32)
     assert arr.shape == (3,)
     return int(arr[0]), int(arr[1]), int(arr[2])
+
+
+def node_id_func(atom: Atom, idx: int, shift: tuple[int, int, int]) -> NodeID:
+    """The nodes include both local (shift=(0,0,0)) and ghost atoms."""
+    return NodeID(sym=atom.symbol, idx=int(idx), shift=canonicalise_shift(shift))
+
+
+def add_edge_func(
+    a_i: Atom, a_j: Atom, idx_i: int, idx_j: int, shift_i: tuple[int, int, int], shift_j: tuple[int, int, int]
+):
+    """The ghost atoms are implicitly added when adding edges."""
+    u = node_id_func(a_i, idx_i, shift_i)
+    v = node_id_func(a_j, idx_j, shift_j)
+    s_i, s_j = a_i.symbol, a_j.symbol
+    bond = "{}-{}".format(*sorted([s_i, s_j]))
+    edge_attrs = {"bond": bond}
+
+    return u, v, edge_attrs
+
+
+domain_graph_functions = DomainGraphFunctions(
+    node_id_func=node_id_func,
+    add_edge_func=add_edge_func,
+)
 
 
 def build_domain_graph(

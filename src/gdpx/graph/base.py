@@ -1,4 +1,5 @@
 import copy
+import functools
 import itertools
 from typing import Optional
 
@@ -8,9 +9,10 @@ import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
 
+from .build import build_atomic_graph
 from .data import NeighbourData
-from .domain import build_domain_graph
-from .partial import build_partial_graph
+from .domain import domain_graph_functions
+from .partial import partial_graph_functions
 
 
 def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02, skin: float = 0.0) -> dict[tuple[int, int], float]:
@@ -134,13 +136,19 @@ class AtomicGraph:
         """"""
         match graph_type:
             case "partial":
-                self._build = build_partial_graph
+                graph_functions = partial_graph_functions
                 self.self_interaction = False
             case "domain":
-                self._build = build_domain_graph
+                graph_functions = domain_graph_functions
                 self.self_interaction = True
             case _:
                 raise Exception(f"Unknown graph building method `{graph_type}`.")
+
+        self._build = functools.partial(
+            build_atomic_graph,
+            node_id_func=graph_functions.node_id_func,
+            add_edge_func=graph_functions.add_edge_func,
+        )
 
         self._atoms: Atoms = atoms
         self._graph: Optional[nx.Graph] = None
