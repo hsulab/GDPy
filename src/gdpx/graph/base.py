@@ -77,11 +77,13 @@ def build_partial_graph(
 
     used_pairs = set()
     for i, j, d, s in zip(senders, receivers, distances, shifts):
-        if is_edge_valid(i, j) and i != j:  # no periodic images
-            # check bond distance
+        pair = tuple(sorted([i, j]))
+        if is_edge_valid(i, j) and (i != j) and pair not in used_pairs:
+            # No information of ghost atoms is stored in the graph!!
+            # If the box is too small, the edge between two atoms may appear multiple times with different shifts, 
+            # which are not considered here.
             s_i, s_j = chemical_symbols[i], chemical_symbols[j]
             n_i, n_j = ase.data.atomic_numbers[s_i], ase.data.atomic_numbers[s_j]
-            pair = tuple(sorted([i, j]))
             bond = "{}-{}".format(*sorted([s_i, s_j]))
             if d <= bond_distance_dict[(n_i, n_j)]:  # within bond distance
                 graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond=bond, shift=s)
