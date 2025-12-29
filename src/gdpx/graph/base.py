@@ -1,5 +1,4 @@
 import copy
-import functools
 import itertools
 from typing import NamedTuple, Optional
 
@@ -8,6 +7,8 @@ import networkx as nx
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
+
+from .domain import build_domain_graph
 
 
 class NeighbourData(NamedTuple):
@@ -34,8 +35,7 @@ def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02, skin: float = 0.0)
 def build_partial_graph(
     atoms: Atoms,
     neigh: NeighbourData,
-    indices: Optional[list[int]] = None,
-    bond_distance_dict: Optional[dict[tuple[int, int], float]] = None,
+    group_indices: list[int],
     include_neighbors: bool = False,
 ) -> nx.Graph:
     """Build graph from partial atoms.
@@ -46,43 +46,35 @@ def build_partial_graph(
     Args:
         atoms: The ASE Atoms object.
         neigh: The neighbour data containing senders, receivers, distances, and shifts.
-        indices: The indices of atoms to include in the graph. If None, include all atoms.
-        bond_distance_dict: A dictionary mapping atomic number pairs to bond distance thresholds. If None, it will be computed.
+        group_indices: The indices of atoms to include in the graph. If None, include all atoms.
         include_neighbors: Whether to include edges to neighboring atoms outside.
 
     """
-    num_atoms = len(atoms)
-    indices = list(range(num_atoms)) if indices is None else indices
-
-    bond_distance_dict = get_bond_distance_dict(atoms) if bond_distance_dict is None else bond_distance_dict
-
-    senders, receivers, distances, shifts = neigh.senders, neigh.receivers, neigh.distances, neigh.shifts
-
     # Create graph
     graph = nx.Graph()
 
     # add nodes and edges
     chemical_symbols = atoms.get_chemical_symbols()
-    for i in indices:
+    for i in group_indices:
         graph.add_node(chemical_symbols[i] + "_" + str(i))
 
     is_edge_valid = (
-        lambda i, j: (i in indices and j in indices) if not include_neighbors else (i in indices or j in indices)
+        lambda i, j: (i in group_indices and j in group_indices)
+        if not include_neighbors
+        else (i in group_indices or j in group_indices)
     )
 
     used_pairs = set()
-    for i, j, d, s in zip(senders, receivers, distances, shifts):
+    for i, j, s in zip(neigh.senders, neigh.receivers, neigh.shifts):
         pair = tuple(sorted([i, j]))
         if is_edge_valid(i, j) and (i != j) and pair not in used_pairs:
             # No information of ghost atoms is stored in the graph!!
             # If the box is too small, the edge between two atoms may appear multiple times with different shifts,
             # which are not considered here.
             s_i, s_j = chemical_symbols[i], chemical_symbols[j]
-            n_i, n_j = ase.data.atomic_numbers[s_i], ase.data.atomic_numbers[s_j]
             bond = "{}-{}".format(*sorted([s_i, s_j]))
-            if d <= bond_distance_dict[(n_i, n_j)]:  # within bond distance
-                graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond=bond, shift=s)
-                used_pairs.add(pair)
+            graph.add_edge(f"{s_i}_{i}", f"{s_j}_{j}", bond=bond, shift=s)
+            used_pairs.add(pair)
 
     return graph
 
@@ -194,7 +186,11 @@ class AtomicGraph:
         """"""
         match graph_type:
             case "partial":
-                self._build = functools.partial(build_partial_graph)
+                self._build = build_partial_graph
+                self.self_interaction = False
+            case "domain":
+                self._build = build_domain_graph
+                self.self_interaction = True
             case _:
                 raise Exception(f"Unknown graph building method `{graph_type}`.")
 
@@ -206,6 +202,7 @@ class AtomicGraph:
     def build(
         self,
         indices: Optional[list[int]] = None,
+        cutoff: Optional[float] = None,
         ratio: float = 1.03,
         skin: float = 0.0,
         include_neighbors: bool = False,
@@ -214,19 +211,25 @@ class AtomicGraph:
         """"""
         indices = indices if indices is not None else list(range(len(self._atoms)))
 
-        bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
-        cutoff = max(bond_distance_dict.values())
-        self._neigh = prune_neighbour_data_by_bond_distance(
-            self._atoms,
-            NeighbourData(*neighbor_list("ijdS", self._atoms, cutoff=cutoff)),
-            bond_distance_dict=bond_distance_dict,
-        )
+        if cutoff is None:
+            bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
+            cutoff = max(bond_distance_dict.values())
+            self._neigh = prune_neighbour_data_by_bond_distance(
+                self._atoms,
+                NeighbourData(
+                    *neighbor_list("ijdS", self._atoms, cutoff=cutoff, self_interaction=self.self_interaction)
+                ),
+                bond_distance_dict=bond_distance_dict,
+            )
+        else:
+            self._neigh = NeighbourData(
+                *neighbor_list("ijdS", self._atoms, cutoff=cutoff, self_interaction=self.self_interaction)
+            )
 
         self._graph = self._build(
             self._atoms,
             self._neigh,
-            indices=indices,
-            bond_distance_dict=bond_distance_dict,
+            group_indices=indices,
             include_neighbors=include_neighbors,
         )
         if ignored_bonds is not None:

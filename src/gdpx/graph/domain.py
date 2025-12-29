@@ -4,7 +4,12 @@ import networkx as nx
 import numpy as np
 from ase import Atoms
 
-from .base import NeighbourData
+
+class NeighbourData(NamedTuple):
+    senders: np.ndarray
+    receivers: np.ndarray
+    distances: np.ndarray
+    shifts: np.ndarray
 
 
 class NodeID(NamedTuple):
@@ -23,7 +28,9 @@ def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, i
     return int(arr[0]), int(arr[1]), int(arr[2])
 
 
-def build_domain_graph(atoms: Atoms, neigh: NeighbourData, group_indices: list[int]) -> nx.Graph:
+def build_domain_graph(
+    atoms: Atoms, neigh: NeighbourData, group_indices: list[int], include_neighbors: bool = False
+) -> nx.Graph:
     """Build a domain graph from ASE Atoms and neighbor data.
 
     The nodes include both local (shift=(0,0,0)) and ghost atoms.
@@ -38,10 +45,6 @@ def build_domain_graph(atoms: Atoms, neigh: NeighbourData, group_indices: list[i
         A NetworkX graph representing the domain.
 
     """
-    group_indices = sorted(group_indices)
-
-    senders, receivers, distances, shifts = neigh.senders, neigh.receivers, neigh.distances, neigh.shifts
-
     # Create graph
     graph = nx.Graph()
 
@@ -52,15 +55,21 @@ def build_domain_graph(atoms: Atoms, neigh: NeighbourData, group_indices: list[i
             NodeID(chemical_symbols[i], int(i), canonicalise_shift((0, 0, 0))),
         )
 
+    is_edge_valid = (
+        lambda i, j: (i in group_indices and j in group_indices)
+        if not include_neighbors
+        else (i in group_indices or j in group_indices)
+    )
+
     used_pairs = set()
-    for i, j, d, s in zip(senders, receivers, distances, shifts):
+    for i, j, s in zip(neigh.senders, neigh.receivers, neigh.shifts):
         pair = tuple(sorted([i, j]))
-        if (i in group_indices and j in group_indices) and (i != j) and pair not in used_pairs:
+        if is_edge_valid(i, j) and (i != j) and pair not in used_pairs:
             s_i, s_j = chemical_symbols[i], chemical_symbols[j]
             bond = "{}-{}".format(*sorted([s_i, s_j]))
             u = NodeID(sym=s_i, idx=int(i), shift=canonicalise_shift((0, 0, 0)))
             v = NodeID(sym=s_j, idx=int(j), shift=canonicalise_shift(s))
-            graph.add_edge(u, v, bond=bond, distance=d)
+            graph.add_edge(u, v, bond=bond)
             used_pairs.add(pair)
 
     return graph

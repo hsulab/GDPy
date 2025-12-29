@@ -1,12 +1,11 @@
 import networkx as nx
 import numpy as np
 from ase import Atom, Atoms
-from ase.neighborlist import NeighborList, neighbor_list
+from ase.neighborlist import NeighborList
 
 from gdpx.group import evaluate_group_expression
 
-from .base import NeighbourData
-from .domain import build_domain_graph
+from .base import AtomicGraph
 
 
 def get_atop_sites(atoms: Atoms, graph: nx.Graph):
@@ -109,8 +108,6 @@ def find_adsorption_sites_by_graph(
         surf_normal_threshold: The threshold to determine surface normals.
 
     """
-    graph = nx.Graph()
-
     # Get the maximum grid range
     box = atoms.get_cell()
 
@@ -119,9 +116,11 @@ def find_adsorption_sites_by_graph(
     group_indices = sorted(evaluate_group_expression(atoms, group_expr))
 
     # Build graph
-    senders, receivers, distances, shifts = neighbor_list("ijdS", atoms, cutoff, self_interaction=True)
-    neigh = NeighbourData(senders, receivers, distances, shifts)
-    graph = build_domain_graph(atoms, neigh, group_indices)
+    graph_builder = AtomicGraph(atoms, graph_type="domain")
+    graph_builder.build(group_indices, cutoff=cutoff)
+    neigh = graph_builder._neigh
+    graph = graph_builder._graph
+    assert isinstance(graph, nx.Graph)
 
     # Use neighbour data to find surface normals
     surf_normals = np.zeros((num_atoms, 3))
