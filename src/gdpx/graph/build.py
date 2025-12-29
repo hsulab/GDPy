@@ -12,14 +12,14 @@ def build_atomic_graph(
     group_indices: list[int],
     node_id_func: Callable,
     add_edge_func: Callable,
-    include_neighbors: bool = False,
+    include_edges_outside: bool = False,
 ) -> nx.Graph:
     """Build a graph from ASE Atoms and neighbor data.
 
     Args:
         atoms: ASE Atoms object representing the structure.
         neigh: Neighbor data containing senders, receivers, distances, and shifts.
-        group_indices: List of atom indices to include in the graph.
+        include_edges_outside: Whether to include edges to atoms outside the group.
 
     Returns:
         A NetworkX graph representing the atoms.
@@ -38,7 +38,7 @@ def build_atomic_graph(
 
     is_edge_valid = (
         lambda i, j: (i in group_indices and j in group_indices)
-        if not include_neighbors
+        if not include_edges_outside
         else (i in group_indices or j in group_indices)
     )
 

@@ -157,15 +157,15 @@ class AtomicGraph:
 
     def build(
         self,
-        indices: Optional[list[int]] = None,
+        group_indices: Optional[list[int]] = None,
         cutoff: Optional[float] = None,
         ratio: float = 1.03,
         skin: float = 0.0,
-        include_neighbors: bool = False,
+        include_edges_outside: bool = False,
         ignored_bonds: Optional[list[str]] = None,
     ) -> None:
         """"""
-        indices = indices if indices is not None else list(range(len(self._atoms)))
+        group_indices = group_indices if group_indices is not None else list(range(len(self._atoms)))
 
         if cutoff is None:
             bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
@@ -185,13 +185,13 @@ class AtomicGraph:
         self._graph = self._build(
             self._atoms,
             self._neigh,
-            group_indices=indices,
-            include_neighbors=include_neighbors,
+            group_indices=group_indices,
+            include_edges_outside=include_edges_outside,
         )
         if ignored_bonds is not None:
             self._graph = prune_graph_by_ignored_bonds(
                 self._graph,
-                indices=indices,
+                indices=group_indices,
                 ignored_bonds=ignored_bonds,
             )
 

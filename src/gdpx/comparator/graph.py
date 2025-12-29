@@ -43,7 +43,7 @@ class GraphComparator(BaseComparator):
 
         graph_builder = AtomicGraph(atoms, graph_type="partial")
         graph_builder.build(
-            indices=group_indices, ratio=1.0, skin=0.2, include_neighbors=True, ignored_bonds=ignored_pairs
+            group_indices=group_indices, ratio=1.0, skin=0.2, include_edges_outside=True, ignored_bonds=ignored_pairs
         )
         graph = graph_builder.graph
         assert isinstance(graph, nx.Graph)

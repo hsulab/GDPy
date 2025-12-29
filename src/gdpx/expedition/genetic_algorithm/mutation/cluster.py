@@ -77,7 +77,7 @@ class ClusterRattleMutation(OffspringCreator):
 
         if num_group_atoms > 0:
             graph_builder = AtomicGraph(mutant, graph_type="partial")
-            graph_builder.build(indices=group_indices)
+            graph_builder.build(group_indices=group_indices)
             clusters = graph_builder.get_clusters(rebuild=True)
 
             num_clusters = len(clusters)
