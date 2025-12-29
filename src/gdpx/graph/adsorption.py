@@ -7,7 +7,6 @@ from gdpx.group import evaluate_group_expression
 
 from .base import NeighbourData
 from .domain import build_domain_graph
-from .utils import grid_iterator
 
 
 def get_atop_sites(atoms: Atoms, graph: nx.Graph):
@@ -31,19 +30,23 @@ def get_atop_sites(atoms: Atoms, graph: nx.Graph):
 
 def get_bridge_sites(atoms: Atoms, graph: nx.Graph):
     """Get bridge adsorption sites."""
+    box = atoms.get_cell()
+
     sites = []
-    for u, v, d in graph.edges(data=True):
+    for u, v, _ in graph.edges(data=True):
         if u.shift != (0, 0, 0) and v.shift != (0, 0, 0):
             continue
         a0, a1 = atoms[u.idx], atoms[v.idx]
         assert isinstance(a0, Atom)
         assert isinstance(a1, Atom)
-        direction = (a1.position + d["shift"]) - a0.position
+        p0 = a0.position + np.array(u.shift) @ box
+        p1 = a1.position + np.array(v.shift) @ box
+        direction = p1 - p0
         site_info = {
             "type": "bridge",
             "atoms": (u, v),
             "symbols": [a0.symbol, a1.symbol],
-            "position": (a0.position + a1.position) / 2 + d["shift"] / 2,
+            "position": (p0 + p1) / 2,
             "direction": np.array([direction]),
         }
         sites.append(site_info)
@@ -110,10 +113,6 @@ def find_adsorption_sites_by_graph(
 
     # Get the maximum grid range
     box = atoms.get_cell()
-    lengths = box.lengths()
-    max_grid = [int((cutoff // l) + 1) for l in lengths]
-    max_grid[surf_index] = 0  # No need to search in the surface normal direction
-    grids = list(grid_iterator(tuple(max_grid)))
 
     # Check indices to build graph
     num_atoms = len(atoms)
@@ -122,7 +121,7 @@ def find_adsorption_sites_by_graph(
     # Build graph
     senders, receivers, distances, shifts = neighbor_list("ijdS", atoms, cutoff, self_interaction=True)
     neigh = NeighbourData(senders, receivers, distances, shifts)
-    graph = build_domain_graph(atoms, neigh, group_indices, grids)
+    graph = build_domain_graph(atoms, neigh, group_indices)
 
     # Use neighbour data to find surface normals
     surf_normals = np.zeros((num_atoms, 3))

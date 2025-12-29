@@ -22,9 +22,7 @@ def canonicalize_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, i
     return int(arr[0]), int(arr[1]), int(arr[2])
 
 
-def build_domain_graph(
-    atoms: Atoms, neigh: NeighbourData, group_indices: list[int], grids: list[tuple[int, int, int]]
-) -> nx.Graph:
+def build_domain_graph(atoms: Atoms, neigh: NeighbourData, group_indices: list[int]) -> nx.Graph:
     """"""
     group_indices = sorted(group_indices)
 
@@ -34,11 +32,10 @@ def build_domain_graph(
 
     graph = nx.Graph()
 
-    for grid in grids:
-        for i in group_indices:
-            graph.add_node(
-                NodeID(int(i), canonicalize_shift(grid)),
-            )
+    for i in group_indices:
+        graph.add_node(
+            NodeID(int(i), canonicalize_shift((0, 0, 0))),
+        )
 
     used_pairs = set()
     for i, j, d, s in zip(senders, receivers, distances, shifts):
@@ -46,8 +43,7 @@ def build_domain_graph(
         if (i in group_indices and j in group_indices) and (i != j) and pair not in used_pairs:
             u = NodeID(idx=int(i), shift=canonicalize_shift((0, 0, 0)))
             v = NodeID(idx=int(j), shift=canonicalize_shift(s))
-            cart_shift = s @ box
-            graph.add_edge(u, v, distance=d, shift=cart_shift)
+            graph.add_edge(u, v, distance=d)
             used_pairs.add(pair)
 
     return graph
