@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import importlib
-import logging
 import warnings
 
 from .. import config
 
 
 class Register:
-
     def __init__(self, registry_name: str) -> None:
         """"""
         self._dict = {}
@@ -83,7 +77,6 @@ BaseRegister = Register
 
 
 class registers:
-
     #: Session operations.
     operation: Register = Register("operation")
 
@@ -160,35 +153,19 @@ def _handle_errors(errors):
     return names, reasons
 
 
-def show_failed_modules_in_rows(names, ncols: int = 3) -> list[str]:
-    """"""
-    keys = sorted(names)
-    nkeys = len(keys)
-    nrows = int(nkeys / ncols)
-
-    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
-    for i in range(nrows):
-        lines.append(("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols]))
-
-    nrest = nkeys - nrows * ncols
-    if nrest > 0:
-        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
-
-    return lines
-
-
 def show_failed_modules_in_rows_with_reasons(names, reasons) -> list[str]:
     """"""
-    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
+    lines = []
     for name, err in zip(names, reasons):
         lines.append(f"  {name:<33s} -> require `{err.name}`.")
 
     return lines
 
 
-def import_all_modules_for_register(custom_module_paths=None) -> None:
+def import_all_modules_for_register(custom_module_paths=None, disable_import_info: bool = False) -> None:
     """Import all modules for register."""
-    config._print("FAILED TO IMPORT OPTIONAL CLASSES: ")
+    if not disable_import_info:
+        config._print("FAILED TO IMPORT OPTIONAL MODULES: ")
 
     # Add standard modules
     modules = []
@@ -237,19 +214,9 @@ def import_all_modules_for_register(custom_module_paths=None) -> None:
         except ImportError as error:
             errors.append((module_name, error))
 
-    # Some imported packages change `logging.basicConfig`
-    # and accidently add a StreamHandler to logging.root
-    # so remove it...
-    for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
-            logging.root.removeHandler(h)
-
-    lines = show_failed_modules_in_rows_with_reasons(names, reasons)
-    for line in lines:
-        config._print(line)
+    if not disable_import_info:
+        lines = show_failed_modules_in_rows_with_reasons(names, reasons)
+        for line in lines:
+            config._print(line)
 
     return
-
-
-if __name__ == "__main__":
-    ...

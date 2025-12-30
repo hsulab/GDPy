@@ -16,7 +16,7 @@ from gdpx.utils.strconv import dictionary_to_string
 
 def main():
     # Load all components
-    import_all_modules_for_register()
+    import_all_modules_for_register(disable_import_info=False)
 
     # The arguments
     description = "gdpx: Generating Deep Potential with Python\n"
