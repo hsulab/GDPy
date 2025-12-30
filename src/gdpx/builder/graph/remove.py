@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 from gdpx.utils.profiler import CustomTimer
 
 from .modifier import GraphModifier
-from .utils import single_remove_adsorbate
+from .utils import single_remove_species
 
 
 class GraphRemoveModifier(GraphModifier):
@@ -25,7 +25,7 @@ class GraphRemoveModifier(GraphModifier):
         *args,
         **kwargs,
     ):
-        """Remove an adsorbate on sites according to graph representation."""
+        """Remove a species on sites according to graph representation."""
         super().__init__(substrates=substrates, *args, **kwargs)
 
         if species not in ase.data.chemical_symbols:
@@ -45,9 +45,9 @@ class GraphRemoveModifier(GraphModifier):
         """Remove atoms/molecules/adsorbates."""
         self._print("---run remove---")
         # Get chemical environments of selected species that may be removed
-        with CustomTimer(name="remove-adsorbate", func=self._print):
+        with CustomTimer(name="remove-species", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
-                delayed(single_remove_adsorbate)(
+                delayed(single_remove_species)(
                     a,
                     self.group,
                     self.species,

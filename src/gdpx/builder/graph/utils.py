@@ -11,6 +11,28 @@ from gdpx.graph.expand import extract_chemical_environments, get_unique_chemical
 from gdpx.group import evaluate_group_expression
 
 
+def get_chemical_environments_by_group(
+    atoms: Atoms, group_indices: list[int], gmax: tuple[int, int, int], ratio: float, skin: float
+) -> list[nx.Graph]:
+    """Get chemical environments by group indices.
+
+    Args:
+        atoms: Input structure.
+
+    Returns:
+        A list of graphs that represent the chemical environments of selected atoms.
+
+    """
+    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
+    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
+    graph = graph_builder.graph
+    assert isinstance(graph, nx.Graph)
+
+    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+
+    return chem_envs
+
+
 def single_create_structure_graph(
     atoms: Atoms, group: str, gmax: tuple[int, int, int], ratio: float, skin: float
 ) -> list[nx.Graph]:
@@ -26,12 +48,10 @@ def single_create_structure_graph(
 
     """
     group_indices = evaluate_group_expression(atoms, group)
-    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
-    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
-    graph = graph_builder.graph
-    assert isinstance(graph, nx.Graph)
 
-    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+    chem_envs = get_chemical_environments_by_group(
+        atoms, group_indices=group_indices, gmax=gmax, ratio=ratio, skin=skin
+    )
 
     return chem_envs
 
@@ -74,12 +94,9 @@ def single_insert_species(
     group_indices = [i for i in group_indices if chemical_symbols[i] in allowed_symbols]
 
     # Get chemical environments from graph
-    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
-    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
-    graph = graph_builder.graph
-    assert isinstance(graph, nx.Graph)
-
-    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+    chem_envs = get_chemical_environments_by_group(
+        atoms, group_indices=group_indices, gmax=gmax, ratio=ratio, skin=skin
+    )
 
     # Make sure only single atomic sites are found
     assert len(chem_envs) == len(group_indices), (
@@ -128,7 +145,7 @@ def single_insert_species(
     return unique_frames, unique_envs
 
 
-def single_remove_adsorbate(
+def single_remove_species(
     atoms: Atoms,
     group: str,
     species: str,
@@ -161,12 +178,9 @@ def single_remove_adsorbate(
             raise RuntimeError("Species to remove is inconsistent for those by indices.")
 
     # Get chemical environments from graph
-    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
-    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
-    graph = graph_builder.graph
-    assert isinstance(graph, nx.Graph)
-
-    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+    chem_envs = get_chemical_environments_by_group(
+        atoms, group_indices=group_indices, gmax=gmax, ratio=ratio, skin=skin
+    )
 
     # Make sure only single atoms are removed
     assert len(chem_envs) == len(group_indices), (
@@ -232,12 +246,9 @@ def single_swap_species(
         raise RuntimeError(f"There is no {species} to swap by target group.")
 
     # Get chemical environments from graph
-    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
-    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
-    graph = graph_builder.graph
-    assert isinstance(graph, nx.Graph)
-
-    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+    chem_envs = get_chemical_environments_by_group(
+        atoms, group_indices=group_indices, gmax=gmax, ratio=ratio, skin=skin
+    )
 
     # Make sure only single atoms are swapped
     assert len(chem_envs) == len(group_indices), (

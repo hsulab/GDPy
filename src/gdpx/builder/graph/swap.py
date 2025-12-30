@@ -24,7 +24,7 @@ class GraphSwapModifier(GraphModifier):
         *args,
         **kwargs,
     ):
-        """Insert an adsorbate on sites according to graph representation."""
+        """Swap a species according to graph representation."""
         super().__init__(substrates=substrates, *args, **kwargs)
 
         if species not in ase.data.chemical_symbols:
@@ -43,10 +43,10 @@ class GraphSwapModifier(GraphModifier):
         return
 
     def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
-        """Swap an adsorbate with another species."""
+        """Swap a species with another species."""
         self._print("---run swap---")
         # Get chemical environments of selected species that may be swapped
-        with CustomTimer(name="exchange-adsorbate", func=self._print):
+        with CustomTimer(name="swap-species", func=self._print):
             ret = Parallel(n_jobs=self.njobs)(
                 delayed(single_swap_species)(
                     a,
