@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import dataclasses
 import itertools
 import json
@@ -13,7 +9,6 @@ from ase.geometry import find_mic
 from ase.io import write
 
 from gdpx.data.array import AtomsNDArray
-from gdpx.graph.molecule import MolecularAdsorbate, find_molecules
 from gdpx.group import evaluate_group_expression
 from gdpx.potential.mixer import MixerManager
 from gdpx.worker.grid import GridDriverBasedWorker
@@ -82,7 +77,6 @@ def get_last_atoms(frames):
 
 @dataclasses.dataclass
 class ReactionSpace:
-
     group: str
     reactions: list[dict] = dataclasses.field(default_factory=list)
 
@@ -120,7 +114,6 @@ class ReactionSpace:
 
 
 class AFIRSearch(BaseExpedition):
-
     def __init__(
         self,
         builder,
@@ -361,7 +354,3 @@ class AFIRSearch(BaseExpedition):
             workers.append(curr_worker)
 
         return workers
-
-
-if __name__ == "__main__":
-    ...

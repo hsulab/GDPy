@@ -1,46 +1,13 @@
-from typing import Callable
-
 import ase.data
 from ase import Atoms
 from ase.io import write
 from joblib import Parallel, delayed
 
 from gdpx.geometry.composition import convert_string_to_adsorbate
-from gdpx.graph.sites import SiteFinder
 from gdpx.utils.profiler import CustomTimer
 
 from .modifier import GraphModifier
 from .utils import single_insert_species
-
-
-def single_insert_adsorbate(
-    graph_params: dict,
-    idx,
-    atoms,
-    ads,
-    site_params: list,
-    print_func: Callable = print,
-    debug_func: Callable = print,
-):
-    """Insert adsorbate into the graph."""
-    site_creator = SiteFinder(**graph_params)
-    site_creator._print = print_func
-    site_creator._debug = debug_func
-    site_groups = site_creator.find(atoms, site_params)
-
-    ads_indices = [a.index for a in atoms if a.symbol in site_creator.adsorbate_elements]
-
-    created_frames = []
-    for i, (sites, params) in enumerate(zip(site_groups, site_params)):
-        ads_params = params.get("ads", [{}])
-        cur_frames = []
-        for s in sites:
-            ads_frames = s.adsorb(ads, ads_indices, ads_params)
-            cur_frames.extend(ads_frames)
-        created_frames.extend(cur_frames)
-        print_func(f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}.")
-
-    return created_frames
 
 
 class GraphInsertModifier(GraphModifier):
