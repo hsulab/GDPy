@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
-from typing import Callable, Tuple
+from typing import Callable
 
 import networkx as nx
 from ase import Atoms
@@ -27,7 +23,7 @@ def single_exchange_adsorbate(
     atoms: Atoms,
     print_func: Callable = print,
     debug_func: Callable = print,
-) -> Tuple[list[Atoms], list[nx.Graph]]:
+) -> tuple[list[Atoms], list[nx.Graph]]:
     """Exchange selected particles from the structure with target species.
 
     Currently, only single atom can be removed. TODO: molecule.
@@ -41,11 +37,7 @@ def single_exchange_adsorbate(
     stru_creator = StruGraphCreator(**graph_params)
 
     # - check if spec_indices are all species
-    natoms = len(atoms)
-    group_indices = list(range(natoms))
-    for command in target_group:
-        curr_indices = evaluate_group_expression(atoms, command)
-        group_indices = [i for i in group_indices if i in curr_indices]
+    group_indices = evaluate_group_expression(atoms, target_group)
     debug_func(f"group_indices to remove {group_indices}")
 
     # TODO: tags for molecule?
@@ -70,9 +62,9 @@ def single_exchange_adsorbate(
     #        if d["central_ads"]:
     #            print(u, d)
     # NOTE: for single atom adsorption,
-    assert len(chem_envs) == len(
-        group_indices
-    ), "Single atoms group into one adsorbate. Try reducing the covalent radii."
+    assert len(chem_envs) == len(group_indices), (
+        "Single atoms group into one adsorbate. Try reducing the covalent radii."
+    )
     # TODO: for molecule adsorption
 
     # - find unique sites to remove for this structure
@@ -98,16 +90,20 @@ def single_exchange_adsorbate(
     return unique_frames, unique_envs
 
 
-class GraphExchangeModifier(GraphModifier):
+class GraphSwapModifier(GraphModifier):
+    name: str = "graph_swap"
 
     def __init__(
         self,
         species: str,
         target: str,
-        target_group,
+        group,
         spectators: list[str],
         substrates=None,
         graph: dict = DEFAULT_GRAPH_PARAMS,
+        gmax: tuple[int, int, int] = (2, 2, 0),
+        ratio: float = 1.1,
+        skin: float = 0.25,
         *args,
         **kwargs,
     ):
@@ -117,15 +113,15 @@ class GraphExchangeModifier(GraphModifier):
         self.species = species  # make this a node
         self.target = target
 
-        self.target_group = target_group
+        self.group = group
 
         self.spectators = spectators
         self.graph_params = graph
 
-        # self.check_site_unique = True
-        # adsorbate_indices
-        # site_radius
-        # region
+        # Graph-building parameters
+        self.gmax = gmax
+        self.ratio = ratio
+        self.skin = skin
 
         return
 
@@ -144,7 +140,7 @@ class GraphExchangeModifier(GraphModifier):
                     graph_params,
                     self.species,
                     self.target,
-                    self.target_group,
+                    self.group,
                     a,
                     print_func=self._print,
                     debug_func=self._debug,
@@ -165,14 +161,14 @@ class GraphExchangeModifier(GraphModifier):
         # not unique across substrates
         write(self.directory / f"possible_frames.xyz", ret_frames)
 
-        # - compare the graph of chemical environments in the structure
-        #   NOTE: if Zn atoms were to exchange with Cr, the chem envs of
-        #         the rest Zn atoms are used to compare the structure difference.
-        #         TODO: consider Cr as well?
-        created_frames = self._compare_structures(ret_frames, graph_params, self.target_group)
+        # Get unique structures among substrates.
+        # If Zn atoms were to swap with Cr, the chem envs of the rest Zn atoms
+        # are used to compare the structure difference.
+        graph_params = dict(
+            gmax=self.gmax,
+            ratio=self.ratio,
+            skin=self.skin,
+        )
+        created_frames = self._compare_structures(ret_frames, graph_params, self.group)
 
         return created_frames
-
-
-if __name__ == "__main__":
-    ...

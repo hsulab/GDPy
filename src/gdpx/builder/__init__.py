@@ -37,11 +37,11 @@ from .packer import PackerBuilder
 
 REGISTER.register("pack")(PackerBuilder)
 
-from .graph import GraphExchangeModifier, GraphInsertModifier, GraphRemoveModifier
+from .graph import GraphSwapModifier, GraphInsertModifier, GraphRemoveModifier
 
 REGISTER.register("graph_insert")(GraphInsertModifier)
 REGISTER.register("graph_remove")(GraphRemoveModifier)
-REGISTER.register("graph_exchange")(GraphExchangeModifier)
+REGISTER.register("graph_swap")(GraphSwapModifier)
 
 from .random_bulk import RandomBulkBuilder, RandomClusterBuilder, RandomSurfaceBuilder
 
