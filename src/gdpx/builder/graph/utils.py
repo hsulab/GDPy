@@ -100,3 +100,74 @@ def single_remove_adsorbate(
             ...
 
     return unique_frames, unique_envs
+
+
+def single_swap_species(
+    atoms: Atoms,
+    group,
+    species: str,
+    target: str,
+    gmax: tuple[int, int, int],
+    ratio: float,
+    skin: float,
+    print_func: Callable = print,
+    debug_func: Callable = print,
+) -> tuple[list[Atoms], list[nx.Graph]]:
+    """Exchange selected particles from the structure with target species.
+
+    Currently, only single atom can be swapped.
+
+    TODO: molecule.
+
+    Args:
+        atoms: The ASE Atoms object representing the structure.
+
+    Returns:
+        A list of structures with swappde atoms.
+
+    """
+    # Check if spec_indices are all species
+    group_indices = evaluate_group_expression(atoms, group)
+    debug_func(f"group_indices to remove {group_indices}")
+
+    chemical_symbols = atoms.get_chemical_symbols()
+    for i in group_indices:
+        if chemical_symbols[i] == species:
+            break
+    else:
+        raise RuntimeError(f"There is no {species} to swap by target group.")
+
+    # Get chemical environments from graph
+    graph_builder = AtomicGraph(atoms, graph_type="expand", gmax=gmax)
+    graph_builder.build(group_indices=group_indices, ratio=ratio, skin=skin)
+    graph = graph_builder.graph
+    assert isinstance(graph, nx.Graph)
+
+    chem_envs = extract_chemical_environments(graph, atoms, group_indices, graph_radius=2)
+
+    # Make sure only single atoms are swapped
+    assert len(chem_envs) == len(group_indices), (
+        "Single atoms group into one adsorbate. Try reducing the covalent radii."
+    )
+
+    # Find unique sites to swap for this structure
+    unique_indices = get_unique_chemical_environments_by_bonds(chem_envs)
+    unique_envs = [chem_envs[i] for i in unique_indices]
+
+    # Create sctructures with swapped species
+    unique_frames = []
+    for g in unique_envs:
+        for u, d in g.nodes.data():
+            if d["central_ads"]:
+                i = d["index"]
+                chemical_symbol = chemical_symbols[i]
+                if chemical_symbol == species:
+                    new_atoms = copy.deepcopy(atoms)
+                    new_atoms[i].symbol = target  # type: ignore
+                    unique_frames.append(new_atoms)
+                    break
+        else:
+            # no valid species for this structure
+            ...
+
+    return unique_frames, unique_envs
