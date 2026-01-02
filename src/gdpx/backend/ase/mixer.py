@@ -1,18 +1,13 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 
 import numpy as np
-from ase.calculators.calculator import all_changes, Calculator
+from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.mixing import LinearCombinationCalculator, MixedCalculator
 
 from gdpx import config as GDPCONFIG
 
 
 class AddonCalculator(MixedCalculator):
-
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         """"""
         super().calculate(atoms, properties, system_changes)
@@ -26,7 +21,6 @@ class AddonCalculator(MixedCalculator):
 
 
 class EnhancedCalculator(LinearCombinationCalculator):
-
     def __init__(self, calcs, save_host=True, weights=None, directory: str = "./"):
         """Init the enhanced calculator.
 
@@ -102,7 +96,6 @@ class EnhancedCalculator(LinearCombinationCalculator):
 
 
 class CommitteeCalculator(Calculator, LinearCombinationCalculator):
-
     def __init__(self, calcs, use_avg=False, save_atomic=True, ddof=0, directory: str = "./"):
         """Init the committee calculator.
 
@@ -188,7 +181,3 @@ class CommitteeCalculator(Calculator, LinearCombinationCalculator):
         # TODO: atomic energies?
 
         return
-
-
-if __name__ == "__main__":
-    ...
