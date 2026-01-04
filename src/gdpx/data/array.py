@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import functools
 import itertools
@@ -19,21 +15,19 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 #: The retained keys in atoms.info.
 RETAINED_INFO_NAMES: list[str] = [
-    # fmt: off
     "confid", "step",
     "max_devi_e", "min_devi_e", "avg_devi_e",
     "max_devi_v", "min_devi_v", "avg_devi_v",
-    "max_devi_f", "min_devi_f", "avg_devi_f"
-]
+    "max_devi_f", "min_devi_f", "avg_devi_f",
+]  # fmt: skip
 
 #: The retained data types in atoms.info.
 RETAIEND_INFO_DTYPES: list[str] = [
-    # fmt: off
     "i8", "i8",
     "f", "f", "f",
     "f", "f", "f",
-    "f", "f", "f"
-]
+    "f", "f", "f",
+]  # fmt: skip
 
 #: Saved calculated property names.
 RETAINED_CALC_PROPS: list[str] = ["energy", "free_energy", "forces"]
@@ -72,9 +66,7 @@ def _map_idx(loc: numpy.typing.NDArray, shape: tuple[int, ...]) -> int:
 
 def _process_data(
     data_nd: list,
-) -> tuple[
-    tuple[int, ...], list[Atoms], numpy.typing.NDArray, Mapping[int, int]
-]:
+) -> tuple[tuple[int, ...], list[Atoms], numpy.typing.NDArray, Mapping[int, int]]:
     """Process a nested list of Atoms."""
     sizes = [[len(data_nd)]]
 
@@ -113,9 +105,7 @@ def _process_data(
                     else:
                         arr[i] = False
             else:
-                for subarr, subseq in itertools.zip_longest(
-                    arr, seq, fillvalue=()
-                ):
+                for subarr, subseq in itertools.zip_longest(arr, seq, fillvalue=()):
                     _assign_markers(subarr, subseq)
         else:
             ...
@@ -155,19 +145,13 @@ class AtomsNDArray:
             markers = data.markers  # overwrite input markers
             data = data.tolist()
         else:
-            raise Exception(
-                f"The input data should be a list or a AtomsNDArray instead of {type(data)}."
-            )
+            raise Exception(f"The input data should be a list or a AtomsNDArray instead of {type(data)}.")
 
-        assert isinstance(
-            data, list
-        ), "The input data for AtomsNDArray should be a list."
+        assert isinstance(data, list), "The input data for AtomsNDArray should be a list."
         if len(data) == 0:
             raise Exception(f"The input data is empty as {data}.")
 
-        self._shape, self._data, self._markers, self._ind_map = _process_data(
-            data
-        )
+        self._shape, self._data, self._markers, self._ind_map = _process_data(data)
 
         self._init_markers = copy.deepcopy(self._markers)
 
@@ -240,9 +224,7 @@ class AtomsNDArray:
 
         return
 
-    def get_marked_structures(
-        self, markers: Optional[numpy.typing.NDArray] = None
-    ) -> list[Atoms]:
+    def get_marked_structures(self, markers: Optional[numpy.typing.NDArray] = None) -> list[Atoms]:
         """Get structures according to markers.
 
         If custom markers is None, `self._markers` will be used instead.
@@ -253,10 +235,7 @@ class AtomsNDArray:
         else:
             curr_markers = markers
 
-        structures = [
-            self._data[self._ind_map[_map_idx(loc, self.shape)]]
-            for loc in curr_markers
-        ]
+        structures = [self._data[self._ind_map[_map_idx(loc, self.shape)]] for loc in curr_markers]
 
         return structures
 
@@ -294,7 +273,7 @@ class AtomsNDArray:
             if isinstance(target, str) or isinstance(target, pathlib.Path):
                 fopen.close()
             else:
-                ... # close externally
+                ...  # close externally
 
         # Convert a list of Atoms to AtomsNDArray
         shape = tuple(shape)
@@ -399,7 +378,7 @@ class AtomsNDArray:
             if isinstance(target, str) or isinstance(target, pathlib.Path):
                 fopen.close()
             else:
-                ... # close externally
+                ...  # close externally
 
         return
 
@@ -408,9 +387,7 @@ class AtomsNDArray:
         # Get data
         nimages = len(images)
         natoms_list = np.array([len(a) for a in images], dtype=np.int64)
-        boxes = np.array(
-            [a.get_cell(complete=True) for a in images], dtype=np.float64
-        ).reshape(-1, 9)
+        boxes = np.array([a.get_cell(complete=True) for a in images], dtype=np.float64).reshape(-1, 9)
         pbcs = np.array([a.get_pbc() for a in images], dtype=np.int8)
         max_natoms = max(natoms_list)
         atomic_numbers = np.zeros((nimages, max_natoms), dtype=np.int64)
@@ -442,9 +419,7 @@ class AtomsNDArray:
         # Save calculated properties,
         # energy and forces have apply_constraint True.
         # TODO: without calc properties?
-        energies = np.array(
-            [a.get_potential_energy() for a in images], dtype=np.float64
-        )
+        energies = np.array([a.get_potential_energy() for a in images], dtype=np.float64)
         free_energies = []
         for i, a in enumerate(images):
             try:
@@ -457,7 +432,7 @@ class AtomsNDArray:
         momenta = np.empty((nimages, max(natoms_list), 3), dtype=np.float64)
         momenta.fill(np.nan)
         for i, a in enumerate(images):
-            forces[i, : natoms_list[i], :] = a.get_forces()
+            forces[i, : natoms_list[i], :] = a.get_forces(apply_constraint=False)
             if "momenta" in a.arrays:
                 momenta[i, : natoms_list[i], :] = a.get_momenta()
             else:
@@ -486,9 +461,7 @@ class AtomsNDArray:
             if isinstance(i, numbers.Integral):
                 i = int(i)
                 if i < -size or i >= size:
-                    raise IndexError(
-                        f"Index {i} is out of bounds for axis {dim} with size {size}."
-                    )
+                    raise IndexError(f"Index {i} is out of bounds for axis {dim} with size {size}.")
                     # IndexError: index 1 is out of bounds for axis 0 with size 1
                 if i < 0:
                     i += size
@@ -500,9 +473,7 @@ class AtomsNDArray:
                         raise IndexError(f"Index {c_i} out of range {size}.")
                 tshape.append(len(curr_indices))
             else:
-                raise IndexError(
-                    f"Index must be an integer or a slice for dimension {dim}."
-                )
+                raise IndexError(f"Index must be an integer or a slice for dimension {dim}.")
             indices.append(curr_indices)
 
         # Convert indices
@@ -531,7 +502,3 @@ class AtomsNDArray:
         """"""
 
         return f"atoms_array(nimages: {len(self)}, shape: {self.shape})"
-
-
-if __name__ == "__main__":
-    ...
