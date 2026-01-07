@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import os
 import pathlib
 
@@ -10,17 +6,70 @@ from gdpx.backend.ase import DummyCalculator
 from .manager import BasePotentialManager
 
 
-class VaspManager(BasePotentialManager):
+def set_environs(pp_path: str, vdw_path: str) -> None:
+    """Set files need for calculation.
 
+    Note:
+        pp_path and vdw_path may not exist since we would like to create a
+        dummy calculator.
+
+    """
+    # Pseudo potential path
+    if "VASP_PP_PATH" in os.environ.keys():
+        os.environ.pop("VASP_PP_PATH", "")
+    os.environ["VASP_PP_PATH"] = pp_path
+
+    # Vdw kernel path
+    vdw_envname = "ASE_VASP_VDW"
+    if vdw_envname in os.environ.keys():
+        _ = os.environ.pop(vdw_envname, "")
+    os.environ[vdw_envname] = vdw_path
+
+    return
+
+
+def instantiate_vasp_interactive_calculator(
+    calc_cls, command: str, calc_params: dict, is_remote: bool, inp_fdict: dict, use_socket: bool
+):
+    """"""
+    # Command must contain the machine prefix, otherwise,
+    # the vasp process will fail.
+    calc = calc_cls(command=command, use_socket=use_socket)
+
+    # Set some default electronic parameters
+    calc.set_xc_params("PBE")  # incar may not set GGA
+    calc.set(lorbit=10)
+    calc.set(gamma=True)
+    calc.set(lreal="Auto")
+    if not is_remote and inp_fdict["incar"] is not None:
+        calc.read_incar(inp_fdict["incar"])
+
+    # Set some vasp_interactive parameters
+    calc.set(potim=0.0)
+    calc.set(ibrion=-1)
+    calc.set(ediffg=0)
+    # calc.set(isif=3) # Does not support stress for now...
+
+    set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
+
+    # Update residual params
+    calc.set(**calc_params)
+
+    return calc
+
+
+class VaspManager(BasePotentialManager):
     name = "vasp"
 
     implemented_backends = (
         "vasp",
         "vasp_interactive",
+        "vasp_interactive_disp",
     )
     valid_combinations = (
         ("vasp", "vasp"),
         ("vasp_interactive", "ase"),
+        ("vasp_interactive_disp", "ase"),
     )
 
     def _set_environs(self, pp_path, vdw_path) -> None:
@@ -58,6 +107,8 @@ class VaspManager(BasePotentialManager):
         # Some extra parameters
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
+
+        use_socket = calc_params.pop("use_socket", False)
 
         # Check whether check pp and vdw existence
         # since sometimes we'd like a dummy calculator
@@ -99,7 +150,7 @@ class VaspManager(BasePotentialManager):
 
             # Command must contain the machine prefix, otherwise,
             # the vasp process will fail.
-            calc = VaspInteractive(directory=directory, command=command)
+            calc = VaspInteractive(directory=directory, command=command, use_socket=use_socket)
 
             # Set some default electronic parameters
             calc.set_xc_params("PBE")  # incar may not set GGA
@@ -119,13 +170,38 @@ class VaspManager(BasePotentialManager):
 
             # Update residual params
             calc.set(**calc_params)
+        elif self.calc_backend == "vasp_interactive_disp":
+            from dftd3.ase import DFTD3
+            from vasp_interactive import VaspInteractive
+
+            from gdpx.backend.vasp.calculators import VaspInteractiveWithDispersion
+
+            disp_calc_params = calc_params.pop("dispersion", None)
+            if disp_calc_params is None:
+                raise Exception("vasp_interactive_disp must have `dispersion` section in `params`.")
+            dispersion_type = disp_calc_params.pop("type", None)
+            if dispersion_type != "dftd3":
+                raise Exception("vasp_interactive_disp only supports `type` of `dftd3`.")
+            disp_calc = DFTD3(**disp_calc_params)
+
+            vasp_calc = instantiate_vasp_interactive_calculator(
+                VaspInteractive,
+                command=command,
+                calc_params=calc_params,
+                is_remote=is_remote,
+                inp_fdict=inp_fdict,
+                use_socket=use_socket,
+            )
+
+            calc = VaspInteractiveWithDispersion(
+                calcs=[vasp_calc, disp_calc],
+                save_host=True,
+                directory=directory,
+            )
+
         else:
             ...  # The backend has already been checked.
 
         self.calc = calc
 
         return
-
-
-if __name__ == "__main__":
-    ...
