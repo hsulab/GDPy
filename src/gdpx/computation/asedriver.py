@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import dataclasses
 import functools
@@ -255,7 +251,6 @@ class SinglePointController(Controller):
 
 @dataclasses.dataclass
 class BFGSMinimiser(Controller):
-
     name: str = "bfgs"
 
     def __post_init__(self):
@@ -272,7 +267,6 @@ class BFGSMinimiser(Controller):
 
 @dataclasses.dataclass
 class BFGSCellMinimiser(Controller):
-
     name: str = "bfgs"
 
     def __post_init__(self):
@@ -309,7 +303,6 @@ class BFGSCellMinimiser(Controller):
 
 @dataclasses.dataclass
 class MDController(Controller):
-
     #: Controller name.
     name: str = "md"
 
@@ -344,7 +337,6 @@ class MDController(Controller):
 
 @dataclasses.dataclass
 class Verlet(MDController):
-
     def __post_init__(self):
         """"""
         super().__post_init__()
@@ -362,7 +354,6 @@ class Verlet(MDController):
 
 @dataclasses.dataclass
 class BerendsenThermostat(MDController):
-
     name: str = "berendsen"
 
     def __post_init__(
@@ -390,7 +381,6 @@ class BerendsenThermostat(MDController):
 
 @dataclasses.dataclass
 class LangevinThermostat(MDController):
-
     name: str = "langevin"
 
     def __post_init__(
@@ -421,7 +411,6 @@ class LangevinThermostat(MDController):
 
 @dataclasses.dataclass
 class NoseHooverThermostat(MDController):
-
     name: str = "nose_hoover"
 
     def __post_init__(
@@ -451,7 +440,6 @@ class NoseHooverThermostat(MDController):
 
 @dataclasses.dataclass
 class NoseHooverChainThermostat(MDController):
-
     name: str = "nose_hoover_chain"
 
     def __post_init__(self):
@@ -485,7 +473,6 @@ class NoseHooverChainThermostat(MDController):
 
 @dataclasses.dataclass
 class BerendsenBarostat(MDController):
-
     name: str = "berendsen"
 
     def __post_init__(
@@ -525,7 +512,6 @@ class BerendsenBarostat(MDController):
 
 @dataclasses.dataclass
 class MonteCarloController(MDController):
-
     name: str = "monte_carlo"
 
     def __post_init__(self):
@@ -581,7 +567,6 @@ default_controllers = dict(
 
 @dataclasses.dataclass
 class AseDriverSetting(DriverSetting):
-
     #: Default simulation task.
     task: str = "spc"
 
@@ -652,7 +637,6 @@ class AseDriverSetting(DriverSetting):
 
 
 class AseDriver(BaseDriver):
-
     #: Driver name.
     name = "ase"
 
@@ -1059,7 +1043,3 @@ class AseDriver(BaseDriver):
             ...
 
         return traj_frames
-
-
-if __name__ == "__main__":
-    ...
