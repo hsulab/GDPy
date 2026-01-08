@@ -13,6 +13,7 @@ from typing import Optional, Tuple
 import numpy as np
 from ase import Atoms, units
 from ase.calculators.calculator import Calculator
+from ase.calculators.mixing import LinearCombinationCalculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 from ase.md.md import MolecularDynamics
@@ -32,13 +33,17 @@ def set_calc_state(calc: Calculator, steps: int, timestep: float, stride: int):
         calc.set(timestep=timestep)
         calc.set(stride=stride)
 
-    # VaspInteractive needs nsw more than steps since a new vasp process will start if nsw is 0.
+    # VaspInteractive needs nsw more than steps since a new vasp process will start if nsw is 0 or equals to steps.
     if calc.name == "VaspInteractive":
-        calc.set(nsw=steps)
+        more_steps = steps + 2
+        calc.set(nsw=more_steps)
 
-    if hasattr(calc, "mixer"):
+    if isinstance(
+        calc, LinearCombinationCalculator
+    ):  # EnhancedCalculator (vasp+dftd3) or VaspInteractiveWithDispersion
         for subcalc in calc.mixer.calcs:
-            set_calc_state(subcalc, steps, timestep, stride)
+            more_steps = steps + 2
+            set_calc_state(subcalc, more_steps, timestep, stride)
     else:
         ...
 
