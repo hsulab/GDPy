@@ -40,7 +40,6 @@ def instantiate_vasp_interactive_calculator(
     calc.set_xc_params("PBE")  # incar may not set GGA
     calc.set(lorbit=10)
     calc.set(gamma=True)
-    calc.set(lreal="Auto")
     if not is_remote and inp_fdict["incar"] is not None:
         calc.read_incar(inp_fdict["incar"])
 
@@ -138,7 +137,6 @@ class VaspManager(BasePotentialManager):
             calc.set_xc_params("PBE")  # incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
-            calc.set(lreal="Auto")
             if not is_remote and inp_fdict["incar"] is not None:
                 calc.read_incar(inp_fdict["incar"])
             self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
@@ -156,7 +154,6 @@ class VaspManager(BasePotentialManager):
             calc.set_xc_params("PBE")  # incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
-            calc.set(lreal="Auto")
             if not is_remote and inp_fdict["incar"] is not None:
                 calc.read_incar(inp_fdict["incar"])
 
