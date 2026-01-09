@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import pathlib
 from typing import Any, Optional
@@ -82,7 +78,7 @@ def compare_structures(
     return results
 
 
-def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool=False) -> str:
+def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool = False) -> str:
     """"""
     content = "# Name     N_a  " + ("{:>12s}  " * 9).format(
         "E_v", "E_p_ini", "E_p_end", "E_d_ini", "E_d_end", "Fmax_v", "Fmax_p_ini", "Fmax_p_end", "Disp"
@@ -108,7 +104,7 @@ def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool=False) ->
         p_rankings_ini = sorted(indices, key=lambda i: sort[i])
         sort = np.argsort(ene[2])
         p_rankings_end = sorted(indices, key=lambda i: sort[i])
-        
+
         content += ("{:>6s}  " * 3).format("Erk_v", "Erk_p_ini", "Erk_p_end")
         line_format += "{:>6d}  " * 3
 
@@ -319,7 +315,3 @@ class MinimaValidator(BaseValidator):
             ini_frames, end_frames = None, None
 
         return ini_frames, end_frames  # type: ignore
-
-
-if __name__ == "__main__":
-    ...
