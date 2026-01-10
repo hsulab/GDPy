@@ -4,6 +4,7 @@ from typing import Mapping, Union
 import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
+from matplotlib.font_manager import FontProperties
 
 try:
     plt.style.use("presentation")
@@ -35,7 +36,7 @@ def add_rmse_text(ax, x_rmse, x_name):
     # add text about RMSE
     rmse_text = "RMSE:\n"
     for _rms, name in zip(x_rmse, x_name):
-        rmse_text += "{:>6.3f}+-{:>6.3f} {:<4s}\n".format(_rms["rmse"], _rms["std"], name)
+        rmse_text += "{:>8.3f}+-{:>8.3f} {:<4s}\n".format(_rms["rmse"], _rms["std"], name)
 
     ax.text(
         0.9,
@@ -46,6 +47,7 @@ def add_rmse_text(ax, x_rmse, x_name):
         fontweight="bold",
         horizontalalignment="right",
         verticalalignment="bottom",
+        family="monospace"
     )
 
     return
@@ -182,7 +184,7 @@ def plot_parity(ax, x_ref, x_pred, x_name="data", x_types=None, weights=None):
         # -- rmse text
         add_rmse_text(ax, x_rmse, x_rmse_names)
 
-    ax.legend()
+    ax.legend(prop=FontProperties(family="monospace"))
 
     return x_rmse, x_rmse_names
 
