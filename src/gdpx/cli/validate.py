@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 from typing import Union
 
@@ -9,8 +5,7 @@ from gdpx.factory.validator import canonicalise_validator
 
 
 def run_validation(config: dict, directory: Union[str, pathlib.Path], potter):
-    """ This is a factory to deal with various validations...
-    """
+    """This is a factory to deal with various validations..."""
     # run over validations
     directory = pathlib.Path(directory)
 
@@ -26,12 +21,7 @@ def run_validation(config: dict, directory: Union[str, pathlib.Path], potter):
 
     # run the validations sequentially
     for i, validator in enumerate(validators):
-        validator.directory = directory/f"v.{i:>02d}.{validator.name}"
+        validator.directory = directory / f"v.{i:>02d}.{validator.name}"
         validator.run()
 
     return
-
-
-if __name__ == "__main__":
-    ...
-  

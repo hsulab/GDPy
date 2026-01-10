@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 from typing import Union
 
@@ -17,14 +13,8 @@ def canonicalise_validator(
     if isinstance(config, dict):
         config = copy.deepcopy(config)
         method = config.pop("method", "minima")
-        validator = registers.create(
-            "validator", method, convert_name=False, **config
-        )
+        validator = registers.create("validator", method, convert_name=False, **config)
     else:
         validator = copy.deepcopy(config)
 
     return validator
-
-
-if __name__ == "__main__":
-    ...
