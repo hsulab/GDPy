@@ -27,6 +27,7 @@ class SinglepointValidator(BaseValidator):
         subsets: Optional[list[str]] = None,
         groups: Optional[dict] = None,
         convergence: Optional[dict] = None,
+        show_dist: bool = False,
         *args,
         **kwargs,
     ):
@@ -34,6 +35,7 @@ class SinglepointValidator(BaseValidator):
 
         Args:
             groups: Errors are estimated for given groups.
+            show_dist: Whether plot error distributions.
 
         """
         super().__init__(*args, **kwargs)
@@ -41,6 +43,8 @@ class SinglepointValidator(BaseValidator):
         self.convergence = convergence
 
         self.subsets = subsets
+
+        self.show_dist = show_dist
 
         return
 
@@ -82,7 +86,7 @@ class SinglepointValidator(BaseValidator):
                 if pred_frames is None:
                     is_spc_finished = False
                     continue
-                nframes, rmse_ret = self._plot_comparison(prefix, v_frames, pred_frames)
+                nframes, rmse_ret = self._plot_comparison(prefix, v_frames, pred_frames, show_dist=self.show_dist)
                 frame_pairs.append([v_frames, pred_frames])
                 data.append([prefix, nframes, rmse_ret])
         else:
@@ -111,7 +115,7 @@ class SinglepointValidator(BaseValidator):
                 if pred_frames is None:
                     is_spc_finished = False
                     continue
-                nframes, rmse_ret = self._plot_comparison(subset, frames, pred_frames)
+                nframes, rmse_ret = self._plot_comparison(subset, frames, pred_frames, show_dist=self.show_dist)
                 data.append([subset, nframes, rmse_ret])
         self.write_data(data)
 
@@ -181,7 +185,7 @@ class SinglepointValidator(BaseValidator):
 
         return pred_frames
 
-    def _plot_comparison(self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms]):
+    def _plot_comparison(self, prefix, ref_frames: list[Atoms], pred_frames: list[Atoms], show_dist: bool = False):
         """"""
         if not (self.directory / prefix).exists():
             (self.directory / prefix).mkdir(parents=True)
@@ -192,8 +196,9 @@ class SinglepointValidator(BaseValidator):
         ref_natoms = [len(a) for a in ref_frames]
         _, pred_energies, pred_forces = get_properties(pred_frames)
 
-        # - figure
-        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
+        # plot parity
+        fig = plt.figure(figsize=(16, 9))
+        axarr = fig.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, squeeze=False)
         axarr = axarr.flatten()
         fig.suptitle(f"{prefix} with nframes {nframes}")
 
@@ -203,23 +208,23 @@ class SinglepointValidator(BaseValidator):
         # -- forces
         frc_rmse = plot_parity(axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols)
 
-        # if (self.directory/f"{prefix}.png").exists():
-        #    warnings.warn(f"Figure file {prefix} exists.", UserWarning)
         fig.savefig(self.directory / prefix / "rmse.png", bbox_inches="tight")
         plt.close()
 
         # plot distributions
-        fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
-        axarr = axarr.flatten()
-        plt.suptitle(f"{prefix} with nframes {nframes}")
+        if show_dist:
+            fig = plt.figure(figsize=(16, 9))
+            axarr = fig.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, squeeze=False)
+            axarr = axarr.flatten()
+            plt.suptitle(f"{prefix} with nframes {nframes}")
 
-        plot_distribution(axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms)
-        plot_distribution(axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols)
+            plot_distribution(axarr[0], ref_energies, pred_energies, x_name="ene", weights=ref_natoms)
+            plot_distribution(axarr[1], ref_forces, pred_forces, x_name="frc", x_types=ref_symbols)
 
-        plt.savefig(self.directory / prefix / "dist.png")
-        plt.close()
+            plt.savefig(self.directory / prefix / "dist.png")
+            plt.close()
 
-        # - save results to data file
+        # Save results to data file
         rmse_ret = {}
         x_rmse, x_rmse_names = ene_rmse
         for _rms, rms_name in zip(x_rmse, x_rmse_names):
