@@ -50,7 +50,6 @@ class SinglepointValidator(BaseValidator):
         assert worker.driver.setting.task == "spc", "SinglePointValidator must use a driver with spc task."
 
         # Load previous rmse.dat
-        cache_rmse_data = []
         if (self.directory / "rmse.dat").exists():
             ...
         else:
@@ -98,37 +97,6 @@ class SinglepointValidator(BaseValidator):
                 nframes, rmse_ret = self._plot_comparison(subset, frames, pred_frames)
                 data.append([subset, nframes, rmse_ret])
         self.write_data(data)
-
-        # - plot specific groups
-        # group_params = copy.deepcopy(self.groups)
-        #
-        # def run_selection():
-        #     selected_prefixes, selected_groups = [], []
-        #     if group_params is not None:
-        #         for k, v in group_params.items():
-        #             selected_prefixes.append(k)
-        #             selected_groups.append(convert_indices(v, index_convention="lmp"))
-        #     else:
-        #         ...
-        #     self._debug(selected_groups)
-        #     self._debug(selected_prefixes)
-        #
-        #     for curr_prefix, curr_indices in zip(selected_prefixes, selected_groups):
-        #         curr_ref = list(
-        #             itertools.chain(*[frame_pairs[i][0] for i in curr_indices])
-        #         )
-        #         curr_pre = list(
-        #             itertools.chain(*[frame_pairs[i][1] for i in curr_indices])
-        #         )
-        #         nframes, rmse_ret = self._plot_comparison(
-        #             curr_prefix, curr_ref, curr_pre
-        #         )
-        #         self.write_data(
-        #             [[curr_prefix, nframes, rmse_ret]], f"{curr_prefix}-rmse.dat"
-        #         )
-        #
-        # if group_params is not None:
-        #     run_selection()
 
         return is_spc_finished
 
@@ -205,7 +173,7 @@ class SinglepointValidator(BaseValidator):
         nframes = len(ref_frames)
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
         ref_natoms = [len(a) for a in ref_frames]
-        pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
+        _, pred_energies, pred_forces = get_properties(pred_frames)
 
         # - figure
         fig, axarr = plt.subplots(nrows=1, ncols=2, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
