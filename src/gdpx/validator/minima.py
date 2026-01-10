@@ -39,7 +39,7 @@ def compare_structures(
     p_frames_ini: list[Atoms],
     p_frames_end: list[Atoms],
     energy_references: Optional[tuple[numpy.typing.NDArray, numpy.typing.NDArray]] = None,
-):
+) -> dict[str, Any]:
     """"""
     # number of atoms
     v_natoms = np.array([len(a) for a in v_frames])
@@ -78,7 +78,13 @@ def compare_structures(
     return results
 
 
-def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool = False) -> str:
+def summarise_validation(
+    natoms: np.ndarray,
+    ene: list[np.ndarray],
+    maxfrc: tuple[np.ndarray, np.ndarray, np.ndarray],
+    disp: np.ndarray,
+    show_ranking: bool = False,
+) -> str:
     """"""
     content = "# Name     N_a  " + ("{:>12s}  " * 9).format(
         "E_v", "E_p_ini", "E_p_end", "E_d_ini", "E_d_end", "Fmax_v", "Fmax_p_ini", "Fmax_p_end", "Disp"
@@ -86,31 +92,16 @@ def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool = False) 
     line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 9
 
     num_ene_columns = len(ene)
-    if num_ene_columns == 3:
-        ...
-    elif num_ene_columns == 6:
+    has_formation_energies = num_ene_columns == 6
+    if has_formation_energies:
         content += ("{:>12s}  " * 3).format("Ef_v", "Ef_p_ini", "Ef_p_end")
         line_format += "{:>12.4f}  " * 3
     else:
-        raise Exception(f"Unknown number of energy columns: {num_ene_columns}.")
+        assert num_ene_columns == 3, "Energy data must have either 3 or 6 columns."
 
     num_structures = len(natoms)
 
-    if show_ranking:
-        indices = np.arange(num_structures, dtype=np.int64)
-        sort = np.argsort(ene[0])
-        v_rankings = sorted(indices, key=lambda i: sort[i])
-        sort = np.argsort(ene[1])
-        p_rankings_ini = sorted(indices, key=lambda i: sort[i])
-        sort = np.argsort(ene[2])
-        p_rankings_end = sorted(indices, key=lambda i: sort[i])
-
-        content += ("{:>6s}  " * 3).format("Erk_v", "Erk_p_ini", "Erk_p_end")
-        line_format += "{:>6d}  " * 3
-
-    content += "\n"
-    line_format += "\n"
-
+    all_data = []
     for i in range(num_structures):
         ene_diff_ini = ene[1][i] - ene[0][i]
         ene_diff_end = ene[2][i] - ene[0][i]
@@ -125,16 +116,36 @@ def summarise_validation(natoms, ene, maxfrc, disp, show_ranking: bool = False) 
             maxfrc[2][i],
             disp[i],
         ]
-        if num_ene_columns == 6:
-            data.extend([ene[3][i], ene[4][i], ene[5][i]])  # formation energies
-        if show_ranking:
+        all_data.append(data)
+
+    if has_formation_energies:
+        for i, data in enumerate(all_data):
+            data.extend([ene[3][i], ene[4][i], ene[5][i]])
+
+    if show_ranking:
+        indices = np.arange(num_structures, dtype=np.int64)
+        sort = np.argsort(ene[0])
+        v_rankings = sorted(indices, key=lambda i: sort[i])
+        sort = np.argsort(ene[1])
+        p_rankings_ini = sorted(indices, key=lambda i: sort[i])
+        sort = np.argsort(ene[2])
+        p_rankings_end = sorted(indices, key=lambda i: sort[i])
+
+        for i, data in enumerate(all_data):
             data.extend([v_rankings[i], p_rankings_ini[i], p_rankings_end[i]])
+
+        content += ("{:>6s}  " * 3).format("Erk_v", "Erk_p_ini", "Erk_p_end")
+        line_format += "{:>6d}  " * 3
+
+    content += "\n"
+    line_format += "\n"
+    for i, data in enumerate(all_data):
         content += line_format.format(i, natoms[i], *data)
 
     return content
 
 
-def read_reference_structures(inp: list[Any]):
+def read_reference_structures(inp: list[Any]) -> numpy.typing.NDArray:
     """"""
     energy_list = []
     for x in inp:
@@ -203,7 +214,7 @@ class MinimaValidator(BaseValidator):
 
         return
 
-    def run(self, structures: Optional[Any] = None, worker: Optional[DriverBasedWorker] = None, *args, **kwargs):
+    def run(self, structures: Optional[Any] = None, worker: Optional[DriverBasedWorker] = None):
         """"""
         super().run()
 
