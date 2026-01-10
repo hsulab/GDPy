@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
 import pathlib
@@ -131,7 +127,6 @@ class AbstractDataloader(BaseComponent): ...
 
 
 class XyzDataloader(AbstractDataloader):
-
     name = "xyz"
 
     """A directory-based dataset.
@@ -212,7 +207,10 @@ class XyzDataloader(AbstractDataloader):
                 for a in x:
                     map_atoms_data(a, self.prop_keys)
 
-        return pairs
+        # convert pairs to mapped
+        mapped_data = {p: f for p, f in pairs}
+
+        return mapped_data
 
     def split_train_and_test(
         self,
@@ -376,7 +374,3 @@ class XyzDataloader(AbstractDataloader):
         dataset_params = copy.deepcopy(dataset_params)
 
         return dataset_params
-
-
-if __name__ == "__main__":
-    ...

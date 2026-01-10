@@ -1,7 +1,7 @@
 import copy
 import itertools
 import re
-from typing import Optional
+from typing import Mapping, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +12,7 @@ try:
 except Exception:
     ...
 
+from gdpx.data.array import AtomsNDArray
 from gdpx.worker.drive import DriverBasedWorker
 
 from ..utils.comparision import get_properties, plot_distribution, plot_parity
@@ -56,27 +57,42 @@ class SinglepointValidator(BaseValidator):
         else:
             ...
 
+        for subname, subdata in dataset.items():
+            if isinstance(subdata, Mapping):
+                ...
+            else:
+                if isinstance(subdata, AtomsNDArray):
+                    dataset[subname] = {("set",): subdata.get_marked_structures()}
+                else:
+                    raise Exception(f"Unknown input structures for {subname} -> {type(subdata)}.")
+
+        get_data = lambda k: (
+            dataset["reference"][k],
+            dataset["prediction"].get(k) if "prediction" in dataset else None,
+        )
+
         # Load structures
         is_spc_finished = True
         if self.subsets is None:
             data, frame_pairs = [], []
-            for prefix, frames in dataset["reference"]:
-                prefix = "+".join(prefix)
-                pred_frames = self._irun(prefix, frames, None, worker)
+            for tuple_path in dataset["reference"].keys():
+                prefix = "+".join(tuple_path)
+                v_frames, p_frames = get_data(tuple_path)
+                pred_frames = self._irun(prefix, v_frames, p_frames, worker)
                 if pred_frames is None:
                     is_spc_finished = False
                     continue
-                nframes, rmse_ret = self._plot_comparison(prefix, frames, pred_frames)
-                frame_pairs.append([frames, pred_frames])
+                nframes, rmse_ret = self._plot_comparison(prefix, v_frames, pred_frames)
+                frame_pairs.append([v_frames, pred_frames])
                 data.append([prefix, nframes, rmse_ret])
         else:
             # TODO: use tree structure
             group_names = {k: [] for k in self.subsets}
             group_structures = {k: [] for k in self.subsets}
-            for prefix, frames in dataset["reference"]:
+            for tuple_path, frames in dataset["reference"].items():
                 for subset in self.subsets:
-                    if prefix[0].startswith(f"{subset}"):
-                        group_names[subset].append(prefix)
+                    if tuple_path[0].startswith(f"{subset}"):
+                        group_names[subset].append(tuple_path)
                         group_structures[subset].extend(frames)
             for k, v in group_names.items():
                 with open(self.directory / f"subset-{k}.txt", "w") as fopen:
