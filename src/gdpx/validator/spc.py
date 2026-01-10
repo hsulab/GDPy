@@ -43,11 +43,11 @@ class SinglepointValidator(BaseValidator):
 
         return
 
-    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs) -> bool:
+    def run(self, dataset, worker: Optional[DriverBasedWorker] = None) -> bool:
         """"""
         super().run()
 
-        # TODO: assert that the worker has a spc_driver
+        assert worker.driver.setting.task == "spc", "SinglePointValidator must use a driver with spc task."
 
         # Load previous rmse.dat
         cache_rmse_data = []
