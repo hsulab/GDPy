@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import functools
 import json
@@ -78,7 +74,7 @@ def run_computation_in_commandline(
                 prev_random_seed = driver.random_seed
                 driver.set_rng(seed=rs)
                 print_func(
-                    f"{time.asctime( time.localtime(time.time()) )} {dirname} {driver.directory.name} is running..."
+                    f"{time.asctime(time.localtime(time.time()))} {dirname} {driver.directory.name} is running..."
                 )
                 driver.reset()
                 driver.run(atoms, read_ckpt=True, extra_info=None)
@@ -104,7 +100,7 @@ def run_computation_in_commandline(
                 driver.directory = temp_wdir
                 if i % print_period == 0 or i + 1 == num_structures:
                     print_func(
-                        f"{time.asctime( time.localtime(time.time()) )} {dirname} {driver.directory.name} is running..."
+                        f"{time.asctime(time.localtime(time.time()))} {dirname} {driver.directory.name} is running..."
                     )
                 driver.set_rng(seed=rs)
                 driver.reset()
@@ -148,9 +144,6 @@ class DriverBasedWorker(BaseWorker):
     #: Whether the worker is spawned.
     is_spawned: bool = False
 
-    #: Attached driver object.
-    _driver = None
-
     #: Whether generate an independant random_seed for each candidate's driver.
     _share_random_seed: bool = False
 
@@ -162,8 +155,8 @@ class DriverBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        potter_,
-        driver_=None,
+        potter: BasePotentialManager,
+        driver: BaseDriver,
         scheduler_=Optional[BaseScheduler],
         *args,
         **kwargs,
@@ -171,9 +164,9 @@ class DriverBasedWorker(BaseWorker):
         """"""
         super().__init__(*args, **kwargs)
 
-        assert isinstance(potter_, BasePotentialManager), ""
-        self.potter = potter_
-        self.driver = driver_
+        self.potter = potter
+
+        self._driver = driver
 
         if scheduler_ is not None:
             self.scheduler = scheduler_
@@ -184,14 +177,16 @@ class DriverBasedWorker(BaseWorker):
 
     @property
     def driver(self) -> BaseDriver:
+        """"""
         return self._driver
 
     @driver.setter
-    def driver(self, driver_):
+    def driver(self, driver):
         """"""
-        assert isinstance(driver_, BaseDriver), ""
+        assert isinstance(driver, BaseDriver), ""
         # TODO: check driver is consistent with potter
-        self._driver = driver_
+        self._driver = driver
+
         return
 
     def _split_groups(self, nframes: int, batchsize: int = 1) -> tuple[list[int], list[int]]:
@@ -304,7 +299,7 @@ class DriverBasedWorker(BaseWorker):
                 for a in prev_frames:
                     info_keys.extend(list(a.info.keys()))
                 info_keys = sorted(set(info_keys))
-                content = f'{"#id":<12s}  ' + ("{:<24s}  " * len(info_keys)).format(*info_keys) + "\n"
+                content = f"{'#id':<12s}  " + ("{:<24s}  " * len(info_keys)).format(*info_keys) + "\n"
                 for i, a in enumerate(prev_frames):
                     line = f"{i:<24d}  " + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys]) + "\n"
                     content += line
@@ -375,9 +370,9 @@ class DriverBasedWorker(BaseWorker):
             for x in batch_frames:
                 x.info["group"] = i
             # Check whether each structure has a unique directory
-            assert len(set(batch_dirnames)) == len(
-                batch_frames
-            ), f"Found duplicated wdirs {len(set(wdirs))} vs. {len(batch_frames)} for group {i}..."
+            assert len(set(batch_dirnames)) == len(batch_frames), (
+                f"Found duplicated wdirs {len(set(wdirs))} vs. {len(batch_frames)} for group {i}..."
+            )
 
             # Make a batch
             batches.append([global_indices, batch_dirnames, batch_random_states])
@@ -485,7 +480,7 @@ class DriverBasedWorker(BaseWorker):
             if isinstance(target_batch, int):
                 if ig != target_batch:
                     self._print(
-                        f"{time.asctime( time.localtime(time.time()) )} {self.driver.directory.name} "
+                        f"{time.asctime(time.localtime(time.time()))} {self.driver.directory.name} "
                         + f"batch {ig} is skipped..."
                     )
                     continue
@@ -891,7 +886,3 @@ class DriverBasedWorker(BaseWorker):
         worker_params["retain_info"] = self._retain_info
 
         return worker_params
-
-
-if __name__ == "__main__":
-    ...

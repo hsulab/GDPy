@@ -47,6 +47,7 @@ class SinglepointValidator(BaseValidator):
         """"""
         super().run()
 
+        assert worker is not None, "SinglePointValidator must have a worker assigned."
         assert worker.driver.setting.task == "spc", "SinglePointValidator must use a driver with spc task."
 
         # Load previous rmse.dat
