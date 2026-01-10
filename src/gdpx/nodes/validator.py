@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import omegaconf
 
 from gdpx.core.register import registers
@@ -14,7 +10,6 @@ from gdpx.validator.validator import BaseValidator
 
 @registers.variable.register
 class ValidatorVariable(Variable):
-
     def __init__(self, directory="./", **kwargs):
         """"""
         # Instantiate a validator
@@ -143,12 +138,12 @@ class validate(Operation):
 
         return
 
-    def report_convergence(self, *args, **kwargs) -> bool:
+    def report_convergence(self) -> bool:
         """"""
         input_nodes = self.input_nodes
-        assert hasattr(
-            input_nodes[1], "output"
-        ), f"Operation {self.directory.name} cannot report convergence without forwarding."
+        assert hasattr(input_nodes[1], "output"), (
+            f"Operation {self.directory.name} cannot report convergence without forwarding."
+        )
         validator = input_nodes[1].output
 
         self._print(f"{validator.__class__.__name__} Convergence")
@@ -159,7 +154,3 @@ class validate(Operation):
             converged = True
 
         return converged
-
-
-if __name__ == "__main__":
-    ...

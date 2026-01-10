@@ -245,7 +245,7 @@ class SinglepointValidator(BaseValidator):
 
         return nframes, rmse_ret
 
-    def report_convergence(self, *args, **kwargs):
+    def report_convergence(self):
         """"""
         converged = True
 
