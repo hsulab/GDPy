@@ -54,9 +54,19 @@ def compare_structures(
     ene_data = [v_ene, p_ene_ini, p_ene_end]
 
     if energy_references is not None:
-        v_f_ene = v_ene - energy_references[0]  # validation formation energy
-        p_f_ene_ini = p_ene_ini - energy_references[1]  # prediction formation energy at initial
-        p_f_ene_end = p_ene_end - energy_references[1]  # prediction formation energy
+        use_inner_reference = all(isinstance(x, dict) for x in energy_references)
+        if not use_inner_reference:
+            # validation formation energy
+            v_f_ene = v_ene - energy_references[0]
+            # prediction formation energy at initial and final steps
+            p_f_ene_ini = p_ene_ini - energy_references[1]
+            p_f_ene_end = p_ene_end - energy_references[1]
+        else:
+            # validation formation energy
+            v_f_ene = v_ene - v_ene[energy_references[0]["index"]]
+            # prediction formation energy at initial and final steps
+            p_f_ene_ini = p_ene_ini - p_ene_ini[energy_references[1]["index"]]
+            p_f_ene_end = p_ene_end - p_ene_end[energy_references[1]["index"]]
         ene_data.extend([v_f_ene, p_f_ene_ini, p_f_ene_end])
 
     # maximum forces TODO: constraints?
@@ -239,9 +249,17 @@ class MinimaValidator(BaseValidator):
 
         if formation_energy is not None:
             reference_energies = []
-            for structures in formation_energy:
-                energies = read_reference_structures(structures)
-                reference_energies.append(energies)
+            if not isinstance(formation_energy, dict):
+                for structures in formation_energy:
+                    energies = read_reference_structures(structures)
+                    reference_energies.append(energies)
+            else:
+                method = formation_energy.get("method", "inner")
+                assert method == "inner", f"Only 'inner' method is supported, got {method}."
+                data = formation_energy.get("data", [])
+                for params in data:
+                    reference_energies.append(params)
+
             self.reference_energies = reference_energies
         else:
             self.reference_energies = None
