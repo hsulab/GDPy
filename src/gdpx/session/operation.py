@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import pathlib
 from typing import Any, Callable, Union
@@ -10,7 +6,6 @@ from gdpx import config
 
 
 class Operation(abc.ABC):
-
     #: Node ID.
     identifier: str = "op"
 
@@ -52,7 +47,7 @@ class Operation(abc.ABC):
 
         return
 
-    def _preprocess_input_nodes(self, input_nodes) -> list:
+    def _preprocess_input_nodes(self, input_nodes) -> tuple[Any, ...]:
         """Preprocess the input nodes.
 
         Apply default nodes if the input node is None.
@@ -92,7 +87,3 @@ class Operation(abc.ABC):
             self.directory.mkdir(parents=True)
 
         return
-
-
-if __name__ == "__main__":
-    ...

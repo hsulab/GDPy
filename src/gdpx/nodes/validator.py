@@ -1,4 +1,5 @@
-import omegaconf
+import pathlib
+from typing import Mapping, Union
 
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
@@ -10,7 +11,7 @@ from gdpx.validator.validator import BaseValidator
 
 @registers.variable.register
 class ValidatorVariable(Variable):
-    def __init__(self, directory="./", **kwargs):
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
         # Instantiate a validator
         method = kwargs.pop("method", "minima")
@@ -36,9 +37,7 @@ class validate(Operation):
         validator,
         worker=DummyVariable(),
         run_params: dict = {},
-        directory="./",
-        *args,
-        **kwargs,
+        directory: Union[str, pathlib.Path] = "./",
     ) -> None:
         """Init a validate operation.
 
@@ -63,7 +62,8 @@ class validate(Operation):
         """
         structures, validator, worker = input_nodes
 
-        if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
+        # if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
+        if isinstance(validator, Mapping):
             validator = ValidatorVariable(self.directory / "validator", **validator)
             self._print(validator)
 
