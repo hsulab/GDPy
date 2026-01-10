@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import itertools
 import re
@@ -291,7 +287,3 @@ class SinglepointValidator(BaseValidator):
         self._print(f"    >>> {converged}")
 
         return converged
-
-
-if __name__ == "__main__":
-    ...
