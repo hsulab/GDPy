@@ -84,20 +84,19 @@ def summarise_validation(
     maxfrc: tuple[np.ndarray, np.ndarray, np.ndarray],
     disp: np.ndarray,
     show_ranking: bool = False,
+    skip_first: bool = False,
 ) -> str:
     """"""
-    content = "# Name     N_a  " + ("{:>12s}  " * 9).format(
-        "E_v", "E_p_ini", "E_p_end", "E_d_ini", "E_d_end", "Fmax_v", "Fmax_p_ini", "Fmax_p_end", "Disp"
-    )
-    line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 9
-
-    num_ene_columns = len(ene)
-    has_formation_energies = num_ene_columns == 6
-    if has_formation_energies:
-        content += ("{:>12s}  " * 3).format("Ef_v", "Ef_p_ini", "Ef_p_end")
-        line_format += "{:>12.4f}  " * 3
+    if not skip_first:
+        content = "# Name     N_a  " + ("{:>12s}  " * 9).format(
+            "E_v", "E_p_ini", "E_p_end", "E_d_ini", "E_d_end", "Fmax_v", "Fmax_p_ini", "Fmax_p_end", "Disp"
+        )
+        line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 9
     else:
-        assert num_ene_columns == 3, "Energy data must have either 3 or 6 columns."
+        content = "# Name     N_a  " + ("{:>12s}  " * 6).format(
+            "E_v", "E_p_end", "E_d_end", "Fmax_v", "Fmax_p_end", "Disp"
+        )
+        line_format = "{:>6d}  " * 2 + "{:>12.4f}  " * 6
 
     num_structures = len(natoms)
 
@@ -105,22 +104,44 @@ def summarise_validation(
     for i in range(num_structures):
         ene_diff_ini = ene[1][i] - ene[0][i]
         ene_diff_end = ene[2][i] - ene[0][i]
-        data = [
-            ene[0][i],
-            ene[1][i],
-            ene[2][i],
-            ene_diff_ini,
-            ene_diff_end,
-            maxfrc[0][i],
-            maxfrc[1][i],
-            maxfrc[2][i],
-            disp[i],
-        ]
+        if not skip_first:
+            data = [
+                ene[0][i],
+                ene[1][i],
+                ene[2][i],
+                ene_diff_ini,
+                ene_diff_end,
+                maxfrc[0][i],
+                maxfrc[1][i],
+                maxfrc[2][i],
+                disp[i],
+            ]
+        else:
+            data = [
+                ene[0][i],
+                ene[2][i],
+                ene_diff_end,
+                maxfrc[0][i],
+                maxfrc[2][i],
+                disp[i],
+            ]
         all_data.append(data)
 
+    num_ene_columns = len(ene)
+    has_formation_energies = num_ene_columns == 6
     if has_formation_energies:
-        for i, data in enumerate(all_data):
-            data.extend([ene[3][i], ene[4][i], ene[5][i]])
+        if not skip_first:
+            content += ("{:>12s}  " * 3).format("Ef_v", "Ef_p_ini", "Ef_p_end")
+            line_format += "{:>12.4f}  " * 3
+            for i, data in enumerate(all_data):
+                data.extend([ene[3][i], ene[4][i], ene[5][i]])
+        else:
+            content += ("{:>12s}  " * 2).format("Ef_v", "Ef_p_end")
+            line_format += "{:>12.4f}  " * 2
+            for i, data in enumerate(all_data):
+                data.extend([ene[3][i], ene[5][i]])
+    else:
+        assert num_ene_columns == 3, "Energy data must have either 3 or 6 columns."
 
     if show_ranking:
         indices = np.arange(num_structures, dtype=np.int64)
@@ -131,11 +152,16 @@ def summarise_validation(
         sort = np.argsort(ene[2])
         p_rankings_end = sorted(indices, key=lambda i: sort[i])
 
-        for i, data in enumerate(all_data):
-            data.extend([v_rankings[i], p_rankings_ini[i], p_rankings_end[i]])
-
-        content += ("{:>6s}  " * 3).format("Erk_v", "Erk_p_ini", "Erk_p_end")
-        line_format += "{:>6d}  " * 3
+        if not skip_first:
+            content += ("{:>8s}  " * 3).format("Ek_v", "Ek_p_ini", "Ek_p_end")
+            line_format += "{:>8d}  " * 3
+            for i, data in enumerate(all_data):
+                data.extend([v_rankings[i], p_rankings_ini[i], p_rankings_end[i]])
+        else:
+            content += ("{:>8s}  " * 2).format("Ek_v", "Ek_p_end")
+            line_format += "{:>8d}  " * 2
+            for i, data in enumerate(all_data):
+                data.extend([v_rankings[i], p_rankings_end[i]])
 
     content += "\n"
     line_format += "\n"
@@ -192,7 +218,14 @@ class MinimaValidator(BaseValidator):
 
     name: str = "minima"
 
-    def __init__(self, formation_energy: Optional[dict] = None, show_ranking: bool = False, *args, **kwargs):
+    def __init__(
+        self,
+        formation_energy: Optional[dict] = None,
+        show_ranking: bool = False,
+        skip_first: bool = False,
+        *args,
+        **kwargs,
+    ):
         """Initialise the validator.
 
         Args:
@@ -202,6 +235,7 @@ class MinimaValidator(BaseValidator):
         super().__init__(*args, **kwargs)
 
         self.show_ranking = show_ranking
+        self.skip_first = skip_first
 
         if formation_energy is not None:
             reference_energies = []
@@ -293,7 +327,7 @@ class MinimaValidator(BaseValidator):
                 v_structures, ini_frames, end_frames, energy_references=self.reference_energies
             )
             if not pathlib.Path(self.directory / "v.dat").exists():
-                content = summarise_validation(**results, show_ranking=self.show_ranking)
+                content = summarise_validation(**results, show_ranking=self.show_ranking, skip_first=self.skip_first)
                 with open(self.directory / "v.dat", "w") as fopen:
                     fopen.write(content)
                 is_finished = True
