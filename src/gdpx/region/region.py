@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import copy
 from typing import Mapping, Optional
@@ -218,7 +214,6 @@ class AutoRegion(BaseRegion):
 
 
 class CubeRegion(BaseRegion):
-
     def __init__(self, origin: list[float], boundary: list[float], *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
@@ -290,7 +285,6 @@ class CubeRegion(BaseRegion):
 
 
 class SphereRegion(BaseRegion):
-
     def __init__(self, origin: list[float], radius: float, *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
@@ -432,7 +426,6 @@ class CylinderRegion(BaseRegion):
 
 
 class LatticeRegion(BaseRegion):
-
     def __init__(self, origin: list[float], cell: list[float], *args, **kwargs):
         """"""
         super().__init__(origin=origin, *args, **kwargs)
@@ -510,7 +503,6 @@ class LatticeRegion(BaseRegion):
 
 
 class SurfaceLatticeRegion(LatticeRegion):
-
     def __init__(self, origin: list[float], cell: list[float], *args, **kwargs):
         """"""
         super().__init__(origin, cell, *args, **kwargs)
@@ -551,7 +543,6 @@ class SurfaceLatticeRegion(LatticeRegion):
 
 
 class SurfaceRegion(BaseRegion):
-
     def __init__(
         self,
         origin: list[float],
@@ -618,7 +609,6 @@ class SurfaceRegion(BaseRegion):
 
 
 class IntersectRegion(BaseRegion):
-
     #: Maximum number of attempts to get a random position.
     MAX_ATTEMPTS: int = 1000
 
@@ -646,7 +636,6 @@ class IntersectRegion(BaseRegion):
 
     @staticmethod
     def from_str(command: str):
-
         raise NotImplementedError()
 
     def _get_a_random_position(self, rng):
@@ -679,7 +668,3 @@ class IntersectRegion(BaseRegion):
         region_params["regions"] = self.regions
 
         return region_params
-
-
-if __name__ == "__main__":
-    ...

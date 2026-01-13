@@ -1,13 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from gdpx.core.register import registers
 from gdpx.session.variable import Variable
 
 
 class RegionVariable(Variable):
-
     def __init__(self, directory="./", *args, **kwargs):
         """"""
         name = kwargs.pop("method", "auto")
@@ -16,7 +11,3 @@ class RegionVariable(Variable):
         super().__init__(initial_value=region, directory=directory)
 
         return
-
-
-if __name__ == "__main__":
-    ...
