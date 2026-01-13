@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import json
 import pathlib
@@ -18,6 +14,7 @@ def run_session(
     config_filepath: Union[str, pathlib.Path],
     feed_command: Optional[list[str]] = None,
     timewait: float = -1.0,
+    timemax: float = -1.0,
     num_repeats: int = 1000,
     directory: Union[str, pathlib.Path] = "./",
 ):
@@ -43,30 +40,28 @@ def run_session(
     # Run session repeatedly.
     # We may not use an explicit daemon here as it may be killed by the
     # administrator.
+    st = time.time()
     if timewait > 0:
         for i in range(num_repeats):
-            SessionInitialiser.cache_nodes = (
-                {}
-            )  # Clear cache before a new run.
+            SessionInitialiser.cache_nodes = {}  # Clear cache before a new run.
             config._print("\x1b[1;32;40m" + f"... Daemon is running step {i:>04d} ..." + "\x1b[0m")
             config_dict = copy.deepcopy(raw_config_dict)
-            is_finished = run_session_from_dict(
-                config_dict, feed_command, directory
-            )
+            is_finished = run_session_from_dict(config_dict, feed_command, directory)
             if is_finished:
                 break
             else:
-                config._print(
-                    f"... Daemon will sleep for {timewait} seconds ..."
-                )
+                ct = time.time()
+                if timemax > 0 and (ct - st + timewait) > timemax:
+                    config._print("session reached the maxmum time.")
+                    break
+
+                config._print(f"... Daemon will sleep for {timewait} seconds ...")
                 time.sleep(timewait)
         else:
-            config._print("Reach maximum monitor for-loop.")
+            config._print("session reached the maximum repeats.")
     else:
         run_session_from_dict(config_dict, feed_command, directory)
+    et = time.time()
+    config._print(f"session time: {et - st:>.4f}s")
 
     return
-
-
-if __name__ == "__main__":
-    ...

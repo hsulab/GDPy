@@ -57,8 +57,9 @@ def main():
         "--timewait",
         default=-1,
         type=float,
-        help="waiting time between repeated running",
+        help="the waiting time between repeated running",
     )
+    parser_session.add_argument("--timemax", default=-1, type=float, help="the maximum time for the entire session")
     parser_session.add_argument("--repeats", default=1000, type=int, help="number of repeat times")
 
     # - build structures
@@ -227,7 +228,7 @@ def main():
     if args.subcommand == "session":
         from .cli.session import run_session
 
-        run_session(args.SESSION, args.feed, args.timewait, args.repeats, args.directory)
+        run_session(args.SESSION, args.feed, args.timewait, args.timemax, args.repeats, args.directory)
     elif args.subcommand == "convert":
         from .cli.convert import convert_dataset
 
