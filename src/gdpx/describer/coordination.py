@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import itertools
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
 from ase import Atoms
-from ase.io import read, write
 from ase.neighborlist import neighbor_list
-from scipy.spatial import distance_matrix
 
 from .describer import BaseDescriber
 
@@ -31,7 +25,7 @@ def switch_function(
     return (1 - scaled_distances**nn) / (1 - scaled_distances**mm)
 
 
-def compute_coordination_number(atoms: Atoms, r_cut: float, type_list: List[str]):
+def compute_coordination_number(atoms: Atoms, r_cut: float, type_list: list[str]):
     """"""
     chemical_symbols = atoms.get_chemical_symbols()
     num_types = len(type_list)
@@ -42,16 +36,14 @@ def compute_coordination_number(atoms: Atoms, r_cut: float, type_list: List[str]
     data = []
     for k, v in itertools.groupby(zip(i, j, d), key=lambda x: x[0]):
         # TODO: use pair-specific r_cut?
-        v = np.bincount(
-            [type_list.index(chemical_symbols[x[1]]) for x in v], minlength=num_types
-        )
+        v = np.bincount([type_list.index(chemical_symbols[x[1]]) for x in v], minlength=num_types)
         data.append([type_list.index(chemical_symbols[k]), *v])
     data = np.array(data, dtype=np.int32)
 
     return data
 
 
-def compute_coordination_number_statistics(data, cnmax: int, type_list: List[str]):
+def compute_coordination_number_statistics(data, cnmax: int, type_list: list[str]):
     """
 
     Args:
@@ -65,9 +57,7 @@ def compute_coordination_number_statistics(data, cnmax: int, type_list: List[str
     for i in range(num_types):
         for j in range(num_types):
             pair_data = data[data[:, 0] == i, j + 1]
-            hists_, edges_ = np.histogram(
-                pair_data, bins=bins, density=True
-            )
+            hists_, edges_ = np.histogram(pair_data, bins=bins, density=True)
             hist.append([np.mean(pair_data), *hists_])
     hist = np.array(hist)
 
@@ -75,10 +65,9 @@ def compute_coordination_number_statistics(data, cnmax: int, type_list: List[str
 
 
 class CoordinationDescriber(BaseDescriber):
-
     name: str = "coordination"
 
-    def __init__(self, r_cut: float, type_list: List[str], *args, **kwargs):
+    def __init__(self, r_cut: float, type_list: list[str], *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
@@ -94,23 +83,15 @@ class CoordinationDescriber(BaseDescriber):
         # compute data along trajectory
         hist_data = []
         for atoms in structures:
-            data = compute_coordination_number(
-                atoms, r_cut=self.r_cut, type_list=self.type_list
-            )
-            hist = compute_coordination_number_statistics(
-                data, cnmax=10, type_list=self.type_list
-            )
+            data = compute_coordination_number(atoms, r_cut=self.r_cut, type_list=self.type_list)
+            hist = compute_coordination_number_statistics(data, cnmax=10, type_list=self.type_list)
             hist_data.append(hist)
         hist = np.mean(hist_data, axis=0)
 
         # save data
-        bins = np.arange(hist.shape[1]-1)
+        bins = np.arange(hist.shape[1] - 1)
         print("   avg  " + ("  CN{:>2d}  " * bins.shape[0]).format(*bins))
         for hists_ in hist:
             print(("{:>6.4f}  " * hists_.shape[0]).format(*hists_))
 
         return
-
-
-if __name__ == "__main__":
-    ...
