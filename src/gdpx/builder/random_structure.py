@@ -11,6 +11,7 @@ from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.insert import insert_fragments_by_step
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.nodes.region import RegionVariable
+from gdpx.region import LatticeRegion
 from gdpx.utils.atoms_tags import (
     sort_structures_by_natoms_per_type,
     sort_structures_by_tags,
@@ -66,8 +67,8 @@ class RandomStructureImprovedModifier(StructureModifier):
     def __init__(
         self,
         composition,
-        region,
-        box=None,
+        region: Optional[dict[str, Any]] = None,
+        box: Optional[np.ndarray] = None,
         pbc: bool = True,
         use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
@@ -134,7 +135,15 @@ class RandomStructureImprovedModifier(StructureModifier):
             raise Exception("`random_structure_improved` must have use_tags to be True.")
 
         # Check region
-        self.region = RegionVariable(**region).value
+        if region is not None:
+            self.region = RegionVariable(**region).value
+        else:
+            # either region or box must be given
+            if self.box is None:
+                raise Exception(f"Either region or box must be given.")
+            else:
+                assert isinstance(self.box, np.ndarray)
+                self.region = LatticeRegion(origin=[0, 0, 0], cell=self.box.tolist())
 
         # Spatial tolerance
         self.covalent_ratio = covalent_ratio
