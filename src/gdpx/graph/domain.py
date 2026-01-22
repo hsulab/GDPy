@@ -1,5 +1,5 @@
 import numbers
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Union
 
 import numpy as np
 from ase import Atom
@@ -16,7 +16,7 @@ class DomainGraphFunctions(NamedTuple):
     add_edge_func: Callable
 
 
-def canonicalise_shift(shift: np.ndarray | tuple[int, int, int]) -> tuple[int, int, int]:
+def canonicalise_shift(shift: Union[np.ndarray, tuple[int, int, int]]) -> tuple[int, int, int]:
     """
     Convert any integer-like iterable (possibly np.int32 or np.int64) into a tuple of Python ints.
     This ensures consistent hashing and equality in NetworkX.

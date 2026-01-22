@@ -1,11 +1,11 @@
 import copy
 import pathlib
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 
 
-def find_input_key_value(input_lines: list[str], action: str, key: str) -> str | None:
+def find_input_key_value(input_lines: list[str], action: str, key: str) -> Optional[str]:
     """Find the key-value pair of the given action in the plumed input lines."""
     value = None
     for line in input_lines:
