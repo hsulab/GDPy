@@ -210,7 +210,10 @@ class NoseHooverChainThermostat(MDController):
         """"""
         super().__post_init__()
 
-        Tdamp = self.params.get("Tdamp", 100.0)  # fs
+        Tdamp = self.params.get(
+            "Tdamp",
+            unitconvert.convert(self.timestep * 100.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
         assert Tdamp is not None
         Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
@@ -230,11 +233,17 @@ class ParrinelloRahmanBarostat(MDController):
         """"""
         super().__post_init__()
 
-        Tdamp = self.params.get("Tdamp", 100.0)  # fs
+        Tdamp = self.params.get(
+            "Tdamp",
+            unitconvert.convert(self.timestep * 100.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
         assert Tdamp is not None
         Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
-        Pdamp = self.params.get("Pdamp", 1000.0)  # fs
+        Pdamp = self.params.get(
+            "Pdamp",
+            unitconvert.convert(self.timestep * 1000.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
         assert Pdamp is not None
         Pdamp = unitconvert.convert(Pdamp, "time", "real", self.units)
 
