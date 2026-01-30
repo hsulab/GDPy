@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 from typing import Union
 
@@ -14,7 +10,6 @@ from gdpx.session.variable import DummyVariable, Variable
 
 @registers.variable.register
 class DescriberVariable(Variable):
-
     def __init__(self, directory="./", *args, **kwargs):
         """"""
         name = kwargs.pop("name", "soap")
@@ -27,7 +22,6 @@ class DescriberVariable(Variable):
 
 @registers.operation.register
 class describe(Operation):
-
     def __init__(
         self,
         structures,
@@ -75,7 +69,3 @@ class describe(Operation):
         self.status = status
 
         return structures
-
-
-if __name__ == "__main__":
-    ...
