@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import itertools
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
@@ -11,7 +7,7 @@ from ase.data import covalent_radii
 from ase.neighborlist import NeighborList, neighbor_list
 
 
-def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict:
+def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict[tuple[int, int], float]:
     """"""
     bond_distance_dict = {}
     for i in unique_atomic_numbers:
@@ -30,12 +26,12 @@ def check_pair_distances(
     pairs,
     distances,
     chemical_numbers,
-    covalent_ratio,
+    covalent_ratio: tuple[float, float],
     bond_distance_dict,
     excluded_pairs,
 ):
     """"""
-    cov_min, cov_max = covalent_ratio
+    cov_min, _ = covalent_ratio
 
     is_valid = False
     for p, d in zip(pairs, distances):
@@ -56,7 +52,7 @@ def check_atomic_distances(
     *,
     covalent_ratio: list,
     bond_distance_dict: dict,
-    atomic_indices: Optional[List[int]] = None,
+    atomic_indices: Optional[list[int]] = None,
     excluded_pairs: list = [],
     forbidden_pairs: list = [],
     allow_isolated: bool = False,
@@ -152,7 +148,7 @@ def check_atomic_distances_by_neighbour_list(
     atoms: Atoms,
     *,
     neighlist: NeighborList,
-    atomic_indices: List[int],
+    atomic_indices: list[int],
     covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     excluded_pairs: list = [],
@@ -211,7 +207,3 @@ def check_atomic_distances_by_neighbour_list(
         is_valid = True
 
     return is_valid
-
-
-if __name__ == "__main__":
-    ...

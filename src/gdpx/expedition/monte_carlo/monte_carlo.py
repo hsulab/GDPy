@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import enum
 import pickle
@@ -635,7 +631,3 @@ class MonteCarlo(BaseExpedition):
         engine_params = copy.deepcopy(engine_params)
 
         return engine_params
-
-
-if __name__ == "__main__":
-    ...

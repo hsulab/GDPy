@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-import copy
 from typing import Optional
 
 import numpy as np
@@ -109,7 +104,7 @@ class SwapTypeOperator(BaseMCOperator):
             assert len(pick_one) == 1, "Only one atom should be selected for swap type operator."
             new_atoms[pick_one[0]].symbol = second_ptype
             # TODO: renormalise other properties such as velocity, charge, and magnetic moment
-            self._print(self.indent + f"succeed to random after {i+1} attempts...")
+            self._print(self.indent + f"succeed to random after {i + 1} attempts...")
             self._extra_info = f"ST_{first_ptype}_{second_ptype}_{pick_one[0]}"
             # Compute concentration
             num_first_ptype = len(self._curr_tags_dict.get(first_ptype, []))
@@ -136,6 +131,7 @@ class SwapTypeOperator(BaseMCOperator):
         picked_atom_index = self._state.get("picked_atom_index")
         first_ptype = self._state.get("first_ptype")
 
+        assert isinstance(picked_atom_index, int)
         atoms[picked_atom_index].symbol = first_ptype
 
         return atoms
@@ -149,11 +145,15 @@ class SwapTypeOperator(BaseMCOperator):
         # Check number of particles in the region
         assert isinstance(self._curr_tags_dict, dict)
 
-        first_ptype: str = self._state.get("first_ptype")
-        num_first_ptype: int = self._state.get("num_first_ptype")
+        first_ptype = self._state.get("first_ptype")
+        assert isinstance(first_ptype, str)
+        num_first_ptype = self._state.get("num_first_ptype")
+        assert isinstance(num_first_ptype, int)
 
-        second_ptype: str = self._state.get("second_ptype")
-        num_second_ptype: int = self._state.get("num_second_ptype")
+        second_ptype = self._state.get("second_ptype")
+        assert isinstance(second_ptype, str)
+        num_second_ptype = self._state.get("num_second_ptype")
+        assert isinstance(num_second_ptype, int)
 
         mu_diff = self.chempots[self.particles.index(first_ptype)] - self.chempots[self.particles.index(second_ptype)]
 
@@ -216,7 +216,3 @@ class SwapTypeOperator(BaseMCOperator):
         content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
-
-
-if __name__ == "__main__":
-    ...

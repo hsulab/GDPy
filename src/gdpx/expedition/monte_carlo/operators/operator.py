@@ -1,10 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import copy
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 from ase import Atoms, data, units
@@ -13,7 +9,6 @@ from gdpx.core.register import registers
 
 
 class BaseMCOperator(abc.ABC):
-
     #: Operator name.
     name: str = "abstract"
 
@@ -80,7 +75,10 @@ class BaseMCOperator(abc.ABC):
 
         # Some state information after mc attempts and before energy evaluation
         self._atoms = None
-        self._state = {}
+        self._state: dict[str, Any] = {}
+
+        # Geometeric restraints which should be deprecated in the future
+        self.blmin: Optional[dict[tuple[int, int], float]] = None
 
         # Indent before any print or string
         self._indent = ""
@@ -162,6 +160,8 @@ class BaseMCOperator(abc.ABC):
     def check_overlap_neighbour(self, nl, new_atoms: Atoms, cell, species_indices: list[int]) -> bool:
         """Check whether the species position is valid.
 
+        This utility function should be deprecated in the future.
+
         Use neighbour list to check newly added atom is neither too close or too
         far from other atoms. The neighbour list is based on covalent_max distance.
         We have three status, `valid`, `invalid`, adn `isolated`.
@@ -172,13 +172,13 @@ class BaseMCOperator(abc.ABC):
         """
         assert self.blmin is not None, "BondLengthMinimumDict is not properly set."
 
-        # -
+        # Get species in the region
         num_atoms_in_species = len(species_indices)
 
         species_status = ["valid"] * num_atoms_in_species
         self._print(f"- {species_indices =}")
 
-        # - get symbols here since some operators may change the symbol
+        # Get symbols here since some operators may change the symbol
         chemical_symbols = new_atoms.get_chemical_symbols()
 
         nl.update(new_atoms)
@@ -186,21 +186,22 @@ class BaseMCOperator(abc.ABC):
             indices, offsets = nl.get_neighbors(idx_pick)
             self._debug(f"  check index {idx_pick} {new_atoms.positions[idx_pick]} nneighs: {len(indices)}")
             if len(indices) > 0:
-                # --
+                # check isolated species
                 if all([(ni in species_indices) for ni in indices]):
                     species_status[iatom] = "isolated"
                     continue
-                # -- check inter-species atomic distances
+                # check inter-species atomic distances
                 for ni, offset in zip(indices, offsets):
-                    # NOTE: Check if the species contact other atoms
-                    #       in a reasonable distance.
-                    #       Intra-species distance will not be checked.
+                    # Check if the species contact other atoms in a reasonable distance.
+                    # Intra-species distance will not be checked.
                     if ni not in species_indices:
                         dis = np.linalg.norm(
                             new_atoms.positions[idx_pick] - (new_atoms.positions[ni] + np.dot(offset, cell))
                         )
-                        pairs = [chemical_symbols[ni], chemical_symbols[idx_pick]]
-                        pairs = tuple([data.atomic_numbers[p] for p in pairs])
+                        pairs = (
+                            data.atomic_numbers[chemical_symbols[ni]],
+                            data.atomic_numbers[chemical_symbols[idx_pick]],
+                        )
                         if dis <= self.blmin[pairs]:
                             species_status[iatom] = "invalid"
                             self._debug(f"  distance: {ni} {dis} {self.blmin[pairs]}")
@@ -304,7 +305,3 @@ def metropolis_by_energy_difference(
     # Clear the state information
 
     return ran_ratio < acc_ratio
-
-
-if __name__ == "__main__":
-    ...
