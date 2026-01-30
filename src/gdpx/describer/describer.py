@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 
 import numpy.typing
@@ -15,7 +11,6 @@ except Exception as e:
 
 
 class BaseDescriber(BaseComponent):
-
     cache_features = "features.npy"
 
     def __init__(self, *args, **kwargs) -> None:
@@ -84,7 +79,3 @@ class BaseDescriber(BaseComponent):
         plt.savefig(self.directory / "pca.png")
 
         return
-
-
-if __name__ == "__main__":
-    ...
