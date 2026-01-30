@@ -7,26 +7,11 @@ from ase import Atoms
 from dscribe.descriptors import SOAP
 
 from gdpx.data.array import AtomsNDArray
-from gdpx.group import evaluate_group_expression
+from gdpx.geometry.cleave import cleave_structures_by_group
 
 from .clustering import group_structures
 from .selector import BaseSelector
 from .sparsification import cur_selection, fps_selection
-
-
-def cleave_structures_by_group(structures: list[Atoms], grp_expr: str) -> tuple[list[Atoms], list[int]]:
-    """"""
-    new_structures, mapping_indices = [], []
-    for i, atoms in enumerate(structures):
-        group_indices = evaluate_group_expression(atoms, grp_expr)
-        if group_indices:
-            cleaved = atoms[group_indices]
-            new_structures.append(cleaved)
-            mapping_indices.append(i)
-        else:
-            ...
-
-    return new_structures, mapping_indices
 
 
 def plot_configuration_map(png_fpath: pathlib.Path, group_features: list) -> None:
