@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import abc
 import copy
 import dataclasses
@@ -47,7 +43,6 @@ def check_constraint_consistency(cons_expr: str, beg_atoms: Atoms, end_atoms: At
 
 @dataclasses.dataclass
 class Controller:
-
     #: Thermostat name.
     name: str = "controller"  # thermostat or barostat
 
@@ -138,11 +133,11 @@ class DriverSetting:
 
     def get_run_params(self, *args, **kwargs):
         """"""
+        _ = args, kwargs
         raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
 class BaseDriver(BaseComponent):
-
     #: Driver's name.
     name: str = "abstract"
 
@@ -202,7 +197,7 @@ class BaseDriver(BaseComponent):
         return
 
     def canonicalise_parameters(self) -> None:
-        """"Canonicalise parameters especially for path-like inputs."""
+        """ "Canonicalise parameters especially for path-like inputs."""
 
         return
 
@@ -307,10 +302,11 @@ class BaseDriver(BaseComponent):
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
+        _ = args, kwargs
 
         return self.directory.exists()
 
-    def _save_checkpoint(self, *args, **kwargs):
+    def _save_checkpoint(self):
         """Save the previous simulation to a checkpoint directory."""
         # find previous runs...
         prev_wdirs = sorted(
@@ -436,12 +432,12 @@ class BaseDriver(BaseComponent):
                 if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
                     converged = True
                 self._debug(
-                    f"min convergence: {converged} step: {step+1} >=? {self.setting.steps} maxfrc: {maxfrc} <=? {self.setting.fmax}"
+                    f"min convergence: {converged} step: {step + 1} >=? {self.setting.steps} maxfrc: {maxfrc} <=? {self.setting.fmax}"
                 )
             elif self.setting.task == "md":
                 if step + 1 >= self.setting.steps:  # step startswith 0
                     converged = True
-                self._debug(f"md convergence: {converged} step: {step+1} >=? {self.setting.steps}")
+                self._debug(f"md convergence: {converged} step: {step + 1} >=? {self.setting.steps}")
             else:
                 raise NotImplementedError("Unknown task in read_convergence.")
             # check if simulation stops early
@@ -510,6 +506,7 @@ class BaseDriver(BaseComponent):
 
     def _read_a_single_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """"""
+        _ = args, kwargs
 
         raise NotImplementedError()
 
@@ -551,14 +548,14 @@ class BaseDriver(BaseComponent):
                 prev_steps = [a.info["step"] for a in traj_list[i - 1]]
                 prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
                 prev_end_frame = prev_traj[-1]
-                assert np.allclose(
-                    prev_end_frame.positions, curr_beg_frame.positions
-                ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
+                assert np.allclose(prev_end_frame.positions, curr_beg_frame.positions), (
+                    f"{self.directory.name} Traj {i - 1} and traj {i} are not consecutive in positions."
+                )
                 if check_energy:
                     assert np.allclose(
                         prev_end_frame.get_potential_energy(),
                         curr_beg_frame.get_potential_energy(),
-                    ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
+                    ), f"{self.directory.name} Traj {i - 1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(prev_traj[:-1])
             traj_frames.extend(traj_list[-1])
         else:
@@ -595,7 +592,3 @@ class BaseDriver(BaseComponent):
         params.update(org_params)
 
         return params
-
-
-if __name__ == "__main__":
-    ...
