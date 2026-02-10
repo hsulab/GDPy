@@ -50,7 +50,7 @@ def check_pair_distances(
 def check_atomic_distances(
     atoms: Atoms,
     *,
-    covalent_ratio: list,
+    covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     atomic_indices: Optional[list[int]] = None,
     excluded_pairs: list = [],
