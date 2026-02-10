@@ -130,9 +130,6 @@ class ClusterRotationMutation(OffspringCreator):
             graph_builder.build(group_indices=group_indices, ratio=self.graph_neigh_ratio)
             clusters = graph_builder.get_clusters(rebuild=True)
 
-            for cluster in clusters:
-                print(cluster.info["_host_indices"])
-
             num_clusters = len(clusters)
             assert num_clusters > 0, "No clusters found for cluster rotation mutation."
             num_rotated = max(1, int(num_clusters * self.action_ratio))
