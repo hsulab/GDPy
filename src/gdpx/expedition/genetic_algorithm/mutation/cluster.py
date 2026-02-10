@@ -20,6 +20,7 @@ class ClusterRattleMutation(OffspringCreator):
         bond_distance_dict: dict[tuple[int, int], float],
         max_disp: float = 1.6,
         rattle_ratio: float = 0.4,
+        graph_neigh_ratio: float = 1.03,
         covalent_ratio: tuple[float, float] = (0.8, 2.0),
         max_attempts: int = 100,
         num_muts: int = 1,
@@ -33,6 +34,8 @@ class ClusterRattleMutation(OffspringCreator):
 
         self.max_disp = max_disp
         self.rattle_ratio = rattle_ratio
+
+        self.graph_neigh_ratio = graph_neigh_ratio
 
         self.bond_distance_dict = bond_distance_dict
         self.covalent_ratio = covalent_ratio
@@ -66,7 +69,7 @@ class ClusterRattleMutation(OffspringCreator):
         # Find clusters by graph theory
         group_indices = [i for i, tag in enumerate(mutant.get_tags()) if tag > 0]
         num_group_atoms = len(group_indices)
-        assert len(group_indices) > 0, "No tagged atoms found for cluster rattle mutation."
+        # assert num_group_atoms > 0, "No tagged atoms found for cluster rattle mutation."
 
         check_geometry_func = functools.partial(
             check_atomic_distances,
@@ -77,7 +80,7 @@ class ClusterRattleMutation(OffspringCreator):
 
         if num_group_atoms > 0:
             graph_builder = AtomicGraph(mutant, graph_type="partial")
-            graph_builder.build(group_indices=group_indices)
+            graph_builder.build(group_indices=group_indices, ratio=self.graph_neigh_ratio)
             clusters = graph_builder.get_clusters(rebuild=True)
 
             num_clusters = len(clusters)
