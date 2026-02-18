@@ -9,6 +9,7 @@ import numpy as np
 import omegaconf
 from ase import Atoms
 from ase.io import read, write
+from joblib import Parallel, delayed
 
 from gdpx import config
 from gdpx.computation.observer import create_an_observer
@@ -813,6 +814,7 @@ class extract_cache(Operation):
         self,
         compute,
         cache_wdirs: list[Union[str, pathlib.Path]],
+        save_h5: bool = True,
         directory: Union[str, pathlib.Path] = "./",
         n_jobs: int = config.NJOBS,
     ) -> None:
@@ -820,6 +822,9 @@ class extract_cache(Operation):
         super().__init__(input_nodes=[compute], directory=directory)
 
         self.cache_wdirs = cache_wdirs
+
+        self.save_h5 = save_h5
+
         self.n_jobs = n_jobs
 
         return
@@ -837,16 +842,15 @@ class extract_cache(Operation):
         # Use driver to read results
         cache_data = self.directory / "cache_data.h5"
         if not cache_data.exists():
-            from joblib import Parallel, delayed
-
             # TODO: whether check convergence?
-            self._print(f"read trajectories from cache wdirs using {self.n_jobs}...")
+            self._print(f"read trajectories from cache wdirs using {self.n_jobs} processes...")
             trajectories = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._read_trajectory)(curr_wdir, curr_worker)
                 for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
             )
             trajectories = AtomsNDArray(data=trajectories)
-            trajectories.save_file(cache_data)
+            if self.save_h5:
+                trajectories.save_file(cache_data)
         else:
             self._print("read cache...")
             trajectories = AtomsNDArray.from_file(cache_data)
