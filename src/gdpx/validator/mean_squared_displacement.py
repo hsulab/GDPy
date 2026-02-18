@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from ase.formula import Formula
+from ase.io import write
 from joblib import Parallel, delayed
 from scipy.stats import linregress
 
@@ -101,6 +102,7 @@ def compute_mean_squared_displacement(
     intv: Optional[int],
     timeintv: float,
     get_group_positions: Callable,
+    dump_file: Optional[pathlib.Path] = None,
 ):
     """Compute mean squared displacement (MSD) for a group of atoms.
 
@@ -120,9 +122,14 @@ def compute_mean_squared_displacement(
     if intv is None:
         intv = 1
 
+    if dump_file is not None:
+        dump_file.parent.mkdir(parents=True, exist_ok=True)
+
     # Wrap the trajectory to avoid jump across periodic boundaries.
     frames = wrap_traj(frames)
     frames = frames[start:end:intv]
+
+    write(dump_file, frames) if dump_file is not None else None
 
     positions = []
     for atoms in frames:
@@ -155,6 +162,7 @@ def compute_mean_squared_displacement_over_trajectories(
     intv: Optional[int],
     timeintv: float,
     get_group_positions: Callable,
+    dump_directory: Optional[pathlib.Path] = None,
 ):
     """Compute mean squared displacement (MSD) for a group of atoms.
 
@@ -174,10 +182,15 @@ def compute_mean_squared_displacement_over_trajectories(
     if intv is None:
         intv = 1
 
+    if dump_directory is not None:
+        dump_directory.mkdir(parents=True, exist_ok=True)
+
     # Wrap the trajectory to avoid jump across periodic boundaries.
     positions_list = []
-    for frames in frames_list:
+    for itraj, frames in enumerate(frames_list):
         frames = wrap_traj(frames)
+        if dump_directory is not None:
+            write(dump_directory / f"traj-{itraj:>02d}.xyz", frames)
         frames = frames[start:end:intv]
 
         positions = []
@@ -234,6 +247,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         merge_trajs: bool = False,
         group: Optional[str] = None,
         com_group: Optional[str] = None,
+        save_wrapped: bool = False,
         directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
@@ -257,6 +271,8 @@ class MeanSquaredDisplacementValidator(BaseValidator):
 
         # Other parameters
         self.merge_trajs = merge_trajs
+
+        self.save_wrapped = save_wrapped
 
         return
 
@@ -349,8 +365,9 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                         intv=self.intv,
                         timeintv=self.timeintv,
                         get_group_positions=get_group_positions,
+                        dump_file=self.directory / "wrapped" / f"traj-{itraj:>02d}.xyz" if self.save_wrapped else None,
                     )
-                    for frames in mdtrajs
+                    for itraj, frames in enumerate(mdtrajs)
                 )
                 data = np.array(raw_data)
             else:
@@ -362,6 +379,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     intv=self.intv,
                     timeintv=self.timeintv,
                     get_group_positions=get_group_positions,
+                    dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
                 )
                 data = np.vstack(raw_data)[np.newaxis, :]  # (1, 3, lagmax)
             np.save(cache_msd, data)
