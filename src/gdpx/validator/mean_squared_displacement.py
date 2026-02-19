@@ -97,6 +97,7 @@ def plot_msd(
 def compute_mean_squared_displacement(
     frames: list[Atoms],
     lagmax: int,
+    lagspace: int,
     start: int,
     end: int,
     intv: Optional[int],
@@ -143,7 +144,9 @@ def compute_mean_squared_displacement(
 
     lagtimes = np.arange(1, lagmax)
     for lag in lagtimes:
-        disp = positions[:-lag, :, :] - positions[lag:, :, :]
+        beg_indices = np.arange(0, positions.shape[0] - lag, lagspace)
+        end_indices = beg_indices + lag
+        disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
         sqdist = np.square(disp).sum(axis=-1)
         msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
     timeseries = msds_by_particle.mean(axis=1)
@@ -157,6 +160,7 @@ def compute_mean_squared_displacement(
 def compute_mean_squared_displacement_over_trajectories(
     frames_list: list[list[Atoms]],
     lagmax: int,
+    lagspace: int,
     start: Optional[int],
     end: Optional[int],
     intv: Optional[int],
@@ -210,7 +214,9 @@ def compute_mean_squared_displacement_over_trajectories(
     for lag in lagtimes:
         disp2_list = []
         for positions in positions_list:
-            disp = positions[:-lag, :, :] - positions[lag:, :, :]
+            beg_indices = np.arange(0, positions.shape[0] - lag, lagspace)
+            end_indices = beg_indices + lag
+            disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
             sqdist = np.square(disp).sum(axis=-1)  # (nframes-lag, num_atoms)
             disp2 = np.mean(sqdist, axis=1)  # (nframes-lag,)
             disp2_list.append(disp2)
@@ -239,6 +245,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         self,
         timeintv: float,
         lagmax: int,
+        lagspace: int = 1,
         start: Optional[int] = None,
         end: Optional[int] = None,
         intv: Optional[int] = None,
@@ -263,6 +270,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         self.intv = intv
 
         self.lagmax = lagmax
+        self.lagspace = lagspace
         self.timeintv = timeintv
 
         # - diffusion coefficient linear fitting
@@ -360,6 +368,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     delayed(compute_mean_squared_displacement)(
                         [a for a in frames if a is not None],  # AtomsNDArray may have None...
                         lagmax=self.lagmax,
+                        lagspace=self.lagspace,
                         start=self.start,
                         end=self.end,
                         intv=self.intv,
@@ -374,6 +383,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                 raw_data = compute_mean_squared_displacement_over_trajectories(
                     [[a for a in frames if a is not None] for frames in mdtrajs],
                     lagmax=self.lagmax,
+                    lagspace=self.lagspace,
                     start=self.start,
                     end=self.end,
                     intv=self.intv,
