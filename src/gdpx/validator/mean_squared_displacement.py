@@ -21,6 +21,32 @@ from ..data.array import AtomsNDArray
 from .validator import BaseValidator
 
 
+def string_to_index(stridx: str) -> tuple[int, int, int]:
+    """Convert index string to a tuple of (start, end, step)."""
+    if ":" in stridx:
+        parts = [None if s == "" else int(s) for s in stridx.split(":")]
+        num_parts = len(parts)
+        if num_parts == 2:
+            start, end = parts
+            step = 1
+        elif num_parts == 3:
+            start, end, step = parts
+        else:
+            raise Exception(f"Invalid index string: {stridx}")
+        if start is None:
+            start = 0
+        if end is None:
+            raise Exception(f"Invalid index string: {stridx}, end cannot be None.")
+        if step is None:
+            step = 1
+    else:
+        start = int(stridx)
+        end = start + 1
+        step = 1
+
+    return start, end, step
+
+
 def plot_msd(
     wdir,
     names,
@@ -130,10 +156,21 @@ def preprocess_trajectories(
     return positions_list
 
 
-def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, lagmax: int, lagspace: int):
+def compute_mean_squared_displacement_without_average(positions: np.ndarray, lag: int):
     """"""
-    beg_indices = np.arange(0, positions.shape[0] - lagmax, lagspace)
-    end_indices = beg_indices + lagmax
+    beg_indices = np.array([0], dtype=int)
+    end_indices = beg_indices + lag
+    disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
+    sqdist = np.square(disp).sum(axis=-1)
+    disp2 = sqdist  # (num_windows, num_particles)
+
+    return disp2
+
+
+def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, lag: int, lagspace: int):
+    """"""
+    beg_indices = np.arange(0, positions.shape[0] - lag, lagspace)
+    end_indices = beg_indices + lag
     disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
     sqdist = np.square(disp).sum(axis=-1)
     disp2 = np.mean(sqdist, axis=1)  # average over particles, (num_windows,)
@@ -206,8 +243,7 @@ def compute_mean_squared_displacement(
 
 def compute_mean_squared_displacement_over_blocks(
     frames_list: list[list[Atoms]],
-    lagmax: int,
-    lagspace: int,
+    window_slice: Optional[tuple[int, int, int]],
     block_size: Optional[int],
     start: Optional[int],
     end: Optional[int],
@@ -233,15 +269,30 @@ def compute_mean_squared_displacement_over_blocks(
         dump_directory=dump_directory,
     )
 
+    if window_slice is not None:
+        # Get lag from window
+        lagmin, lagmax, lagspace = window_slice
+
+        get_disp2 = lambda positions: compute_mean_squared_displacement_by_window_average(
+            positions, lag=lag, lagspace=lagspace
+        )
+    else:
+        # infer lagmax from the length of trajectories
+        lagmin = 1
+        lagmax = min([positions.shape[0] for positions in positions_list])
+        lagspace = 1
+
+        get_disp2 = lambda positions: compute_mean_squared_displacement_without_average(positions, lag=lag)
+
     # Compute the mean squared displacement (MSD) for each lag time.
     msd_avg = np.zeros((lagmax, 1))
     msd_std = np.zeros((lagmax, 1))
 
-    lagtimes = np.arange(1, lagmax)
+    lagtimes = np.arange(lagmin, lagmax)
     for lag in lagtimes:
         disp2_list = []
         for positions in positions_list:  # over trajectories/blocks
-            disp2 = compute_mean_squared_displacement_by_window_average(positions, lagmax=lag, lagspace=lagspace)
+            disp2 = get_disp2(positions)
             disp2_list.append(disp2)
         disp2 = np.concatenate(disp2_list, axis=0)  # (all_windows,)
         msd_avg[lag] = np.mean(disp2, axis=0)
@@ -267,8 +318,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
     def __init__(
         self,
         timeintv: float,
-        lagmax: int,
-        lagspace: int = 1,
+        window: Optional[str] = None,
         block_size: Optional[int] = None,
         start: Optional[int] = None,
         end: Optional[int] = None,
@@ -293,10 +343,22 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         self.end = end
         self.intv = intv
 
-        self.lagmax = lagmax
-        self.lagspace = lagspace
         self.timeintv = timeintv
 
+        # Parse window
+        if window is not None:
+            self.window_slice = string_to_index(window)
+            # make sure we have positive end, and step should be smaller than end-start
+            if self.window_slice[1] is not None and self.window_slice[1] <= 0:
+                raise Exception(f"Invalid window end {self.window_slice[1]}.")
+            if self.window_slice[2] >= self.window_slice[1] - self.window_slice[0]:
+                raise Exception(
+                    f"Invalid window step {self.window_slice[2]} for window size {self.window_slice[1] - self.window_slice[0]}."
+                )
+        else:
+            self.window_slice = None
+
+        # Parse block
         self.block_size = block_size
 
         # - diffusion coefficient linear fitting
@@ -394,8 +456,8 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                 raw_data = Parallel(n_jobs=self.njobs)(
                     delayed(compute_mean_squared_displacement)(
                         [a for a in frames if a is not None],  # AtomsNDArray may have None...
-                        lagmax=self.lagmax,
-                        lagspace=self.lagspace,
+                        lagmax=self.window_slice[1],
+                        lagspace=self.window_slice[2],
                         start=self.start,
                         end=self.end,
                         intv=self.intv,
@@ -414,8 +476,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     self._print("compute MSD for trajectories in blocks by window average ->")
                 raw_data = compute_mean_squared_displacement_over_blocks(
                     clean_trajs,
-                    lagmax=self.lagmax,
-                    lagspace=self.lagspace,
+                    window_slice=self.window_slice,
                     block_size=self.block_size,
                     start=self.start,
                     end=self.end,
