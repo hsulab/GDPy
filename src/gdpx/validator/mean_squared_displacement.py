@@ -94,6 +94,17 @@ def plot_msd(
     return
 
 
+def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, lagmax: int, lagspace: int):
+    """"""
+    beg_indices = np.arange(0, positions.shape[0] - lagmax, lagspace)
+    end_indices = beg_indices + lagmax
+    disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
+    sqdist = np.square(disp).sum(axis=-1)
+    disp2 = np.mean(sqdist, axis=1)  # average over particles, (num_windows,)
+
+    return disp2
+
+
 def compute_mean_squared_displacement(
     frames: list[Atoms],
     lagmax: int,
@@ -233,6 +244,70 @@ def compute_mean_squared_displacement_over_trajectories(
     return lagtimes, (msd_avg, msd_std)
 
 
+def compute_mean_squared_displacement_over_blocks(
+    frames_list: list[list[Atoms]],
+    lagmax: int,
+    lagspace: int,
+    block_size: int,
+    start: Optional[int],
+    end: Optional[int],
+    intv: Optional[int],
+    timeintv: float,
+    get_group_positions: Callable,
+    dump_directory: Optional[pathlib.Path] = None,
+):
+    """"""
+    if intv is None:
+        intv = 1
+
+    if dump_directory is not None:
+        dump_directory.mkdir(parents=True, exist_ok=True)
+
+    # Wrap the trajectory to avoid jump across periodic boundaries.
+    positions_list = []
+    for itraj, frames in enumerate(frames_list):
+        frames = wrap_traj(frames)
+        if dump_directory is not None:
+            write(dump_directory / f"traj-{itraj:>02d}.xyz", frames)
+        frames = frames[start:end:intv]
+
+        positions = []
+        for atoms in frames:
+            positions.append(get_group_positions(atoms))
+        positions = np.array(positions)  # (num_frames, num_atoms, 3)
+
+        # divide into blocks and discard the last block if it is not longer than lagmax
+        num_frames = positions.shape[0]
+        num_blocks = num_frames // block_size
+        for iblock in range(num_blocks):
+            block_positions = positions[iblock * block_size : (iblock + 1) * block_size, :, :]
+            positions_list.append(block_positions)
+
+    _, _, _ = positions_list[0].shape
+
+    # Compute the mean squared displacement (MSD) for each lag time.
+    msd_avg = np.zeros((lagmax, 1))
+    msd_std = np.zeros((lagmax, 1))
+
+    lagtimes = np.arange(1, lagmax)
+    for lag in lagtimes:
+        disp2_list = []
+        for positions in positions_list:  # over trajectories/blocks
+            disp2 = compute_mean_squared_displacement_by_window_average(positions, lagmax=lag, lagspace=lagspace)
+            disp2_list.append(disp2)
+        disp2 = np.concatenate(disp2_list, axis=0)  # (all_windows,)
+        msd_avg[lag] = np.mean(disp2, axis=0)
+        msd_std[lag] = np.std(disp2, axis=0)
+
+    msd_avg = msd_avg.flatten()
+    msd_std = msd_std.flatten()
+
+    timeintv = intv * timeintv / 1000.0  # fs to ps
+    lagtimes = np.arange(lagmax) * timeintv
+
+    return lagtimes, (msd_avg, msd_std)
+
+
 class MeanSquaredDisplacementValidator(BaseValidator):
     """Estimate the diffusion coefficient.
 
@@ -246,6 +321,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         timeintv: float,
         lagmax: int,
         lagspace: int = 1,
+        block_size: Optional[int] = None,
         start: Optional[int] = None,
         end: Optional[int] = None,
         intv: Optional[int] = None,
@@ -272,6 +348,8 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         self.lagmax = lagmax
         self.lagspace = lagspace
         self.timeintv = timeintv
+
+        self.block_size = block_size
 
         # - diffusion coefficient linear fitting
         self.d_start = d_start
@@ -364,6 +442,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     get_group_positions = lambda atoms: atoms.get_positions()
 
             if not self.merge_trajs:
+                self._print("compute MSD for each trajectory by window average ->")
                 raw_data = Parallel(n_jobs=self.njobs)(
                     delayed(compute_mean_squared_displacement)(
                         [a for a in frames if a is not None],  # AtomsNDArray may have None...
@@ -380,17 +459,34 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                 )
                 data = np.array(raw_data)
             else:
-                raw_data = compute_mean_squared_displacement_over_trajectories(
-                    [[a for a in frames if a is not None] for frames in mdtrajs],
-                    lagmax=self.lagmax,
-                    lagspace=self.lagspace,
-                    start=self.start,
-                    end=self.end,
-                    intv=self.intv,
-                    timeintv=self.timeintv,
-                    get_group_positions=get_group_positions,
-                    dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
-                )
+                clean_trajs = [[a for a in frames if a is not None] for frames in mdtrajs]
+                if self.block_size is None:
+                    self._print("compute MSD for trajectories together by window average ->")
+                    raw_data = compute_mean_squared_displacement_over_trajectories(
+                        clean_trajs,
+                        lagmax=self.lagmax,
+                        lagspace=self.lagspace,
+                        start=self.start,
+                        end=self.end,
+                        intv=self.intv,
+                        timeintv=self.timeintv,
+                        get_group_positions=get_group_positions,
+                        dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
+                    )
+                else:
+                    self._print("compute MSD for trajectories in blocks by window average ->")
+                    raw_data = compute_mean_squared_displacement_over_blocks(
+                        clean_trajs,
+                        lagmax=self.lagmax,
+                        lagspace=self.lagspace,
+                        block_size=self.block_size,
+                        start=self.start,
+                        end=self.end,
+                        intv=self.intv,
+                        timeintv=self.timeintv,
+                        get_group_positions=get_group_positions,
+                        dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
+                    )
                 data = np.vstack(raw_data)[np.newaxis, :]  # (1, 3, lagmax)
             np.save(cache_msd, data)
         else:
