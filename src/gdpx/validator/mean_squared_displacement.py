@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
 from ase.formula import Formula
-from ase.io import write
+from ase.io import read, write
 from joblib import Parallel, delayed
 from scipy.stats import linregress
 
@@ -133,9 +133,15 @@ def preprocess_trajectories(
     # Wrap the trajectory to avoid jump across periodic boundaries.
     positions_list = []
     for itraj, frames in enumerate(frames_list):
-        frames = wrap_traj(frames)
         if dump_directory is not None:
-            write(dump_directory / f"traj-{itraj:>02d}.xyz", frames)
+            dump_file = dump_directory / f"traj-{itraj:>02d}.xyz"
+            if dump_file.exists():
+                frames = read(dump_file, index=":")
+            else:
+                frames = wrap_traj(frames)
+                write(dump_directory / f"traj-{itraj:>02d}.xyz", frames)
+        else:
+            frames = wrap_traj(frames)
         frames = frames[start:end:intv]
 
         positions = []
@@ -162,7 +168,7 @@ def compute_mean_squared_displacement_without_average(positions: np.ndarray, lag
     end_indices = beg_indices + lag
     disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
     sqdist = np.square(disp).sum(axis=-1)
-    disp2 = sqdist  # (num_windows, num_particles)
+    disp2 = np.mean(sqdist, axis=1)  # average over particles, (num_windows,)
 
     return disp2
 
@@ -171,8 +177,8 @@ def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, l
     """"""
     beg_indices = np.arange(0, positions.shape[0] - lag, lagspace)
     end_indices = beg_indices + lag
-    disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
-    sqdist = np.square(disp).sum(axis=-1)
+    disp = positions[beg_indices, :, :] - positions[end_indices, :, :]  # (num_windows, num_particles, 3)
+    sqdist = np.square(disp).sum(axis=-1)  # (num_windows, num_particles)
     disp2 = np.mean(sqdist, axis=1)  # average over particles, (num_windows,)
 
     return disp2
@@ -180,8 +186,7 @@ def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, l
 
 def compute_mean_squared_displacement(
     frames: list[Atoms],
-    lagmax: int,
-    lagspace: int,
+    window_slice: Optional[tuple[int, int, int]],
     start: int,
     end: int,
     intv: Optional[int],
@@ -221,24 +226,35 @@ def compute_mean_squared_displacement(
         positions.append(get_group_positions(atoms))
     positions = np.array(positions)
 
-    _, natoms, _ = positions.shape
+    if window_slice is not None:
+        # Get lag from window
+        lagmin, lagmax, lagspace = window_slice
+
+        get_disp2 = lambda positions, lag: compute_mean_squared_displacement_by_window_average(
+            positions, lag=lag, lagspace=lagspace
+        )
+    else:
+        # infer lagmax from the length of trajectories
+        lagmin = 1
+        lagmax = positions.shape[0]
+        lagspace = 1
+
+        get_disp2 = lambda positions, lag: compute_mean_squared_displacement_without_average(positions, lag=lag)
 
     # Compute the mean squared displacement (MSD) for each lag time.
-    msds_by_particle = np.zeros((lagmax, natoms))
+    msd_avg = np.zeros((lagmax, 1))  # average over particles
 
-    lagtimes = np.arange(1, lagmax)
+    lagtimes = np.arange(lagmin, lagmax)
     for lag in lagtimes:
-        beg_indices = np.arange(0, positions.shape[0] - lag, lagspace)
-        end_indices = beg_indices + lag
-        disp = positions[beg_indices, :, :] - positions[end_indices, :, :]
-        sqdist = np.square(disp).sum(axis=-1)
-        msds_by_particle[lag, :] = np.mean(sqdist, axis=0)
-    timeseries = msds_by_particle.mean(axis=1)
+        disp2 = get_disp2(positions, lag=lag)
+        msd_avg[lag] = np.mean(disp2, axis=0)  # average over windows
+
+    msd_avg = msd_avg.flatten()
 
     timeintv = intv * timeintv / 1000.0  # fs to ps
     lagtimes = np.arange(lagmax) * timeintv
 
-    return lagtimes, timeseries
+    return lagtimes, msd_avg
 
 
 def compute_mean_squared_displacement_over_blocks(
@@ -273,7 +289,7 @@ def compute_mean_squared_displacement_over_blocks(
         # Get lag from window
         lagmin, lagmax, lagspace = window_slice
 
-        get_disp2 = lambda positions: compute_mean_squared_displacement_by_window_average(
+        get_disp2 = lambda positions, lag: compute_mean_squared_displacement_by_window_average(
             positions, lag=lag, lagspace=lagspace
         )
     else:
@@ -282,7 +298,7 @@ def compute_mean_squared_displacement_over_blocks(
         lagmax = min([positions.shape[0] for positions in positions_list])
         lagspace = 1
 
-        get_disp2 = lambda positions: compute_mean_squared_displacement_without_average(positions, lag=lag)
+        get_disp2 = lambda positions, lag: compute_mean_squared_displacement_without_average(positions, lag=lag)
 
     # Compute the mean squared displacement (MSD) for each lag time.
     msd_avg = np.zeros((lagmax, 1))
@@ -292,7 +308,7 @@ def compute_mean_squared_displacement_over_blocks(
     for lag in lagtimes:
         disp2_list = []
         for positions in positions_list:  # over trajectories/blocks
-            disp2 = get_disp2(positions)
+            disp2 = get_disp2(positions, lag=lag)
             disp2_list.append(disp2)
         disp2 = np.concatenate(disp2_list, axis=0)  # (all_windows,)
         msd_avg[lag] = np.mean(disp2, axis=0)
@@ -456,8 +472,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                 raw_data = Parallel(n_jobs=self.njobs)(
                     delayed(compute_mean_squared_displacement)(
                         [a for a in frames if a is not None],  # AtomsNDArray may have None...
-                        lagmax=self.window_slice[1],
-                        lagspace=self.window_slice[2],
+                        window_slice=self.window_slice,
                         start=self.start,
                         end=self.end,
                         intv=self.intv,
