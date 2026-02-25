@@ -120,44 +120,42 @@ def plot_msd(
     return
 
 
-def preprocess_trajectories(
-    frames_list: list[list[Atoms]],
+def preprocess_a_single_trajectory(
+    frames: list[Atoms],
     start: Optional[int],
     end: Optional[int],
     intv: Optional[int],
     block_size: Optional[int],
     get_group_positions: Callable,
-    dump_directory: Optional[pathlib.Path] = None,
-):
+    dump_file: Optional[pathlib.Path] = None,
+) -> list[np.ndarray]:
     """"""
     # Wrap the trajectory to avoid jump across periodic boundaries.
-    positions_list = []
-    for itraj, frames in enumerate(frames_list):
-        if dump_directory is not None:
-            dump_file = dump_directory / f"traj-{itraj:>02d}.xyz"
-            if dump_file.exists():
-                frames = read(dump_file, index=":")
-            else:
-                frames = wrap_traj(frames)
-                write(dump_directory / f"traj-{itraj:>02d}.xyz", frames)
+    if dump_file is not None:
+        if dump_file.exists():
+            frames = read(dump_file, index=":")
         else:
             frames = wrap_traj(frames)
-        frames = frames[start:end:intv]
+            write(dump_file, frames)
+    else:
+        frames = wrap_traj(frames)
+    frames = frames[start:end:intv]
 
-        positions = []
-        for atoms in frames:
-            positions.append(get_group_positions(atoms))
-        positions = np.array(positions)  # (num_frames, num_atoms, 3)
+    positions = []
+    for atoms in frames:
+        positions.append(get_group_positions(atoms))
+    positions = np.array(positions)  # (num_frames, num_particles, 3)
 
-        if block_size is not None:
-            # divide into blocks and discard the last block if it is not longer than lagmax
-            num_frames = positions.shape[0]
-            num_blocks = num_frames // block_size
-            for iblock in range(num_blocks):
-                block_positions = positions[iblock * block_size : (iblock + 1) * block_size, :, :]
-                positions_list.append(block_positions)
-        else:
-            positions_list.append(positions)
+    positions_list = []
+    if block_size is not None:
+        # divide into blocks and discard the last block if it is not longer than lagmax
+        num_frames = positions.shape[0]
+        num_blocks = num_frames // block_size
+        for iblock in range(num_blocks):
+            block_positions = positions[iblock * block_size : (iblock + 1) * block_size, :, :]
+            positions_list.append(block_positions)
+    else:
+        positions_list.append(positions)
 
     return positions_list
 
@@ -187,6 +185,7 @@ def compute_mean_squared_displacement_by_window_average(positions: np.ndarray, l
 def compute_mean_squared_displacement(
     frames: list[Atoms],
     window_slice: Optional[tuple[int, int, int]],
+    block_size: Optional[int],
     start: int,
     end: int,
     intv: Optional[int],
@@ -215,16 +214,15 @@ def compute_mean_squared_displacement(
     if dump_file is not None:
         dump_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Wrap the trajectory to avoid jump across periodic boundaries.
-    frames = wrap_traj(frames)
-    frames = frames[start:end:intv]
-
-    write(dump_file, frames) if dump_file is not None else None
-
-    positions = []
-    for atoms in frames:
-        positions.append(get_group_positions(atoms))
-    positions = np.array(positions)
+    positions_list = preprocess_a_single_trajectory(
+        frames=frames,
+        start=start,
+        end=end,
+        intv=intv,
+        block_size=block_size,
+        get_group_positions=get_group_positions,
+        dump_file=dump_file,
+    )
 
     if window_slice is not None:
         # Get lag from window
@@ -236,25 +234,31 @@ def compute_mean_squared_displacement(
     else:
         # infer lagmax from the length of trajectories
         lagmin = 1
-        lagmax = positions.shape[0]
+        lagmax = min([positions.shape[0] for positions in positions_list])
         lagspace = 1
 
         get_disp2 = lambda positions, lag: compute_mean_squared_displacement_without_average(positions, lag=lag)
 
     # Compute the mean squared displacement (MSD) for each lag time.
-    msd_avg = np.zeros((lagmax, 1))  # average over particles
+    num_trajs = len(positions_list)
+    msd_avg = np.zeros((num_trajs, lagmax, 1))  # average over particles
 
     lagtimes = np.arange(lagmin, lagmax)
     for lag in lagtimes:
-        disp2 = get_disp2(positions, lag=lag)
-        msd_avg[lag] = np.mean(disp2, axis=0)  # average over windows
+        for itraj, positions in enumerate(positions_list):  # over trajectories/blocks
+            disp2 = get_disp2(positions, lag=lag)
+            msd_avg[itraj, lag] = np.mean(disp2, axis=0)  # average over windows
 
-    msd_avg = msd_avg.flatten()
+    msd_avg = msd_avg.squeeze(axis=-1)  # (num_trajs, lagmax)
 
     timeintv = intv * timeintv / 1000.0  # fs to ps
     lagtimes = np.arange(lagmax) * timeintv
+    lagtimes = lagtimes[np.newaxis, :].repeat(num_trajs, axis=0)  # (num_trajs, lagmax)
 
-    return lagtimes, msd_avg
+    # stack results as (num_trajs, 2, lagmax)
+    data = np.stack([lagtimes, msd_avg], axis=1)
+
+    return data
 
 
 def compute_mean_squared_displacement_over_blocks(
@@ -275,15 +279,18 @@ def compute_mean_squared_displacement_over_blocks(
     if dump_directory is not None:
         dump_directory.mkdir(parents=True, exist_ok=True)
 
-    positions_list = preprocess_trajectories(
-        frames_list,
-        start=start,
-        end=end,
-        intv=intv,
-        block_size=block_size,
-        get_group_positions=get_group_positions,
-        dump_directory=dump_directory,
-    )
+    positions_list = []
+    for itraj, frames in enumerate(frames_list):
+        curr_positions_list = preprocess_a_single_trajectory(
+            frames=frames,
+            start=start,
+            end=end,
+            intv=intv,
+            block_size=block_size,
+            get_group_positions=get_group_positions,
+            dump_file=dump_directory / f"traj-{itraj:>02d}.xyz" if dump_directory is not None else None,
+        )
+        positions_list.extend(curr_positions_list)
 
     if window_slice is not None:
         # Get lag from window
@@ -473,6 +480,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     delayed(compute_mean_squared_displacement)(
                         [a for a in frames if a is not None],  # AtomsNDArray may have None...
                         window_slice=self.window_slice,
+                        block_size=self.block_size,
                         start=self.start,
                         end=self.end,
                         intv=self.intv,
@@ -482,7 +490,11 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     )
                     for itraj, frames in enumerate(mdtrajs)
                 )
-                data = np.array(raw_data)
+                # find the maximum length and cut all data to the same length
+                min_length = min([x.shape[2] for x in raw_data])
+                raw_data = [x[:, :, :min_length] for x in raw_data]
+                data = np.concatenate(raw_data, axis=0)
+                self._print(f"{data.shape=}")
             else:
                 clean_trajs = [[a for a in frames if a is not None] for frames in mdtrajs]
                 if self.block_size is None:
