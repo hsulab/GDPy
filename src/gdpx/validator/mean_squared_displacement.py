@@ -113,7 +113,7 @@ def plot_msd(
     ax.set_ylabel(r"MSD [Å$^2$]")
     ax.set_xlabel("Time [ps]")
 
-    ax.legend(fontsize=12)
+    # ax.legend(fontsize=12)
 
     fig.savefig(wdir / f"{prefix}msd.png", bbox_inches="tight")
 
