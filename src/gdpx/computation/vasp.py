@@ -218,6 +218,32 @@ class NoseHooverThermostat(MDController):
 
 
 @dataclasses.dataclass
+class NoseHooverChainThermostat(MDController):
+    name: str = "nose_hoover_chain"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        # Only supports in vasp6
+        nhc_period = self.params.get("Tdamp", 0.0)
+        assert nhc_period >= 0, "NoseHoover-NVT needs positive SMASS."
+
+        nhc_chains = self.params.get("tchain", 3)
+
+        # MDALGO, SMASS
+        more_params = dict(
+            mdalgo=4,
+            nhc_nchains=nhc_chains,
+            nhc_period=nhc_period,
+        )
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
 class ParrinelloRahmanBarostat(MDController):
     name: str = "parrinello_rahman"
 
@@ -279,6 +305,7 @@ controllers = dict(
     # - md
     langevin_nvt=LangevinThermostat,
     nose_hoover_nvt=NoseHooverThermostat,
+    nose_hoover_chain_nvt=NoseHooverChainThermostat,
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
 )
 
