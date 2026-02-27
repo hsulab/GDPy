@@ -109,6 +109,9 @@ class VaspManager(BasePotentialManager):
 
         use_socket = calc_params.pop("use_socket", False)
 
+        # Some system-specific settings
+        magmom_init = calc_params.pop("magmom_init", None)
+
         # Check whether check pp and vdw existence
         # since sometimes we'd like a dummy calculator
 
@@ -198,6 +201,9 @@ class VaspManager(BasePotentialManager):
 
         else:
             ...  # The backend has already been checked.
+
+        # HACK: Some system-specific electronic structure settings
+        calc.magmom_settings = magmom_init
 
         self.calc = calc
 

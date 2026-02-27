@@ -470,6 +470,13 @@ class VaspDriver(BaseDriver):
 
             # FIXME: LDA+U
 
+            # FIXME: spin-polarised for noncollinear?
+            if hasattr(self.calc, "magmom_settings") and self.calc.magmom_settings is not None:
+                # the order will be taken care by ase vasp
+                chemical_symbols = atoms.get_chemical_symbols()
+                magmoms = [self.calc.magmom_settings.get(sym, 1.0) for sym in chemical_symbols]
+                self.calc.set(magmom=magmoms)
+
             # parse constraint
             self._preprocess_constraints(atoms, run_params)
 
@@ -567,6 +574,7 @@ class VaspDriver(BaseDriver):
                 self.calc.set(random_seed=report_random_seeds[-1].tolist())
             else:
                 ...
+            # FIXME: magmoms from outcar?
             self.calc.write_input(atoms)
             # To restart, velocities are always retained
             # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
