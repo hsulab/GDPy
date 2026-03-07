@@ -191,7 +191,9 @@ def compute_mean_squared_displacement(
     intv: Optional[int],
     timeintv: float,
     get_group_positions: Callable,
-    dump_file: Optional[pathlib.Path] = None,
+    dump_directory: Optional[pathlib.Path] = None,
+    dump_index: Optional[int] = None,
+    histogram_steps: Optional[list[int]] = None,
 ):
     """Compute mean squared displacement (MSD) for a group of atoms.
 
@@ -211,8 +213,11 @@ def compute_mean_squared_displacement(
     if intv is None:
         intv = 1
 
-    if dump_file is not None:
-        dump_file.parent.mkdir(parents=True, exist_ok=True)
+    if dump_directory is not None and dump_index is not None:
+        dump_directory.mkdir(parents=True, exist_ok=True)
+        dump_file = dump_directory / f"traj-{dump_index:>02d}.xyz"
+    else:
+        dump_file = None
 
     positions_list = preprocess_a_single_trajectory(
         frames=frames,
@@ -243,11 +248,21 @@ def compute_mean_squared_displacement(
     num_trajs = len(positions_list)
     msd_avg = np.zeros((num_trajs, lagmax, 1))  # average over particles
 
+    histograms = {}
+    if histogram_steps is not None:
+        histograms = {step: [] for step in histogram_steps}
+
     lagtimes = np.arange(lagmin, lagmax)
     for lag in lagtimes:
         for itraj, positions in enumerate(positions_list):  # over trajectories/blocks
             disp2 = get_disp2(positions, lag=lag)
             msd_avg[itraj, lag] = np.mean(disp2, axis=0)  # average over windows
+            if lag in histograms:
+                histograms[lag].extend(disp2.tolist())
+
+    if dump_directory is not None:
+        for k, v in histograms.items():
+            np.save(dump_directory / f"traj-{dump_index:>02d}-hist-{k}.npy", np.array(v))
 
     msd_avg = msd_avg.squeeze(axis=-1)  # (num_trajs, lagmax)
 
@@ -271,6 +286,7 @@ def compute_mean_squared_displacement_over_blocks(
     timeintv: float,
     get_group_positions: Callable,
     dump_directory: Optional[pathlib.Path] = None,
+    histogram_steps: Optional[list[int]] = None,
 ):
     """"""
     if intv is None:
@@ -311,6 +327,10 @@ def compute_mean_squared_displacement_over_blocks(
     msd_avg = np.zeros((lagmax, 1))
     msd_std = np.zeros((lagmax, 1))
 
+    histograms = {}
+    if histogram_steps is not None:
+        histograms = {step: [] for step in histogram_steps}
+
     lagtimes = np.arange(lagmin, lagmax)
     for lag in lagtimes:
         disp2_list = []
@@ -320,6 +340,12 @@ def compute_mean_squared_displacement_over_blocks(
         disp2 = np.concatenate(disp2_list, axis=0)  # (all_windows,)
         msd_avg[lag] = np.mean(disp2, axis=0)
         msd_std[lag] = np.std(disp2, axis=0)
+        if lag in histograms:
+            histograms[lag].extend(disp2.tolist())
+
+    if dump_directory is not None:
+        for k, v in histograms.items():
+            np.save(dump_directory / f"hist-{k}.npy", np.array(v))
 
     msd_avg = msd_avg.flatten()
     msd_std = msd_std.flatten()
@@ -352,6 +378,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         group: Optional[str] = None,
         com_group: Optional[str] = None,
         save_wrapped: bool = False,
+        histogram_steps: Optional[list[int]] = None,
         directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
@@ -392,6 +419,8 @@ class MeanSquaredDisplacementValidator(BaseValidator):
         self.merge_trajs = merge_trajs
 
         self.save_wrapped = save_wrapped
+
+        self.histogram_steps = histogram_steps
 
         return
 
@@ -486,7 +515,9 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                         intv=self.intv,
                         timeintv=self.timeintv,
                         get_group_positions=get_group_positions,
-                        dump_file=self.directory / "wrapped" / f"traj-{itraj:>02d}.xyz" if self.save_wrapped else None,
+                        dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
+                        dump_index=itraj,
+                        histogram_steps=self.histogram_steps,
                     )
                     for itraj, frames in enumerate(mdtrajs)
                 )
@@ -511,6 +542,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                     timeintv=self.timeintv,
                     get_group_positions=get_group_positions,
                     dump_directory=self.directory / "wrapped" if self.save_wrapped else None,
+                    histogram_steps=self.histogram_steps,
                 )
                 data = np.vstack(raw_data)[np.newaxis, :]  # (1, 3, lagmax)
             np.save(cache_msd, data)
