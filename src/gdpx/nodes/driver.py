@@ -855,6 +855,9 @@ class extract_cache(Operation):
             self._print("read cache...")
             trajectories = AtomsNDArray.from_file(cache_data)
         self._print(f"{trajectories.shape =}")
+        if len(trajectories.shape) == 2 and trajectories.shape[0] <= 10:
+            for i, traj in enumerate(trajectories):
+                self._print(f"trajectory {i:>8d}: {len(traj)}")
 
         self.status = "finished"
 
