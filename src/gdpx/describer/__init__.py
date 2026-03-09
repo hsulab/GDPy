@@ -33,3 +33,7 @@ try:
     REGISTER.register("soap")(SoapDescriber)
 except ImportError as err:
     config._print(f"  {'Describer':<16s} {'`soap`':<16s} -> require `{err.name}`.")
+
+from .cluster import ClusterDescriber
+
+REGISTER.register("cluster")(ClusterDescriber)
