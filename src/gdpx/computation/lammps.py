@@ -563,6 +563,7 @@ class LmpDriver(BaseDriver):
                 assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
                     "The finished steps must be multiple of dump_period."
                 )
+                self._print(f"{required_num_lines=}")
                 # Find files with names starting with COLVAR
                 colvar_files = list(ckpt_wdir.glob("COLVAR*"))
                 for fpath in colvar_files:
@@ -597,17 +598,18 @@ class LmpDriver(BaseDriver):
                         adaptive_sigma_stride = (
                             int(adaptive_sigma_stride) if adaptive_sigma_stride is not None else 10
                         )  # opes_metad use 10xpace to estimate sigmas
+                        kernel_offset = -int(adaptive_sigma_stride / self.setting.dump_period) + 1
                     else:
                         assert adaptive_sigma_stride is None, (
                             "If SIGMA is initialised, ADAPTIVE_SIGMA_STRIDE should not be set."
                         )
-                        adaptive_sigma_stride = 1
+                        kernel_offset = 0
+                    self._print(f"{adaptive_sigma_stride=} {kernel_offset=}")
                     clap_plumed_file_by_number(
                         kernels_fpath,
                         self.directory / "KERNELS",
                         required_num_lines,
-                        # TODO: check adaptive_sigma_stride
-                        -adaptive_sigma_stride + 1,  # opes_metd use 10xpace to estimate sigmas
+                        kernel_offset,  # opes_metd use 10xpace to estimate sigmas
                     )
                 # copy STATE if we have the exact state at the checkpoint
                 state_fpath = ckpt_wdir / "STATE"
