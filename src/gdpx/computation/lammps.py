@@ -513,6 +513,88 @@ class LmpDriver(BaseDriver):
 
         return lines
 
+    def _write_plumed(self, ckpt_wdir: Optional[pathlib.Path], finish_steps: int, curr_temperature: float):
+        """"""
+        if self.calc.plumed is None:
+            return
+
+        is_continue = ckpt_wdir is not None
+        if is_continue:  # clean up COLVAR and HILLS
+            assert finish_steps > 0
+            required_num_lines = int(finish_steps / self.setting.dump_period)
+            assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
+                "The finished steps must be multiple of dump_period."
+            )
+            self._print(f"{required_num_lines=}")
+            # Find files with names starting with COLVAR
+            colvar_files = list(ckpt_wdir.glob("COLVAR*"))
+            for fpath in colvar_files:
+                clap_plumed_file_by_number(
+                    fpath,
+                    self.directory / fpath.name,
+                    required_num_lines,
+                    0,
+                )
+            # Find enhanced sampling-related files, HILLS or KERNELS
+            hills_fpath = ckpt_wdir / "HILLS"
+            if hills_fpath.exists():
+                clap_plumed_file_by_number(
+                    hills_fpath,
+                    self.directory / "HILLS",
+                    required_num_lines,
+                    0,
+                )
+            kernels_fpath = ckpt_wdir / "KERNELS"
+            if kernels_fpath.exists():
+                opes_sigma = find_input_key_value(
+                    self.calc.plumed,
+                    "OPES_METAD",
+                    "SIGMA",
+                )
+                adaptive_sigma_stride = find_input_key_value(
+                    self.calc.plumed,
+                    "OPES_METAD",
+                    "ADAPTIVE_SIGMA_STRIDE",
+                )
+                if opes_sigma is None or opes_sigma == "ADAPTIVE":
+                    adaptive_sigma_stride = (
+                        int(adaptive_sigma_stride) if adaptive_sigma_stride is not None else 10
+                    )  # opes_metad use 10xpace to estimate sigmas
+                    kernel_offset = -int(adaptive_sigma_stride / self.setting.dump_period) + 1
+                else:
+                    assert adaptive_sigma_stride is None, (
+                        "If SIGMA is initialised, ADAPTIVE_SIGMA_STRIDE should not be set."
+                    )
+                    kernel_offset = 0
+                self._print(f"{adaptive_sigma_stride=} {kernel_offset=}")
+                clap_plumed_file_by_number(
+                    kernels_fpath,
+                    self.directory / "KERNELS",
+                    required_num_lines,
+                    kernel_offset,  # opes_metd use 10xpace to estimate sigmas
+                )
+            # copy STATE if we have the exact state at the checkpoint
+            state_fpath = ckpt_wdir / "STATE"
+            if state_fpath.exists():
+                finished_time = finish_steps * self.setting.timestep / 1000.0  # in ps
+                clap_plumed_file_by_simulations(
+                    state_fpath,
+                    self.directory / "STATE",
+                    finished_time,
+                )
+        write_plumed_input_file(
+            pathlib.Path(self.directory),
+            copy.deepcopy(self.calc.plumed),
+            dict(
+                dump_period=self.setting.dump_period,
+                ckpt_period=self.setting.ckpt_period,
+                temperature=curr_temperature,
+            ),
+            is_continue=is_continue,
+        )
+
+        return
+
     def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
         """"""
         run_params = self.setting.get_init_params()
@@ -556,84 +638,12 @@ class LmpDriver(BaseDriver):
 
         dynamics = self._create_dynamics(atoms, *args, **kwargs)
 
-        if self.calc.plumed is not None:
-            if is_continue:  # clean up COLVAR and HILLS
-                assert finish_steps > 0
-                required_num_lines = int(finish_steps / self.setting.dump_period)
-                assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
-                    "The finished steps must be multiple of dump_period."
-                )
-                self._print(f"{required_num_lines=}")
-                # Find files with names starting with COLVAR
-                colvar_files = list(ckpt_wdir.glob("COLVAR*"))
-                for fpath in colvar_files:
-                    clap_plumed_file_by_number(
-                        fpath,
-                        self.directory / fpath.name,
-                        required_num_lines,
-                        0,
-                    )
-                # Find enhanced sampling-related files, HILLS or KERNELS
-                hills_fpath = ckpt_wdir / "HILLS"
-                if hills_fpath.exists():
-                    clap_plumed_file_by_number(
-                        hills_fpath,
-                        self.directory / "HILLS",
-                        required_num_lines,
-                        0,
-                    )
-                kernels_fpath = ckpt_wdir / "KERNELS"
-                if kernels_fpath.exists():
-                    opes_sigma = find_input_key_value(
-                        self.calc.plumed,
-                        "OPES_METAD",
-                        "SIGMA",
-                    )
-                    adaptive_sigma_stride = find_input_key_value(
-                        self.calc.plumed,
-                        "OPES_METAD",
-                        "ADAPTIVE_SIGMA_STRIDE",
-                    )
-                    if opes_sigma is None or opes_sigma == "ADAPTIVE":
-                        adaptive_sigma_stride = (
-                            int(adaptive_sigma_stride) if adaptive_sigma_stride is not None else 10
-                        )  # opes_metad use 10xpace to estimate sigmas
-                        kernel_offset = -int(adaptive_sigma_stride / self.setting.dump_period) + 1
-                    else:
-                        assert adaptive_sigma_stride is None, (
-                            "If SIGMA is initialised, ADAPTIVE_SIGMA_STRIDE should not be set."
-                        )
-                        kernel_offset = 0
-                    self._print(f"{adaptive_sigma_stride=} {kernel_offset=}")
-                    clap_plumed_file_by_number(
-                        kernels_fpath,
-                        self.directory / "KERNELS",
-                        required_num_lines,
-                        kernel_offset,  # opes_metd use 10xpace to estimate sigmas
-                    )
-                # copy STATE if we have the exact state at the checkpoint
-                state_fpath = ckpt_wdir / "STATE"
-                if state_fpath.exists():
-                    finished_time = finish_steps * self.setting.timestep / 1000.0  # in ps
-                    clap_plumed_file_by_simulations(
-                        state_fpath,
-                        self.directory / "STATE",
-                        finished_time,
-                    )
-            write_plumed_input_file(
-                pathlib.Path(self.directory),
-                copy.deepcopy(self.calc.plumed),
-                dict(
-                    dump_period=self.setting.dump_period,
-                    ckpt_period=self.setting.ckpt_period,
-                    temperature=curr_temperature,
-                ),
-                is_continue=is_continue,
-            )
+        self._write_plumed(ckpt_wdir, finish_steps, curr_temperature)
 
         self.setting.temp = prev_temperature
         self.setting.press = prev_pressure
 
+        # Add early-stopping criteria
         halt = ""
         if self.setting.observers is not None:
             observers = []
