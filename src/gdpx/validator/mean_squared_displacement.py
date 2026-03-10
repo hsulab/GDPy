@@ -135,10 +135,10 @@ def preprocess_a_single_trajectory(
         if dump_file.exists():
             frames = read(dump_file, index=":")
         else:
-            frames = wrap_traj(frames)
+            frames = wrap_traj(frames[:end])
             write(dump_file, frames)
     else:
-        frames = wrap_traj(frames)
+        frames = wrap_traj(frames[:end])
     frames = frames[start:end:intv]
 
     positions = []
@@ -503,6 +503,7 @@ class MeanSquaredDisplacementValidator(BaseValidator):
                 else:
                     get_group_positions = lambda atoms: atoms.get_positions()
 
+            self._print(f"slice trajectory as {self.start}:{self.end}:{self.intv}")
             if not self.merge_trajs:
                 self._print("compute MSD for each trajectory by window average ->")
                 raw_data = Parallel(n_jobs=self.njobs)(
