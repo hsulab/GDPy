@@ -1,37 +1,35 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import re
-import io
-from typing import List, Tuple, TextIO
 
 import numpy as np
 
 
-def read_outcar_scf(outcar_lines: List[str]) -> dict:
+def read_outcar_scf(outcar_lines: list[str]) -> dict:
     """"""
     vasp_params_from_outcar = {}
 
-    nelm, ediff = None, None
-    for line in outcar_lines:
-        if line.strip().startswith("ISPIN"):
-            ispin = int(line.split()[2])
-            vasp_params_from_outcar.update(ispin=ispin)
-        if line.strip().startswith("NELM"):
-            nelm = int(line.split()[2][:-1])
-            vasp_params_from_outcar.update(nelm=nelm)
-        if line.strip().startswith("EDIFF"):
-            ediff = float(line.split()[2])
-            vasp_params_from_outcar.update(ediff=ediff)
-        if nelm is not None and ediff is not None:
+    for line in outcar_lines[:2000]:  # Only search the first 2000 lines
+        if "ISPIN" in line:
+            m = re.search(r"ISPIN\s*=\s*(\d+)", line)
+            if m:
+                vasp_params_from_outcar["ispin"] = int(m.group(1))
+
+        if "NELM" in line:
+            m = re.search(r"NELM\s*=\s*(\d+)", line)
+            if m:
+                vasp_params_from_outcar["nelm"] = int(m.group(1))
+
+        if "EDIFF" in line:
+            m = re.search(r"EDIFF\s*=\s*([0-9Ee\+\-\.]+)", line)
+            if m:
+                vasp_params_from_outcar["ediff"] = float(m.group(1))
+
+        if all(k in vasp_params_from_outcar for k in ["ispin", "nelm", "ediff"]):
             break
-    else:
-        ...
 
     return vasp_params_from_outcar
 
-def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
+
+def read_oszicar(lines: list[str], nelm: int, ediff: float) -> list[bool]:
     """"""
     convergence = []
     content = ""
@@ -55,7 +53,7 @@ def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
     return convergence
 
 
-def read_report(lines: List[str]):
+def read_report(lines: list[str]):
     """Read VASP-REPORT and find RANDOM_SEED."""
     pattern = re.compile(r"RANDOM_SEED =\s*(\d+)\s+(\d+)\s+(\d+)")
     random_seeds = []
@@ -68,8 +66,3 @@ def read_report(lines: List[str]):
     random_seeds = np.array(random_seeds, dtype=np.int32)
 
     return random_seeds
-
-
-if __name__ == "__main__":
-    ...
-  
