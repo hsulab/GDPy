@@ -53,12 +53,12 @@ class BuilderVariable(Variable):
 
 @registers.operation.register
 class read_stru(Operation):
-
     def __init__(
         self,
         fname,
         format=None,
         index=":",
+        extend: bool = True,
         input_nodes=[],
         directory="./",
         **kwargs,
@@ -70,6 +70,8 @@ class read_stru(Operation):
         self.format = format
         self.index = index
         self.kwargs = kwargs
+
+        self.extend = extend  # whether extened the input structure files
 
         return
 
@@ -90,7 +92,10 @@ class read_stru(Operation):
             curr_frames = read(curr_fname, format=self.format, index=self.index, **self.kwargs)
             if isinstance(curr_frames, Atoms):
                 curr_frames = [curr_frames]  # if index is single, then read will give Atoms
-            frames.extend(curr_frames)
+            if self.extend:
+                frames.extend(curr_frames)
+            else:
+                frames.append(curr_frames)
 
         frames = AtomsNDArray(frames)
         self._print(f"shape of structures: {frames.shape}")
@@ -102,7 +107,6 @@ class read_stru(Operation):
 
 @registers.operation.register
 class write_stru(Operation):
-
     def __init__(
         self,
         structures,
@@ -114,7 +118,7 @@ class write_stru(Operation):
         **kwargs,
     ) -> None:
         """Initialise the write_stru operation.
-        
+
         Args:
             structures: AtomsNDArray or Atoms.
             fname: The file name to save the structures.
@@ -154,7 +158,7 @@ class write_stru(Operation):
             else:
                 structures = structures.get_marked_structures()
 
-        self._print(f"write structures to {str(self.directory/'structures.xyz')}")
+        self._print(f"write structures to {str(self.directory / 'structures.xyz')}")
         write(self.directory / "structures.xyz", structures, format=self.format)
 
         if self.fname is not None:
@@ -219,7 +223,6 @@ class build(Operation):
 
 @registers.operation.register
 class modify(Operation):
-
     def __init__(
         self,
         substrates,
@@ -297,7 +300,6 @@ class modify(Operation):
 
 @registers.operation.register
 class remove_vacuum(Operation):
-
     cache: str = "cache_frames.xyz"
 
     def __init__(self, structures, thickness: float = 20.0, directory="./") -> None:
@@ -339,7 +341,6 @@ class remove_vacuum(Operation):
 
 @registers.operation.register
 class reset_cell(Operation):
-
     cache: str = "cache_frames.xyz"
 
     def __init__(self, structures, cell, directory="./") -> None:
