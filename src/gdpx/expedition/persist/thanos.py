@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import functools
 import itertools
 from typing import Callable, Literal, Optional
@@ -35,6 +31,10 @@ def extinct_by_small_pair_distance(atoms: Atoms, pair_distance_dict: dict[tuple[
             _, dists = find_mic(raw_vectors, box, pbc)
             if np.min(dists) < dmin:
                 extinct = 1
+                break
+
+        if extinct == 1:
+            break
 
     return extinct
 
@@ -78,7 +78,3 @@ def dispatch_thanos(
         return functools.partial(extinct_by_number_of_particles, particle=particle, min_num=min_num, max_num=max_num)
     else:
         raise Exception(f"Thanos function '{name}' is not recognised.")
-
-
-if __name__ == "__main__":
-    ...
