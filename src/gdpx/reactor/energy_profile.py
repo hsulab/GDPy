@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import pathlib
+import re
 from typing import List, Optional
 
 import matplotlib
@@ -19,7 +20,7 @@ from ase.io import read
 from ase.thermochemistry import HarmonicThermo, IdealGasThermo
 
 
-def read_vibrations(wdir):
+def read_cp2k_vibrations(wdir):
     """"""
     wdir = pathlib.Path(wdir)
     print(f"{str(wdir) =}")
@@ -46,11 +47,94 @@ def read_vibrations(wdir):
     return vib_energies
 
 
+def read_vasp_vibrations(wdir):
+    """"""
+    """
+    Parse vibrational frequencies and eigenvectors from VASP OUTCAR.
+
+    Notes:
+        List of dicts:
+        {
+            "mode_index": int,
+            "frequency_thz": float,
+            "frequency_cm1": float,
+            "frequency_mev": float,
+            "imaginary": bool,
+            "eigenvectors": [[dx, dy, dz], ...]  # per atom
+        }
+
+    Return:
+        A numpy.array with vibrational energies in eV>
+    """
+    outcar_fpath = pathlib.Path(wdir) / "OUTCAR"
+    print(outcar_fpath)
+    with open(outcar_fpath, "r") as f:
+        lines = f.readlines()
+
+    # regex patterns
+    freq_pattern = re.compile(
+        r"\s*(\d+)\s*"
+        r"(f(?:/i)?)\s*"
+        r"=\s*"
+        r"([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*THz\s*"
+        r"([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*2PiTHz\s*"
+        r"([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*cm-1\s*"
+        r"([-0-9.]+)\s*meV\s*"
+    )
+
+    modes = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        match = freq_pattern.search(line)
+        if match:
+            mode_index = int(match.group(1))
+            imaginary = match.group(2).strip() == "f/i"
+            freq_thz = float(match.group(3))
+            freq_2pi = float(match.group(3))
+            freq_cm1 = float(match.group(5))
+            freq_mev = float(match.group(6))
+            # print(line.strip(), imaginary, freq_thz, freq_2pi, freq_cm1, freq_mev)
+            modes.append(
+                {
+                    "mode_index": mode_index,
+                    "frequency_2pi": freq_2pi,
+                    "frequency_thz": freq_thz,
+                    "frequency_cm1": freq_cm1,
+                    "frequency_mev": freq_mev,
+                    "imaginary": -1.0 if imaginary else 1.0,  # make imaginary frequencies negative
+                }
+            )
+            i += 1
+        else:
+            i += 1
+
+    vib_energies = [mode["frequency_mev"] / 1000.0 * mode["imaginary"] for mode in modes]
+
+    return vib_energies
+
+
+def read_vibrations(wdir, backend: str = "cp2k"):
+    """"""
+    if backend == "cp2k":
+        vib_energies = read_cp2k_vibrations(wdir)
+    elif backend == "vasp":
+        vib_energies = read_vasp_vibrations(wdir)
+    else:
+        vib_energies = None
+
+    return vib_energies
+
+
 @dataclasses.dataclass
 class ThermoStructure:
     structure: str
 
     frequency: str = ""
+
+    frequency_backend: Optional[str] = None
 
     # Pressure in [bar].
     pressure: Optional[float] = None
@@ -69,6 +153,10 @@ class ThermoStructure:
 
         self.free_energy = self.energy
 
+        if self.frequency:
+            if self.frequency_backend is None:
+                raise Exception(f"Unknown bakcned {self.frequency_backend} for {self.frequency}.")
+
         return
 
     def compute_free_energy(self, temperature):
@@ -83,15 +171,16 @@ class ThermoStructure:
 
         """
         if self.frequency:
+            assert self.frequency_backend is not None
             if isinstance(self.frequency, str):
-                vib_energies = read_vibrations(self.frequency)
+                vib_energies = read_vibrations(self.frequency, backend=self.frequency_backend)
                 thermo = HarmonicThermo(vib_energies)
                 free_energy_correction = thermo.get_helmholtz_energy(temperature=temperature)
             else:  # dict
                 if self.pressure is None:
                     raise Exception("Molecule free energy correction must have pressure.")
                 freq_wdir = self.frequency["wdir"]
-                vib_energies = read_vibrations(freq_wdir)
+                vib_energies = read_vibrations(freq_wdir, backend=self.frequency_backend)
 
                 geometry = self.frequency.get("geometry", "nonlinear")
                 sigma = self.frequency.get("sigma", None)
