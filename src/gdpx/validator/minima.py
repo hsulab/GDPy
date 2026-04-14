@@ -8,12 +8,14 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.geometry import find_mic
 from ase.io import read, write
+from ase.constraints import FixAtoms
 
 from gdpx.builder.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.validator.validator import BaseValidator
 from gdpx.worker.drive import DriverBasedWorker
+from gdpx.group.constraint import evaluate_constraint_expression
 
 """Validate minima and relative energies...
 """
@@ -233,6 +235,7 @@ class MinimaValidator(BaseValidator):
         formation_energy: Optional[dict] = None,
         show_ranking: bool = False,
         skip_first: bool = False,
+        constraint: Optional[str] = None,
         *args,
         **kwargs,
     ):
@@ -264,6 +267,10 @@ class MinimaValidator(BaseValidator):
         else:
             self.reference_energies = None
 
+        # Whether apply constraints when calculating forces and maximum forces.
+        # This is used to check the convergence of the minimisation.
+        self.constraint = constraint
+
         return
 
     def run(self, structures: Optional[Any] = None, worker: Optional[DriverBasedWorker] = None):
@@ -273,6 +280,11 @@ class MinimaValidator(BaseValidator):
         # Check what input structures we have
         if structures is not None:
             structure_sets = structures
+            if hasattr(structures, "items"):  # check if the input is a dict-like object
+                structure_sets = (
+                    structures.get("reference", None),
+                    structures.get("prediction", None),
+                )
             self._print("Use the structures at run time.")
         else:
             if isinstance(self.structures, (list, tuple)):
@@ -292,6 +304,14 @@ class MinimaValidator(BaseValidator):
             raise Exception(f"{self.__class__.__name__} requires one or two sets of structures.")
 
         assert v_structures is not None, "Structures to validate must be provided either init or run time."
+
+        # apply constraints to the v_structures if any
+        if self.constraint is not None:
+            constraint_expression = self.constraint
+            for i, atoms in enumerate(v_structures):
+                if atoms is not None:
+                    _, frozen_indices = evaluate_constraint_expression(atoms, constraint_expression)
+                    v_structures[i].set_constraint(FixAtoms(indices=frozen_indices))
 
         if isinstance(v_structures, StructureBuilder):
             v_structures = v_structures.run()
