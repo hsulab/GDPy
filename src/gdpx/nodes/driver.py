@@ -857,7 +857,8 @@ class extract_cache(Operation):
         self._print(f"{trajectories.shape =}")
         if len(trajectories.shape) == 2 and trajectories.shape[0] <= 10:
             for i, traj in enumerate(trajectories):
-                self._print(f"trajectory {i:>8d}: {len(traj)}")
+                traj_without_none = [s for s in traj if s is not None]
+                self._print(f"trajectory {i:>8d}: {len(traj_without_none)}")
 
         self.status = "finished"
 
