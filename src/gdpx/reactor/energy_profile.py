@@ -23,7 +23,6 @@ from ase.thermochemistry import HarmonicThermo, IdealGasThermo
 def read_cp2k_vibrations(wdir):
     """"""
     wdir = pathlib.Path(wdir)
-    print(f"{str(wdir) =}")
 
     vibrations = []
     with open(wdir / "cp2k-VIBRATIONS-1.mol", "r") as fopen:
@@ -67,7 +66,6 @@ def read_vasp_vibrations(wdir):
         A numpy.array with vibrational energies in eV>
     """
     outcar_fpath = pathlib.Path(wdir) / "OUTCAR"
-    print(outcar_fpath)
     with open(outcar_fpath, "r") as f:
         lines = f.readlines()
 
@@ -113,6 +111,9 @@ def read_vasp_vibrations(wdir):
 
     vib_energies = [mode["frequency_mev"] / 1000.0 * mode["imaginary"] for mode in modes]
 
+    # remove imaginary frequencies
+    vib_energies = np.array([v for v in vib_energies if v >= 0.0])
+
     return vib_energies
 
 
@@ -136,10 +137,11 @@ class ThermoStructure:
 
     frequency_backend: Optional[str] = None
 
-    # Pressure in [bar].
-    pressure: Optional[float] = None
+    vibrations: Optional[np.ndarray] = None
 
     energy_shift: float = 0.0
+
+    verbose: bool = False
 
     def __post_init__(self):
         """"""
@@ -159,7 +161,7 @@ class ThermoStructure:
 
         return
 
-    def compute_free_energy(self, temperature):
+    def compute_free_energy(self, temperature, pressure: Optional[float] = None):
         """
         Note:
             Pressure should be provided as the gas molecules may have different
@@ -173,14 +175,23 @@ class ThermoStructure:
         if self.frequency:
             assert self.frequency_backend is not None
             if isinstance(self.frequency, str):
-                vib_energies = read_vibrations(self.frequency, backend=self.frequency_backend)
+                if self.vibrations is None:
+                    vib_energies = read_vibrations(self.frequency, backend=self.frequency_backend)
+                    self.vibrations = vib_energies
+                else:
+                    vib_energies = self.vibrations
                 thermo = HarmonicThermo(vib_energies)
-                free_energy_correction = thermo.get_helmholtz_energy(temperature=temperature)
+                thermo.verbose = self.verbose
+                free_energy_correction = thermo.get_helmholtz_energy(temperature=temperature, verbose=self.verbose)
             else:  # dict
-                if self.pressure is None:
+                if pressure is None:
                     raise Exception("Molecule free energy correction must have pressure.")
                 freq_wdir = self.frequency["wdir"]
-                vib_energies = read_vibrations(freq_wdir, backend=self.frequency_backend)
+                if self.vibrations is None:
+                    vib_energies = read_vibrations(freq_wdir, backend=self.frequency_backend)
+                    self.vibrations = vib_energies
+                else:
+                    vib_energies = self.vibrations
 
                 geometry = self.frequency.get("geometry", "nonlinear")
                 sigma = self.frequency.get("sigma", None)
@@ -192,7 +203,10 @@ class ThermoStructure:
                     symmetrynumber=sigma,
                     spin=spin,
                 )
-                free_energy_correction = thermo.get_gibbs_energy(temperature=temperature, pressure=self.pressure * 1e5)
+                thermo.verbose = self.verbose
+                free_energy_correction = thermo.get_gibbs_energy(
+                    temperature=temperature, pressure=pressure * 1e5, verbose=self.verbose
+                )
         else:
             free_energy_correction = 0.0
 
