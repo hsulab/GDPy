@@ -750,6 +750,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.pop_manager.gen_size,
         )
         content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        content += f"use_extinct: {self.pop_manager.use_extinct}\n"
+        content += f"thanos: {self.pop_manager.extinct_callbacks}\n"
         for l in content.split("\n"):
             self._print(l)
 
