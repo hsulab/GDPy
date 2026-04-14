@@ -173,7 +173,7 @@ class write_stru(Operation):
 
         self.status = "finished"
 
-        return
+        return structures
 
 
 @registers.operation.register
