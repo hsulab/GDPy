@@ -47,6 +47,10 @@ from .mean_squared_displacement import MeanSquaredDisplacementValidator
 REGISTER.register("mean_squared_displacement")(MeanSquaredDisplacementValidator)
 REGISTER.register("diffusion_coefficient")(MeanSquaredDisplacementValidator)
 
+from .correlation import CorrelationValidator
+
+REGISTER.register("correlation")(CorrelationValidator)
+
 from .rank import RankValidator
 
 REGISTER.register("rank")(RankValidator)
