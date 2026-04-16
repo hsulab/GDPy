@@ -37,3 +37,7 @@ except ImportError as err:
 from .cluster import ClusterDescriber
 
 REGISTER.register("cluster")(ClusterDescriber)
+
+from .colvar import ColvarDescriber
+
+REGISTER.register("colvar")(ColvarDescriber)
