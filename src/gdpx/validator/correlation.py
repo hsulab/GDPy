@@ -11,16 +11,23 @@ from gdpx.group import evaluate_group_expression
 from .validator import BaseValidator
 
 
-def compute_connectivities(traj: list[Atoms], group_a: str, group_b: list[str], cutoffs: list[float]):
+def compute_connectivities(
+    traj: list[Atoms], group_a: Union[str, list[str]], group_b: list[str], cutoffs: list[float]
+):
     """"""
     # Define adsorbates and adsorption sites
     first_atoms = traj[0]
-    group_indices_a = evaluate_group_expression(first_atoms, group_a)
+    # group_indices_a = evaluate_group_expression(first_atoms, group_a)
+    if isinstance(group_a, str):
+        ads_groups = [[i] for i in evaluate_group_expression(first_atoms, group_a)]
+    else:
+        ads_groups = [evaluate_group_expression(first_atoms, g) for g in group_a]
     site_groups = [evaluate_group_expression(first_atoms, g) for g in group_b]
 
     num_site_groups = len(site_groups)
 
-    a_index_map = {a: i for i, a in enumerate(group_indices_a)}
+    # a_index_map = {a: i for i, a in enumerate(group_indices_a)}
+    ads_index_maps = [{atom: idx for idx, atom in enumerate(group)} for group in ads_groups]
     site_index_maps = [{atom: idx for idx, atom in enumerate(group)} for group in site_groups]
 
     # Check whether OH stays on Cu-Zn or Zn-Zn sites
@@ -31,13 +38,14 @@ def compute_connectivities(traj: list[Atoms], group_a: str, group_b: list[str], 
     all_connectivities = []
     for istep, atoms in enumerate(traj):
         connectivities = np.zeros(
-            tuple([len(group_indices_a)] + [len(g) for g in site_groups]),
+            tuple([len(ads_groups)] + [len(g) for g in site_groups]),
             dtype=int,
         )
 
         nlist.update(atoms)
         # if istep % 1000 == 0:
         #     self._print(f"---> {istep}")
+        """
         for i in group_indices_a:
             indices, offsets = nlist.get_neighbors(i)
             for j, o in zip(indices, offsets):
@@ -50,11 +58,29 @@ def compute_connectivities(traj: list[Atoms], group_a: str, group_b: list[str], 
                         idx = [a_index_map[i]] + [slice(None)] * num_site_groups
                         idx[g_idx + 1] = local_idx
                         connectivities[tuple(idx)] += 1
+        """
+        for a_idx, ads_indices in enumerate(ads_groups):
+            for i in ads_indices:
+                indices, offsets = nlist.get_neighbors(i)
+                for j, o in zip(indices, offsets):
+                    for g_idx, index_map in enumerate(site_index_maps):
+                        local_idx = index_map.get(j, None)
+                        if local_idx is None:
+                            continue
+                        distance = np.linalg.norm(
+                            atoms.positions[i] - (atoms.positions[j] + np.dot(o, atoms.get_cell()))
+                        )
+                        if distance <= cutoffs[g_idx]:
+                            idx = [a_idx] + [slice(None)] * num_site_groups
+                            idx[g_idx + 1] = local_idx
+                            connectivities[tuple(idx)] += 1
         # Check connectivities, 2 means both Cu/Zn and Zn/Zn sites are connected,
         # 1 means only one of them is connected, 0 means none of them is connected
         # Then we only keep 2 as 1, and others (1 or 0) as 0, to check whether the OH group is connected to both sites or not.
         connectivities[connectivities < num_site_groups] = 0
         connectivities[connectivities == num_site_groups] = 1
+        # Check either 0 or 1 in connectivities
+        assert np.all(np.isin(connectivities, [0, 1])), f"Invalid connectivities: {connectivities} at step {istep}"
         # Print if OH binds on what bridge site
         # for i in group_indices_a:
         #     if np.sum(connectivities[group_indices_a.index(i), :, :]) > 0:
