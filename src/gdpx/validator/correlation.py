@@ -1,3 +1,4 @@
+import itertools
 import pathlib
 from typing import Union
 
@@ -11,23 +12,47 @@ from gdpx.group import evaluate_group_expression
 from .validator import BaseValidator
 
 
+def check_connectivity(ads_indices, site_groups, site_index_maps, nlist, atoms, cutoffs):
+    """Check whether the adsorbate is connected to the site groups."""
+    connections = [[] for _ in site_groups]
+    for i in ads_indices:
+        indices, offsets = nlist.get_neighbors(i)
+        for j, o in zip(indices, offsets):
+            for g_idx, site_indices in enumerate(site_groups):
+                if j in site_indices:
+                    distance = np.linalg.norm(atoms.positions[i] - (atoms.positions[j] + np.dot(o, atoms.get_cell())))
+                    if distance <= cutoffs[g_idx]:
+                        connections[g_idx].append(j)
+
+    # Get site index
+    has_empty = any(len(c) == 0 for c in connections)
+    if not has_empty:
+        conn_indices = []
+        for site in itertools.product(*connections):
+            idx = []
+            for g_idx, j in enumerate(site):
+                local_idx = site_index_maps[g_idx].get(j)
+                idx.append(local_idx)
+            conn_indices.append(tuple(idx))
+    else:
+        conn_indices = []
+
+    return conn_indices
+
+
 def compute_connectivities(
     traj: list[Atoms], group_a: Union[str, list[str]], group_b: list[str], cutoffs: list[float]
 ):
     """"""
     # Define adsorbates and adsorption sites
     first_atoms = traj[0]
-    # group_indices_a = evaluate_group_expression(first_atoms, group_a)
+
     if isinstance(group_a, str):
         ads_groups = [[i] for i in evaluate_group_expression(first_atoms, group_a)]
     else:
         ads_groups = [evaluate_group_expression(first_atoms, g) for g in group_a]
+
     site_groups = [evaluate_group_expression(first_atoms, g) for g in group_b]
-
-    num_site_groups = len(site_groups)
-
-    # a_index_map = {a: i for i, a in enumerate(group_indices_a)}
-    ads_index_maps = [{atom: idx for idx, atom in enumerate(group)} for group in ads_groups]
     site_index_maps = [{atom: idx for idx, atom in enumerate(group)} for group in site_groups]
 
     # Check whether OH stays on Cu-Zn or Zn-Zn sites
@@ -45,40 +70,17 @@ def compute_connectivities(
         nlist.update(atoms)
         # if istep % 1000 == 0:
         #     self._print(f"---> {istep}")
-        """
-        for i in group_indices_a:
-            indices, offsets = nlist.get_neighbors(i)
-            for j, o in zip(indices, offsets):
-                for g_idx, index_map in enumerate(site_index_maps):
-                    local_idx = index_map.get(j, None)
-                    if local_idx is None:
-                        continue
-                    distance = np.linalg.norm(atoms.positions[i] - (atoms.positions[j] + np.dot(o, atoms.get_cell())))
-                    if distance <= cutoffs[g_idx]:
-                        idx = [a_index_map[i]] + [slice(None)] * num_site_groups
-                        idx[g_idx + 1] = local_idx
-                        connectivities[tuple(idx)] += 1
-        """
+        # print(f"---> {istep}")
         for a_idx, ads_indices in enumerate(ads_groups):
-            for i in ads_indices:
-                indices, offsets = nlist.get_neighbors(i)
-                for j, o in zip(indices, offsets):
-                    for g_idx, index_map in enumerate(site_index_maps):
-                        local_idx = index_map.get(j, None)
-                        if local_idx is None:
-                            continue
-                        distance = np.linalg.norm(
-                            atoms.positions[i] - (atoms.positions[j] + np.dot(o, atoms.get_cell()))
-                        )
-                        if distance <= cutoffs[g_idx]:
-                            idx = [a_idx] + [slice(None)] * num_site_groups
-                            idx[g_idx + 1] = local_idx
-                            connectivities[tuple(idx)] += 1
-        # Check connectivities, 2 means both Cu/Zn and Zn/Zn sites are connected,
-        # 1 means only one of them is connected, 0 means none of them is connected
-        # Then we only keep 2 as 1, and others (1 or 0) as 0, to check whether the OH group is connected to both sites or not.
-        connectivities[connectivities < num_site_groups] = 0
-        connectivities[connectivities == num_site_groups] = 1
+            conn_indices = check_connectivity(ads_indices, site_groups, site_index_maps, nlist, atoms, cutoffs)
+            if conn_indices:
+                # for idx in conn_indices:
+                #     local_indices = []
+                #     for g_idx, local_idx in enumerate(idx):
+                #         local_indices.append(site_groups[g_idx][local_idx])
+                #     print(f"  ads {a_idx} binds on site {local_indices}")
+                occupied_site_indices = tuple(np.array([tuple([a_idx] + list(idx)) for idx in conn_indices]).T)
+                connectivities[occupied_site_indices] = 1
         # Check either 0 or 1 in connectivities
         assert np.all(np.isin(connectivities, [0, 1])), f"Invalid connectivities: {connectivities} at step {istep}"
         # Print if OH binds on what bridge site
