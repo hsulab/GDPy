@@ -112,6 +112,8 @@ class VaspManager(BasePotentialManager):
         # Some system-specific settings
         magmom_init = calc_params.pop("magmom_init", None)
 
+        dft_plus_u = calc_params.pop("dft_plus_u", None)
+
         # Check whether check pp and vdw existence
         # since sometimes we'd like a dummy calculator
 
@@ -204,6 +206,8 @@ class VaspManager(BasePotentialManager):
 
         # HACK: Some system-specific electronic structure settings
         calc.magmom_settings = magmom_init
+
+        calc.dft_plus_u = dft_plus_u
 
         self.calc = calc
 

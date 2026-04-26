@@ -469,6 +469,16 @@ class VaspDriver(BaseDriver):
                 run_params["langevin_gamma"] = [run_params["langevin_gamma"]] * ntypes
 
             # FIXME: LDA+U
+            if hasattr(self.calc, "dft_plus_u") and self.calc.dft_plus_u is not None:
+                self.calc.set(ldau=True)
+                self.calc.set(ldautype=2)
+                self.calc.set(ldauprint=1)
+                chemical_symbols = atoms.get_chemical_symbols()
+                ldau_luj = {}
+                for sym in chemical_symbols:
+                    ldau_params = self.calc.dft_plus_u.get(sym, {"L": -1, "U": 0.0, "J": 0.0})
+                    ldau_luj[sym] = ldau_params
+                self.calc.set(ldau_luj=ldau_luj)
 
             # FIXME: spin-polarised for noncollinear?
             if hasattr(self.calc, "magmom_settings") and self.calc.magmom_settings is not None:
