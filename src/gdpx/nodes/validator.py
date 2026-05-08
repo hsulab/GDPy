@@ -82,6 +82,8 @@ class validate(Operation):
             stru_dict = structures
         else:  # assume it is just an AtomsNDArray
             stru_dict = {}
+            if isinstance(structures, list):
+                structures = AtomsNDArray(structures)
             stru_dict["reference"] = structures
 
         for k, v in stru_dict.items():
