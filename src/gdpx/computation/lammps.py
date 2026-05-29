@@ -808,17 +808,6 @@ class LmpDriver(BaseDriver):
             else None
         )
 
-        # Add COLVAR if any, frames may not have colvars as the simulation can stop in the middle
-        _ = (
-            add_colvar_to_atoms_info(
-                colvar_io,
-                curr_traj_frames,
-                ignored_columns=["time"],
-            )
-            if colvar_io is not None
-            else None
-        )
-
         # Close all file handles
         traj_io.close()
         log_io.close()
@@ -826,8 +815,6 @@ class LmpDriver(BaseDriver):
             prism_io.close()
         if devi_io is not None:
             devi_io.close()
-        if colvar_io is not None:
-            colvar_io.close()
 
         return curr_traj_frames
 
@@ -849,6 +836,45 @@ class LmpDriver(BaseDriver):
             check_energy=True,
             archive_path=archive_path,
         )
+
+        # Since COLVAR always starts from step 0, we may add info here
+        # Add COLVAR if any, frames may not have colvars as the simulation can stop in the middle
+        colvar_io = None
+        if archive_path is None:
+            colvar_path = self.directory / "COLVAR"
+            if colvar_path.exists():
+                colvar_io = open(colvar_path, "r")
+            else:
+                ...
+        else:
+            rpath = self.directory.relative_to(self.directory.parent)
+            colvar_tarname = str(rpath / "COLVAR")
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.name.startswith(self.directory.name):
+                        if tarinfo.name == colvar_tarname:
+                            colvar_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        else:
+                            ...
+                    else:
+                        continue
+                else:  # TODO: if not find target traj?
+                    ...
+
+        dump_period_in_ps = self.setting.dump_period * self.setting.timestep / 1000.0
+
+        _ = (
+            add_colvar_to_atoms_info(
+                colvar_io,
+                traj_frames,
+                dump_period_in_ps=dump_period_in_ps,
+                ignored_columns=["time"],
+            )
+            if colvar_io is not None
+            else None
+        )
+        if colvar_io is not None:
+            colvar_io.close()
 
         return traj_frames
 
