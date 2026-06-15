@@ -793,11 +793,18 @@ class VaspDriver(BaseDriver):
         # If the latest calculation is not finished/converged, the ouputs will be moved to
         # a new folder 000x.run and an empty trajectory should be return.
         # Even though vasprun file may be empty, the read can give a empty list...
-        curr_frames = self._read_a_single_trajectory(self.directory, archive_path=archive_path)
-        if not curr_frames:  # empty trajectory
-            ...
+        # Check if all files under self.directory are just 0xxx.run directories
+        is_all_calc_dir = all([
+            f.is_dir() and re.match(r"[0-9][0-9][0-9][0-9][.]run", f.name) for f in self.directory.iterdir()
+        ])
+        if not is_all_calc_dir:
+            curr_frames = self._read_a_single_trajectory(self.directory, archive_path=archive_path)
+            if not curr_frames:  # empty trajectory
+                ...
+            else:
+                traj_list.append(curr_frames)
         else:
-            traj_list.append(curr_frames)
+            ...
 
         # Concatenate trajectories
         # Some spin-polarised systems may give different total energies even on the same structure due to the SCF
