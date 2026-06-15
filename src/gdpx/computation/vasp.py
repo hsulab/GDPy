@@ -441,6 +441,18 @@ class VaspDriver(BaseDriver):
                         verified = False
                 else:
                     verified = False
+                # check if vasp refuses to start
+                outcar = self.directory / "OUTCAR"
+                with open(outcar, "r") as fopen:
+                    outcar_lines = fopen.readlines()
+                is_bad_geometry = False
+                for line in outcar_lines:
+                    if "|       ---->  I REFUSE TO CONTINUE WITH THIS SICK JOB ... BYE!!! <----       |" in line:
+                        self._print(f"VASP refused to start at `{str(self.directory)}` due to bad geometry.")
+                        is_bad_geometry = True
+                        break
+                if is_bad_geometry:
+                    verified = True  # There is one valid calculation but it refuses to start then gives nothing.
             else:  # TODO: verify the previous checkpoint?
                 verified = True
         else:
