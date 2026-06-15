@@ -9,6 +9,7 @@ from typing import Optional
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.vasp import Vasp
 from ase.geometry import find_mic
 from ase.io import read, write
@@ -612,6 +613,7 @@ class VaspDriver(BaseDriver):
         as they are not stored in `vasprun.xml`.
 
         """
+        self._print(wdir)
         oszicar_fobj, outcar_fobj = None, None
         if archive_path is None:
             # - read trajectory
@@ -655,76 +657,99 @@ class VaspDriver(BaseDriver):
         # number of frames from vasprun.xml
         num_frames = len(frames)
 
-        # read magmom and magmoms if possible
+        # check if vasp actually starts from outcar,
+        # sometimes it refuses to start due to bad geometry, then we need return scferror instead of restarting it.
+        is_bad_geometry = False
+        vasp_params_from_outcar = {}
         if outcar_fobj is not None:
             outcar_lines = outcar_fobj.readlines()
-            vasp_params_from_outcar = read_outcar_scf(outcar_lines)
-            assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
-            if vasp_params_from_outcar["ispin"] == 2:
-                outcar_fobj.seek(0)
-                outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
-                num_outcar_frames = len(outcar_frames)
-                assert num_frames == num_outcar_frames, f"vasprun {num_frames} != outcar {num_outcar_frames}"
-                for i in range(num_frames):
-                    frames[i].calc.results.update(
-                        magmom=outcar_frames[i].calc.results["magmom"],
-                        magmoms=outcar_frames[i].calc.results["magmoms"],
-                    )
+            for line in outcar_lines:
+                if "|       ---->  I REFUSE TO CONTINUE WITH THIS SICK JOB ... BYE!!! <----       |" in line:
+                    self._print(f"VASP refused to start at `{str(wdir)}` due to bad geometry.")
+                    is_bad_geometry = True
+                    break
+
+            # read magmom and magmoms if possible
+            if not is_bad_geometry:
+                vasp_params_from_outcar = read_outcar_scf(outcar_lines)
+                assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
+                if vasp_params_from_outcar["ispin"] == 2:
+                    outcar_fobj.seek(0)
+                    outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
+                    num_outcar_frames = len(outcar_frames)
+                    if num_frames != num_outcar_frames:
+                        self._print(f"Find vasprun {num_frames} != outcar {num_outcar_frames}.")
+                    else:
+                        for i in range(num_frames):
+                            frames[i].calc.results.update(
+                                magmom=outcar_frames[i].calc.results["magmom"],
+                                magmoms=outcar_frames[i].calc.results["magmoms"],
+                            )
+                else:
+                    ...
             outcar_fobj.close()
         else:
-            vasp_params_from_outcar = {}
             self._print(f"Cannot read OUTCAR at `{str(wdir)}`.")
 
-        # read oszicar and outcar to check scf convergence
-        if oszicar_fobj is not None:
-            assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
-            nelm = vasp_params_from_outcar["nelm"]
-            assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
-            ediff = vasp_params_from_outcar["ediff"]
-            oszicar_lines = oszicar_fobj.readlines()
-            scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
-            num_scfconvs, num_frames = len(scf_convergences), len(frames)
-            self._debug(f"{num_scfconvs =} {num_frames =}")
-            if num_scfconvs == num_frames:
-                # assert len(scf_convergences) == len(
-                #     frames
-                # ), f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
-                ...
-            elif num_scfconvs == num_frames - 1:
-                if num_frames != 1:
-                    # The LAST SCF failed due to some error, for example, too small distance.
-                    # So we manually set conv to false for the last step and also set frames energy and forces
-                    # to a very large value for the future selection.
-                    # We need check whether the last step unfinished is due to exceed wall time or some other errors,
-                    # Otherwise, a normal structure will be considered as an error.
-                    scf_convergences.append(False)
-                    # FIXME: Use a new CustomAtoms object to deal with this?
-                    from ase.calculators.singlepoint import SinglePointCalculator
-
-                    calc = SinglePointCalculator(
-                        frames[-1],
-                        energy=1e8,
-                        free_energy=1e8,
-                        forces=1e8 * np.ones(frames[-1].positions.shape),
-                    )
-                    frames[-1].calc = calc
-                else:
-                    # For SPC, vasprun has a structure even when SCF is unfinished.
-                    # We clear frames to make calculation restart from scratch if the unfinished SCF is not due to
-                    # some fatal errors.
-                    frames = []
-                    scf_convergences = []
-            else:
-                raise RuntimeError(f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}.")
-
-            for i, is_converged in enumerate(scf_convergences):
-                if not is_converged:
-                    frames[i] = ScfErrAtoms.from_atoms(frames[i])
-                    self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
-
-            oszicar_fobj.close()
+        if is_bad_geometry:
+            frames = [ScfErrAtoms.from_atoms(frames[i]) for i in range(num_frames)]
+            for atoms in frames:
+                calc = SinglePointCalculator(
+                    frames[-1],
+                    energy=1e8,
+                    free_energy=1e8,
+                    forces=1e8 * np.ones(frames[-1].positions.shape),
+                )
+                atoms.calc = calc
         else:
-            self._print(f"Cannot read OSZICAR at `{str(wdir)}`.")
+            # read oszicar and outcar to check scf convergence
+            if oszicar_fobj is not None:
+                assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
+                nelm = vasp_params_from_outcar["nelm"]
+                assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
+                ediff = vasp_params_from_outcar["ediff"]
+                oszicar_lines = oszicar_fobj.readlines()
+                scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
+                num_scfconvs, num_frames = len(scf_convergences), len(frames)
+                self._debug(f"{num_scfconvs =} {num_frames =}")
+                if num_scfconvs == num_frames:
+                    # assert len(scf_convergences) == len(
+                    #     frames
+                    # ), f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
+                    ...
+                elif num_scfconvs == num_frames - 1:
+                    if num_frames != 1:
+                        # The LAST SCF failed due to some error, for example, too small distance.
+                        # So we manually set conv to false for the last step and also set frames energy and forces
+                        # to a very large value for the future selection.
+                        # We need check whether the last step unfinished is due to exceed wall time or some other errors,
+                        # Otherwise, a normal structure will be considered as an error.
+                        scf_convergences.append(False)
+                        # FIXME: Use a new CustomAtoms object to deal with this?
+                        calc = SinglePointCalculator(
+                            frames[-1],
+                            energy=1e8,
+                            free_energy=1e8,
+                            forces=1e8 * np.ones(frames[-1].positions.shape),
+                        )
+                        frames[-1].calc = calc
+                    else:
+                        # For SPC, vasprun has a structure even when SCF is unfinished.
+                        # We clear frames to make calculation restart from scratch if the unfinished SCF is not due to
+                        # some fatal errors.
+                        frames = []
+                        scf_convergences = []
+                else:
+                    raise RuntimeError(f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}.")
+
+                for i, is_converged in enumerate(scf_convergences):
+                    if not is_converged:
+                        frames[i] = ScfErrAtoms.from_atoms(frames[i])
+                        self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
+
+                oszicar_fobj.close()
+            else:
+                self._print(f"Cannot read OSZICAR at `{str(wdir)}`.")
 
         return frames
 
