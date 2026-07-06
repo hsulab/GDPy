@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import collections
 import copy
 import dataclasses
@@ -61,7 +57,6 @@ def compute_minimum_distance(atoms: Atoms, cutoff: float):
 
 @dataclasses.dataclass
 class PropertyItem:
-
     #: Property name that can be found in atoms.info or atoms.arrays.
     name: str
 
@@ -310,7 +305,13 @@ class PropertySelector(BaseSelector):
         return prop_vals
 
     def _statistics(self, prop_name, prop_vals, sparsify: ScalarSparsification, grp_name: str = ""):
-        """Show statistics of the property and update the lower and upper limites of the sparsification."""
+        """Show statistics of a scalar property and update the lower and upper limites of the sparsification."""
+        # Mask nan in property values
+        prop_vals = np.array(prop_vals)
+        prop_mask = np.isnan(prop_vals)
+        if np.any(prop_mask):
+            prop_vals = np.ma.masked_array(prop_vals, mask=prop_mask)
+
         # Get basic statistics for property values
         pmax = stat_str2val("max", prop_vals)
         pmin = stat_str2val("min", prop_vals)
@@ -347,17 +348,17 @@ class PropertySelector(BaseSelector):
         stat_fpath = self.info_fpath.parent / (self.info_fpath.stem + f"-{prop_name}-stat.txt")
         if not grp_name:
             with open(stat_fpath, "w") as fopen:
-                fopen.write(content+"\n")
+                fopen.write(content + "\n")
         else:
             if stat_fpath.exists():
                 with open(stat_fpath, "a") as fopen:
                     fopen.write(f"# --> {grp_name}\n")
-                    fopen.write(content+"\n")
+                    fopen.write(content + "\n")
                     fopen.write("\n")
             else:
                 with open(stat_fpath, "w") as fopen:
                     fopen.write(f"# --> {grp_name}\n")
-                    fopen.write(content+"\n")
+                    fopen.write(content + "\n")
                     fopen.write("\n")
 
         for l in content.split("\n"):
@@ -406,7 +407,3 @@ class PropertySelector(BaseSelector):
         scores, selected_indices = sparsify.run(**sparsify_params)
 
         return scores, selected_indices
-
-
-if __name__ == "__main__":
-    ...

@@ -1,15 +1,12 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import collections
 from typing import Union
 
 import numpy as np
+import numpy.typing
 from ase import Atoms
 
 
-def stat_str2val(stat: Union[str, float], values: list[float]) -> float:
+def stat_str2val(stat: Union[str, float], values: numpy.typing.NDArray) -> float:
     """Get a statistics value based on the input float or string.
 
     Args:
@@ -58,7 +55,3 @@ def get_aligned_chemical_formula(atoms: Atoms, symbol_list: list[str], padding_w
         chemical_formula += f"{s}{n:>0{padding_width}d}"
 
     return chemical_formula
-
-
-if __name__ == "__main__":
-    ...
