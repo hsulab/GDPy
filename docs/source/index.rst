@@ -65,6 +65,7 @@ Supported **Expeditions**
    :caption: Developer Guides:
 
    extensions/index
+   data/index
 .. modules/modules
 
 .. toctree::

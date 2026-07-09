@@ -169,7 +169,7 @@ class BaseSelector(BaseComponent):
         else:
             structures = AtomsNDArray(structures)
 
-        num_inp_strucutures = len(structures.markers)
+        num_inp_strucutures = int(np.count_nonzero(structures.markers))
 
         # Check if the selection has been done before.
         if not (self.info_fpath).exists():
@@ -181,7 +181,7 @@ class BaseSelector(BaseComponent):
             raw_markers = load_cache(self.info_fpath)
             structures.markers = raw_markers
 
-        num_out_structures = len(structures.markers)
+        num_out_structures = int(np.count_nonzero(structures.markers))
         self._print(f"{self.name} num_structures {num_inp_strucutures} -> num_selected {num_out_structures}")
 
         # TODO: Improve selection history records.
@@ -225,10 +225,8 @@ class BaseSelector(BaseComponent):
 
     def _write_cached_results(self, aa: AtomsNDArray) -> None:
         """Write selection results into file that can be used for restart."""
-        markers = aa.markers
-
         data = []
-        for ind in markers:
+        for ind in np.argwhere(aa.markers):
             atoms = aa[tuple(ind)]
             assert isinstance(atoms, Atoms)
             # - gather info

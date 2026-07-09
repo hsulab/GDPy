@@ -75,7 +75,7 @@ class BasinSelector(BaseSelector):
                     continue
             print(f"selected_indices: {selected_indices}")
 
-            curr_markers = data.markers
+            curr_markers = np.argwhere(data.markers)
             selected_markers = [curr_markers[i] for i in selected_indices]
             data.markers = selected_markers
         else:
