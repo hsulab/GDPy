@@ -412,7 +412,7 @@ class compute(Operation):
                 frames = structures.get_marked_structures(markers=curr_markers)
                 num_frames = len(frames)
                 inp_shape = structures.shape
-                inp_markers = [tuple(iloc.tolist()) for iloc in curr_markers]
+                inp_markers = [tuple(iloc) for iloc in np.argwhere(curr_markers)]
             else:  # assume it is just a list of Atoms
                 frames = structures
                 num_frames = len(frames)

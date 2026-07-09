@@ -17,7 +17,7 @@ class ScfSelector(BaseSelector):
 
     def _mark_structures(self, data: AtomsNDArray, *args, **kwargs) -> None:
         """"""
-        markers, structures = data.markers, data.get_marked_structures()
+        markers, structures = np.argwhere(data.markers), data.get_marked_structures()
         if self.parameters["scf_converged"]:
             selected_indices = [
                 i for i, a in enumerate(structures) if not isinstance(a, ScfErrAtoms)

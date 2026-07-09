@@ -135,8 +135,7 @@ class CompareSelector(BaseSelector):
             else:
                 self._print("Please install `reportlab` to report comparison.")
 
-        curr_markers = data.markers
-        # Convert to np.array as there may have 2D markers
+        curr_markers = np.argwhere(data.markers)
         selected_markers = np.array([curr_markers[i] for i in selected_indices])
         data.markers = selected_markers
 

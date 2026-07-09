@@ -5,6 +5,8 @@
 import itertools
 from typing import Optional
 
+import numpy as np
+
 from gdpx.data.array import AtomsNDArray
 
 from .utils import get_aligned_chemical_formula
@@ -50,6 +52,7 @@ def group_structures_by_axis(structures: AtomsNDArray, axis: Optional[int] = Non
         axis: The axis to group by. If None, all markers will be grouped together.
 
     """
+    markers_coords = np.argwhere(structures.markers).tolist()
     if axis is not None:
         ndim = len(structures.shape)
         if axis < -ndim or axis > ndim:
@@ -58,13 +61,13 @@ def group_structures_by_axis(structures: AtomsNDArray, axis: Optional[int] = Non
             axis = ndim + axis
 
         marker_groups = {}
-        for k, v in itertools.groupby(structures.markers, key=lambda x: x[axis]):
+        for k, v in itertools.groupby(markers_coords, key=lambda x: x[axis]):
             if k in marker_groups:
                 marker_groups[k].extend(list(v))
             else:
                 marker_groups[k] = list(v)
     else:
-        marker_groups = dict(all=structures.markers)
+        marker_groups = dict(all=markers_coords)
 
     return marker_groups
 
@@ -80,8 +83,9 @@ def group_structures_by_chemical_formula(
         func = lambda x: get_aligned_chemical_formula(structures[tuple(x.tolist())], symbol_list, padding_width)
 
     # Group by the chemical formula
+    markers_coords = np.argwhere(structures.markers)
     marker_groups = {}
-    for k, v in itertools.groupby(structures.markers, key=func):
+    for k, v in itertools.groupby(markers_coords, key=func):
         if k in marker_groups:
             marker_groups[k].extend(list(v))
         else:
