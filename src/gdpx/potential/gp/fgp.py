@@ -1,57 +1,36 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+import numpy as np
+
+from .base import GP
 
 
-from typing import List
-from gdpx.potential.trainer import BasePotentialTrainer
-
-
-class FGPTrainer(BasePotentialTrainer):
-
-    name = "fgp"
+class FGP(GP):
 
     def __init__(
-        self, config: dict, type_list: List[str] = None, train_epochs: int = 200, 
-        directory=".", command="train", freeze_command="freeze", random_seed: int = None, 
-        *args, **kwargs
-    ) -> None:
-        """"""
+        self,
+        r_cut_2b=6.0,
+        r_cut_3b=4.0,
+        sigma_2b=1.0,
+        length_2b=1.0,
+        sigma_3b=1.0,
+        length_3b=1.0,
+        noise=0.01,
+        jitter=1e-4,
+        use_2b=True,
+        use_3b=False,
+    ):
         super().__init__(
-            config, type_list, train_epochs, 
-            directory, command, freeze_command, 
-            random_seed, *args, **kwargs
+            r_cut_2b=r_cut_2b,
+            r_cut_3b=r_cut_3b,
+            sigma_2b=sigma_2b,
+            length_2b=length_2b,
+            sigma_3b=sigma_3b,
+            length_3b=length_3b,
+            noise=noise,
+            jitter=jitter,
+            use_2b=use_2b,
+            use_3b=use_3b,
         )
 
-        return
-
-    @property
-    def frozen_name(self):
-        """"""
-        return f"{self.name}.pb"
-
-    def _resolve_freeze_command(self, *args, **kwargs):
-        return super()._resolve_freeze_command(*args, **kwargs)
-
-    def _resolve_train_command(self, *args, **kwargs):
-        """"""
-        command = self.command
-
-        return command
-    
-    def train(self, dataset, init_model=None, *args, **kwargs):
-        """"""
-        self._print("miaow")
-        from .representation import train
-        train()
-
-        return
-    
-    def write_input(self, dataset, *args, **kwargs):
-        return super().write_input(dataset, *args, **kwargs)
-
-    def read_convergence(self) -> bool:
-        return super().read_convergence()
-
-
-if __name__ == "__main__":
-    ...
+    def _select_inducing(self, desc):
+        self.inducing_2b = np.arange(desc["body2_features"].shape[0]) if self.use_2b else np.array([], dtype=int)
+        self.inducing_3b = np.arange(desc["body3_features"].shape[0]) if self.use_3b else np.array([], dtype=int)
