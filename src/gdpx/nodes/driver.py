@@ -859,6 +859,11 @@ class extract_cache(Operation):
             for i, traj in enumerate(trajectories):
                 traj_without_none = [s for s in traj if s is not None]
                 self._print(f"trajectory {i:>8d}: {len(traj_without_none)}")
+        elif len(trajectories.shape) == 3 and trajectories.shape[0] <= 10:
+            for i, rep_trajs in enumerate(trajectories):
+                for j, traj in enumerate(rep_trajs):
+                    traj_without_none = [s for s in traj if s is not None]
+                    self._print(f"replica {i:>8d}/{j}: {len(traj_without_none)}")
 
         self.status = "finished"
 

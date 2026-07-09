@@ -129,6 +129,32 @@ class ParrinelloRahmanBarostat(MDController):
         self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
 
+@dataclasses.dataclass
+class ReplicaExchangeController(MDController):
+    name: str = "rex"
+
+    def __post_init__(self):
+        super().__post_init__()
+        Tdamp = self.params.get("Tdamp", unitconvert.convert(self.timestep * 100.0, "time", self.units, "real"))
+        assert Tdamp is not None
+        Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
+
+        temper_seed = self.params.get("temper_seed", None)
+        temper_freq = self.params.get("temper_freq", 127)
+        temper_period = self.params.get("temper_period", 500)
+
+        temper_seed_str = str(temper_seed) if temper_seed is not None else "{seed}"
+
+        input_line = "fix {{fix_id:>24s}} {{group}} nvt temp $t $t {Tdamp}\n".format(Tdamp=Tdamp)
+        input_line += "temper {{steps}} {temper_period} $t {{fix_id}} {temper_seed} {temper_freq}".format(
+            temper_period=temper_period,
+            temper_seed=temper_seed_str,
+            temper_freq=temper_freq,
+        )
+
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
+
+
 controllers = dict(
     cg_min=CGMinimiser,
     fire_min=FireMinimizer,
@@ -136,6 +162,7 @@ controllers = dict(
     langevin_nvt=LangevinThermostat,
     nose_hoover_chain_nvt=NoseHooverChainThermostat,
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
+    rex_nvt=ReplicaExchangeController,
 )
 
 default_controllers = dict(
@@ -143,4 +170,5 @@ default_controllers = dict(
     nve=Verlet,
     nvt=LangevinThermostat,
     npt=ParrinelloRahmanBarostat,
+    rex=ReplicaExchangeController,
 )
