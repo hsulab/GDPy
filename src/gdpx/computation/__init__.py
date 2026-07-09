@@ -38,6 +38,9 @@ register_drivers.register("vasp")(VaspDriver)
 from gdpx.computation.cp2k import Cp2kDriver
 register_drivers.register("cp2k")(Cp2kDriver)
 
+from gdpx.computation.replica import ReplicaDriver
+register_drivers.register("replica")(ReplicaDriver)
+
 
 if __name__ == "__main__":
     ...
