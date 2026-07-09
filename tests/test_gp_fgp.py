@@ -2,12 +2,20 @@ import numpy as np
 from ase.io import read
 
 
+def _load(path):
+    traj = read(f"{path}.extxyz@:")
+    forces = np.array([a.get_forces() for a in traj])
+    assert forces.size > 0 and np.any(np.abs(forces).sum(axis=(1, 2)) > 0), \
+        f"{path}: all force frames are zero"
+    for a in traj:
+        a.calc = None
+    return traj, forces
+
+
 def test_fgp_fit_predict():
     from gdpx.potential.gp import FGP
 
-    traj = read("test_data/cu13_md.traj@:")
-    forces = np.load("test_data/cu13_forces.npy")
-
+    traj, forces = _load("test_data/cu13")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,
              jitter=1e-3, use_2b=True, use_3b=False)
     gp.fit(traj[:3], list(forces[:3]))
@@ -24,9 +32,7 @@ def test_fgp_fit_predict():
 def test_sgp_fit_predict():
     from gdpx.potential.gp import SGP
 
-    traj = read("test_data/cu13_md.traj@:")
-    forces = np.load("test_data/cu13_forces.npy")
-
+    traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=50, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
              noise=0.1, jitter=1e-3, use_2b=True, use_3b=False)
     gp.fit(traj[:5], list(forces[:5]))
@@ -42,9 +48,7 @@ def test_sgp_fit_predict():
 def test_gp_optimize():
     from gdpx.potential.gp import SGP
 
-    traj = read("test_data/cu13_md.traj@:")
-    forces = np.load("test_data/cu13_forces.npy")
-
+    traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=50, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
              noise=0.1, jitter=1e-3, use_2b=True, use_3b=False)
     gp.fit(traj[:4], list(forces[:4]))
@@ -60,9 +64,7 @@ def test_gp_optimize():
 def test_fgp_in_sample_accuracy():
     from gdpx.potential.gp import FGP
 
-    traj = read("test_data/cu13_md.traj@:")
-    forces = np.load("test_data/cu13_forces.npy")
-
+    traj, forces = _load("test_data/cu13")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,
              jitter=1e-2, use_2b=True, use_3b=False)
     gp.fit(traj[:3], list(forces[:3]))
@@ -77,9 +79,7 @@ def test_fgp_in_sample_accuracy():
 def test_sgp_in_sample_accuracy():
     from gdpx.potential.gp import SGP
 
-    traj = read("test_data/cu13_md.traj@:")
-    forces = np.load("test_data/cu13_forces.npy")
-
+    traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=80, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
              noise=0.1, jitter=1e-3, use_2b=True, use_3b=False)
     gp.fit(traj[:3], list(forces[:3]))
@@ -94,9 +94,7 @@ def test_sgp_in_sample_accuracy():
 def test_sgp_periodic_bulk():
     from gdpx.potential.gp import SGP
 
-    traj = read("test_data/cu32_md.traj@:")
-    forces = np.load("test_data/cu32_forces.npy")
-
+    traj, forces = _load("test_data/cu32")
     gp = SGP(n_inducing=100, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.3,
              noise=0.1, jitter=1e-2, use_2b=True, use_3b=False)
     gp.fit(traj[:5], list(forces[:5]))
@@ -113,9 +111,7 @@ def test_sgp_periodic_bulk():
 def test_sgp_multielement_aucu():
     from gdpx.potential.gp import SGP
 
-    traj = read("test_data/aucu_md.traj@:")
-    forces = np.load("test_data/aucu_forces.npy")
-
+    traj, forces = _load("test_data/aucu")
     gp = SGP(n_inducing=100, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
              noise=0.1, jitter=1e-2, use_2b=True, use_3b=False)
     gp.fit(traj[:5], list(forces[:5]))
@@ -132,9 +128,7 @@ def test_sgp_multielement_aucu():
 def test_fgp_multielement_aucu():
     from gdpx.potential.gp import FGP
 
-    traj = read("test_data/aucu_md.traj@:")
-    forces = np.load("test_data/aucu_forces.npy")
-
+    traj, forces = _load("test_data/aucu")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,
              jitter=1e-2, use_2b=True, use_3b=False)
     gp.fit(traj[:3], list(forces[:3]))
