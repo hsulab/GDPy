@@ -28,11 +28,14 @@ def _read_a_single_trajectory(
     archive_path: Optional[pathlib.Path] = None,
     print_func=config._print,
     debug_func=config._debug,
+    replica_idx: Optional[int] = None,
+    log_filename: Optional[str] = None,
 ) -> list[Atoms]:
     traj_io, log_io = None, None
     if archive_path is None:
         traj_io = open(wdir / ASELMPCONFIG.trajectory_filename)
-        log_io = open(wdir / ASELMPCONFIG.log_filename)
+        log_fname = log_filename or ASELMPCONFIG.log_filename
+        log_io = open(wdir / log_fname)
         prism_file = wdir / ASELMPCONFIG.prism_filename
         prism_io = open(prism_file, "rb") if prism_file.exists() else None
         devi_path = wdir / ASELMPCONFIG.deviation_filename
@@ -41,7 +44,8 @@ def _read_a_single_trajectory(
         rpath = wdir.relative_to(mdir.parent)
         traj_tarname = str(rpath / ASELMPCONFIG.trajectory_filename)
         prism_tarname = str(rpath / ASELMPCONFIG.prism_filename)
-        log_tarname = str(rpath / ASELMPCONFIG.log_filename)
+        log_fname = log_filename or ASELMPCONFIG.log_filename
+        log_tarname = str(rpath / log_fname)
         devi_tarname = str(rpath / ASELMPCONFIG.deviation_filename)
         prism_io, devi_io = None, None
         with tarfile.open(archive_path, "r:gz") as tar:
@@ -86,8 +90,15 @@ def _read_a_single_trajectory(
     nframes = min(nframes_traj, nframes_thermo)
     debug_func(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
 
+    step_last_pos = {}
+    for pos, t in enumerate(timesteps):
+        step_last_pos[t] = pos
+    keep_frame = [step_last_pos[t] == pos for pos, t in enumerate(timesteps)]
+
     curr_traj_frames, curr_energies = [], []
     for i, t in enumerate(timesteps):
+        if not keep_frame[i]:
+            continue
         if t in thermo_dict["Step"]:
             curr_atoms = curr_traj_frames_[i]
             curr_atoms.info["step"] = t
@@ -142,6 +153,7 @@ class Lammps(FileIOCalculator):
         halt="",
         extra_fix=[],
         plumed=None,
+        num_replicas=1,
     )
 
     type_list: Optional[list[str]] = None
@@ -150,6 +162,9 @@ class Lammps(FileIOCalculator):
     def __init__(self, command="lmp", label=name, **kwargs):
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
         command_ = self.profile.command
+        num_rep = getattr(self, "num_replicas", 1)
+        if num_rep > 1:
+            command_ = f"{command_} -partition {num_rep}x1"
         if "-in" not in command_:
             command_ += " -in in.lammps 2>&1 > lmp.out"
         self.profile.command = command_
@@ -208,14 +223,30 @@ class Lammps(FileIOCalculator):
     def read_results(self):
         self.results = {}
         curr_wdir = pathlib.Path(self.directory)
-        self.cached_traj_frames = _read_a_single_trajectory(
-            mdir=curr_wdir,
-            wdir=curr_wdir,
-            units=self.units,
-            print_func=lambda _: "",
-            debug_func=lambda _: "",
-        )
-        converged_frame = self.cached_traj_frames[-1]
+        num_rep = getattr(self, "num_replicas", 1)
+        if num_rep > 1:
+            all_frames = []
+            for i in range(num_rep):
+                rep_dir = curr_wdir / f"replica.{i}"
+                frames = _read_a_single_trajectory(
+                    mdir=curr_wdir,
+                    wdir=rep_dir,
+                    units=self.units,
+                    print_func=lambda _: "",
+                    debug_func=lambda _: "",
+                )
+                all_frames.append(frames)
+            self.cached_traj_frames = all_frames
+            converged_frame = all_frames[-1][-1]
+        else:
+            self.cached_traj_frames = _read_a_single_trajectory(
+                mdir=curr_wdir,
+                wdir=curr_wdir,
+                units=self.units,
+                print_func=lambda _: "",
+                debug_func=lambda _: "",
+            )
+            converged_frame = self.cached_traj_frames[-1]
         self.results["forces"] = converged_frame.get_forces().copy()
         self.results["energy"] = converged_frame.get_potential_energy()
         for k, v in converged_frame.info.items():
@@ -267,6 +298,19 @@ class Lammps(FileIOCalculator):
         if prismobj.is_skewed():
             lines.append("box             tilt large")
             lines.append("change_box      all triclinic")
+        num_rep = getattr(self, "num_replicas", 1)
+        if num_rep > 1:
+            lines.append("")
+            replica_temperatures = getattr(self, "replica_temperatures", None)
+            if replica_temperatures is not None:
+                temp_str = " ".join(str(t) for t in replica_temperatures)
+                lines.append(f"variable        t world {temp_str}")
+            w_values = " ".join(str(i) for i in range(num_rep))
+            lines.append(f"variable        w world {w_values}")
+            lines.append("")
+            rep_prefix = "replica.${w}"
+            lines.append(f"log             {rep_prefix}/{ASELMPCONFIG.log_filename}")
+            lines.append("")
         return "\n".join(lines) + "\n"
 
     def _write_masses_and_charges(self):
@@ -364,13 +408,17 @@ class Lammps(FileIOCalculator):
             lines.append("thermo_style    custom step c_mobileTemp pe ke etotal press vol lx ly lz xy xz yz")
         lines.append(f"thermo         {self.dump_period}")
         lines.append("thermo_modify   flush yes")
+        num_rep = getattr(self, "num_replicas", 1)
+        traj_path = ASELMPCONFIG.trajectory_filename
+        if num_rep > 1:
+            traj_path = f"replica.${{w}}/{traj_path}"
         if self.atom_style == "atomic":
             lines.append(
-                f"dump		1 all custom {self.dump_period} {ASELMPCONFIG.trajectory_filename} id type element x y z fx fy fz vx vy vz"
+                f"dump		1 all custom {self.dump_period} {traj_path} id type element x y z fx fy fz vx vy vz"
             )
         elif self.atom_style == "charge":
             lines.append(
-                f"dump		1 all custom {self.dump_period} {ASELMPCONFIG.trajectory_filename} id type element q x y z fx fy fz vx vy vz"
+                f"dump		1 all custom {self.dump_period} {traj_path} id type element q x y z fx fy fz vx vy vz"
             )
         assert self.type_list is not None
         lines.append(f"dump_modify 1 element {' '.join(self.type_list)} flush yes")
@@ -415,7 +463,13 @@ class Lammps(FileIOCalculator):
             if self.read_restart is not None:
                 dynamics_lines[0] = "#  use velocities in restart"
             lines.append("\n".join(dynamics_lines))
-            if self.plumed is not None:
-                lines.append("fix             metad all plumed plumedfile plumed.inp outfile plumed.out")
-            lines.append(f"run             {self.steps}")
+            has_temper = any(
+                subline.strip().startswith("temper")
+                for line in dynamics_lines
+                for subline in line.split("\n")
+            )
+            if not has_temper:
+                if self.plumed is not None:
+                    lines.append("fix             metad all plumed plumedfile plumed.inp outfile plumed.out")
+                lines.append(f"run             {self.steps}")
         return "\n".join(lines) + "\n"

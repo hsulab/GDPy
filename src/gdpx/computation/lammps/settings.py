@@ -18,6 +18,11 @@ class LmpDriverSetting(DriverSetting):
     neigh_modify: Optional[str] = "every 10 check yes"
     extra_fix: list[str] = dataclasses.field(default_factory=list)
     plumed: Optional[str] = None
+    num_replicas: int = 1
+    replica_temperatures: Optional[list[float]] = None
+    temper_period: int = 500
+    temper_seed: Optional[int] = None
+    temper_freq: int = 127
 
     def __post_init__(self):
         if self.task == "min":
@@ -28,6 +33,10 @@ class LmpDriverSetting(DriverSetting):
             neighbor=self.neighbor,
             neigh_modify=self.neigh_modify,
             extra_fix=self.extra_fix,
+            num_replicas=self.num_replicas,
+            replica_temperatures=self.replica_temperatures,
+            temper_period=self.temper_period,
+            temper_seed=self.temper_seed,
         )
 
     def get_simulation_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
@@ -60,6 +69,7 @@ class LmpDriverSetting(DriverSetting):
             fix_id="controller",
             group=group,
             seed=random_seed,
+            steps=self.steps,
         )
         input_line = controller.conv_params["input_line"].format(**_init_placeholders)
         lines = [input_line]
