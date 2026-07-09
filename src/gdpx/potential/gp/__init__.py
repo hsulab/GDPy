@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-if __name__ == "__main__":
-    ...
+from .base import GP
+from .fgp import FGP
+from .sgp import SGP
