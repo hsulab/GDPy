@@ -40,7 +40,7 @@ class StructureInfoSelector(BaseSelector):
                     selected_indices.append(i)
                     break
 
-        markers = data.markers
+        markers = np.argwhere(data.markers)
         selected_markers = np.array([markers[i] for i in selected_indices])
         data.markers = selected_markers
 

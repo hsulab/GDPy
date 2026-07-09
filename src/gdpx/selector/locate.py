@@ -78,9 +78,10 @@ class LocateSelector(BaseSelector):
                 if axis < 0:
                     axis = data.ndim + axis
 
+                markers_coords = np.argwhere(data.markers)
                 marker_groups = {}
                 for k, v in itertools.groupby(
-                    data.markers,
+                    markers_coords,
                     key=lambda x: [
                         x[i] for i in range(data.ndim) if i != axis
                     ],
@@ -91,7 +92,8 @@ class LocateSelector(BaseSelector):
                     else:
                         marker_groups[k] = list(v)
             else:
-                marker_groups = dict(all=data.markers)
+                markers_coords = np.argwhere(data.markers)
+                marker_groups = dict(all=markers_coords)
             # Get selected markers
             selected_markers = []
             for k, v in marker_groups.items():
