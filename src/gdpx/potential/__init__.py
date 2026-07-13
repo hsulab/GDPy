@@ -93,6 +93,11 @@ from .reax import ReaxManager
 
 REGISTER.register("reax")(ReaxManager)
 
+# GP potentials
+from .gp import GaussianProcessManager
+
+REGISTER.register("gp")(GaussianProcessManager)
+
 # Advanced potentials
 from .grid import GridManager
 
