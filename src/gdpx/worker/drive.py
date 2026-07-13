@@ -517,7 +517,11 @@ class DriverBasedWorker(BaseWorker):
 
     def _run_by_scheduler(self, identifier: str, frames: list[Atoms], batches, target_batch: Optional[int] = None):
         database_path = (self.directory / f"_{self.scheduler.name}_jobs.json").resolve()
-        self._print(f"database_path: {database_path.relative_to(pathlib.Path.cwd())}")
+        try:
+            db_rel = database_path.relative_to(pathlib.Path.cwd())
+        except ValueError:
+            db_rel = database_path
+        self._print(f"database_path: {db_rel}")
 
         queued_jobs = self.job_store.get_queued()
         queued_names = [q.gdir[self.UUIDLEN + 1 :] for q in queued_jobs]
