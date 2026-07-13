@@ -24,6 +24,8 @@ from gdpx.potential.manager import BasePotentialManager
 from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.profiler import CustomTimer
 
+from gdpx.core.register import registers
+
 from .utils import copy_minimal_frames, get_file_md5, read_cache_info, split_batches
 from .worker import BaseWorker
 
@@ -65,6 +67,7 @@ def run_reaction_in_commandline(
     return
 
 
+@registers.worker.register
 class ReactorBasedWorker(BaseWorker):
     """Monitor driver-based jobs."""
 
