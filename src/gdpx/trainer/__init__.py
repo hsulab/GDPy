@@ -34,6 +34,8 @@ from .reann.reann import ReannTrainer
 
 REGISTER.register(ReannTrainer)
 
+# GaussianProcessTrainer is registered via import hook in gdpx/potential/gp/trainer.py
+
 
 if __name__ == "__main__":
     ...

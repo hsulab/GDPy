@@ -48,7 +48,7 @@ def _build_2b_kernel_one_species(
     mapping = b2_mapping[cm] if np.any(cm) else np.empty((0, b2_mapping.shape[1]))
     n_cluster = feats.shape[0]
     if n_cluster == 0 or sparse_features.shape[0] == 0:
-        return None, None
+        return None, None, None
 
     sw, sw_grad = switch_function(feats, r_cut)
 
@@ -66,11 +66,15 @@ def _build_2b_kernel_one_species(
         Knm_grad[j * 3: j * 3 + 3, :] += contrib[:, 0, 3:6].T
     Knm_frc = -Knm_grad
 
+    frame_energy_kernel = np.zeros((nf, sparse_features.shape[0]))
+    for loc, kv in zip(mapping, k_val):
+        frame_energy_kernel[loc[0], :] += kv
+
     Kmm = se_kernel(sparse_features, sparse_features, sigma, length)
     sw_sp, _ = switch_function(sparse_features, r_cut)
     Kmm = Kmm * (sw_sp @ sw_sp.T)
 
-    return Kmm, Knm_frc
+    return Kmm, Knm_frc, frame_energy_kernel
 
 
 def compute_2b_kernel_matrices(
@@ -85,6 +89,7 @@ def compute_2b_kernel_matrices(
         all_species_pairs = sorted(set(b2_species) | set(sparse_species))
     Kmm_blocks = []
     Knm_parts = []
+    KnmE_parts = []
 
     for sp in all_species_pairs:
         train_mask = b2_species == sp
@@ -103,9 +108,10 @@ def compute_2b_kernel_matrices(
             train_mask, sp_sparse,
         )
         if result is not None:
-            Kmm_b, Knm_b = result
+            Kmm_b, Knm_b, KnmE_b = result
             Kmm_blocks.append(Kmm_b)
             Knm_parts.append(Knm_b)
+            KnmE_parts.append(KnmE_b)
 
     if not Kmm_blocks:
         return np.zeros((1, 1)), np.zeros((1, 1)), np.zeros((1, 1)), \
@@ -120,7 +126,7 @@ def compute_2b_kernel_matrices(
         offset += n
 
     Knm = np.hstack(Knm_parts)
-    Knm_ene = np.zeros((nf, Kmm_total_dim))
+    Knm_ene = np.hstack(KnmE_parts)
     Knm_frc = Knm
 
     return Kmm, Kmm, Kmm, Knm_ene, Knm_frc
@@ -138,6 +144,7 @@ def compute_3b_kernel_matrices(
         all_species_triples = sorted(set(b3_species) | set(sparse_species))
     Kmm_blocks = []
     Knm_parts = []
+    KnmE_parts = []
 
     for sp in all_species_triples:
         train_mask = b3_species == sp
@@ -193,8 +200,14 @@ def compute_3b_kernel_matrices(
         sw3_outer = sw3_sp[:, np.newaxis] @ sw3_sp[np.newaxis, :]
         Kmm = Kmm * sw3_outer
 
+        # Energy kernel for 3-body
+        frame_energy_kernel = np.zeros((nf, n_sparse))
+        for loc, kv in zip(mapping, k_val):
+            frame_energy_kernel[loc[0], :] += kv
+
         Kmm_blocks.append(Kmm)
         Knm_parts.append(Knm_frc)
+        KnmE_parts.append(frame_energy_kernel)
 
     if not Kmm_blocks:
         return np.zeros((1, 1)), np.zeros((1, 1)), np.zeros((1, 1)), \
@@ -209,7 +222,7 @@ def compute_3b_kernel_matrices(
         offset += n
 
     Knm = np.hstack(Knm_parts)
-    Knm_ene = np.zeros((nf, Kmm_total_dim))
+    Knm_ene = np.hstack(KnmE_parts)
 
     return Kmm, Kmm, Kmm, Knm_ene, Knm
 
