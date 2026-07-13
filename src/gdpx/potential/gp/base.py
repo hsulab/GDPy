@@ -221,6 +221,63 @@ class GP:
 
         return pred_mean
 
+    def predict_energy(self, test_frames, return_std=True):
+        desc_test = compute_descriptors(test_frames, self.r_cut_2b, self.r_cut_3b)
+        nat_tot = sum(len(a) for a in test_frames)
+        nf_test = len(test_frames)
+
+        h = self._hypers
+        s2, l2, s3, l3 = h[:4]
+
+        KnmE_parts = []
+
+        if self.use_2b and desc_test["body2_features"].size > 0 and self.desc["body2_features"].size > 0:
+            sp2 = self.desc["body2_features"][self.inducing_2b]
+            sp2_species = self.desc["body2_species"][self.inducing_2b]
+            _, _, _, KnmE_b2, _ = compute_2b_kernel_matrices(
+                s2, l2, self.r_cut_2b, nf_test, nat_tot,
+                desc_test["body2_features"], desc_test["body2_gradients"],
+                desc_test["body2_mapping"], desc_test["body2_species"],
+                sp2, sp2_species,
+                allowed_species=getattr(self, '_species_2b_order', None),
+            )
+            KnmE_parts.append(KnmE_b2)
+
+        if self.use_3b and desc_test["body3_features"].size > 0 and self.desc["body3_features"].size > 0:
+            sp3 = self.desc["body3_features"][self.inducing_3b]
+            sp3_species = self.desc["body3_species"][self.inducing_3b]
+            _, _, _, KnmE_b3, _ = compute_3b_kernel_matrices(
+                s3, l3, self.r_cut_3b, nf_test, nat_tot,
+                desc_test["body3_features"], desc_test["body3_gradients"],
+                desc_test["body3_mapping"], desc_test["body3_species"],
+                sp3, sp3_species,
+                allowed_species=getattr(self, '_species_3b_order', None),
+            )
+            KnmE_parts.append(KnmE_b3)
+
+        KnmE_cross = np.hstack(KnmE_parts)
+        Kmm = self._Kmm
+
+        jitter_mat = self.jitter * np.eye(Kmm.shape[0])
+        L_mm = cholesky(Kmm + jitter_mat, lower=True)
+
+        K_mm_inv_Knm_train_T = solve_triangular(
+            L_mm.T, solve_triangular(L_mm, self._Knm.T, lower=True)
+        )
+        K_cross_energy = KnmE_cross @ K_mm_inv_Knm_train_T
+        pred_energy = K_cross_energy @ self.alpha
+
+        if return_std:
+            Kinv_KnmE_T = solve_triangular(
+                L_mm.T, solve_triangular(L_mm, KnmE_cross.T, lower=True)
+            )
+            K_eff_test = KnmE_cross @ Kinv_KnmE_T
+            v_cross = solve_triangular(self.L, K_cross_energy.T, lower=True)
+            pred_var = np.diag(K_eff_test) - np.sum(v_cross ** 2, axis=0)
+            return pred_energy, np.sqrt(np.maximum(pred_var, 0))
+
+        return pred_energy
+
     def log_marginal_likelihood(self, hypers):
         h_old = self._hypers.copy()
         self._hypers = np.array(hypers)
