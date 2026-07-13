@@ -13,9 +13,12 @@ from tinydb import Query, TinyDB
 from gdpx.nodes.data import DatasetVariable
 from gdpx.trainer.trainer import BasePotentialTrainer
 
+from gdpx.core.register import registers
+
 from .worker import BaseWorker
 
 
+@registers.worker.register
 class TrainerBasedWorker(BaseWorker):
 
     TRAIN_PREFIX: str = "m"

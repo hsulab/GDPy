@@ -86,6 +86,9 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
+    #: Worker implementations.
+    worker: Register = Register("worker")
+
     def __init__(self):
         raise RuntimeError("The registers is not intended to be instantiated")
 

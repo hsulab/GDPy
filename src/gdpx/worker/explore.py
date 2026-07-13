@@ -15,6 +15,8 @@ from tinydb import Query, TinyDB
 from gdpx.expedition.expedition import BaseExpedition
 from gdpx.scheduler.scheduler import BaseScheduler
 
+from gdpx.core.register import registers
+
 from .worker import BaseWorker
 
 """Worker that manages expeditions.
@@ -70,6 +72,7 @@ def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
     return
 
 
+@registers.worker.register
 class ExpeditionBasedWorker(BaseWorker):
 
     batchsize: int = 1
