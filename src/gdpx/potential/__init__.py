@@ -59,6 +59,10 @@ from .fairchem import FairChemManager
 
 REGISTER.register("fairchem")(FairChemManager)
 
+from .nnp.manager import NnAcsfManager
+
+REGISTER.register("nnp")(NnAcsfManager)
+
 # DFTs
 from .cp2k import Cp2kManager
 
