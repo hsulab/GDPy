@@ -34,6 +34,10 @@ from .reann.reann import ReannTrainer
 
 REGISTER.register(ReannTrainer)
 
+from .nnp import NnpTrainer
+
+REGISTER.register(NnpTrainer)
+
 # GaussianProcessTrainer is registered via import hook in gdpx/potential/gp/trainer.py
 
 
