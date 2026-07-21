@@ -3,36 +3,57 @@ import json
 import pathlib
 
 import numpy as np
+from ase.io import write
+
+from .trainer import BasePotentialTrainer
 
 
-TRAIN_CONFIG_NAME = "train_config.json"
 WEIGHTS_NAME = "nn_weights.npz"
+INPUT_DATASET_NAME = "input_dataset.xyz"
 
 
-class NnpTrainer:
+class NnpTrainer(BasePotentialTrainer):
 
     name = "nnp"
 
-    def __init__(self, config=None, type_list=None, train_epochs=1000,
+    def __init__(self, config, type_list=None, train_epochs=1000,
                  directory=".", command="train", freeze_command="freeze",
-                 random_seed=None, **kwargs):
-        if config is None:
-            config = {}
-        self.config = config
-        self.directory = pathlib.Path(directory)
-        self.train_epochs = train_epochs
-        self.command = command
-        self.freeze_command = freeze_command
-        self.random_seed = random_seed
+                 random_seed=None, calculator_params=None, **kwargs):
+        super().__init__(
+            config=config,
+            type_list=type_list,
+            train_epochs=train_epochs,
+            directory=directory,
+            command=command,
+            freeze_command=freeze_command,
+            random_seed=random_seed,
+        )
+        self.calculator_params = calculator_params or {}
 
     @property
     def frozen_name(self):
         return WEIGHTS_NAME
 
-    def train(self, dataset, calculator_params=None, **kwargs):
+    def _resolve_train_command(self, *args, **kwargs):
+        return ""
+
+    def _resolve_freeze_command(self, *args, **kwargs):
+        return ""
+
+    def write_input(self, dataset, *args, **kwargs):
+        if dataset:
+            write(self.directory / INPUT_DATASET_NAME, dataset)
+
+    def read_convergence(self) -> bool:
+        return True
+
+    def train(self, dataset, init_model=None, *args, **kwargs):
         train_dir = self.directory
         train_dir.mkdir(parents=True, exist_ok=True)
 
+        self.write_input(dataset)
+
+        calculator_params = self.calculator_params
         train_config = self.config
         n_epochs = train_config.get("n_epochs", self.train_epochs)
         learning_rate = train_config.get("learning_rate", 0.001)
@@ -40,9 +61,9 @@ class NnpTrainer:
         force_weight = train_config.get("force_weight", 0.0)
         verbose = train_config.get("verbose", 100)
 
-        if calculator_params is None:
+        if not calculator_params:
             raise ValueError(
-                "NnpTrainer requires `calculator_params` with keys: "
+                "NnpTrainer requires `calculator_params` in the trainer config with keys: "
                 "elements, g2_params, g4_params, r_cut, hidden_sizes."
             )
 
@@ -59,19 +80,19 @@ class NnpTrainer:
             ),
             calculator=copy.deepcopy(calculator_params),
         )
-        with open(train_dir / TRAIN_CONFIG_NAME, "w") as f:
+        with open(train_dir / "train_config.json", "w") as f:
             json.dump(config_dump, f, indent=2)
 
         elements = calculator_params["elements"]
-        g2_params = calculator_params["g2_params"]
-        g4_params = calculator_params.get("g4_params", [])
+        g2_params_raw = calculator_params["g2_params"]
+        g4_params_raw = calculator_params.get("g4_params", [])
         r_cut = calculator_params["r_cut"]
         hidden_sizes = calculator_params.get("hidden_sizes", (64, 64))
 
         from gdpx.potential.nnp.descriptor import compute_n_features, G2Param, G4Param
 
-        g2_norm = [G2Param(*p) if not isinstance(p, G2Param) else p for p in g2_params]
-        g4_norm = [G4Param(*p) if not isinstance(p, G4Param) else p for p in g4_params]
+        g2_norm = [G2Param(*p) if not isinstance(p, G2Param) else p for p in g2_params_raw]
+        g4_norm = [G4Param(*p) if not isinstance(p, G4Param) else p for p in g4_params_raw]
         n_features = compute_n_features(elements, g2_norm, g4_norm)
 
         from gdpx.potential.nnp.nn import SimpleNN
@@ -119,7 +140,7 @@ class NnpTrainer:
 
                     _, dE_dG = calc.nn.energy_and_gradient(G)
                     forces_pred = compute_forces(
-                        atoms, elements, g2_params, g4_params, r_cut, dE_dG,
+                        atoms, elements, g2_params_raw, g4_params_raw, r_cut, dE_dG,
                     )
 
                     dF = forces_pred - forces_ref
@@ -186,21 +207,14 @@ class NnpTrainer:
 
         np.savez_compressed(train_dir / WEIGHTS_NAME, **save_dict)
 
-    def freeze(self, calc, train_dir=None):
-        if train_dir is None:
-            train_dir = self.directory
-        train_dir = pathlib.Path(train_dir)
-        weights_file = train_dir / WEIGHTS_NAME
-        if not weights_file.exists():
+    def freeze(self):
+        model_path = (self.directory / self.frozen_name).resolve()
+        if not model_path.exists():
             raise FileNotFoundError(
-                f"Trained weights not found at {weights_file}. "
+                f"Trained weights not found at {model_path}. "
                 f"Run train() first."
             )
-        loaded = np.load(weights_file)
-        n_weights = sum(1 for k in loaded if k.startswith("W"))
-        weights = [loaded[f"W{i}"] for i in range(n_weights)]
-        biases = [loaded[f"b{i}"] for i in range(n_weights)]
-        calc.nn.set_params({"weights": weights, "biases": biases})
+        return model_path
 
 
 def _copy_grads(grads):

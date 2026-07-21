@@ -9,6 +9,7 @@ REGISTER = BaseRegister("dataloader")
 from .singlexyz import SingleXyzDataloader
 
 REGISTER.register("single_xyz")(SingleXyzDataloader)
+REGISTER.register(SingleXyzDataloader)
 
 from .dataset import XyzDataloader
 
