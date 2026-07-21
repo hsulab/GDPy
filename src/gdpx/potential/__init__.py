@@ -1,159 +1,115 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 from gdpx import config
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("manager")
 
-# Basic potentials
-# MLIP
 from .deepmd import DeepmdManager
-
 REGISTER.register("deepmd")(DeepmdManager)
 
 try:
     from .deepmd import DeepmdJaxManager
-
     REGISTER.register("deepmd_jax")(DeepmdJaxManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
 try:
     from .deepmd import DeepmdJaxXManager
-
     REGISTER.register("deepmd_jax_x")(DeepmdJaxXManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
 from .reann.beann import BeannManager
-
 REGISTER.register("beann")(BeannManager)
 
 from .reann.reann import ReannManager
-
 REGISTER.register("reann")(ReannManager)
 
 from .lasp import LaspManager
-
 REGISTER.register("lasp")(LaspManager)
 
 from .mace import MaceManager
-
 REGISTER.register("mace")(MaceManager)
 
 from .nequip import NequipManager
-
 REGISTER.register("nequip")(NequipManager)
 
 from .mattersim import MatterSimManager
-
 REGISTER.register("mattersim")(MatterSimManager)
 
 from .tace import TaceManager
-
 REGISTER.register("tace")(TaceManager)
 
 from .fairchem import FairChemManager
-
 REGISTER.register("fairchem")(FairChemManager)
 
 from .nnp.manager import NnAcsfManager
-
 REGISTER.register("nnp")(NnAcsfManager)
 
-# DFTs
 from .cp2k import Cp2kManager
-
 REGISTER.register("cp2k")(Cp2kManager)
 
 from .espresso import EspressoManager
-
 REGISTER.register("espresso")(EspressoManager)
 
 from .vasp import VaspManager
-
 REGISTER.register("vasp")(VaspManager)
 
-# FFs
 from .asepot import AsePotManager
-
 REGISTER.register("ase")(AsePotManager)
 
 from .classic import ClassicManager
-
 REGISTER.register("classic")(ClassicManager)
 
 from .eam import EamManager
-
 REGISTER.register("eam")(EamManager)
 
 from .emt import EmtManager
-
 REGISTER.register("emt")(EmtManager)
 
 from .reax import ReaxManager
-
 REGISTER.register("reax")(ReaxManager)
 
-# GP potentials
 from .gp import GaussianProcessManager
-
 REGISTER.register("gp")(GaussianProcessManager)
 
-# Advanced potentials
 from .grid import GridManager
-
 REGISTER.register("grid")(GridManager)
 
 from .mixer import MixerManager
-
 REGISTER.register("mixer")(MixerManager)
 
-# Optional potentials
 try:
     from .abacus import AbacusManager
-
     REGISTER.register("abacus")(AbacusManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`abacus`':<16s} -> require `{e.name}`.")
 
 try:
     from .xtb import XtbManager
-
     REGISTER.register("xtb")(XtbManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`xtb`':<16s} -> require `{e.name}`.")
 
 try:
     from .dftd3 import Dftd3Manager
-
     REGISTER.register("dftd3")(Dftd3Manager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
 
 try:
     from .dftd4 import Dftd4Manager
-
     REGISTER.register("dftd4")(Dftd4Manager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
 
 try:
     from .bias import BiasManager
-
     REGISTER.register("bias")(BiasManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`bias`':<16s} -> require `{e.name}`.")
 
 try:
     from .plumed.plumed import PlumedManager
-
     REGISTER.register("plumed")(PlumedManager)
 except ImportError as e:
     config._print(f"  {'Potential':<16s} {'`plumed`':<16s} -> require `{e.name}`.")
-
-
-if __name__ == "__main__":
-    ...
