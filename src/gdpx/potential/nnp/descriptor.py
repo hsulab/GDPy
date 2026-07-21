@@ -32,6 +32,14 @@ def _cutoff_fn(r, r_cut):
     return result
 
 
+def compute_n_features(elements, g2_params, g4_params):
+    n_elem = len(elements)
+    n_g2 = len(g2_params)
+    n_g4 = len(g4_params)
+    n_pairs = n_elem * (n_elem + 1) // 2
+    return n_elem * n_g2 + n_pairs * n_g4
+
+
 def compute_symmetry_functions(atoms, elements, g2_params, g4_params, r_cut):
     g2_params = _normalize_params(g2_params, G2Param)
     g4_params = _normalize_params(g4_params, G4Param)
