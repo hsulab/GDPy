@@ -1,7 +1,7 @@
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
-from .descriptor import compute_symmetry_functions
+from .descriptor import compute_symmetry_functions, G2Param, G4Param
 from .nn import SimpleNN
 
 
@@ -9,14 +9,13 @@ class ACSFNN(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, elements, g2_params, g4_params, g5_params, r_cut,
+    def __init__(self, elements, g2_params, g4_params, r_cut,
                  hidden_sizes=(64, 64), nn_weights=None,
                  fd_h=1e-5, **kwargs):
         super().__init__(**kwargs)
         self.elements = list(elements)
         self.g2_params = list(g2_params)
         self.g4_params = list(g4_params)
-        self.g5_params = list(g5_params)
         self.r_cut = float(r_cut)
         self.fd_h = float(fd_h)
 
@@ -30,12 +29,11 @@ class ACSFNN(Calculator):
         n_g2 = len(self.g2_params)
         n_pairs = n_elem * (n_elem + 1) // 2
         n_g4 = len(self.g4_params)
-        n_g5 = len(self.g5_params)
-        return n_elem * n_g2 + n_pairs * (n_g4 + n_g5)
+        return n_elem * n_g2 + n_pairs * n_g4
 
     def _compute_descriptor(self, atoms):
         return compute_symmetry_functions(atoms, self.elements, self.g2_params,
-                                           self.g4_params, self.g5_params, self.r_cut)
+                                           self.g4_params, self.r_cut)
 
     def calculate(self, atoms=None, properties=["energy"], system_changes=all_changes):
         super().calculate(atoms, properties, system_changes)
