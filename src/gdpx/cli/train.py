@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+from ase.io import read
 
 from gdpx import config
 from gdpx.core.register import registers
@@ -18,8 +16,25 @@ def run_trainer(configuration, directory) -> None:
     trainer.directory = directory
 
     # Process the dataset
-    name = params["dataset"].pop("name", None)
-    dataset = registers.create("dataloader", name, convert_name=True, **params["dataset"])
+    dataset_params = params["dataset"]
+    name = dataset_params.pop("name", None)
+
+    if name == "single_xyz" or "dataset_path" in dataset_params:
+        from ase.io import read
+        dataset_path = dataset_params.get("dataset_path")
+        if dataset_path:
+            dataset = read(dataset_path, ":")
+        else:
+            dataloader = registers.create("dataloader", name, convert_name=True, **dataset_params)
+            systems = dataloader.load_frames()
+            dataset = [frame for _, frames in systems for frame in frames]
+    else:
+        dataloader = registers.create("dataloader", name, convert_name=True, **dataset_params)
+        if hasattr(dataloader, "load_frames"):
+            systems = dataloader.load_frames()
+            dataset = [frame for _, frames in systems for frame in frames]
+        else:
+            dataset = dataloader
 
     # Other options
     init_model = params.get("init_model", None)
@@ -30,7 +45,3 @@ def run_trainer(configuration, directory) -> None:
     trainer.freeze()
 
     return
-
-
-if __name__ == "__main__":
-    ...
