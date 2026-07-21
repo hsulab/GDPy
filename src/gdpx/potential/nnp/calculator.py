@@ -10,7 +10,7 @@ class ACSFNN(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(self, elements, g2_params, g4_params, g5_params, r_cut,
-                 nn_hidden1=64, nn_hidden2=64, nn_weights=None,
+                 hidden_sizes=(64, 64), nn_weights=None,
                  fd_h=1e-5, **kwargs):
         super().__init__(**kwargs)
         self.elements = list(elements)
@@ -21,7 +21,7 @@ class ACSFNN(Calculator):
         self.fd_h = float(fd_h)
 
         n_features = self._compute_n_features()
-        self.nn = SimpleNN(n_features, nn_hidden1, nn_hidden2)
+        self.nn = SimpleNN(n_features, hidden_sizes=hidden_sizes)
         if nn_weights is not None:
             self.nn.set_params(nn_weights)
 

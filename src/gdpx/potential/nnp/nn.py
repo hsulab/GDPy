@@ -3,94 +3,93 @@ import numpy as np
 
 class SimpleNN:
 
-    def __init__(self, n_input, n_hidden1=64, n_hidden2=64, seed=None):
+    def __init__(self, n_input, hidden_sizes=(64, 64), seed=None):
         if seed is not None:
             np.random.seed(seed)
-        scale1 = np.sqrt(2.0 / n_input)
-        self.W1 = np.random.randn(n_input, n_hidden1) * scale1
-        self.b1 = np.zeros(n_hidden1)
-        scale2 = np.sqrt(2.0 / n_hidden1)
-        self.W2 = np.random.randn(n_hidden1, n_hidden2) * scale2
-        self.b2 = np.zeros(n_hidden2)
-        scale3 = np.sqrt(2.0 / n_hidden2)
-        self.W3 = np.random.randn(n_hidden2, 1) * scale3
-        self.b3 = np.zeros(1)
-        self._cache = None
+        sizes = [n_input] + list(hidden_sizes) + [1]
+        self.weights = []
+        self.biases = []
+        for i in range(len(sizes) - 1):
+            scale = np.sqrt(2.0 / sizes[i])
+            self.weights.append(np.random.randn(sizes[i], sizes[i + 1]) * scale)
+            self.biases.append(np.zeros(sizes[i + 1]))
+        self._cache_acts = None
+        self._cache_y = None
 
     def forward(self, x):
-        z1 = x @ self.W1 + self.b1
-        h1 = np.tanh(z1)
-        z2 = h1 @ self.W2 + self.b2
-        h2 = np.tanh(z2)
-        y = h2 @ self.W3 + self.b3
-        self._cache = (x, z1, h1, z2, h2, y)
+        acts = [x]
+        for W, b in zip(self.weights[:-1], self.biases[:-1]):
+            acts.append(np.tanh(acts[-1] @ W + b))
+        y = acts[-1] @ self.weights[-1] + self.biases[-1]
+        self._cache_acts = acts
+        self._cache_y = y
         return y[:, 0]
 
     def gradient(self, x):
-        z1 = x @ self.W1 + self.b1
-        h1 = np.tanh(z1)
-        z2 = h1 @ self.W2 + self.b2
-        h2 = np.tanh(z2)
-        W3_col = self.W3[:, 0]
-        d2 = W3_col[None, :] * (1.0 - h2 ** 2)
-        d1 = (d2 @ self.W2.T) * (1.0 - h1 ** 2)
-        return d1 @ self.W1.T
+        acts = [x]
+        for W, b in zip(self.weights[:-1], self.biases[:-1]):
+            acts.append(np.tanh(acts[-1] @ W + b))
+        n = len(self.weights)
+        g = np.ones((x.shape[0], 1)) @ self.weights[-1].T
+        for i in range(n - 2, -1, -1):
+            g = g * (1.0 - acts[i + 1] ** 2)
+            g = g @ self.weights[i].T
+        return g
 
     def energy_and_gradient(self, x):
-        z1 = x @ self.W1 + self.b1
-        h1 = np.tanh(z1)
-        z2 = h1 @ self.W2 + self.b2
-        h2 = np.tanh(z2)
-        y = h2 @ self.W3 + self.b3
-        W3_col = self.W3[:, 0]
-        d2 = W3_col[None, :] * (1.0 - h2 ** 2)
-        d1 = (d2 @ self.W2.T) * (1.0 - h1 ** 2)
-        dy_dx = d1 @ self.W1.T
-        self._cache = (x, z1, h1, z2, h2, y)
-        return y[:, 0], dy_dx
+        acts = [x]
+        for W, b in zip(self.weights[:-1], self.biases[:-1]):
+            acts.append(np.tanh(acts[-1] @ W + b))
+        y = acts[-1] @ self.weights[-1] + self.biases[-1]
+        self._cache_acts = acts
+        self._cache_y = y
+
+        n = len(self.weights)
+        g = np.ones((x.shape[0], 1)) @ self.weights[-1].T
+        for i in range(n - 2, -1, -1):
+            g = g * (1.0 - acts[i + 1] ** 2)
+            g = g @ self.weights[i].T
+        return y[:, 0], g
 
     def backward(self, grad_output=None):
-        if self._cache is None:
+        if self._cache_acts is None:
             raise RuntimeError("forward must be called before backward")
-        x, z1, h1, z2, h2, y = self._cache
+        acts = self._cache_acts
+        y = self._cache_y
         if grad_output is None:
             grad_output = np.ones(y.shape[0])
-        dy = grad_output[:, None]
+        g = grad_output[:, None]
+        n = len(self.weights)
 
-        dW3 = h2.T @ dy
-        db3 = np.sum(dy, axis=0)
+        d_weights = [None] * n
+        d_biases = [None] * n
 
-        dh2 = dy @ self.W3.T
-        dz2 = dh2 * (1.0 - h2 ** 2)
+        h_prev = acts[-1]
+        d_weights[-1] = h_prev.T @ g
+        d_biases[-1] = np.sum(g, axis=0)
+        g = g @ self.weights[-1].T
 
-        dW2 = h1.T @ dz2
-        db2 = np.sum(dz2, axis=0)
+        for i in range(n - 2, -1, -1):
+            g = g * (1.0 - acts[i + 1] ** 2)
+            h_prev = acts[i]
+            d_weights[i] = h_prev.T @ g
+            d_biases[i] = np.sum(g, axis=0)
+            if i > 0:
+                g = g @ self.weights[i].T
 
-        dh1 = dz2 @ self.W2.T
-        dz1 = dh1 * (1.0 - h1 ** 2)
-
-        dW1 = x.T @ dz1
-        db1 = np.sum(dz1, axis=0)
-
-        return dict(W1=dW1, b1=db1, W2=dW2, b2=db2, W3=dW3, b3=db3)
+        return {"weights": d_weights, "biases": d_biases}
 
     def update(self, grads, lr):
-        self.W1 -= lr * grads["W1"]
-        self.b1 -= lr * grads["b1"]
-        self.W2 -= lr * grads["W2"]
-        self.b2 -= lr * grads["b2"]
-        self.W3 -= lr * grads["W3"]
-        self.b3 -= lr * grads["b3"]
+        for i in range(len(self.weights)):
+            self.weights[i] -= lr * grads["weights"][i]
+            self.biases[i] -= lr * grads["biases"][i]
 
     def get_params(self):
-        return dict(W1=self.W1.copy(), b1=self.b1.copy(),
-                    W2=self.W2.copy(), b2=self.b2.copy(),
-                    W3=self.W3.copy(), b3=self.b3.copy())
+        return {
+            "weights": [w.copy() for w in self.weights],
+            "biases": [b.copy() for b in self.biases],
+        }
 
     def set_params(self, params):
-        self.W1 = params["W1"].copy()
-        self.b1 = params["b1"].copy()
-        self.W2 = params["W2"].copy()
-        self.b2 = params["b2"].copy()
-        self.W3 = params["W3"].copy()
-        self.b3 = params["b3"].copy()
+        self.weights = [w.copy() for w in params["weights"]]
+        self.biases = [b.copy() for b in params["biases"]]
