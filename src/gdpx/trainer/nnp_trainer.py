@@ -95,6 +95,7 @@ class NnpTrainer:
         np.savez_compressed(model_path, **save_dict)
 
         from gdpx.potential.nnp.calculator import ACSFNN
+        from gdpx.potential.nnp.descriptor import compute_forces
         calc = ACSFNN(model_file=model_path)
 
         for epoch in range(n_epochs):
@@ -113,21 +114,13 @@ class NnpTrainer:
 
                 if force_weight > 0 and "forces" in atoms.arrays:
                     n_atoms = len(atoms)
-                    _, dE_dG = calc.nn.energy_and_gradient(G)
                     forces_ref = atoms.arrays["forces"]
                     pos0 = atoms.positions.copy()
-                    h = calc.fd_h
 
-                    forces_pred = np.zeros((n_atoms, 3))
-                    for ci in range(n_atoms):
-                        for d in range(3):
-                            atoms.positions[ci, d] = pos0[ci, d] + h
-                            Gp = calc._compute_descriptor(atoms)
-                            atoms.positions[ci, d] = pos0[ci, d] - h
-                            Gm = calc._compute_descriptor(atoms)
-                            atoms.positions[ci, d] = pos0[ci, d]
-                            dG = (Gp - Gm) / (2.0 * h)
-                            forces_pred[ci, d] = -float(np.sum(dE_dG * dG))
+                    _, dE_dG = calc.nn.energy_and_gradient(G)
+                    forces_pred = compute_forces(
+                        atoms, elements, g2_params, g4_params, r_cut, dE_dG,
+                    )
 
                     dF = forces_pred - forces_ref
                     loss += force_weight * np.mean(dF ** 2)
@@ -137,14 +130,15 @@ class NnpTrainer:
                     else:
                         _add_grads(total_grads, grads)
 
+                    h_fd = 1e-5
                     for ci in range(n_atoms):
                         for d in range(3):
-                            atoms.positions[ci, d] = pos0[ci, d] + h
+                            atoms.positions[ci, d] = pos0[ci, d] + h_fd
                             Gp = calc._compute_descriptor(atoms)
                             calc.nn.forward(Gp)
                             dE_dW_plus = calc.nn.backward()
 
-                            atoms.positions[ci, d] = pos0[ci, d] - h
+                            atoms.positions[ci, d] = pos0[ci, d] - h_fd
                             Gm = calc._compute_descriptor(atoms)
                             calc.nn.forward(Gm)
                             dE_dW_minus = calc.nn.backward()
@@ -154,7 +148,7 @@ class NnpTrainer:
                             gf = (2.0 * force_weight * dF[ci, d]
                                   / (3.0 * n_atoms))
                             dF_dW = _sub_grads(dE_dW_plus, dE_dW_minus)
-                            _scale_grads(dF_dW, gf / (2.0 * h))
+                            _scale_grads(dF_dW, gf / (2.0 * h_fd))
                             _add_grads(total_grads, dF_dW)
                 else:
                     if total_grads is None:

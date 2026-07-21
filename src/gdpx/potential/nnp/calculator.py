@@ -1,7 +1,7 @@
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
-from .descriptor import compute_symmetry_functions, compute_n_features, G2Param, G4Param
+from .descriptor import compute_symmetry_functions, compute_forces, compute_n_features
 from .nn import SimpleNN
 
 
@@ -9,9 +9,8 @@ class ACSFNN(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_file, type_map=None, fd_h=1e-5, **kwargs):
+    def __init__(self, model_file, type_map=None, **kwargs):
         super().__init__(**kwargs)
-        self.fd_h = float(fd_h)
 
         loaded = np.load(model_file)
 
@@ -27,6 +26,8 @@ class ACSFNN(Calculator):
                     f"{self.model_elements}."
                 )
 
+        from .descriptor import G2Param, G4Param
+
         n_g2 = len(loaded["g2_eta"])
         self.g2_params = [
             G2Param(eta=float(loaded["g2_eta"][i]), Rs=float(loaded["g2_Rs"][i]))
@@ -34,11 +35,9 @@ class ACSFNN(Calculator):
         ]
         n_g4 = len(loaded["g4_eta"])
         self.g4_params = [
-            G4Param(
-                eta=float(loaded["g4_eta"][i]),
-                zeta=float(loaded["g4_zeta"][i]),
-                lambda_=float(loaded["g4_lambda_"][i]),
-            )
+            G4Param(eta=float(loaded["g4_eta"][i]),
+                    zeta=float(loaded["g4_zeta"][i]),
+                    lambda_=float(loaded["g4_lambda_"][i]))
             for i in range(n_g4)
         ]
         self.r_cut = float(np.asarray(loaded["r_cut"]).flat[0])
@@ -60,8 +59,7 @@ class ACSFNN(Calculator):
         )
 
     def _validate_atoms(self, atoms):
-        symbols = np.array(atoms.get_chemical_symbols())
-        for s in symbols:
+        for s in atoms.get_chemical_symbols():
             if s not in self.type_map:
                 raise ValueError(
                     f"Atom '{s}' not in type_map {self.type_map}. "
@@ -77,20 +75,7 @@ class ACSFNN(Calculator):
         self.results["energy"] = float(np.sum(energy_per_atom))
 
         if "forces" in properties:
-            pos0 = self.atoms.positions.copy()
-            natoms = len(self.atoms)
-            forces = np.zeros((natoms, 3))
-            h = self.fd_h
-            try:
-                for ci in range(natoms):
-                    for d in range(3):
-                        self.atoms.positions[ci, d] = pos0[ci, d] + h
-                        G_plus = self._compute_descriptor(self.atoms)
-                        self.atoms.positions[ci, d] = pos0[ci, d] - h
-                        G_minus = self._compute_descriptor(self.atoms)
-                        self.atoms.positions[ci, d] = pos0[ci, d]
-                        dG = (G_plus - G_minus) / (2.0 * h)
-                        forces[ci, d] = -float(np.sum(dE_dG * dG))
-            finally:
-                self.atoms.positions[:] = pos0
-            self.results["forces"] = forces
+            self.results["forces"] = compute_forces(
+                self.atoms, self.model_elements, self.g2_params, self.g4_params,
+                self.r_cut, dE_dG,
+            )
