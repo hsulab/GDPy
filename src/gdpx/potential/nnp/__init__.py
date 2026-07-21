@@ -1,3 +1,3 @@
 from .calculator import ACSFNN
-from .descriptor import G2Param, G4Param
+from .descriptor import compute_n_features
 from .manager import NnAcsfManager

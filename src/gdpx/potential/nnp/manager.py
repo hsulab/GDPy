@@ -18,7 +18,4 @@ class NnAcsfManager(BasePotentialManager):
         self.calc = ACSFNN(**calc_params)
 
     def as_dict(self):
-        params = copy.deepcopy(self.calc_params)
-        params.pop("nn_weights", None)
-        params["nn_weights"] = self.calc.nn.get_params()
-        return {"name": self.name, "params": params}
+        return {"name": self.name, "params": copy.deepcopy(self.calc_params)}
