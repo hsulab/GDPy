@@ -97,10 +97,9 @@ class NnpTrainer:
                     loss += force_weight * np.mean(dF ** 2)
 
                     if total_grads is None:
-                        total_grads = {k: grads[k].copy() for k in grads}
+                        total_grads = _copy_grads(grads)
                     else:
-                        for k in total_grads:
-                            total_grads[k] += grads[k]
+                        _add_grads(total_grads, grads)
 
                     for ci in range(n_atoms):
                         for d in range(3):
@@ -118,23 +117,19 @@ class NnpTrainer:
 
                             gf = (2.0 * force_weight * dF[ci, d]
                                   / (3.0 * n_atoms))
-                            for k in total_grads:
-                                total_grads[k] += (gf
-                                                   * (-(dE_dW_plus[k]
-                                                        - dE_dW_minus[k])
-                                                      / (2.0 * h)))
+                            dF_dW = _sub_grads(dE_dW_plus, dE_dW_minus)
+                            _scale_grads(dF_dW, gf / (2.0 * h))
+                            _add_grads(total_grads, dF_dW)
                 else:
                     if total_grads is None:
-                        total_grads = {k: grads[k].copy() for k in grads}
+                        total_grads = _copy_grads(grads)
                     else:
-                        for k in total_grads:
-                            total_grads[k] += grads[k]
+                        _add_grads(total_grads, grads)
 
                 total_loss += loss
 
             n = len(dataset)
-            for k in total_grads:
-                total_grads[k] /= n
+            _scale_grads(total_grads, 1.0 / n)
             calc.nn.update(total_grads, learning_rate)
 
             if verbose and epoch % verbose == 0:
@@ -142,7 +137,13 @@ class NnpTrainer:
                 print(f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  "
                       f"(E_weight={energy_weight}, F_weight={force_weight})")
 
-        np.savez(train_dir / WEIGHTS_NAME, **calc.nn.get_params())
+        params = calc.nn.get_params()
+        save_dict = {}
+        for i, w in enumerate(params["weights"]):
+            save_dict[f"W{i}"] = w
+        for i, b in enumerate(params["biases"]):
+            save_dict[f"b{i}"] = b
+        np.savez(train_dir / WEIGHTS_NAME, **save_dict)
 
     def freeze(self, calc, train_dir=None):
         if train_dir is None:
@@ -155,6 +156,35 @@ class NnpTrainer:
                 f"Run train() first."
             )
         loaded = np.load(weights_file)
-        calc.nn.set_params({
-            k: loaded[k] for k in ["W1", "b1", "W2", "b2", "W3", "b3"]
-        })
+        n_weights = sum(1 for k in loaded if k.startswith("W"))
+        weights = [loaded[f"W{i}"] for i in range(n_weights)]
+        biases = [loaded[f"b{i}"] for i in range(n_weights)]
+        calc.nn.set_params({"weights": weights, "biases": biases})
+
+
+def _copy_grads(grads):
+    return {
+        "weights": [w.copy() for w in grads["weights"]],
+        "biases": [b.copy() for b in grads["biases"]],
+    }
+
+
+def _add_grads(target, source):
+    for i in range(len(target["weights"])):
+        target["weights"][i] += source["weights"][i]
+    for i in range(len(target["biases"])):
+        target["biases"][i] += source["biases"][i]
+
+
+def _sub_grads(a, b):
+    return {
+        "weights": [aw - bw for aw, bw in zip(a["weights"], b["weights"])],
+        "biases": [ab - bb for ab, bb in zip(a["biases"], b["biases"])],
+    }
+
+
+def _scale_grads(grads, factor):
+    for i in range(len(grads["weights"])):
+        grads["weights"][i] *= factor
+    for i in range(len(grads["biases"])):
+        grads["biases"][i] *= factor
