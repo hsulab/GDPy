@@ -4,7 +4,7 @@ import itertools
 
 from ase.io import write
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.data.correction import merge_results
 from gdpx.session.operation import Operation
 

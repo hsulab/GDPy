@@ -11,7 +11,7 @@ from typing import Mapping, Optional
 import numpy as np
 
 from gdpx import config
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.data.system import DataSystem
 from gdpx.factory.dataloader import create_dataloader
 from gdpx.session.operation import Operation

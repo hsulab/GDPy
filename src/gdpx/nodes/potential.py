@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.session.variable import Variable
+from gdpx.potential.utils import convert_input_to_potter
 
 
 @registers.variable.register
@@ -11,14 +12,7 @@ class PotterVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
         """"""
-        name = kwargs.get("name", None)
-        potter = registers.create(
-            "manager",
-            name,
-            convert_name=False,
-            # **kwargs.get("params", {})
-        )
-        potter.register_calculator(kwargs.get("params", {}))
+        potter = convert_input_to_potter(kwargs)
 
         super().__init__(initial_value=potter, directory=directory)
 

@@ -12,8 +12,9 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx import config
+from gdpx.compute.runtime import create_computer
 from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.computer import create_worker_chains, create_workers
+from gdpx.factory.computer import create_workers
 from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
@@ -42,46 +43,17 @@ def convert_input_to_computer(config):
     This function should only be called in the `main.py`.
 
     """
-    if isinstance(config, str) or isinstance(config, pathlib.Path):
-        config = parse_input_file(input_fpath=config)
-
-    if isinstance(config, dict):
-        computer = convert_config_to_computer(config)
-    elif isinstance(config, list):
-        assert len(config) >= 1, "ComputerChain must have more than one computer configuration."
-        computer = convert_config_to_computer_chain(config)
-    else:
-        raise RuntimeError(f"Unknown input for computer with a type of {config}.")
-
-    return computer
+    return create_computer(config)
 
 
 def convert_config_to_computer_chain(config: list):
     """Create worker-major chains from computer configurations."""
-    return create_worker_chains(config) if len(config) > 1 else create_workers(config[0])
+    return create_computer(config)
 
 
 def convert_config_to_computer(config):
     """Convert a configuration file or a dict to a computer."""
-    if isinstance(config, dict):
-        params = config
-    else:  # assume it is json or yaml
-        params = parse_input_file(input_fpath=config)
-
-    assert isinstance(params, dict)
-
-    # For compatibility
-    potter_params = params.pop("potter", None)
-    potential_params = params.pop("potential", None)
-    if potter_params is None:
-        if potential_params is not None:
-            params["potter"] = potential_params
-        else:
-            raise RuntimeError("Fail to find any potter (potential) definition.")
-    else:
-        params["potter"] = potter_params
-
-    return create_workers(params)
+    return create_computer(config)
 
 
 def run_one_worker(structures, worker, directory, batch, spawn, archive):

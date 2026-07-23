@@ -4,11 +4,13 @@ from typing import Any, Callable, Union
 
 from gdpx import config
 from .registry import OPERATION_REGISTRY
+from .node import NodeKind
 
 
 class Operation(abc.ABC):
     #: Node ID.
     identifier: str = "op"
+    node_kind = NodeKind.OPERATION
 
     #: Whether re-compute this operation
     status: str = "unfinished"  # ["unfinished", "ready", "wait", "finished"]

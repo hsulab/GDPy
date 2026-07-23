@@ -5,7 +5,7 @@ from typing import Mapping, Union
 import omegaconf
 from ase.io import read, write
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.components import create_selector
 from gdpx.data.array import AtomsNDArray
 from gdpx.nodes.builder import BuilderVariable, build

@@ -7,7 +7,7 @@ import pathlib
 from typing import Optional
 
 import omegaconf
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.computer import create_workers
 from gdpx.session.variable import Variable
 from gdpx.utils.parser import parse_input_file

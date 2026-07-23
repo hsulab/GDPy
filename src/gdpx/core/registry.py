@@ -3,15 +3,31 @@
 from __future__ import annotations
 
 import warnings
+import importlib
+from dataclasses import dataclass
 from collections.abc import Callable, Iterator
 from typing import Any
+
+
+@dataclass(frozen=True)
+class LazyEntry:
+    module: str
+    attribute: str
+
+    def resolve(self):
+        try:
+            return getattr(importlib.import_module(self.module), self.attribute)
+        except ImportError as error:
+            raise ImportError(
+                f"Cannot load {self.attribute!r} from {self.module!r}; missing optional dependency {error.name!r}."
+            ) from error
 
 
 class Registry:
     """Map configuration names to callable implementations."""
 
     def __init__(self, name: str) -> None:
-        self._dict: dict[str, Callable[..., Any]] = {}
+        self._dict: dict[str, Callable[..., Any] | LazyEntry] = {}
         self._name = name
 
     @property
@@ -41,10 +57,20 @@ class Registry:
             return add(None, target)
         return lambda value: add(target, value)
 
+    def register_lazy(self, key: str, module: str, attribute: str) -> None:
+        """Register an implementation without importing its module."""
+        if key in self._dict:
+            warnings.warn(f"Key {key} already in registry {self._name}.", UserWarning, stacklevel=2)
+        self._dict[key] = LazyEntry(module, attribute)
+
     def __getitem__(self, key: str) -> Callable[..., Any]:
         if key not in self._dict:
             raise KeyError(f"No {key!r} in {self._name} registry; available: {tuple(self._dict)}")
-        return self._dict[key]
+        value = self._dict[key]
+        if isinstance(value, LazyEntry):
+            value = value.resolve()
+            self._dict[key] = value
+        return value
 
     def __contains__(self, key: object) -> bool:
         return key in self._dict

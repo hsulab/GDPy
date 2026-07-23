@@ -1,115 +1,43 @@
-from gdpx import config
-from gdpx.core.register import BaseRegister
+"""Potential-manager registry with lazy implementation loading."""
 
-REGISTER = BaseRegister("manager")
+from gdpx.core.registry import Registry
 
-from .deepmd import DeepmdManager
-REGISTER.register("deepmd")(DeepmdManager)
 
-try:
-    from .deepmd import DeepmdJaxManager
-    REGISTER.register("deepmd_jax")(DeepmdJaxManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
+REGISTER = Registry("manager")
 
-try:
-    from .deepmd import DeepmdJaxXManager
-    REGISTER.register("deepmd_jax_x")(DeepmdJaxXManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
+_IMPLEMENTATIONS = {
+    "deepmd": ("gdpx.potential.deepmd", "DeepmdManager"),
+    "deepmd_jax": ("gdpx.potential.deepmd", "DeepmdJaxManager"),
+    "deepmd_jax_x": ("gdpx.potential.deepmd", "DeepmdJaxXManager"),
+    "beann": ("gdpx.potential.reann.beann", "BeannManager"),
+    "reann": ("gdpx.potential.reann.reann", "ReannManager"),
+    "lasp": ("gdpx.potential.lasp", "LaspManager"),
+    "mace": ("gdpx.potential.mace", "MaceManager"),
+    "nequip": ("gdpx.potential.nequip", "NequipManager"),
+    "mattersim": ("gdpx.potential.mattersim", "MatterSimManager"),
+    "tace": ("gdpx.potential.tace", "TaceManager"),
+    "fairchem": ("gdpx.potential.fairchem", "FairChemManager"),
+    "nnp": ("gdpx.potential.nnp.manager", "NnAcsfManager"),
+    "cp2k": ("gdpx.potential.cp2k", "Cp2kManager"),
+    "espresso": ("gdpx.potential.espresso", "EspressoManager"),
+    "vasp": ("gdpx.potential.vasp", "VaspManager"),
+    "ase": ("gdpx.potential.asepot", "AsePotManager"),
+    "classic": ("gdpx.potential.classic", "ClassicManager"),
+    "eam": ("gdpx.potential.eam", "EamManager"),
+    "emt": ("gdpx.potential.emt", "EmtManager"),
+    "reax": ("gdpx.potential.reax", "ReaxManager"),
+    "gp": ("gdpx.potential.gp", "GaussianProcessManager"),
+    "grid": ("gdpx.potential.grid", "GridManager"),
+    "mixer": ("gdpx.potential.mixer", "MixerManager"),
+    "abacus": ("gdpx.potential.abacus", "AbacusManager"),
+    "xtb": ("gdpx.potential.xtb", "XtbManager"),
+    "dftd3": ("gdpx.potential.dftd3", "Dftd3Manager"),
+    "dftd4": ("gdpx.potential.dftd4", "Dftd4Manager"),
+    "bias": ("gdpx.potential.bias", "BiasManager"),
+    "plumed": ("gdpx.potential.plumed.plumed", "PlumedManager"),
+}
 
-from .reann.beann import BeannManager
-REGISTER.register("beann")(BeannManager)
+for _name, (_module, _attribute) in _IMPLEMENTATIONS.items():
+    REGISTER.register_lazy(_name, _module, _attribute)
 
-from .reann.reann import ReannManager
-REGISTER.register("reann")(ReannManager)
-
-from .lasp import LaspManager
-REGISTER.register("lasp")(LaspManager)
-
-from .mace import MaceManager
-REGISTER.register("mace")(MaceManager)
-
-from .nequip import NequipManager
-REGISTER.register("nequip")(NequipManager)
-
-from .mattersim import MatterSimManager
-REGISTER.register("mattersim")(MatterSimManager)
-
-from .tace import TaceManager
-REGISTER.register("tace")(TaceManager)
-
-from .fairchem import FairChemManager
-REGISTER.register("fairchem")(FairChemManager)
-
-from .nnp.manager import NnAcsfManager
-REGISTER.register("nnp")(NnAcsfManager)
-
-from .cp2k import Cp2kManager
-REGISTER.register("cp2k")(Cp2kManager)
-
-from .espresso import EspressoManager
-REGISTER.register("espresso")(EspressoManager)
-
-from .vasp import VaspManager
-REGISTER.register("vasp")(VaspManager)
-
-from .asepot import AsePotManager
-REGISTER.register("ase")(AsePotManager)
-
-from .classic import ClassicManager
-REGISTER.register("classic")(ClassicManager)
-
-from .eam import EamManager
-REGISTER.register("eam")(EamManager)
-
-from .emt import EmtManager
-REGISTER.register("emt")(EmtManager)
-
-from .reax import ReaxManager
-REGISTER.register("reax")(ReaxManager)
-
-from .gp import GaussianProcessManager
-REGISTER.register("gp")(GaussianProcessManager)
-
-from .grid import GridManager
-REGISTER.register("grid")(GridManager)
-
-from .mixer import MixerManager
-REGISTER.register("mixer")(MixerManager)
-
-try:
-    from .abacus import AbacusManager
-    REGISTER.register("abacus")(AbacusManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`abacus`':<16s} -> require `{e.name}`.")
-
-try:
-    from .xtb import XtbManager
-    REGISTER.register("xtb")(XtbManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`xtb`':<16s} -> require `{e.name}`.")
-
-try:
-    from .dftd3 import Dftd3Manager
-    REGISTER.register("dftd3")(Dftd3Manager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
-
-try:
-    from .dftd4 import Dftd4Manager
-    REGISTER.register("dftd4")(Dftd4Manager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`dftd3`':<16s} -> require `{e.name}`.")
-
-try:
-    from .bias import BiasManager
-    REGISTER.register("bias")(BiasManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`bias`':<16s} -> require `{e.name}`.")
-
-try:
-    from .plumed.plumed import PlumedManager
-    REGISTER.register("plumed")(PlumedManager)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`plumed`':<16s} -> require `{e.name}`.")
+del _name, _module, _attribute

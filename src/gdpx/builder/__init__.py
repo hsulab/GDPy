@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx import config
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("builder")
@@ -88,17 +87,8 @@ from .composed import ComposedModifier
 
 REGISTER.register("composed")(ComposedModifier)
 
-try:
-    from .scan.angle import ScanAngleModifier
-
-    REGISTER.register("scan_angle")(ScanAngleModifier)
-
-    from .scan.hypercube import HypercubeBuilder
-
-    REGISTER.register("hypercube")(HypercubeBuilder)
-
-except ImportError as e:
-    config._print(f"  {'Builder':<16s} {'`hypercube`':<16s} -> require `{e.name}`.")
+REGISTER.register_lazy("scan_angle", "gdpx.builder.scan.angle", "ScanAngleModifier")
+REGISTER.register_lazy("hypercube", "gdpx.builder.scan.hypercube", "HypercubeBuilder")
 
 
 if __name__ == "__main__":
