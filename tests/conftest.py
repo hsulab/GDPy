@@ -19,15 +19,13 @@ def change_test_dir(request):
     return
 
 
-# NOTE: We assigan a random_seed and register all necessary modules here!!
+# Give tests a deterministic package-level generator. Individual tests must
+# import the components they exercise; the suite must not globally bootstrap
+# every plugin and workflow node as an import side effect.
 from gdpx import config
 
 config.logger.setLevel(logging.DEBUG)
 config.GRNG = np.random.Generator(np.random.PCG64())
-
-from gdpx.core.register import import_all_modules_for_register
-
-import_all_modules_for_register()
 
 
 if __name__ == "__main__":

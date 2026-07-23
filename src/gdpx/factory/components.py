@@ -15,8 +15,16 @@ def _params(config, expected_type):
 
 def create_selector(config):
     from gdpx.selector import REGISTER as registry
+    from gdpx.selector.composition import ComposedSelector
     from gdpx.selector.selector import BaseSelector
 
+    if isinstance(config, Mapping) and "selection" in config:
+        config = config["selection"]
+    if isinstance(config, list):
+        selectors = [create_selector(item) for item in copy.deepcopy(config)]
+        if not selectors:
+            raise ValueError("At least one selector definition is required.")
+        return selectors[0] if len(selectors) == 1 else ComposedSelector(selectors)
     existing, params = _params(config, BaseSelector)
     if existing is not None:
         return existing

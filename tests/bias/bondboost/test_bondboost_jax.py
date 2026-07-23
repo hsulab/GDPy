@@ -4,9 +4,11 @@
 
 import itertools
 
+import pytest
+
 import numpy as np
 
-import jax
+jax = pytest.importorskip("jax")
 import jax.numpy as jnp
 
 
