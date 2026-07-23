@@ -7,15 +7,27 @@ from tinydb import Query, TinyDB
 class JobRecord:
     """A single job record from the job store."""
 
-    __slots__ = ("doc_id", "uid", "md5", "gdir", "group_number", "wdir_names")
+    __slots__ = ("doc_id", "uid", "md5", "gdir", "group_number", "wdir_names", "scheduler_job_id", "attempt")
 
-    def __init__(self, doc_id: int, uid: str, md5: str, gdir: str, group_number: int, wdir_names: list[str]):
+    def __init__(
+        self,
+        doc_id: int,
+        uid: str,
+        md5: str,
+        gdir: str,
+        group_number: int,
+        wdir_names: list[str],
+        scheduler_job_id: str = "",
+        attempt: int = 0,
+    ):
         self.doc_id = doc_id
         self.uid = uid
         self.md5 = md5
         self.gdir = gdir
         self.group_number = group_number
         self.wdir_names = wdir_names
+        self.scheduler_job_id = scheduler_job_id
+        self.attempt = attempt
 
 
 class JobStore:
@@ -47,6 +59,8 @@ class JobStore:
                 gdir=d.get("gdir", ""),
                 group_number=d.get("group_number", -1),
                 wdir_names=d.get("wdir_names", []),
+                scheduler_job_id=d.get("scheduler_job_id", ""),
+                attempt=d.get("attempt", 0),
             )
             for d in docs
         ]
@@ -90,8 +104,20 @@ class JobStore:
                     group_number=group_number,
                     wdir_names=wdir_names,
                     queued=True,
+                    attempt=0,
                 )
             )
+
+    def mark_submitted(self, gdir: str, scheduler_job_id: str) -> None:
+        """Record the scheduler's identifier without breaking legacy records."""
+        with TinyDB(self._db_path, indent=2) as db:
+            docs = db.search(Query().gdir == gdir)
+            if docs:
+                attempt = int(docs[0].get("attempt", 0)) + 1
+                db.update(
+                    {"scheduler_job_id": str(scheduler_job_id), "attempt": attempt},
+                    doc_ids=[docs[0].doc_id],
+                )
 
     def mark_finished(self, gdir: str) -> None:
         with TinyDB(self._db_path, indent=2) as db:

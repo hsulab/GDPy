@@ -3,6 +3,7 @@ import functools
 import itertools
 import json
 import pathlib
+import shlex
 import shutil
 import tarfile
 import tempfile
@@ -524,15 +525,14 @@ class DriverBasedWorker(BaseWorker):
         self._print(f"database_path: {db_rel}")
 
         queued_jobs = self.job_store.get_queued()
-        queued_names = [q.gdir[self.UUIDLEN + 1 :] for q in queued_jobs]
-        queued_frames = [q.md5 for q in queued_jobs]
+        queued_pairs = {(q.gdir[self.UUIDLEN + 1 :], q.md5) for q in queued_jobs}
 
         for ig, batch in enumerate(batches):
             batch_name = f"group-{ig}"
             uid = str(uuid.uuid1())
             job_name = uid + "-" + batch_name
 
-            if batch_name in queued_names and identifier in queued_frames:
+            if (batch_name, identifier) in queued_pairs:
                 self._print(f"{batch_name} at {self.directory.name} was submitted.")
                 continue
 
@@ -543,22 +543,21 @@ class DriverBasedWorker(BaseWorker):
                     )
                     continue
 
-            if identifier not in queued_frames:
-                self.job_store.insert(
-                    uid=uid,
-                    md5=identifier,
-                    gdir=job_name,
-                    group_number=ig,
-                    wdir_names=batch[1],
-                )
-                worker_input_fpath = self.directory / "_data" / f"worker-{identifier}.json"
-                if not worker_input_fpath.exists():
-                    worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
-                    worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
-                    with open(worker_input_fpath, "w") as fopen:
-                        json.dump(worker_input_dict, fopen, indent=2)
-                    with open(self.directory / "_data" / f"MACHINE_{identifier}", "w") as fopen:
-                        fopen.write(self.scheduler.machine_prefix)
+            self.job_store.insert(
+                uid=uid,
+                md5=identifier,
+                gdir=job_name,
+                group_number=ig,
+                wdir_names=batch[1],
+            )
+            worker_input_fpath = self.directory / "_data" / f"worker-{identifier}.json"
+            if not worker_input_fpath.exists():
+                worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
+                worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
+                with open(worker_input_fpath, "w") as fopen:
+                    json.dump(worker_input_dict, fopen, indent=2)
+                with open(self.directory / "_data" / f"MACHINE_{identifier}", "w") as fopen:
+                    fopen.write(self.scheduler.machine_prefix)
 
             self._irun(
                 batch_name,
@@ -584,11 +583,21 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.directory / jobscript_fname
 
-        self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
-            worker_input_fpath,
-            dataset_path,
-            batch_number,
-        )
+        compute_plan_path = getattr(self, "compute_plan_path", None)
+        if compute_plan_path is not None:
+            worker_index = getattr(self, "compute_worker_index", 0)
+            compute_root = pathlib.Path(compute_plan_path).parent.parent
+            self.scheduler.user_commands = (
+                f"gdp -d {shlex.quote(str(compute_root))} compute run "
+                f"--plan {shlex.quote(str(compute_plan_path))} "
+                f"--worker {worker_index} --batch {batch_number}\n"
+            )
+        else:
+            self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
+                worker_input_fpath,
+                dataset_path,
+                batch_number,
+            )
 
         curr_indices, curr_wdirs, driver_indices, rng_states, curr_frames = batch
 
@@ -608,6 +617,7 @@ class DriverBasedWorker(BaseWorker):
 
         self.scheduler.write()
         job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        self.job_store.mark_submitted(self.scheduler.job_name, job_id)
         self._print(f"{self.directory.name} JOBID: {job_id}")
 
     # ------------------------------------------------------------------
@@ -683,6 +693,7 @@ class DriverBasedWorker(BaseWorker):
             print_func=self._print,
         )
         job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        self.job_store.mark_submitted(job.gdir, job_id)
         self._print(f"{job.gdir} is re-submitted with JOBID: {job_id}...")
 
     # ------------------------------------------------------------------

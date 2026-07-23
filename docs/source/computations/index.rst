@@ -24,6 +24,23 @@ The related commands are
     # - if -d option is used, results would be written to the folder `./results`
     $ gdp -d ./results -p ./worker.yaml compute ./structures.xyz
 
+Compute lifecycle
+-----------------
+
+The traditional command above remains available and performs the complete compute
+lifecycle.  For automation, the lifecycle can also be controlled explicitly::
+
+    $ gdp -d ./results -p ./worker.yaml compute prepare ./structures.xyz
+    $ gdp -d ./results compute submit
+    $ gdp -d ./results compute status
+    $ gdp -d ./results compute collect
+
+``prepare`` creates ``_data/compute-plan.json`` with a snapshot of the structures,
+normalised configuration, task pairing, batches, and random seeds.  It does not run
+or submit a simulation.  ``submit`` consumes that plan, while ``status`` only
+inspects it and never resubmits work.  An incomplete batch can be resubmitted
+explicitly with ``compute resubmit --batch N``.
+
 An example input file (`worker.yaml`) is organised as follows: 
 
 .. code-block:: yaml
