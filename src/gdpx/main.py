@@ -108,7 +108,7 @@ def main():
     parser_compute.add_argument(
         "STRUCTURE",
         nargs="*",
-        help="a structure file that stores one or more structures",
+        help="structure files, or a lifecycle action: prepare/submit/run/status/resubmit/collect",
     )
     parser_compute.add_argument(
         "-b",
@@ -127,6 +127,8 @@ def main():
         action="store_true",
         help="whether archive computation folders when retrieve",
     )
+    parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_data)")
+    parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)
 
     # --- expedition interface
     parser_explore = subparsers.add_parser(
@@ -214,7 +216,7 @@ def main():
         config._print(l)
 
     # - potential
-    if args.potential:
+    if args.potential and args.subcommand != "compute":
         # a worker or a List of worker
         from .cli.compute import convert_input_to_computer
 
@@ -256,11 +258,13 @@ def main():
 
         run_computation(
             args.STRUCTURE,
-            computer,
+            args.potential,
             batch=args.batch,
             spawn=args.spawn,
             archive=args.archive,
             directory=args.directory,
+            plan=args.plan,
+            worker_index=args.worker,
         )
     elif args.subcommand == "explore":
         from .cli.explore import run_expedition

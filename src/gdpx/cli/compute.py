@@ -3,6 +3,7 @@
 
 
 import enum
+import dataclasses
 import logging
 import pathlib
 from typing import Optional, Union
@@ -281,16 +282,72 @@ def run_computation(
     spawn: bool = False,
     archive: bool = False,
     directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
+    plan: Optional[Union[str, pathlib.Path]] = None,
+    worker_index: int = 0,
 ):
-    """"""
+    """Run a legacy computation or one explicit lifecycle action."""
+    lifecycle_actions = {"prepare", "submit", "run", "status", "resubmit", "collect"}
+    action = structure[0] if structure and structure[0] in lifecycle_actions else None
+
+    if action is not None:
+        from gdpx.compute import (
+            collect_compute,
+            inspect_compute,
+            prepare_compute,
+            resubmit_compute,
+            run_compute_batch,
+            submit_compute,
+        )
+
+        plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
+        if action == "prepare":
+            if computer is None:
+                raise RuntimeError("`gdp compute prepare` requires `-p/--potential` with a worker configuration.")
+            result = prepare_compute(computer, structure[1:], directory)
+        elif action == "submit":
+            result = submit_compute(plan_path, batches=None if batch is None else [batch])
+        elif action == "run":
+            if batch is None:
+                raise RuntimeError("`gdp compute run` requires `--batch`.")
+            result = run_compute_batch(plan_path, batch=batch, worker_index=worker_index)
+        elif action == "status":
+            result = inspect_compute(plan_path)
+        elif action == "resubmit":
+            result = resubmit_compute(plan_path, batches=None if batch is None else [batch])
+        else:
+            result = collect_compute(plan_path, archive=archive)
+        config._print(dataclasses.asdict(result))
+        return result
+
     if computer is not None:
-        # For compatibility, the classic mode
-        # `gdp -p ./worker.yaml compute structures.xyz`
-        run_worker(
+        if spawn:
+            # Compatibility for scheduler scripts generated before compute plans.
+            computer_obj = convert_input_to_computer(computer)
+            return run_worker(
+                structure,
+                computer_obj,
+                batch=batch,
+                spawn=True,
+                archive=archive,
+                directory=directory,
+            )
+
+        parsed = parse_input_file(computer) if isinstance(computer, (str, pathlib.Path)) else computer
+        if isinstance(parsed, dict):
+            from gdpx.compute import orchestrate_compute, prepare_compute
+
+            compute_plan = prepare_compute(parsed, structure, directory)
+            result = orchestrate_compute(compute_plan, archive=archive)
+            config._print(dataclasses.asdict(result))
+            return result
+
+        # Computer chains retain their legacy implementation in the first slice.
+        computer_obj = convert_input_to_computer(parsed)
+        return run_worker(
             structure,
-            computer,
+            computer_obj,
             batch=batch,
-            spawn=spawn,
+            spawn=False,
             archive=archive,
             directory=directory,
         )
@@ -303,7 +360,7 @@ def run_computation(
             directory=directory,
         )
 
-    return
+    return None
 
 
 if __name__ == "__main__":
