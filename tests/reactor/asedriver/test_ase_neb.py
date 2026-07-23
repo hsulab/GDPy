@@ -15,7 +15,7 @@ from ase.calculators.emt import EMT
 from ase.constraints import FixAtoms
 from ase.optimize import QuasiNewton
 
-from gdpx.cli.compute import convert_config_to_potter
+from gdpx.factory.computer import create_workers
 
 
 @pytest.mark.basic
@@ -43,7 +43,7 @@ def test_vasp_neb():
     with open("./assets/aseneb.yaml", "r") as fopen:
         emt_params = yaml.safe_load(fopen)
 
-    worker = convert_config_to_potter(emt_params)
+    worker = create_workers(emt_params)[0]
     print(f"{worker =}")
 
     with tempfile.TemporaryDirectory() as tmpdirname:

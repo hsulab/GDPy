@@ -4,7 +4,9 @@
 
 import numpy as np
 
-import jax
+import pytest
+
+jax = pytest.importorskip("jax")
 import jax.numpy as jnp
 
 from ase.io import read, write

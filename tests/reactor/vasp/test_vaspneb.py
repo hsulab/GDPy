@@ -11,7 +11,7 @@ import numpy as np
 
 from ase.io import read, write
 
-from gdpx.cli.compute import convert_config_to_potter
+from gdpx.factory.computer import create_workers
 
 
 @pytest.mark.vasp_rxn
@@ -22,7 +22,7 @@ def test_vasp_neb():
     with open("./assets/vaspneb.yaml", "r") as fopen:
         vasp_params = yaml.safe_load(fopen)
 
-    worker = convert_config_to_potter(vasp_params)
+    worker = create_workers(vasp_params)[0]
     print(f"{worker =}")
 
     with tempfile.TemporaryDirectory() as tmpdirname:

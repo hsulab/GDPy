@@ -13,7 +13,8 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.cli.compute import run_worker, ComputerVariable
+from gdpx.cli.compute import run_worker
+from gdpx.factory.computer import create_workers
 
 
 @pytest.fixture
@@ -58,7 +59,7 @@ def test_vasp_spc(structures):
     with open("./assets/vaspspc.yaml", "r") as fopen:
         vasp_params = yaml.safe_load(fopen)
 
-    worker = ComputerVariable(**vasp_params).value[0]
+    worker = create_workers(vasp_params)[0]
 
     # - run
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -83,7 +84,7 @@ def test_vasp_md(structures):
         vasp_params = yaml.safe_load(fopen)
 
     # print(vasp_params)
-    worker = ComputerVariable(**vasp_params).value[0]
+    worker = create_workers(vasp_params)[0]
     # print(worker)
     # print(f"{worker.driver.ignore_convergence =}")
     # print(f"{worker.driver.accept_bad_structure =}")

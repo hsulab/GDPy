@@ -1,6 +1,7 @@
 """Regression tests for the domain/workflow dependency boundary."""
 
 import ast
+import copy
 import os
 import pathlib
 import subprocess
@@ -84,6 +85,20 @@ def test_region_factory_does_not_mutate_configuration():
     region = create_region(config)
     assert config == original
     assert region.__class__.__name__ == "SphereRegion"
+
+
+def test_selector_factory_accepts_workflow_free_selection_config():
+    from gdpx.factory.components import create_selector
+    from gdpx.selector.interval import IntervalSelector
+
+    config = {"selection": [{"method": "interval", "period": 7}]}
+    original = copy.deepcopy(config)
+
+    selector = create_selector(config)
+
+    assert isinstance(selector, IntervalSelector)
+    assert selector.period == 7
+    assert config == original
 
 
 def test_internal_absolute_import_graph_is_acyclic():

@@ -8,14 +8,11 @@ import tempfile
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.core.register import import_all_modules_for_register
 from gdpx.builder.graph.insert import GraphInsertModifier
 from gdpx.builder.graph.remove import GraphRemoveModifier
-from gdpx.builder.graph.exchange import GraphExchangeModifier
+from gdpx.builder.graph.swap import GraphSwapModifier
 
 config.logger.setLevel(logging.DEBUG)
-
-import_all_modules_for_register()
 
 MODIFIER_INSERT_PARAMS = dict(
     species = "CO",
@@ -129,7 +126,7 @@ def test_insert():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphInsertModifier(
-            random_seed=1112, **MODIFIER_INSERT_PARAMS
+            species="CO", site="Cu", group="`symbol Cu`", random_seed=1112
         )
         modifier.directory = tmpdir
 
@@ -144,7 +141,7 @@ def test_remove():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphRemoveModifier(
-            random_seed=1112, **MODIFIER_REMOVE_PARAMS
+            species="O", group="`symbol O`", random_seed=1112
         )
         modifier.directory = tmpdir
 
@@ -153,13 +150,13 @@ def test_remove():
         structures = modifier.run(substrates=substrates)
         n_structures = len(structures)
     
-    assert n_structures == 2
+    assert n_structures == 4
 
-def test_exchange():
+def test_swap():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        modifier = GraphExchangeModifier(
-            random_seed=1112, **MODIFIER_EXCHANGE_PARAMS
+        modifier = GraphSwapModifier(
+            species="Zn", target="Cr", group="`symbol Zn`", random_seed=1112
         )
         modifier.directory = tmpdir
 

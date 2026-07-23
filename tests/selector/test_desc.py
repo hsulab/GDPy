@@ -11,12 +11,9 @@ import numpy as np
 
 from ase.io import read, write
 
-from gdpx.core.register import import_all_modules_for_register, registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.selector.interface import run_selection
-
-
-import_all_modules_for_register()
+from gdpx.cli.select import run_selection
+from gdpx.factory.components import create_selector
 
 
 @pytest.fixture
@@ -82,7 +79,7 @@ def test_desc_2d(selection_params):
         frames.append(frames_[i*85:(i+1)*85])
     frames = AtomsNDArray(frames)
 
-    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+    selector = create_selector(selection_params)
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         selector.directory = tmpdirname
@@ -112,7 +109,7 @@ def test_desc_2d_axis0(selection_params):
     frames = AtomsNDArray(frames)
 
     selection_params["selection"][0]["axis"] = 0
-    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+    selector = create_selector(selection_params)
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         #tmpdirname = "./xxx"
@@ -145,7 +142,7 @@ def test_desc_2dp(selection_params):
     frames.append(frames_[70:])
     frames = AtomsNDArray(frames)
 
-    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+    selector = create_selector(selection_params)
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         selector.directory = tmpdirname
@@ -175,7 +172,7 @@ def test_desc_2dp_axis0(selection_params):
     frames = AtomsNDArray(frames)
 
     selection_params["selection"][0]["axis"] = 0
-    selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
+    selector = create_selector(selection_params)
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         #tmpdirname = "./xxx"
