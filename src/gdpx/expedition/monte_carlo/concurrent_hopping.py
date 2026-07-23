@@ -16,8 +16,8 @@ from ase.formula import Formula
 from ase.io import read, write
 
 from gdpx.cli.compute import convert_input_to_computer, run_worker  # TODO: refactor this?
-from gdpx.core.register import registers
 from gdpx.factory.builder import canonicalise_builder
+from gdpx.factory.components import create_comparator
 from gdpx.factory.computer import canonicalise_worker
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -132,7 +132,7 @@ class ConcurrentPopulation:
             self.comparator = AtomsComparator()
         else:
             name = comparator.pop("name", "interatomic_distance")
-            self.comparator = registers.create("comparator", name, **comparator)
+            self.comparator = create_comparator(dict(method=name, **comparator))
 
         # Thanos (observer/describer) extincts structures in the population
         extinct_callbacks = None

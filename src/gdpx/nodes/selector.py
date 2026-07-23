@@ -6,6 +6,7 @@ import omegaconf
 from ase.io import read, write
 
 from gdpx.core.register import registers
+from gdpx.factory.components import create_selector
 from gdpx.data.array import AtomsNDArray
 from gdpx.nodes.builder import BuilderVariable, build
 from gdpx.selector.composition import ComposedSelector
@@ -50,7 +51,7 @@ class SelectorVariable(Variable):
             assert isinstance(params, dict), f"Selector definition must be a Dict, got {type(params)}."
             method = params.pop("method", None)
             # Instantiate selector
-            selector = registers.create("selector", method, convert_name=False, **params)
+            selector = create_selector(dict(method=method, **params))
             selectors.append(selector)
 
         # Compose selectors if there are multiple ones

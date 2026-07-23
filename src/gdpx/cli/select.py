@@ -7,7 +7,7 @@ from gdpx import config
 from gdpx.builder.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
 from gdpx.factory.builder import canonicalise_builder
-from gdpx.nodes.selector import SelectorVariable
+from gdpx.factory.components import create_selector
 from gdpx.selector.selector import BaseSelector
 from gdpx.utils.parser import parse_input_file
 
@@ -30,7 +30,7 @@ def run_selection(
     params = parse_input_file(param_file)
 
     # Instantiate selector
-    selector = SelectorVariable(directory=directory, **params).value
+    selector = create_selector(params)
     assert isinstance(selector, BaseSelector)
     selector.directory = directory
 

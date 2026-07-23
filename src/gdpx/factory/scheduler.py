@@ -19,8 +19,9 @@ def canonicalise_scheduler(config: Union[dict, BaseScheduler]) -> BaseScheduler:
         else:
             raise Exception(f"Scheduler backend `{backend}` is not registered.")
     else:
-        # Assume the config is already a BaseScheduler instance
-        scheduler = copy.deepcopy(config)
+        if not isinstance(config, BaseScheduler):
+            raise TypeError(f"Scheduler must be a mapping or BaseScheduler, got {type(config).__name__}.")
+        scheduler = config
 
     return scheduler
 

@@ -1,4 +1,5 @@
 from gdpx.core.register import registers
+from gdpx.factory.components import create_comparator
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
 
@@ -8,7 +9,7 @@ class ComparatorVariable(Variable):
     def __init__(self, directory="./", **kwargs):
         """"""
         method = kwargs.pop("method", None)
-        comparator = registers.create("comparator", method, convert_name=False, **kwargs)
+        comparator = create_comparator(dict(method=method, **kwargs))
         super().__init__(initial_value=comparator, directory=directory)
 
         return

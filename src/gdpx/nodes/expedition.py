@@ -4,12 +4,12 @@
 
 import copy
 import pathlib
-from typing import Iterable, Union
+from typing import Union
 
-import numpy as np
 import omegaconf
 
 from gdpx.core.register import registers
+from gdpx.factory.components import create_expedition
 from gdpx.expedition.expedition import BaseExpedition
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
@@ -23,18 +23,9 @@ class ExpeditionVariable(Variable):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
-        random_seed = kwargs.get("random_seed", None)
-        if random_seed is None:
-            random_seed = np.random.randint(0, 1_000_000_000_000)
-
-        method = kwargs.pop("method", None)
-        if "builder" in kwargs:
-            builder = self._canonicalise_builder(kwargs["builder"], random_seed)
-            kwargs["builder"] = builder
-
-        expedition = registers.create("expedition", method, convert_name=False, **kwargs)
-        if isinstance(expedition, Iterable):
-            expedition = list(expedition)  # A List of expeditions
+        if isinstance(kwargs.get("builder"), Variable):
+            kwargs["builder"] = kwargs["builder"].value
+        expedition = create_expedition(kwargs)
 
         super().__init__(initial_value=expedition, directory=directory)
 
@@ -45,27 +36,6 @@ class ExpeditionVariable(Variable):
         """"""
 
         return self._value  # type: ignore
-
-    def _canonicalise_builder(self, builder: dict, random_seed: int):
-        """Canonicalise the builder and set random seed."""
-        if builder is not None:
-            if isinstance(builder, dict):
-                builder_params = copy.deepcopy(builder)
-                builder_method = builder_params.pop("method")
-                builder = registers.create(
-                    "builder",
-                    builder_method,
-                    convert_name=False,
-                    **builder_params,
-                )
-            else:  # variable
-                builder = builder.value
-                np.random.seed(random_seed)
-        else:
-            builder = None
-
-        return builder
-
 
 @registers.operation.register
 class explore(Operation):

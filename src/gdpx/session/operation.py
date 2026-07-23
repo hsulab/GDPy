@@ -3,6 +3,7 @@ import pathlib
 from typing import Any, Callable, Union
 
 from gdpx import config
+from .registry import OPERATION_REGISTRY
 
 
 class Operation(abc.ABC):
