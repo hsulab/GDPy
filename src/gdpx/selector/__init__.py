@@ -1,4 +1,3 @@
-from gdpx import config
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("selector")
@@ -35,10 +34,4 @@ from .sinfo import StructureInfoSelector
 
 REGISTER.register("structure_info")(StructureInfoSelector)
 
-try:
-    # This selector depends on an external package dscribe.
-    from .descriptor import DescriptorSelector
-
-    REGISTER.register("descriptor")(DescriptorSelector)
-except ImportError as e:
-    config._print(f"  {'Selector':<16s} {'`descriptor`':<16s} -> require `{e.name}`.")
+REGISTER.register_lazy("descriptor", "gdpx.selector.descriptor", "DescriptorSelector")

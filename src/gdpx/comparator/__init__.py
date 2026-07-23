@@ -2,22 +2,8 @@ from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("comparator")
 
-from .cartesian import CartesianCoordinateComparator
-
-REGISTER.register("cartesian_coordinate")(CartesianCoordinateComparator)
-
-from .coordination import CoordinationComparator
-
-REGISTER.register("coordination")(CoordinationComparator)
-
-from .graph import GraphComparator
-
-REGISTER.register("graph")(GraphComparator)
-
-from .singlepoint import SinglePointComparator
-
-REGISTER.register("single_point")(SinglePointComparator)
-
-from .reaction import ReactionComparator
-
-REGISTER.register("reaction")(ReactionComparator)
+REGISTER.register_lazy("cartesian_coordinate", "gdpx.comparator.cartesian", "CartesianCoordinateComparator")
+REGISTER.register_lazy("coordination", "gdpx.comparator.coordination", "CoordinationComparator")
+REGISTER.register_lazy("graph", "gdpx.comparator.graph", "GraphComparator")
+REGISTER.register_lazy("single_point", "gdpx.comparator.singlepoint", "SinglePointComparator")
+REGISTER.register_lazy("reaction", "gdpx.comparator.reaction", "ReactionComparator")

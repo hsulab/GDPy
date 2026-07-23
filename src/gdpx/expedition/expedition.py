@@ -7,8 +7,7 @@ import logging
 from typing import Union
 
 from gdpx.core.component import BaseComponent
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.computer import canonicalise_worker
+from gdpx.builder.builder import StructureBuilder
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
 
@@ -37,15 +36,23 @@ class BaseExpedition(BaseComponent):
 
         return
 
-    def register_builder(self, builder: dict) -> None:
-        """Register StructureBuilder for this expedition."""
-        self.builder = canonicalise_builder(builder)
+    def register_builder(self, builder: StructureBuilder) -> None:
+        """Attach an already constructed builder."""
+        if not isinstance(builder, StructureBuilder):
+            raise TypeError(f"Expected StructureBuilder, got {type(builder).__name__}.")
+        self.builder = builder
 
         return
 
-    def register_worker(self, worker: dict, *args, **kwargs) -> None:
-        """Register DriverBasedWorker for this expedition."""
-        self.worker = canonicalise_worker(inp_worker=worker)
+    def register_worker(self, worker, *args, **kwargs) -> None:
+        """Attach an already constructed worker."""
+        if isinstance(worker, list):
+            if not worker:
+                raise ValueError("Cannot register an empty worker list.")
+            worker = worker[0]
+        if not isinstance(worker, (DriverBasedWorker, SingleWorker)):
+            raise TypeError(f"Expected a worker instance, got {type(worker).__name__}.")
+        self.worker = worker
 
         return
 

@@ -19,7 +19,7 @@ from joblib import Parallel, delayed
 
 from gdpx.builder.builder import StructureBuilder
 from gdpx.computation.driver import BaseDriver
-from gdpx.core.register import registers
+from gdpx.worker.registry import WORKER_REGISTRY
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
@@ -151,7 +151,7 @@ def run_computation_in_commandline(
 # ---------------------------------------------------------------------------
 
 
-@registers.worker.register
+@WORKER_REGISTRY.register
 class DriverBasedWorker(BaseWorker):
     """Monitor driver-based jobs.
 

@@ -5,7 +5,6 @@ from typing import Mapping, Optional
 import numpy as np
 from ase import Atoms, data
 
-from gdpx.core.register import registers
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 
@@ -628,8 +627,11 @@ class IntersectRegion(BaseRegion):
 
         self._regions = []
         for r in copy.deepcopy(regions):
-            shape = r.pop("method", None)
-            curr_region = registers.create("region", shape, convert_name=True, **r)
+            from gdpx.region.registry import REGION_REGISTRY
+
+            method = r.pop("method", "auto")
+            class_name = "".join(part.capitalize() for part in method.split("_")) + "Region"
+            curr_region = REGION_REGISTRY[class_name](**r)
             self._regions.append(curr_region)
 
         return

@@ -6,23 +6,11 @@ from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("colvar")
 
-from .distance import DistanceColvar
-
-REGISTER.register("DistanceColvar")(DistanceColvar)
-
-from .rmsd import RmsdColvar
-
-REGISTER.register("RmsdColvar")(RmsdColvar)
-
-from .fingerprint import FingerprintColvar
-
-REGISTER.register("FingerprintColvar")(FingerprintColvar)
-
-from .position import position
-
-REGISTER.register("position")(position)
+REGISTER.register_lazy("DistanceColvar", "gdpx.colvar.distance", "DistanceColvar")
+REGISTER.register_lazy("RmsdColvar", "gdpx.colvar.rmsd", "RmsdColvar")
+REGISTER.register_lazy("FingerprintColvar", "gdpx.colvar.fingerprint", "FingerprintColvar")
+REGISTER.register_lazy("position", "gdpx.colvar.position", "position")
 
 
 if __name__ == "__main__":
     ...
-

@@ -4,7 +4,7 @@
 
 import copy
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.variable import Variable

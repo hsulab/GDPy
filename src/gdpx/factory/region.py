@@ -3,7 +3,7 @@
 import copy
 from collections.abc import Mapping
 
-from gdpx.region import REGISTER as REGION_REGISTER
+from gdpx.region.registry import REGION_REGISTRY
 from gdpx.region.region import BaseRegion
 
 
@@ -22,4 +22,4 @@ def create_region(config=None, **overrides) -> BaseRegion:
     params.update(copy.deepcopy(overrides))
     method = params.pop("method", "auto")
     class_name = "".join(part.capitalize() for part in method.strip().split("_")) + "Region"
-    return REGION_REGISTER[class_name](**params)
+    return REGION_REGISTRY[class_name](**params)

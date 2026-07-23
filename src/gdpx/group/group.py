@@ -10,7 +10,6 @@ from typing import Literal, Optional
 import numpy as np
 from ase import Atoms
 
-from gdpx.core.register import registers
 from gdpx.utils.strconv import string_to_integers
 
 
@@ -116,7 +115,10 @@ def get_indices_by_region(atoms: Atoms, inp: str) -> set[int]:
     """"""
     name, *args = inp.strip().split()
 
-    region_cls = registers.get("region", name, convert_name=True)
+    from gdpx.region import REGISTER as region_registry
+
+    class_name = "".join(part.capitalize() for part in name.split("_")) + "Region"
+    region_cls = region_registry[class_name]
     region = region_cls.from_str(inp)  # The string should be "{name} {*args}"
     group_indices = region.get_contained_indices(atoms)
 

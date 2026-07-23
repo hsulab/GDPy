@@ -1,4 +1,4 @@
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.components import create_comparator
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable

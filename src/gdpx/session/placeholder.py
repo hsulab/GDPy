@@ -5,6 +5,7 @@
 import pathlib
 
 from .registry import PLACEHOLDER_REGISTRY
+from .node import NodeKind
 
 
 class Placeholder:
@@ -12,6 +13,7 @@ class Placeholder:
 
     #: Working status that should be always finished.
     status = "finished"
+    node_kind = NodeKind.PLACEHOLDER
 
     def __init__(self):
         """"""

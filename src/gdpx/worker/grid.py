@@ -17,7 +17,7 @@ import subprocess
 
 
 from gdpx.computation.driver import BaseDriver
-from gdpx.core.register import registers
+from gdpx.worker.registry import WORKER_REGISTRY
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler.local import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
@@ -58,7 +58,7 @@ STRU_ID_KEY: str = "identifier"
 BATCH_ID_KEY: str = "gdir"
 
 
-@registers.worker.register
+@WORKER_REGISTRY.register
 class GridDriverBasedWorker(DriverBasedWorker):
     """Grid of potters × drivers.
 
