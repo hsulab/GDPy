@@ -9,7 +9,7 @@ import re
 import omegaconf
 import yaml
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.components import create_trainer
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.trainer.trainer import BasePotentialTrainer

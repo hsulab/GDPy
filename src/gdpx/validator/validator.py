@@ -5,8 +5,6 @@ from typing import Any, Optional, Union
 from gdpx.core.component import BaseComponent
 from gdpx.data.array import AtomsNDArray
 from gdpx.dataloader.dataset import AbstractDataloader
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.computer import canonicalise_worker
 from gdpx.worker.drive import DriverBasedWorker
 
 
@@ -61,22 +59,8 @@ class BaseValidator(BaseComponent):
         """
         super().__init__(directory=directory, random_seed=random_seed, n_jobs=n_jobs)
 
-        if structures is not None:
-            if isinstance(structures, (list, tuple)):
-                # Form a list of builders from list of str or dict
-                # The first one will be used as the reference structure,
-                # and the second one will be used as the prediction structures.
-                self.structures = [canonicalise_builder(s) for s in structures]
-                if len(self.structures) == 1:
-                    self.structures.append(None)
-                assert len(self.structures) == 2, "Validator requires two sets of structures."
-            else:
-                # Form one builder from str or dict
-                self.structures = canonicalise_builder(structures)
-        else:
-            self.structures = None
-
-        self.worker = canonicalise_worker(worker)
+        self.structures = structures
+        self.worker = worker
 
         return
 

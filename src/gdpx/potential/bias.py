@@ -5,7 +5,6 @@
 import copy
 
 from gdpx.backend.ase import DummyCalculator
-from gdpx.core.register import registers
 
 from .manager import BasePotentialManager
 
@@ -44,7 +43,10 @@ class BiasManager(BasePotentialManager):
             if k == "colvar":
                 cv_params = copy.deepcopy(v)
                 cv_name = cv_params.pop("name")
-                colvar_ = registers.create("colvar", cv_name, **cv_params)
+                from gdpx.colvar import REGISTER as colvar_registry
+
+                colvar_name = "".join(part.capitalize() for part in cv_name.split("_")) + "Colvar"
+                colvar_ = colvar_registry[colvar_name](**cv_params)
                 break
         else:
             ...
@@ -54,7 +56,9 @@ class BiasManager(BasePotentialManager):
         # instantiate calculator
         calc = DummyCalculator()
         if self.calc_backend == "ase":
-            bias_cls = registers.bias[bias_method]
+            from gdpx.bias import REGISTER as bias_registry
+
+            bias_cls = bias_registry[bias_method]
             if hasattr(bias_cls, "broadcast"):
                 calc = bias_cls.broadcast(calc_params)
                 num_calcs = len(calc)
@@ -73,7 +77,9 @@ class BiasManager(BasePotentialManager):
     def get_bias_cls(backend, method):
         """"""
 
-        return registers.bias[method]
+        from gdpx.bias import REGISTER as bias_registry
+
+        return bias_registry[method]
 
     @staticmethod
     def broadcast(manager: "BiasManager") -> list["BiasManager"]:

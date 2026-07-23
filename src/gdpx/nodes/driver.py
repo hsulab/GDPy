@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 
 from gdpx import config
 from gdpx.computation.observer import create_an_observer
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
 from gdpx.nodes.computer import ComputerVariable
 from gdpx.selector.scf import ScfSelector

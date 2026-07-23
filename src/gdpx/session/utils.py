@@ -6,7 +6,7 @@ import copy
 from typing import Any, Optional
 
 from gdpx import config
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.session.operation import Operation
 
 

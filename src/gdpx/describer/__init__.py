@@ -1,4 +1,3 @@
-from gdpx import config
 from gdpx.core.register import BaseRegister
 
 REGISTER = BaseRegister("describer")
@@ -27,12 +26,7 @@ from .formation_energy import FormationEnergyDescriber
 
 REGISTER.register("formation_energy")(FormationEnergyDescriber)
 
-try:
-    from .soap import SoapDescriber
-
-    REGISTER.register("soap")(SoapDescriber)
-except ImportError as err:
-    config._print(f"  {'Describer':<16s} {'`soap`':<16s} -> require `{err.name}`.")
+REGISTER.register_lazy("soap", "gdpx.describer.soap", "SoapDescriber")
 
 from .cluster import ClusterDescriber
 

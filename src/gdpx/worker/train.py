@@ -13,12 +13,12 @@ from tinydb import Query, TinyDB
 from gdpx.factory.dataloader import create_dataloader
 from gdpx.trainer.trainer import BasePotentialTrainer
 
-from gdpx.core.register import registers
+from gdpx.worker.registry import WORKER_REGISTRY
 
 from .worker import BaseWorker
 
 
-@registers.worker.register
+@WORKER_REGISTRY.register
 class TrainerBasedWorker(BaseWorker):
 
     TRAIN_PREFIX: str = "m"

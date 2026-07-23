@@ -8,7 +8,7 @@ from typing import Union
 
 import omegaconf
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.components import create_expedition
 from gdpx.expedition.expedition import BaseExpedition
 from gdpx.session.operation import Operation

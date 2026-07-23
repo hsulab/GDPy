@@ -6,6 +6,7 @@ from typing import Callable, NoReturn, Union
 
 from .. import config
 from .registry import VARIABLE_REGISTRY
+from .node import NodeKind
 
 
 class Variable:
@@ -13,6 +14,7 @@ class Variable:
 
     #: Node ID.
     identifier: str = "vx"
+    node_kind = NodeKind.VARIABLE
 
     #: Working directory for the operation.
     _directory: pathlib.Path = pathlib.Path.cwd()

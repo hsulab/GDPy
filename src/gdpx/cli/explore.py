@@ -8,6 +8,7 @@ from typing import Optional, Union
 from gdpx import config
 from gdpx.factory.components import create_expedition
 from gdpx.factory.scheduler import canonicalise_scheduler
+from gdpx.factory.computer import canonicalise_worker
 from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
 
@@ -51,7 +52,7 @@ def run_expedition(
 
     for curr_expedition in expedition:
         if hasattr(curr_expedition, "register_worker"):
-            curr_expedition.register_worker(worker_params)
+            curr_expedition.register_worker(canonicalise_worker(worker_params))
 
     num_expeditions = len(expedition)
     if spawn:  # Run expedition in commandline as input files are prepared by worker

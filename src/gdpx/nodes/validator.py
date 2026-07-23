@@ -1,7 +1,7 @@
 import pathlib
 from typing import Mapping, Union
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
 from gdpx.dataloader.dataset import AbstractDataloader
 from gdpx.factory.validator import canonicalise_validator

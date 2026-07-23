@@ -15,7 +15,7 @@ from typing import Optional, Union
 from tinydb import Query, TinyDB
 
 from gdpx.computation.driver import BaseDriver
-from gdpx.core.register import registers
+from gdpx.worker.registry import WORKER_REGISTRY
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler.scheduler import BaseScheduler
 
@@ -23,7 +23,7 @@ from .drive import DriverBasedWorker
 from .pairing import Pairing
 
 
-@registers.worker.register
+@WORKER_REGISTRY.register
 class SingleWorker(DriverBasedWorker):
     """Worker that accepts only a single structure.
 

@@ -15,7 +15,7 @@ from tinydb import Query, TinyDB
 from gdpx.expedition.expedition import BaseExpedition
 from gdpx.scheduler.scheduler import BaseScheduler
 
-from gdpx.core.register import registers
+from gdpx.worker.registry import WORKER_REGISTRY
 
 from .worker import BaseWorker
 
@@ -72,7 +72,7 @@ def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
     return
 
 
-@registers.worker.register
+@WORKER_REGISTRY.register
 class ExpeditionBasedWorker(BaseWorker):
 
     batchsize: int = 1

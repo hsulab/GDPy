@@ -5,7 +5,7 @@
 import time
 from typing import Optional
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
 from gdpx.session.operation import Operation
 

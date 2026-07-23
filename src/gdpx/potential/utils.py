@@ -9,7 +9,6 @@ from typing import Any, Optional, Union
 import omegaconf
 
 from gdpx.backend.ase import CommitteeCalculator
-from gdpx.core.register import registers
 from gdpx.utils.parser import parse_input_file
 
 from .manager import BasePotentialManager
@@ -96,11 +95,9 @@ def potter_from_dict(inp_dict: dict) -> "BasePotentialManager":
     name = inp_dict.get("name", None)
     if name is None:
         raise Exception(f"The input dictionary `{inp_dict}` does not define a valid potter.")
-    potter = registers.create(
-        "manager",
-        name,
-        convert_name=False,
-    )
+    from gdpx.potential import REGISTER as manager_registry
+
+    potter = manager_registry[name]()
     potter.register_calculator(inp_dict.get("params", {}))
     potter.version = inp_dict.get("version", "unknown")
 

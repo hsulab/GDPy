@@ -15,7 +15,8 @@ from ase.data import atomic_numbers
 from ase.formula import Formula
 from ase.io import read, write
 
-from gdpx.cli.compute import convert_input_to_computer, run_worker  # TODO: refactor this?
+from gdpx.compute.runtime import create_computer as convert_input_to_computer
+from gdpx.compute.runtime import run_workers as run_worker
 from gdpx.factory.builder import canonicalise_builder
 from gdpx.factory.components import create_comparator
 from gdpx.factory.computer import canonicalise_worker
@@ -487,7 +488,7 @@ class ConcurrentHopping(BaseExpedition):
 
     def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
         """Overwrite this function as we need computer in this expedition."""
-        self.worker = convert_input_to_computer(worker)
+        self.worker = worker if isinstance(worker, list) else convert_input_to_computer(worker)
 
         return
 

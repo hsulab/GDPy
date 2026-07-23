@@ -3,7 +3,7 @@ from typing import Union
 
 import omegaconf
 
-from gdpx.core.register import registers
+from gdpx.session.registry import workflow_registers as registers
 from gdpx.factory.components import create_describer
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable

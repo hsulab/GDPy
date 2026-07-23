@@ -11,6 +11,7 @@ from gdpx import config
 from .operation import Operation
 from .variable import Variable
 from .placeholder import Placeholder
+from .node import NodeKind, WorkflowNode
 
 
 class SessionState(enum.Enum):
@@ -157,10 +158,9 @@ class BaseSession:
 
             # Reset directory since it maybe changed
             set_node_dir_func(node, i, wdir)
-            if node.__class__.__name__.endswith("Variable"):
-                node_type = "VX"
-            else:
-                node_type = "OP"
+            if not isinstance(node, WorkflowNode):
+                raise TypeError(f"Unknown workflow node: {type(node)}")
+            node_type = node.node_kind.value
             self._print(
                 "[{:^24s}] NAME: {} AT {}".format(
                     node_type,
@@ -169,16 +169,19 @@ class BaseSession:
                 )
             )
 
-            if isinstance(node, Placeholder):
+            if node.node_kind is NodeKind.PLACEHOLDER:
                 node.output = feed_dict[node]
-            elif isinstance(node, Variable):
+            elif node.node_kind is NodeKind.VARIABLE:
                 node.output = node.value
-            else:  # Operation
-                assert isinstance(node, Operation), f"Unknown node type: {type(node)}"
+            elif node.node_kind is NodeKind.OPERATION:
+                if not isinstance(node, Operation):
+                    raise TypeError(f"Operation node does not implement Operation: {type(node)}")
                 self._debug(f"node: {node}")
                 _state = self._process_operation(node)
                 if _state is not None:
                     self.state = _state
+            else:
+                raise TypeError(f"Unknown node kind: {node.node_kind}")
 
         return
 

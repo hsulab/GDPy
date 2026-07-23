@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.core.register import BaseRegister
-
-REGISTER = BaseRegister("region")
+from .registry import REGION_REGISTRY as REGISTER
 
 from .region import AutoRegion, CubeRegion, CylinderRegion, LatticeRegion, SphereRegion
 
