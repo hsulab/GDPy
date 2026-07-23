@@ -1,91 +1,10 @@
 import importlib
-import warnings
 
 from .. import config
-
-
-class Register:
-    def __init__(self, registry_name: str) -> None:
-        """"""
-        self._dict = {}
-        self._name = registry_name
-
-        return
-
-    @property
-    def name(self) -> str:
-        """The register name."""
-
-        return self._name
-
-    def __setitem__(self, key, value):
-        if not callable(value):
-            raise Exception(f"Value of a Registry must be a callable!\nValue: {value}")
-        if key is None:
-            key = value.__name__
-        if key in self._dict:
-            warnings.warn(
-                "Key %s already in registry %s." % (key, self._name),
-                UserWarning,
-            )
-        self._dict[key] = value
-
-    def register(self, target):
-        """Decorator to register a function or class."""
-
-        def add(key, value):
-            self[key] = value
-            return value
-
-        if callable(target):
-            return add(None, target)
-
-        return lambda x: add(target, x)
-
-    def __getitem__(self, key):
-        if key not in self._dict:
-            raise Exception(f"No {key} in {self._dict.keys()}")
-        return self._dict[key]
-
-    def __contains__(self, key):
-        return key in self._dict
-
-    def keys(self):
-        """key"""
-        return self._dict.keys()
-
-    def __repr__(self) -> str:
-        """"""
-        content = f"{self._name.upper()}:\n"
-
-        keys = sorted(list(self._dict.keys()))
-        nkeys = len(keys)
-        ncols = 5
-        nrows = int(nkeys / ncols)
-        for i in range(nrows):
-            content += ("  " + "{:<24s}" * ncols + "\n").format(*keys[i * ncols : i * ncols + ncols])
-
-        nrest = nkeys - nrows * ncols
-        if nrest > 0:
-            content += ("  " + "{:<24s}" * nrest + "\n").format(*keys[nrows * ncols :])
-
-        return content
-
-
-# For compatibility,
-BaseRegister = Register
+from .registry import BaseRegister, Register, Registry
 
 
 class registers:
-    #: Session operations.
-    operation: Register = Register("operation")
-
-    #: Session variables.
-    variable: Register = Register("variable")
-
-    #: Session placeholder
-    placeholder: Register = Register("placeholder")
-
     #: Worker implementations.
     worker: Register = Register("worker")
 
@@ -137,6 +56,7 @@ ALL_MODULES = [
             "expedition",
             "comparator",
             "potential",
+            "correction",
         ],
     ),
 ]
@@ -166,32 +86,11 @@ def show_failed_modules_in_rows_with_reasons(names, reasons) -> list[str]:
 
 
 def import_all_modules_for_register(custom_module_paths=None, disable_import_info: bool = False) -> None:
-    """Import all modules for register."""
+    """Load domain registries first, followed by workflow adapters."""
     if not disable_import_info:
         config._print("FAILED TO IMPORT OPTIONAL MODULES: ")
 
-    # Add standard modules
-    modules = []
-    for base_dir, submodules in ALL_MODULES:
-        for name in submodules:
-            full_name = base_dir + "." + name
-            modules.append(full_name)
-
-    # Add custom plugins
-    if isinstance(custom_module_paths, list):
-        modules += custom_module_paths
-
-    # Load all modules
     errors = []
-    for module in modules:
-        try:
-            importlib.import_module(module)
-        except ImportError as error:
-            errors.append((module, error))
-
-    names, reasons = _handle_errors(errors)
-
-    # Try loading local registers
     local_module_pairs = (
         ("bias", "bias"),
         ("builder", "builder"),
@@ -209,15 +108,25 @@ def import_all_modules_for_register(custom_module_paths=None, disable_import_inf
     )
 
     for register_name, module_name in local_module_pairs:
-        setattr(registers, module_name, Register(module_name))  # add an empty register that can be used in main
         try:
-            module = importlib.import_module("gdpx" + "." + module_name)
+            module = importlib.import_module(f"gdpx.{module_name}")
             local_register = getattr(module, "REGISTER")
             setattr(registers, register_name, local_register)
         except ImportError as error:
+            setattr(registers, register_name, Register(register_name))
             errors.append((module_name, error))
 
+    modules = [f"{base_dir}.{name}" for base_dir, submodules in ALL_MODULES for name in submodules]
+    if isinstance(custom_module_paths, list):
+        modules.extend(custom_module_paths)
+    for module in modules:
+        try:
+            importlib.import_module(module)
+        except ImportError as error:
+            errors.append((module, error))
+
     if not disable_import_info:
+        names, reasons = _handle_errors(errors)
         lines = show_failed_modules_in_rows_with_reasons(names, reasons)
         for line in lines:
             config._print(line)

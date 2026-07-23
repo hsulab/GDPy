@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 from tinydb import Query, TinyDB
 
-from gdpx.nodes.data import DatasetVariable
+from gdpx.factory.dataloader import create_dataloader
 from gdpx.trainer.trainer import BasePotentialTrainer
 
 from gdpx.core.register import registers
@@ -126,7 +126,7 @@ class TrainerBasedWorker(BaseWorker):
                 self._print("shared dataset exists...")
                 with open(dataset_path / "dataset.yaml", "r") as fopen:
                     dataset_params = yaml.safe_load(fopen)
-                dataset = DatasetVariable(**dataset_params).value
+                dataset = create_dataloader(dataset_params)
                 self._print(f"{dataset =}")
         else:
             self._print("trainers prepare their own datasets...")

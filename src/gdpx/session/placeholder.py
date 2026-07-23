@@ -4,6 +4,8 @@
 
 import pathlib
 
+from .registry import PLACEHOLDER_REGISTRY
+
 
 class Placeholder:
     """Placeholder for input structures that may be from external files."""

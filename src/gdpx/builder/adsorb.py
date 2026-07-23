@@ -15,7 +15,6 @@ from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.exchange import insert_one_particle_on_site
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.graph.adsorption import find_adsorption_sites_by_graph
-from gdpx.nodes.region import RegionVariable
 from gdpx.region.region import BaseRegion
 from gdpx.utils.atoms_tags import sort_structures_by_natoms_per_type, sort_structures_by_tags
 

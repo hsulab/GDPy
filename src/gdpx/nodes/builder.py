@@ -11,6 +11,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx.core.register import registers
+from gdpx.factory.builder import canonicalise_builder
 from gdpx.data.array import AtomsNDArray
 from gdpx.session.operation import Operation
 from gdpx.session.variable import Variable
@@ -22,8 +23,7 @@ class BuilderVariable(Variable):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
-        method = kwargs.pop("method", "direct")
-        builder = registers.create("builder", method, convert_name=False, **kwargs)
+        builder = canonicalise_builder(kwargs)
 
         super().__init__(initial_value=builder, directory=directory)
 

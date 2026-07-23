@@ -4,6 +4,7 @@ from typing import Union
 import omegaconf
 
 from gdpx.core.register import registers
+from gdpx.factory.components import create_describer
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
 
@@ -12,8 +13,7 @@ from gdpx.session.variable import DummyVariable, Variable
 class DescriberVariable(Variable):
     def __init__(self, directory="./", *args, **kwargs):
         """"""
-        name = kwargs.pop("name", "soap")
-        describer = registers.create("describer", name, convert_name=False, **kwargs)
+        describer = create_describer(kwargs)
 
         super().__init__(initial_value=describer, directory=directory)
 

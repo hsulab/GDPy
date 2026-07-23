@@ -3,12 +3,11 @@
 
 
 import abc
-import copy
 import logging
 from typing import Union
 
 from gdpx.core.component import BaseComponent
-from gdpx.core.register import registers
+from gdpx.factory.builder import canonicalise_builder
 from gdpx.factory.computer import canonicalise_worker
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.single import SingleWorker
@@ -40,14 +39,7 @@ class BaseExpedition(BaseComponent):
 
     def register_builder(self, builder: dict) -> None:
         """Register StructureBuilder for this expedition."""
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            builder = registers.create("builder", builder_method, convert_name=False, **builder_params)
-        else:
-            builder = builder
-
-        self.builder = builder
+        self.builder = canonicalise_builder(builder)
 
         return
 

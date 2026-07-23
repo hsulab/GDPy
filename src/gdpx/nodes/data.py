@@ -13,6 +13,7 @@ import numpy as np
 from gdpx import config
 from gdpx.core.register import registers
 from gdpx.data.system import DataSystem
+from gdpx.factory.dataloader import create_dataloader
 from gdpx.session.operation import Operation
 from gdpx.session.variable import Variable
 
@@ -72,7 +73,7 @@ class DatasetVariable(Variable):
 
     def __init__(self, name, directory="./", *args, **kwargs):
         """"""
-        dataset = registers.create("dataloader", name, convert_name=True, **kwargs)
+        dataset = create_dataloader(dict(name=name, **kwargs))
         super().__init__(initial_value=dataset, directory=directory)
 
         return

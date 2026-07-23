@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import pathlib
 import time
 from typing import Union
 
-from gdpx.core.register import registers
+from gdpx.factory.builder import canonicalise_builder
 
 from ..expedition import BaseExpedition
 
@@ -32,9 +31,7 @@ class SimulatedAnnealing(BaseExpedition):
 
         # - check system type
         if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
-            builder_method = builder_params.pop("method")
-            builder = registers.create("builder", builder_method, convert_name=False, **builder_params)
+            builder = canonicalise_builder(builder)
         else:
             builder = builder
         self.builder = builder

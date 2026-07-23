@@ -1,8 +1,8 @@
 from ase.io import read
 
 from gdpx import config
-from gdpx.core.register import registers
-from gdpx.nodes.trainer import TrainerVariable
+from gdpx.factory.components import create_trainer
+from gdpx.factory.dataloader import create_dataloader
 from gdpx.utils.parser import parse_input_file
 
 
@@ -12,7 +12,7 @@ def run_trainer(configuration, directory) -> None:
     params = parse_input_file(configuration)
 
     # Instantiate the trainer
-    trainer = TrainerVariable(directory=directory, **params["trainer"]).value
+    trainer = create_trainer(params["trainer"])
     trainer.directory = directory
 
     # Process the dataset
@@ -25,11 +25,11 @@ def run_trainer(configuration, directory) -> None:
         if dataset_path:
             dataset = read(dataset_path, ":")
         else:
-            dataloader = registers.create("dataloader", name, convert_name=True, **dataset_params)
+            dataloader = create_dataloader(dict(name=name, **dataset_params))
             systems = dataloader.load_frames()
             dataset = [frame for _, frames in systems for frame in frames]
     else:
-        dataloader = registers.create("dataloader", name, convert_name=True, **dataset_params)
+        dataloader = create_dataloader(dict(name=name, **dataset_params))
         if hasattr(dataloader, "load_frames"):
             systems = dataloader.load_frames()
             dataset = [frame for _, frames in systems for frame in frames]

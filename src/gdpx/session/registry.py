@@ -1,0 +1,23 @@
+"""Registries belonging specifically to the workflow graph layer."""
+
+from gdpx.core.registry import Registry
+
+
+VARIABLE_REGISTRY = Registry("variable")
+OPERATION_REGISTRY = Registry("operation")
+PLACEHOLDER_REGISTRY = Registry("placeholder")
+
+
+class workflow_registers:
+    variable = VARIABLE_REGISTRY
+    operation = OPERATION_REGISTRY
+    placeholder = PLACEHOLDER_REGISTRY
+
+
+# Populate the legacy catalog only when the workflow layer is imported.  This
+# keeps importing gdpx.core.register independent of gdpx.session.
+from gdpx.core.register import registers
+
+registers.variable = VARIABLE_REGISTRY
+registers.operation = OPERATION_REGISTRY
+registers.placeholder = PLACEHOLDER_REGISTRY

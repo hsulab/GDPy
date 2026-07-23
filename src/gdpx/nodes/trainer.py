@@ -10,6 +10,7 @@ import omegaconf
 import yaml
 
 from gdpx.core.register import registers
+from gdpx.factory.components import create_trainer
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.trainer.trainer import BasePotentialTrainer
 from gdpx.scheduler.scheduler import BaseScheduler
@@ -25,8 +26,7 @@ class TrainerVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
         """"""
-        name = kwargs.pop("name", None)
-        trainer = registers.create("trainer", name, convert_name=True, **kwargs)
+        trainer = create_trainer(kwargs)
 
         super().__init__(initial_value=trainer, directory=directory)
 

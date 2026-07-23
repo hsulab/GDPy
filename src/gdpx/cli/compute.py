@@ -13,15 +13,23 @@ from ase.io import read, write
 
 from gdpx import config
 from gdpx.factory.builder import canonicalise_builder
-from gdpx.nodes.builder import BuilderVariable
-from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable
-from gdpx.nodes.scheduler import SchedulerVariable
+from gdpx.factory.computer import create_worker_chains, create_workers
+from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.reactor.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
 from gdpx.worker.drive import DriverBasedWorker
 from gdpx.worker.grid import GridDriverBasedWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
+
+
+def __getattr__(name):
+    """Lazy compatibility exports for callers that still use workflow Variables."""
+    if name in {"ComputerVariable", "ComputerChainVariable"}:
+        from gdpx.nodes import computer as computer_nodes
+
+        return getattr(computer_nodes, name)
+    raise AttributeError(name)
 
 
 CompState = enum.Enum("CompState", ("QUEUED", "FINISHED"))
@@ -37,7 +45,6 @@ def convert_input_to_computer(config):
     if isinstance(config, str) or isinstance(config, pathlib.Path):
         config = parse_input_file(input_fpath=config)
 
-    computer = None
     if isinstance(config, dict):
         computer = convert_config_to_computer(config)
     elif isinstance(config, list):
@@ -50,16 +57,8 @@ def convert_input_to_computer(config):
 
 
 def convert_config_to_computer_chain(config: list):
-    """"""
-    computers = []
-    for subconfig in config:
-        computers.append(convert_config_to_computer(subconfig))
-    if len(computers) > 1:
-        computer_chain = ComputerChainVariable(computers=computers)
-    else:
-        computer_chain = computers[0]
-
-    return computer_chain
+    """Create worker-major chains from computer configurations."""
+    return create_worker_chains(config) if len(config) > 1 else create_workers(config[0])
 
 
 def convert_config_to_computer(config):
@@ -82,9 +81,7 @@ def convert_config_to_computer(config):
     else:
         params["potter"] = potter_params
 
-    computer = ComputerVariable(**params)
-
-    return computer
+    return create_workers(params)
 
 
 def run_one_worker(structures, worker, directory, batch, spawn, archive):
@@ -153,10 +150,14 @@ def run_worker(
         assert isinstance(structure[0], Atoms)
         frames = structure
 
+    # Compatibility with legacy ComputerVariable/ComputerChainVariable inputs.
+    if not isinstance(computer, list) and hasattr(computer, "value"):
+        computer = computer.value
+
     # Find input frames
     comp_states = []
-    if isinstance(computer, ComputerVariable):
-        workers: list[DriverBasedWorker] = computer.value
+    if isinstance(computer, list) and (not computer or not isinstance(computer[0], list)):
+        workers: list[DriverBasedWorker] = computer
         num_workers = len(workers)
         if num_workers == 1:
             comp_state = run_one_worker(frames, workers[0], directory, batch, spawn, archive)
@@ -165,8 +166,8 @@ def run_worker(
             for i, w in enumerate(workers):
                 comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
                 comp_states.append(comp_state)
-    elif isinstance(computer, ComputerChainVariable):
-        chains: list[DriverBasedWorker] = computer.value
+    elif isinstance(computer, list) and computer and isinstance(computer[0], list):
+        chains: list[DriverBasedWorker] = computer
         num_chains = len(chains)
         if num_chains != 1:  # TODO: Unify the code below with compute_chain operation
             raise Exception(f"ComputerChain supports only one chain for now, but got {num_chains} chains.")
@@ -204,17 +205,17 @@ def convert_config_to_grid_components(grid_params: dict):
     assert grid_data is not None
 
     # scheduler
-    scheduler = SchedulerVariable(**grid_params.get("scheduler", {})).value
+    scheduler = canonicalise_scheduler(grid_params.get("scheduler", {}))
 
     structures, potters, drivers = [], [], []
     for data in grid_data:
         builder_params = data.get("builder")
-        builder = BuilderVariable(**builder_params).value
+        builder = canonicalise_builder(builder_params)
         structures.extend(builder.run())
 
         # FIXME: broadcast worker to structures?
         computer_params = data.get("computer")
-        computers = ComputerVariable(**computer_params).value
+        computers = create_workers(computer_params)
         num_computers = len(computers)
         assert num_computers == 1
         potters.append(computers[0].potter)

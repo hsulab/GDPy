@@ -4,6 +4,7 @@ from typing import Mapping, Union
 from gdpx.core.register import registers
 from gdpx.data.array import AtomsNDArray
 from gdpx.dataloader.dataset import AbstractDataloader
+from gdpx.factory.validator import canonicalise_validator
 from gdpx.session.operation import Operation
 from gdpx.session.variable import DummyVariable, Variable
 from gdpx.validator.validator import BaseValidator
@@ -14,8 +15,9 @@ class ValidatorVariable(Variable):
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
         # Instantiate a validator
-        method = kwargs.pop("method", "minima")
-        validator = registers.create("validator", method, convert_name=False, **kwargs)
+        if isinstance(kwargs.get("worker"), Variable):
+            kwargs["worker"] = kwargs["worker"].value
+        validator = canonicalise_validator(kwargs)
 
         # Save the instance
         super().__init__(initial_value=validator, directory=directory)

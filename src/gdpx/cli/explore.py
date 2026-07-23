@@ -6,7 +6,7 @@ import pathlib
 from typing import Optional, Union
 
 from gdpx import config
-from gdpx.nodes.expedition import ExpeditionVariable
+from gdpx.factory.components import create_expedition
 from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
@@ -43,7 +43,7 @@ def run_expedition(
     scheduler = canonicalise_scheduler(scheduler_params)
 
     # Create expeditions
-    expedition = ExpeditionVariable(directory=directory, **exp_params).value
+    expedition = create_expedition(exp_params)
     if isinstance(expedition, list):
         ...
     else:

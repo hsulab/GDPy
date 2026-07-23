@@ -5,6 +5,7 @@ import pathlib
 from typing import Callable, NoReturn, Union
 
 from .. import config
+from .registry import VARIABLE_REGISTRY
 
 
 class Variable:

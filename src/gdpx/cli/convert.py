@@ -7,7 +7,7 @@ import pathlib
 from ase.io import write
 
 from gdpx import config
-from gdpx.core.register import registers
+from gdpx.factory.dataloader import create_dataloader
 
 
 def convert_dataset(dataset_path, inp_format: str, out_format: str, directory: pathlib.Path):
@@ -15,7 +15,7 @@ def convert_dataset(dataset_path, inp_format: str, out_format: str, directory: p
     kwargs = dict(
         dataset_path=dataset_path,
     )
-    ds = registers.create("dataloader", inp_format, convert_name=False, **kwargs)
+    ds = create_dataloader(dict(name=inp_format, **kwargs))
     config._print(f"{ds =}")
 
     systems = ds.load_frames()
