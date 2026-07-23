@@ -1,7 +1,7 @@
 import copy
 from typing import Union
 
-from gdpx.core.register import registers
+from gdpx.validator import REGISTER as VALIDATOR_REGISTER
 from gdpx.validator.validator import BaseValidator
 
 
@@ -13,7 +13,7 @@ def canonicalise_validator(
     if isinstance(config, dict):
         config = copy.deepcopy(config)
         method = config.pop("method", "minima")
-        validator = registers.create("validator", method, convert_name=False, **config)
+        validator = VALIDATOR_REGISTER[method](**config)
     else:
         validator = copy.deepcopy(config)
 

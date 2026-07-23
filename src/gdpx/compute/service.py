@@ -21,7 +21,6 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx.factory.builder import canonicalise_builder
-from gdpx.nodes.computer import ComputerVariable
 from gdpx.worker.drive import DriverBasedWorker
 
 PLAN_SCHEMA_VERSION = 1
@@ -192,9 +191,9 @@ def _create_computer(config: Union[dict, list]):
     from gdpx.cli.compute import convert_input_to_computer
 
     computer = convert_input_to_computer(copy.deepcopy(config))
-    if not isinstance(computer, ComputerVariable):
+    if not isinstance(computer, list) or (computer and isinstance(computer[0], list)):
         raise ComputeLifecycleError("The first lifecycle implementation supports ordinary computers only, not chains.")
-    workers = computer.value
+    workers = computer
     if not workers or not all(isinstance(worker, DriverBasedWorker) for worker in workers):
         raise ComputeLifecycleError("The first lifecycle implementation supports DriverBasedWorker computations only.")
     return computer, workers

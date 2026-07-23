@@ -9,7 +9,7 @@ from ase.ga.offspring_creator import OffspringCreator
 from gdpx.geometry.composition import convert_string_to_adsorbate, convert_string_to_atoms
 from gdpx.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
 from gdpx.graph.adsorption import find_adsorption_sites_by_graph
-from gdpx.nodes.region import RegionVariable
+from gdpx.factory.region import create_region
 from gdpx.region.region import BaseRegion
 from gdpx.utils.atoms_tags import get_tags_per_species
 
@@ -53,7 +53,7 @@ class ExchangeMutation(OffspringCreator):
 
         region = region if region is not None else {}
         if not isinstance(region, BaseRegion):
-            self.region = RegionVariable(**region).value
+            self.region = create_region(region)
         else:
             self.region = region
 

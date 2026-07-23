@@ -5,6 +5,7 @@
 import copy
 
 from gdpx.core.register import registers
+from gdpx.factory.scheduler import canonicalise_scheduler
 from gdpx.scheduler.scheduler import BaseScheduler
 from gdpx.session.variable import Variable
 
@@ -14,9 +15,7 @@ class SchedulerVariable(Variable):
 
     def __init__(self, directory="./", **kwargs):
         """"""
-        scheduler_params = copy.deepcopy(kwargs)
-        backend = scheduler_params.pop("backend", "local")
-        scheduler = registers.create("scheduler", backend, convert_name=True, **scheduler_params)
+        scheduler = canonicalise_scheduler(kwargs)
         super().__init__(initial_value=scheduler, directory=directory)
 
         return

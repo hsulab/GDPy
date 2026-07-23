@@ -5,7 +5,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 from ase import Atoms, data, units
 
-from gdpx.core.register import registers
+from gdpx.factory.region import create_region
 
 
 class BaseMCOperator(abc.ABC):
@@ -49,8 +49,7 @@ class BaseMCOperator(abc.ABC):
 
         # Check region
         region_params = copy.deepcopy(region)
-        region_method = region_params.pop("method", "auto")
-        self.region = registers.create("region", region_method, convert_name=True, **region_params)
+        self.region = create_region(region_params)
 
         # Check group
         self.group = group

@@ -11,7 +11,7 @@ from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.insert import insert_fragments_by_step
 from gdpx.geometry.restraints import ParsedRestraint, parse_restraints
 from gdpx.geometry.spatial import get_bond_distance_dict
-from gdpx.nodes.region import RegionVariable
+from gdpx.factory.region import create_region
 from gdpx.region import LatticeRegion
 from gdpx.utils.atoms_tags import (
     sort_structures_by_natoms_per_type,
@@ -141,7 +141,7 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         # Check region
         if region is not None:
-            self.region = RegionVariable(**region).value
+            self.region = create_region(region)
         else:
             # either region or box must be given
             if self.box is None:

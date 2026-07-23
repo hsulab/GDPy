@@ -6,8 +6,8 @@ import copy
 import pathlib
 from typing import Any, Optional
 
+from gdpx.builder import REGISTER as BUILDER_REGISTER
 from gdpx.builder.builder import StructureBuilder
-from gdpx.core.register import registers
 from gdpx.utils.parser import parse_input_file
 
 
@@ -47,9 +47,7 @@ def canonicalise_builder(config: Any) -> Optional[StructureBuilder]:
     if config is not None:
         config_to_use = copy.deepcopy(config)
         method = config_to_use.pop("method", "direct")
-        builder = registers.create(
-            "builder", method, convert_name=False, **config_to_use
-        )
+        builder = BUILDER_REGISTER[method](**config_to_use)
     else:
         builder = None
 
