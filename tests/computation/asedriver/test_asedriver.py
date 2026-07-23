@@ -13,7 +13,7 @@ import yaml
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.cli.compute import convert_config_to_potter
+from gdpx.factory.computer import create_workers
 
 #  NOTE: AseDriver must dump the last frame of the trajectory
 #        For example, a 9-frame trajectory with a dump period of 3,
@@ -35,7 +35,7 @@ def test_ase_min(dump_period, num_frames):
         config = copy.deepcopy(worker_params)
         config["driver"]["init"]["dump_period"] = dump_period
 
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
 
         worker.run(structures)
@@ -60,7 +60,7 @@ def test_ase_nvt(dump_period, num_frames):
         config = copy.deepcopy(worker_params)
         config["driver"]["init"]["dump_period"] = dump_period
 
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
 
         worker.run(structures)
@@ -89,14 +89,14 @@ def test_ase_min_restart(dump_period, ckpt_period):
         config["driver"]["init"]["dump_period"] = dump_period
         config["driver"]["init"]["ckpt_period"] = ckpt_period
 
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
         worker.run(structures)
 
         #
         os.remove(tmpdirname / "_local_jobs.json")
         config["driver"]["run"]["steps"] = 37
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
         worker.run(structures)
 
@@ -128,14 +128,14 @@ def test_ase_nvt_restart(dump_period, ckpt_period):
         config["driver"]["init"]["dump_period"] = dump_period
         config["driver"]["init"]["ckpt_period"] = ckpt_period
 
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
         worker.run(structures)
 
         #
         os.remove(tmpdirname / "_local_jobs.json")
         config["driver"]["run"]["steps"] = 37
-        worker = convert_config_to_potter(config)[0]
+        worker = create_workers(config)[0]
         worker.directory = tmpdirname
         worker.run(structures)
 

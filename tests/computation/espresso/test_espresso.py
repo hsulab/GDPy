@@ -9,7 +9,7 @@ import tempfile
 
 from ase.io import read, write
 
-from gdpx.worker.interface import ComputerVariable
+from gdpx.factory.computer import create_workers
 
 
 
@@ -41,7 +41,7 @@ def test_spc(espresso_spc_config):
     atoms = read("../assets/H2.xyz")
 
     config = copy.deepcopy(config)
-    worker = ComputerVariable(**config).value[0]
+    worker = create_workers(config)[0]
 
     driver = worker.driver
     driver.directory = "./xxx" # tmpdir

@@ -7,12 +7,15 @@ import pathlib
 import pytest
 import yaml
 
+pytest.importorskip("deepmd")
+
 from ase import Atoms
 from ase.io import read, write
 from ase.build import molecule
 
-from gdpx.cli.compute import run_worker, ComputerVariable
-from gdpx.utils.command import parse_input_file
+from gdpx.compute.runtime import run_workers
+from gdpx.factory.computer import create_workers
+from gdpx.utils.parser import parse_input_file
 
 
 DRIVER_PARAMS = dict(
@@ -90,15 +93,12 @@ def test_spc_driver(create_pot_config, backend, command, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = ComputerVariable(
-                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-                params.get("batchsize", 1)
-            ).value[0]
+            worker = create_workers(params)[0]
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./asexxx"
-            run_worker(strtmp.name, directory=tmpdirname, worker=worker)
+            run_workers([strtmp.name], [worker], directory=tmpdirname)
 
             stored_atoms = read(pathlib.Path(tmpdirname)/"results"/"end_frames.xyz", ":")[0]
             stored_energy = stored_atoms.get_potential_energy()
@@ -125,15 +125,12 @@ def test_min_driver(create_pot_config, backend, command, driver, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = ComputerVariable(
-                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-                params.get("batchsize", 1)
-            ).value[0]
+            worker = create_workers(params)[0]
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./asexxx"
-            run_worker(strtmp.name, directory=tmpdirname, worker=worker)
+            run_workers([strtmp.name], [worker], directory=tmpdirname)
 
             stored_atoms = read(pathlib.Path(tmpdirname)/"results"/"end_frames.xyz", ":")[0]
             stored_energy = stored_atoms.get_potential_energy()

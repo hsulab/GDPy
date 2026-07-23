@@ -4,11 +4,7 @@
 
 import pytest
 
-from gdpx.core.register import import_all_modules_for_register
-from gdpx.potential.interface import PotterVariable
-from gdpx.worker.interface import ComputerVariable
-
-import_all_modules_for_register()
+from gdpx.factory.computer import create_workers
 
 @pytest.fixture
 def cp2k_config():
@@ -36,7 +32,7 @@ def cp2k_config():
 
 def test_empty(cp2k_config):
     """"""
-    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
+    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
     print(worker)
 
     driver = worker.driver
@@ -48,7 +44,7 @@ def test_empty(cp2k_config):
 
 def test_broken(cp2k_config):
     """"""
-    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
+    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
     print(worker)
 
     driver = worker.driver
@@ -60,7 +56,7 @@ def test_broken(cp2k_config):
 
 def test_broken_by_abort(cp2k_config):
     """"""
-    worker = ComputerVariable(cp2k_config["potential"], cp2k_config["driver"]).value[0]
+    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
     print(worker)
     print(worker.driver.ignore_convergence)
 

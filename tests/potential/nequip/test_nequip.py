@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-try:
-    import torch
-    from nequip.ase import NequIPCalculator
-except:
-    ...
+import pytest
+
+torch = pytest.importorskip("torch")
+NequIPCalculator = pytest.importorskip("nequip.ase").NequIPCalculator
 
 
 from ase.io import read, write
 
-from gdpx.potential.calculators.mixer import CommitteeCalculator
+from gdpx.backend.ase.mixer import CommitteeCalculator
 
 
 def test_nequip_committee():

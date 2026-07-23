@@ -7,7 +7,7 @@ import numpy as np
 
 from ase import Atoms
 
-from gdpx.builder.constraints import convert_indices, parse_constraint_info
+from gdpx.group.constraint import canonicalise_constraint_expression, evaluate_constraint_expression
 
 @pytest.fixture(scope="function")
 def rng():
@@ -26,20 +26,13 @@ def H2():
 
     return atoms
 
-def test_convert_indices():
-    """"""
-    ret = convert_indices([1,2,3,6,7,8], index_convention="lmp")
+def test_canonicalise_constraint_expression():
+    assert canonicalise_constraint_expression("1:2") == "`id 1:2`"
 
-    assert ret == "1:3 6:8"
-
-def test_parse_constraint_info(H2):
-    """"""
-    mobile_text, frozen_text = parse_constraint_info(
-        atoms=H2, cons_text="1:2", ignore_ase_constraints=True, ret_text=True
-    )
-
-    assert mobile_text == ""
-    assert frozen_text == "1:2"
+def test_evaluate_constraint_expression(H2):
+    mobile, frozen = evaluate_constraint_expression(H2, "1:2")
+    assert mobile == []
+    assert frozen == [0, 1]
 
 if __name__ == "__main__":
     ...
