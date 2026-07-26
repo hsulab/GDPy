@@ -1,0 +1,2 @@
+2026-07-21 deepmd compress may fail with OOM, and make deepmd-c.pb link to the original one. +gdpx +bug
+2026-07-21 Transfer may discard new samples in active learning due to same iter.[nnnn].xyz filename. +gdpx +bug +feat
