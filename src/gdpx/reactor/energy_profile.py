@@ -485,8 +485,12 @@ class EnergyDiagram:
                 yhigh += 0.5
         else:
             ylow, yhigh = ylim
+        ylow -= 0.2
+        yhigh += 0.2
         ylimit = yhigh - ylow
         ax.set_ylim([ylow, yhigh])
+
+        local_minimum_ene_yoffset = -0.16
 
         mediates = set(mediates)
         lines = []
@@ -499,11 +503,22 @@ class EnergyDiagram:
         text_intermediate_yshift = text_shift_kw.get("intermediate_yshift", -0.08)
         text_intermediate_xshift = text_shift_kw.get("intermediate_xshift", +0.00)
         for i in mediates:
-            pos = coordinates[i]
+            # determine x_offset to avoid text overlapping with curves
+            # if curve down, shift text left; if curve up, shift text right
+            x_offset = 0.0
+            if i > 0 and i < num_points - 1:
+                if energies[i] < energies[i + 1]:
+                    x_offset = +0.10
+                elif energies[i] > energies[i + 1]:
+                    x_offset = -0.10
+                else:
+                    x_offset = 0.0
+            # get data point
+            pos = coordinates[i] + x_offset
             ene = energies[i]
             ax.text(
-                pos + text_intermediate_xshift,
-                (ene + cshift - ylow) / ylimit + text_intermediate_yshift,
+                pos,
+                (ene + cshift - ylow) / ylimit + local_minimum_ene_yoffset,
                 f"{ene:.2f}",
                 transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                 horizontalalignment="center",
@@ -512,6 +527,7 @@ class EnergyDiagram:
             )
 
         # Add points for transition states
+        transition_state_ene_yoffset = 0.01
         ax.scatter(
             [x + start for x in apexes],
             [energies[i] + cshift for i in apexes],
@@ -524,7 +540,7 @@ class EnergyDiagram:
             ene = energies[i]
             ax.text(
                 pos,
-                (ene + cshift - ylow) / ylimit + 0.02,
+                (ene + cshift - ylow) / ylimit + transition_state_ene_yoffset,
                 f"{ene:.2f}",
                 transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                 color="r",
@@ -533,13 +549,14 @@ class EnergyDiagram:
                 fontsize="x-large",
             )
 
+        text_yoffset = -0.02
         if add_text:
             text_shift_for_minimum = -0.1
             for i in range(num_points):
                 pos = coordinates[i]
                 ax.text(
                     pos,
-                    (energies[i] + cshift) / ylimit + text_shift_for_minimum,
+                    energies[i] + cshift + text_yoffset,
                     names[i],
                     transform=matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes),
                     horizontalalignment="center",
