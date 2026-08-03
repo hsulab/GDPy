@@ -271,3 +271,94 @@ class TestForceTraining:
             t.train(ds)
             final = eval_force_loss(pathlib.Path(tmp) / "nn_weights.npz")
             assert final < 0.05, f"force loss not reduced: {final:.6f}"
+
+
+def _pair_dataset(n_structures=3, offset=0.0, seed=11):
+    np.random.seed(seed)
+    ds = []
+    for _ in range(n_structures):
+        pos = np.random.randn(3, 3) * 1.5
+        ref = offset + sum(
+            1.0 / max(np.linalg.norm(pos[i] - pos[j]), 0.5)
+            for i in range(3) for j in range(i + 1, 3)
+        )
+        forces = np.zeros((3, 3))
+        for i in range(3):
+            for j in range(i + 1, 3):
+                d = max(np.linalg.norm(pos[i] - pos[j]), 0.5)
+                rhat = (pos[i] - pos[j]) / np.linalg.norm(pos[i] - pos[j])
+                forces[i] += (1.0 / d**2) * rhat
+                forces[j] -= (1.0 / d**2) * rhat
+        a = Atoms("Cu3", positions=pos, pbc=False)
+        a.calc = SinglePointCalculator(a, energy=ref, forces=forces)
+        ds.append(a)
+    return ds
+
+
+def _model_losses(model_path, ds):
+    from gdpx.potential.nnp.calculator import ACSFNN
+    from gdpx.potential.nnp.descriptor import compute_forces
+
+    calc = ACSFNN(model_file=model_path)
+    el = 0.0
+    fl = 0.0
+    for a in ds:
+        G = calc._compute_descriptor(a)
+        E = float(np.sum(calc.nn.forward(G))) + calc.energy_shift
+        el += (E - a.calc.results["energy"]) ** 2 / len(a)
+        _, dEdG = calc.nn.energy_and_gradient(G)
+        Fp = compute_forces(
+            a, calc.model_elements, calc.g2_params, calc.g4_params, calc.r_cut, dEdG
+        )
+        fl += np.mean((Fp - a.calc.results["forces"]) ** 2)
+    return el / len(ds), fl / len(ds)
+
+
+class TestCombinedTraining:
+    def test_energy_shift_roundtrip(self):
+        ds = _pair_dataset(offset=10.0, seed=5)
+        with tempfile.TemporaryDirectory() as tmp:
+            t = NnpTrainer(
+                config=dict(n_epochs=40, learning_rate=0.003, force_weight=10.0, verbose=0),
+                directory=tmp,
+                calculator_params=dict(
+                    elements=["Cu"],
+                    g2_params=[(0.1, 0.0), (0.2, 0.0)],
+                    g4_params=[(0.01, 1.0, 1.0)],
+                    r_cut=6.0,
+                    hidden_sizes=(16, 16),
+                ),
+            )
+            t.train(ds)
+            model = pathlib.Path(tmp) / "nn_weights.npz"
+            loaded = np.load(model)
+            assert "energy_shift" in loaded
+            ref_mean = np.mean([a.calc.results["energy"] for a in ds])
+            assert abs(float(loaded["energy_shift"]) - ref_mean) < 1e-9
+
+            from gdpx.potential.nnp.calculator import ACSFNN
+
+            calc = ACSFNN(model_file=model)
+            assert abs(calc.energy_shift - ref_mean) < 1e-9
+            # predictions include the shift: reproduce the *uncentered* energies
+            el, _ = _model_losses(model, ds)
+            assert el < 1.0, f"shifted energies not recovered: energy loss {el:.4f}"
+
+    def test_combined_reduces_energy_and_force_loss(self):
+        ds = _pair_dataset(offset=3.0, seed=7)
+        with tempfile.TemporaryDirectory() as tmp:
+            t = NnpTrainer(
+                config=dict(n_epochs=60, learning_rate=0.003, force_weight=10.0, verbose=0),
+                directory=tmp,
+                calculator_params=dict(
+                    elements=["Cu"],
+                    g2_params=[(0.1, 0.0), (0.2, 0.0)],
+                    g4_params=[(0.01, 1.0, 1.0)],
+                    r_cut=6.0,
+                    hidden_sizes=(16, 16),
+                ),
+            )
+            t.train(ds)
+            el, fl = _model_losses(pathlib.Path(tmp) / "nn_weights.npz", ds)
+            assert el < 0.5, f"energy loss not reduced: {el:.4f}"
+            assert fl < 0.25, f"force loss not reduced: {fl:.4f}"
