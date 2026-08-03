@@ -1,6 +1,8 @@
+import pathlib
 import tempfile
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from gdpx.potential.nnp.calculator import ACSFNN
 from gdpx.trainer.nnp_trainer import NnpTrainer
@@ -17,15 +19,13 @@ def _make_model(g2_params, g4_params, hidden_sizes=(16, 16)):
             1.0 / max(np.linalg.norm(pos[i] - pos[j]), 0.5)
             for i in range(n) for j in range(i + 1, n)
         )
-        a.info["energy"] = ref
+        a.calc = SinglePointCalculator(a, energy=ref)
         ds.append(a)
 
     with tempfile.TemporaryDirectory() as tmp:
         t = NnpTrainer(
-            config=dict(n_epochs=5, learning_rate=0.01, verbose=0), directory=tmp
-        )
-        t.train(
-            ds,
+            config=dict(n_epochs=5, learning_rate=0.01, verbose=0, force_weight=0.0),
+            directory=tmp,
             calculator_params=dict(
                 elements=["Cu"],
                 g2_params=g2_params,
@@ -34,8 +34,8 @@ def _make_model(g2_params, g4_params, hidden_sizes=(16, 16)):
                 hidden_sizes=hidden_sizes,
             ),
         )
-        from pathlib import Path
-        return ACSFNN(model_file=Path(tmp) / "nn_weights.npz")
+        t.train(ds)
+        return ACSFNN(model_file=pathlib.Path(tmp) / "nn_weights.npz")
 
 
 def fd_force(atoms, i, d, h=1e-6):
@@ -148,3 +148,126 @@ class TestRandomStructures:
                     fd = -(ep - em) / (2.0 * h)
                     max_diff = max(max_diff, abs(fd - atoms.get_forces()[i, d]))
             assert max_diff < 1e-6, f"n={n}: max FD diff = {max_diff:.2e}"
+
+
+class TestForceGradient:
+    def test_force_loss_gradient_matches_fd(self):
+        from gdpx.potential.nnp.descriptor import (
+            G2Param,
+            G4Param,
+            compute_forces,
+            compute_force_gradient_weights,
+            compute_n_features,
+            compute_symmetry_functions,
+        )
+        from gdpx.potential.nnp.nn import SimpleNN
+
+        np.random.seed(3)
+        elements = ["Cu", "Au"]
+        g2 = [G2Param(0.05, 0.0), G2Param(0.1, 0.0), G2Param(0.2, 0.5)]
+        g4 = [G4Param(0.01, 1.0, 1.0), G4Param(0.02, 2.0, -1.0)]
+        r_cut = 6.0
+        nfeat = compute_n_features(elements, g2, g4)
+        nn = SimpleNN(nfeat, hidden_sizes=(8, 8), seed=7)
+        atoms = Atoms("Cu2Au", positions=[[0, 0, 0], [2.5, 0, 0], [1.0, 2.0, 1.5]], pbc=False)
+        Fref = np.random.randn(3, 3) * 0.3
+        fw = 10.0
+        n_atoms = 3
+
+        def forces_pred():
+            G = compute_symmetry_functions(atoms, elements, g2, g4, r_cut)
+            _, dEdG = nn.energy_and_gradient(G)
+            return compute_forces(atoms, elements, g2, g4, r_cut, dEdG)
+
+        def loss():
+            return fw * np.mean((forces_pred() - Fref) ** 2)
+
+        G = compute_symmetry_functions(atoms, elements, g2, g4, r_cut)
+        _, dEdG = nn.energy_and_gradient(G)
+        dF = compute_forces(atoms, elements, g2, g4, r_cut, dEdG) - Fref
+        B = compute_force_gradient_weights(atoms, elements, g2, g4, r_cut, dF)
+        analytic = nn.double_backward(B)
+        scale = -2.0 * fw / (3.0 * n_atoms)
+        analytic = {
+            "weights": [w * scale for w in analytic["weights"]],
+            "biases": [b * scale for b in analytic["biases"]],
+        }
+
+        eps = 1e-6
+        max_err = 0.0
+        for wi, W in enumerate(nn.weights):
+            for p in np.ndindex(W.shape):
+                old = W[p]
+                W[p] = old + eps
+                Lp = loss()
+                W[p] = old - eps
+                Lm = loss()
+                W[p] = old
+                fd = (Lp - Lm) / (2.0 * eps)
+                max_err = max(max_err, abs(fd - analytic["weights"][wi][p]))
+        for bi, Bp in enumerate(nn.biases):
+            for p in np.ndindex(Bp.shape):
+                old = Bp[p]
+                Bp[p] = old + eps
+                Lp = loss()
+                Bp[p] = old - eps
+                Lm = loss()
+                Bp[p] = old
+                fd = (Lp - Lm) / (2.0 * eps)
+                max_err = max(max_err, abs(fd - analytic["biases"][bi][p]))
+        assert max_err < 1e-4, f"force-gradient FD error = {max_err:.2e}"
+
+
+class TestForceTraining:
+    def test_force_training_reduces_force_loss(self):
+        np.random.seed(1)
+        ds = []
+        for _ in range(3):
+            pos = np.random.randn(3, 3) * 1.5
+            ref = sum(
+                1.0 / max(np.linalg.norm(pos[i] - pos[j]), 0.5)
+                for i in range(3) for j in range(i + 1, 3)
+            )
+            forces = np.zeros((3, 3))
+            for i in range(3):
+                for j in range(i + 1, 3):
+                    d = max(np.linalg.norm(pos[i] - pos[j]), 0.5)
+                    rhat = (pos[i] - pos[j]) / np.linalg.norm(pos[i] - pos[j])
+                    forces[i] += (1.0 / d**2) * rhat
+                    forces[j] -= (1.0 / d**2) * rhat
+            a = Atoms("Cu3", positions=pos, pbc=False)
+            a.calc = SinglePointCalculator(a, energy=ref, forces=forces)
+            ds.append(a)
+
+        from gdpx.potential.nnp.calculator import ACSFNN
+        from gdpx.potential.nnp.descriptor import compute_forces
+
+        def eval_force_loss(model_path):
+            calc = ACSFNN(model_file=model_path)
+            fl = 0.0
+            for a in ds:
+                G = calc._compute_descriptor(a)
+                _, dEdG = calc.nn.energy_and_gradient(G)
+                Fp = compute_forces(
+                    a, calc.model_elements, calc.g2_params, calc.g4_params, calc.r_cut, dEdG
+                )
+                fl += np.mean((Fp - a.calc.results["forces"]) ** 2)
+            return fl / len(ds)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            t = NnpTrainer(
+                config=dict(
+                    n_epochs=40, learning_rate=0.05, force_weight=10.0, verbose=0
+                ),
+                directory=tmp,
+                calculator_params=dict(
+                    elements=["Cu"],
+                    g2_params=[(0.1, 0.0), (0.2, 0.0)],
+                    g4_params=[(0.01, 1.0, 1.0)],
+                    r_cut=6.0,
+                    hidden_sizes=(16, 16),
+                ),
+            )
+            t.train(ds)
+            final = eval_force_loss(pathlib.Path(tmp) / "nn_weights.npz")
+            assert final < 0.05, f"force loss not reduced: {final:.6f}"
