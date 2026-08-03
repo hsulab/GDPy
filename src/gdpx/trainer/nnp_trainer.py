@@ -207,7 +207,7 @@ class NnpTrainer(BasePotentialTrainer):
 
             if verbose and epoch % verbose == 0:
                 avg_loss = total_loss / n
-                print(f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  (E_weight={energy_weight}, F_weight={force_weight})")
+                self._print(f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  (E_weight={energy_weight}, F_weight={force_weight})")
 
         params = calc.nn.get_params()
         save_dict = {}
