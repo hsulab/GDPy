@@ -142,6 +142,46 @@ class SimpleNN:
             self.weights[i] -= lr * grads["weights"][i]
             self.biases[i] -= lr * grads["biases"][i]
 
+    def adam_update(self, grads, lr, state, beta1=0.9, beta2=0.999, eps=1e-8):
+        """Apply one Adam step (updates ``state`` in place).
+
+        Args:
+            grads: Dict with keys ``weights`` and ``biases``.
+            lr: Learning rate.
+            state: Dict with keys ``m_w``, ``v_w``, ``m_b``, ``v_b``, ``t``.
+                Created lazily if ``None``.
+
+        Returns:
+            The (possibly newly created) Adam state.
+        """
+        if state is None:
+            state = {
+                "m_w": [np.zeros_like(w) for w in self.weights],
+                "v_w": [np.zeros_like(w) for w in self.weights],
+                "m_b": [np.zeros_like(b) for b in self.biases],
+                "v_b": [np.zeros_like(b) for b in self.biases],
+                "t": 0,
+            }
+        t = state["t"] + 1
+        bc1 = 1.0 - beta1**t
+        bc2 = 1.0 - beta2**t
+        for i in range(len(self.weights)):
+            gw = grads["weights"][i]
+            mw = state["m_w"][i]
+            vw = state["v_w"][i]
+            mw[...] = beta1 * mw + (1.0 - beta1) * gw
+            vw[...] = beta2 * vw + (1.0 - beta2) * gw**2
+            self.weights[i] -= lr * (mw / bc1) / (np.sqrt(vw / bc2) + eps)
+
+            gb = grads["biases"][i]
+            mb = state["m_b"][i]
+            vb = state["v_b"][i]
+            mb[...] = beta1 * mb + (1.0 - beta1) * gb
+            vb[...] = beta2 * vb + (1.0 - beta2) * gb**2
+            self.biases[i] -= lr * (mb / bc1) / (np.sqrt(vb / bc2) + eps)
+        state["t"] = t
+        return state
+
     def get_params(self):
         return {
             "weights": [w.copy() for w in self.weights],
