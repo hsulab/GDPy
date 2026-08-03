@@ -79,6 +79,64 @@ class SimpleNN:
 
         return {"weights": d_weights, "biases": d_biases}
 
+    def double_backward(self, seed):
+        """Second-order backward pass.
+
+        Given the cached forward pass, compute the gradient of
+            Q = sum_{j,k} seed[j,k] * g[j,k]
+        with respect to all weights and biases, where ``g = dE/dx`` is the
+        input-layer gradient produced by ``backward()`` (seed = ones over
+        atoms).  This is the mixed second derivative ``d^2E/dx dW`` contracted
+        with ``seed`` and is needed for analytic force training.
+
+        Args:
+            seed: Array of shape ``(n_atoms, n_features)``.
+
+        Returns:
+            Dict with keys ``weights`` and ``biases`` holding ``dQ/dW`` and
+            ``dQ/db``.
+        """
+        if self._cache_acts is None:
+            raise RuntimeError("forward must be called before double_backward")
+        acts = self._cache_acts
+        n = len(self.weights)
+        m = seed.shape[0]
+
+        # Values of the first-order backward g-vectors.
+        # u[i] = dE/da_i  (derivative wrt activation of layer i)
+        # v[i] = dE/dz_{i+1} = u[i+1] * (1 - acts[i+1]^2)
+        u = [None] * n
+        v = [None] * (n - 1)
+        u[n - 1] = np.ones((m, 1)) @ self.weights[n - 1].T
+        for i in range(n - 2, -1, -1):
+            v[i] = u[i + 1] * (1.0 - acts[i + 1] ** 2)
+            u[i] = v[i] @ self.weights[i].T
+
+        dQ_dW = [np.zeros_like(w) for w in self.weights]
+        dQ_db = [np.zeros_like(b) for b in self.biases]
+        dQ_dacts = [np.zeros_like(a) for a in acts]
+
+        # Reverse mode through the backward chain (u[i] = v[i] @ W[i].T).
+        A = seed  # dQ/du[0]
+        for i in range(n - 1):
+            C = A @ self.weights[i]  # dQ/dv[i]
+            dQ_dW[i] += A.T @ v[i]  # from u[i] = v[i] @ W[i].T
+            # v[i] = u[i+1] * (1 - acts[i+1]**2)
+            dQ_dacts[i + 1] += C * u[i + 1] * (-2.0 * acts[i + 1])
+            A = C * (1.0 - acts[i + 1] ** 2)
+        # u[n-1] = ones @ W[n-1].T
+        dQ_dW[n - 1] += A.T @ np.ones((m, 1))
+
+        # Propagate through the forward activations (acts[i+1] = tanh(...)).
+        for i in range(n - 2, -1, -1):
+            t = dQ_dacts[i + 1] * (1.0 - acts[i + 1] ** 2)
+            dQ_dW[i] += acts[i].T @ t
+            dQ_db[i] += t.sum(axis=0)
+            if i > 0:
+                dQ_dacts[i] += t @ self.weights[i].T
+
+        return {"weights": dQ_dW, "biases": dQ_db}
+
     def update(self, grads, lr):
         for i in range(len(self.weights)):
             self.weights[i] -= lr * grads["weights"][i]

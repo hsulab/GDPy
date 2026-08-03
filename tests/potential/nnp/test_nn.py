@@ -57,3 +57,37 @@ class TestSimpleNN:
         assert np.allclose(e, e2)
         g2 = nn.gradient(self.x)
         assert np.allclose(g, g2)
+
+    def test_double_backward_fd(self):
+        eps = 1e-6
+        for hs in [(), (8,), (8, 4), (16, 8, 4)]:
+            nn = SimpleNN(6, hidden_sizes=hs, seed=42)
+            x = np.random.randn(5, 6) * 1.2
+            seed = np.random.randn(5, 6)
+
+            def Q():
+                nn.forward(x)
+                return np.sum(seed * nn.gradient(x))
+
+            nn.forward(x)
+            dQ = nn.double_backward(seed)
+            max_err = 0.0
+            for wi, W in enumerate(nn.weights):
+                for p in np.ndindex(W.shape):
+                    old = W[p]
+                    W[p] = old + eps
+                    Qp = Q()
+                    W[p] = old - eps
+                    Qm = Q()
+                    W[p] = old
+                    max_err = max(max_err, abs((Qp - Qm) / (2.0 * eps) - dQ["weights"][wi][p]))
+            for bi, B in enumerate(nn.biases):
+                for p in np.ndindex(B.shape):
+                    old = B[p]
+                    B[p] = old + eps
+                    Qp = Q()
+                    B[p] = old - eps
+                    Qm = Q()
+                    B[p] = old
+                    max_err = max(max_err, abs((Qp - Qm) / (2.0 * eps) - dQ["biases"][bi][p]))
+            assert max_err < 1e-4, f"hs={hs}: max double-backward FD error = {max_err:.2e}"

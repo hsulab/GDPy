@@ -127,9 +127,28 @@ class NnpTrainer(BasePotentialTrainer):
         np.savez_compressed(model_path, **save_dict)
 
         from gdpx.potential.nnp.calculator import ACSFNN
-        from gdpx.potential.nnp.descriptor import compute_forces
+        from gdpx.potential.nnp.descriptor import (
+            compute_forces,
+            compute_force_gradient_weights,
+        )
 
         calc = ACSFNN(model_file=model_path)
+
+        for idx, atoms in enumerate(dataset):
+            if atoms.calc is None or "energy" not in atoms.calc.results:
+                raise ValueError(
+                    f"Structure {idx} has no reference energy "
+                    "(atoms.get_potential_energy() unavailable). "
+                    "Provide reference energies in the dataset."
+                )
+            if force_weight > 0 and (
+                atoms.calc is None or "forces" not in atoms.calc.results
+            ):
+                raise ValueError(
+                    f"Structure {idx} has no reference forces "
+                    "(atoms.get_forces(apply_constraint=False) unavailable); "
+                    f"required since force_weight={force_weight}."
+                )
 
         for epoch in range(n_epochs):
             total_loss = 0.0
@@ -138,7 +157,7 @@ class NnpTrainer(BasePotentialTrainer):
             for atoms in dataset:
                 G = calc._compute_descriptor(atoms)
                 E_pred = float(np.sum(calc.nn.forward(G)))
-                E_ref = atoms.info.get("energy", 0.0)
+                E_ref = atoms.get_potential_energy()
                 dE = E_pred - E_ref
                 num_atoms = max(len(atoms), 1)
                 loss = energy_weight * dE**2 / num_atoms
@@ -146,10 +165,14 @@ class NnpTrainer(BasePotentialTrainer):
                 grad_output = np.full(len(atoms), 2.0 * energy_weight * dE / num_atoms)
                 grads = calc.nn.backward(grad_output)
 
-                if force_weight > 0 and "forces" in atoms.arrays:
+                if total_grads is None:
+                    total_grads = _copy_grads(grads)
+                else:
+                    _add_grads(total_grads, grads)
+
+                if force_weight > 0:
                     num_atoms = len(atoms)
-                    forces_ref = atoms.arrays["forces"]
-                    pos0 = atoms.positions.copy()
+                    forces_ref = atoms.get_forces(apply_constraint=False)
 
                     _, dE_dG = calc.nn.energy_and_gradient(G)
                     forces_pred = compute_forces(
@@ -164,35 +187,17 @@ class NnpTrainer(BasePotentialTrainer):
                     dF = forces_pred - forces_ref
                     loss += force_weight * np.mean(dF**2)
 
-                    if total_grads is None:
-                        total_grads = _copy_grads(grads)
-                    else:
-                        _add_grads(total_grads, grads)
-
-                    h_fd = 1e-5
-                    for ci in range(num_atoms):
-                        for d in range(3):
-                            atoms.positions[ci, d] = pos0[ci, d] + h_fd
-                            Gp = calc._compute_descriptor(atoms)
-                            calc.nn.forward(Gp)
-                            dE_dW_plus = calc.nn.backward()
-
-                            atoms.positions[ci, d] = pos0[ci, d] - h_fd
-                            Gm = calc._compute_descriptor(atoms)
-                            calc.nn.forward(Gm)
-                            dE_dW_minus = calc.nn.backward()
-
-                            atoms.positions[ci, d] = pos0[ci, d]
-
-                            gf = 2.0 * force_weight * dF[ci, d] / (3.0 * num_atoms)
-                            dF_dW = _sub_grads(dE_dW_plus, dE_dW_minus)
-                            _scale_grads(dF_dW, gf / (2.0 * h_fd))
-                            _add_grads(total_grads, dF_dW)
-                else:
-                    if total_grads is None:
-                        total_grads = _copy_grads(grads)
-                    else:
-                        _add_grads(total_grads, grads)
+                    B = compute_force_gradient_weights(
+                        atoms,
+                        elements,
+                        g2_params_raw,
+                        g4_params_raw,
+                        r_cut,
+                        dF,
+                    )
+                    force_grads = calc.nn.double_backward(B)
+                    _scale_grads(force_grads, -2.0 * force_weight / (3.0 * num_atoms))
+                    _add_grads(total_grads, force_grads)
 
                 total_loss += loss
 
@@ -255,13 +260,6 @@ def _add_grads(target, source):
         target["weights"][i] += source["weights"][i]
     for i in range(len(target["biases"])):
         target["biases"][i] += source["biases"][i]
-
-
-def _sub_grads(a, b):
-    return {
-        "weights": [aw - bw for aw, bw in zip(a["weights"], b["weights"])],
-        "biases": [ab - bb for ab, bb in zip(a["biases"], b["biases"])],
-    }
 
 
 def _scale_grads(grads, factor):

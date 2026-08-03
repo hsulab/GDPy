@@ -2,6 +2,7 @@ import tempfile
 import pathlib
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from gdpx.potential.nnp.calculator import ACSFNN
 from gdpx.trainer.nnp_trainer import NnpTrainer
 
@@ -14,7 +15,7 @@ def _train_minimal_model(extra_params=None):
         pos = np.random.randn(n, 3) * 2.0
         a = Atoms("Cu" * n, positions=pos, pbc=False)
         ref = 1.0 / max(np.linalg.norm(pos[0] - pos[1]), 0.5)
-        a.info["energy"] = ref
+        a.calc = SinglePointCalculator(a, energy=ref)
         ds.append(a)
 
     params = dict(
@@ -28,8 +29,12 @@ def _train_minimal_model(extra_params=None):
         params.update(extra_params)
 
     tmp = tempfile.mkdtemp()
-    t = NnpTrainer(config=dict(n_epochs=5, learning_rate=0.01, verbose=0), directory=tmp)
-    t.train(ds, calculator_params=params)
+    t = NnpTrainer(
+        config=dict(n_epochs=5, learning_rate=0.01, verbose=0, force_weight=0.0),
+        directory=tmp,
+        calculator_params=params,
+    )
+    t.train(ds)
     return ACSFNN(model_file=pathlib.Path(tmp) / "nn_weights.npz"), tmp
 
 
