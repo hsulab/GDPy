@@ -63,11 +63,11 @@ class NnpTrainer(BasePotentialTrainer):
         calculator_params = self.calculator_params
         train_config = self.config
         n_epochs = train_config.get("n_epochs", self.train_epochs)
-        learning_rate = train_config.get("learning_rate", 0.0001)
+        learning_rate = train_config.get("learning_rate", 0.001)
         energy_weight = train_config.get("energy_weight", 1.0)
         force_weight = train_config.get("force_weight", 0.1)
         verbose = train_config.get("verbose", 100)
-        max_grad_norm = train_config.get("max_grad_norm", 1.0)
+        max_grad_norm = train_config.get("max_grad_norm", None)
 
         if not calculator_params:
             raise ValueError(
@@ -109,6 +109,26 @@ class NnpTrainer(BasePotentialTrainer):
 
         nn = SimpleNN(n_features, hidden_sizes=hidden_sizes)
 
+        ref_energies = np.zeros(len(dataset))
+        for idx, atoms in enumerate(dataset):
+            if atoms.calc is None or "energy" not in atoms.calc.results:
+                raise ValueError(
+                    f"Structure {idx} has no reference energy "
+                    "(atoms.get_potential_energy() unavailable). "
+                    "Provide reference energies in the dataset."
+                )
+            ref_energies[idx] = atoms.get_potential_energy()
+            if force_weight > 0 and (
+                atoms.calc is None or "forces" not in atoms.calc.results
+            ):
+                raise ValueError(
+                    f"Structure {idx} has no reference forces "
+                    "(atoms.get_forces(apply_constraint=False) unavailable); "
+                    f"required since force_weight={force_weight}."
+                )
+
+        energy_shift = float(np.mean(ref_energies))
+
         model_path = train_dir / WEIGHTS_NAME
         save_dict = {}
         params = nn.get_params()
@@ -124,6 +144,7 @@ class NnpTrainer(BasePotentialTrainer):
         save_dict["g4_zeta"] = np.array([p.zeta for p in g4_norm])
         save_dict["g4_lambda_"] = np.array([p.lambda_ for p in g4_norm])
         save_dict["r_cut"] = np.float64(r_cut)
+        save_dict["energy_shift"] = np.float64(energy_shift)
         np.savez_compressed(model_path, **save_dict)
 
         from gdpx.potential.nnp.calculator import ACSFNN
@@ -134,21 +155,7 @@ class NnpTrainer(BasePotentialTrainer):
 
         calc = ACSFNN(model_file=model_path)
 
-        for idx, atoms in enumerate(dataset):
-            if atoms.calc is None or "energy" not in atoms.calc.results:
-                raise ValueError(
-                    f"Structure {idx} has no reference energy "
-                    "(atoms.get_potential_energy() unavailable). "
-                    "Provide reference energies in the dataset."
-                )
-            if force_weight > 0 and (
-                atoms.calc is None or "forces" not in atoms.calc.results
-            ):
-                raise ValueError(
-                    f"Structure {idx} has no reference forces "
-                    "(atoms.get_forces(apply_constraint=False) unavailable); "
-                    f"required since force_weight={force_weight}."
-                )
+        adam_state = None
 
         for epoch in range(n_epochs):
             total_loss = 0.0
@@ -157,7 +164,7 @@ class NnpTrainer(BasePotentialTrainer):
             for atoms in dataset:
                 G = calc._compute_descriptor(atoms)
                 E_pred = float(np.sum(calc.nn.forward(G)))
-                E_ref = atoms.get_potential_energy()
+                E_ref = atoms.get_potential_energy() - energy_shift
                 dE = E_pred - E_ref
                 num_atoms = max(len(atoms), 1)
                 loss = energy_weight * dE**2 / num_atoms
@@ -204,11 +211,12 @@ class NnpTrainer(BasePotentialTrainer):
             n = len(dataset)
             _scale_grads(total_grads, 1.0 / n)
 
-            grad_norm = _global_norm(total_grads)
-            if grad_norm > max_grad_norm:
-                _scale_grads(total_grads, max_grad_norm / grad_norm)
+            if max_grad_norm is not None:
+                grad_norm = _global_norm(total_grads)
+                if grad_norm > max_grad_norm:
+                    _scale_grads(total_grads, max_grad_norm / grad_norm)
 
-            calc.nn.update(total_grads, learning_rate)
+            calc.nn.adam_update(total_grads, learning_rate, adam_state)
 
             if verbose and epoch % verbose == 0:
                 avg_loss = total_loss / n
@@ -230,6 +238,7 @@ class NnpTrainer(BasePotentialTrainer):
         save_dict["g4_zeta"] = np.array([p.zeta for p in calc.g4_params])
         save_dict["g4_lambda_"] = np.array([p.lambda_ for p in calc.g4_params])
         save_dict["r_cut"] = np.float64(calc.r_cut)
+        save_dict["energy_shift"] = np.float64(energy_shift)
 
         np.savez_compressed(train_dir / WEIGHTS_NAME, **save_dict)
 

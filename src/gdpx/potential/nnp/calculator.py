@@ -41,6 +41,11 @@ class ACSFNN(Calculator):
             for i in range(n_g4)
         ]
         self.r_cut = float(np.asarray(loaded["r_cut"]).flat[0])
+        self.energy_shift = (
+            float(np.asarray(loaded["energy_shift"]).flat[0])
+            if "energy_shift" in loaded
+            else 0.0
+        )
 
         hidden_sizes = [int(x) for x in loaded["hidden_sizes"]]
         n_weights = sum(1 for k in loaded if k.startswith("W"))
@@ -72,7 +77,7 @@ class ACSFNN(Calculator):
 
         G = self._compute_descriptor(self.atoms)
         energy_per_atom, dE_dG = self.nn.energy_and_gradient(G)
-        self.results["energy"] = float(np.sum(energy_per_atom))
+        self.results["energy"] = float(np.sum(energy_per_atom)) + self.energy_shift
 
         if "forces" in properties:
             self.results["forces"] = compute_forces(
