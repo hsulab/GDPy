@@ -160,6 +160,9 @@ class NnpTrainer(BasePotentialTrainer):
         for epoch in range(n_epochs):
             total_loss = 0.0
             total_grads = None
+            e2_sum = 0.0
+            f2_sum = 0.0
+            f_ncomp = 0
 
             for atoms in dataset:
                 G = calc._compute_descriptor(atoms)
@@ -168,6 +171,7 @@ class NnpTrainer(BasePotentialTrainer):
                 dE = E_pred - E_ref
                 num_atoms = max(len(atoms), 1)
                 loss = energy_weight * dE**2 / num_atoms
+                e2_sum += (dE / num_atoms) ** 2
 
                 grad_output = np.full(len(atoms), 2.0 * energy_weight * dE / num_atoms)
                 grads = calc.nn.backward(grad_output)
@@ -193,6 +197,8 @@ class NnpTrainer(BasePotentialTrainer):
 
                     dF = forces_pred - forces_ref
                     loss += force_weight * np.mean(dF**2)
+                    f2_sum += float(np.sum(dF**2))
+                    f_ncomp += 3 * num_atoms
 
                     B = compute_force_gradient_weights(
                         atoms,
@@ -220,7 +226,14 @@ class NnpTrainer(BasePotentialTrainer):
 
             if verbose and epoch % verbose == 0:
                 avg_loss = total_loss / n
-                self._print(f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  (E_weight={energy_weight}, F_weight={force_weight})")
+                energy_rmse = np.sqrt(e2_sum / n)
+                force_rmse = np.sqrt(f2_sum / f_ncomp) if f_ncomp else 0.0
+                self._print(
+                    f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  "
+                    f"(E_weight={energy_weight}, F_weight={force_weight})  "
+                    f"energy_RMSE(per-atom) = {energy_rmse:.6f} eV, "
+                    f"force_RMSE = {force_rmse:.6f} eV/A"
+                )
 
         params = calc.nn.get_params()
         save_dict = {}
