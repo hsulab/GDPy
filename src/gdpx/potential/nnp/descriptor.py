@@ -63,9 +63,10 @@ def compute_symmetry_functions(atoms, elements, g2_params, g4_params, r_cut):
 
     i, j, rij, rij_vec = _get_neighbor_info(atoms, r_cut)
     fc = _cutoff_fn(rij, r_cut)
+    dfc = _d_cutoff_fn(rij, r_cut)
 
     _fill_g2(desc, i, j, rij, fc, symbols, elements, g2_params, n_g2)
-    _fill_g4(desc, i, j, rij, rij_vec, fc, r_cut, symbols, elements,
+    _fill_g4(desc, i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements,
              g4_params, n_g2, n_g4)
 
     return desc
@@ -106,14 +107,14 @@ def _get_neighbor_info(atoms, r_cut):
 
 
 def _fill_g2(desc, i, j, rij, fc, symbols, elements, g2_params, n_g2):
+    g2_eta = np.array([p.eta for p in g2_params])
+    g2_Rs = np.array([p.Rs for p in g2_params])
+    contrib = np.exp(-g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) ** 2) * fc[None, :]
     for ie, ne in enumerate(elements):
         nei_mask = symbols[j] == ne
         offset = ie * n_g2
-        for ip, p in enumerate(g2_params):
-            contrib = np.exp(-p.eta * (rij - p.Rs) ** 2) * fc
-            for idx in range(len(i)):
-                if nei_mask[idx]:
-                    desc[i[idx], offset + ip] += contrib[idx]
+        for ip in range(n_g2):
+            np.add.at(desc, (i[nei_mask], offset + ip), contrib[ip, nei_mask])
 
 
 def compute_force_gradient_weights(atoms, elements, g2_params, g4_params,
@@ -153,315 +154,258 @@ def compute_force_gradient_weights(atoms, elements, g2_params, g4_params,
 
 def _g2_force_weights(B, i, j, rij, rij_vec, fc, dfc, symbols,
                       elements, g2_params, n_g2, dF):
-    for idx in range(len(i)):
-        ci = i[idx]
-        cj = j[idx]
-        if ci >= cj:
-            continue
-        rij_val = rij[idx]
-        r_hat = rij_vec[idx] / rij_val
-        fcij = fc[idx]
-        dfcij = dfc[idx]
-        dF_diff = np.dot(dF[cj] - dF[ci], r_hat)
+    mask = i < j
+    r_hat = rij_vec / rij[:, None]
+    dF_diff = np.einsum('ij,ij->i', dF[j] - dF[i], r_hat)
+    g2_eta = np.array([p.eta for p in g2_params])
+    g2_Rs = np.array([p.Rs for p in g2_params])
+    g2v = np.exp(-g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) ** 2)
+    dg2_dr = (-2.0 * g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) * g2v
+              * fc[None, :] + g2v * dfc[None, :])
 
-        for ie, ne in enumerate(elements):
-            if symbols[cj] != ne:
-                continue
-            for ip, p in enumerate(g2_params):
-                g2 = np.exp(-p.eta * (rij_val - p.Rs) ** 2)
-                dg2_dr = (-2.0 * p.eta * (rij_val - p.Rs) * g2 * fcij
-                          + g2 * dfcij)
-                B[ci, ie * n_g2 + ip] += dF_diff * dg2_dr
-
-        for ie, ne in enumerate(elements):
-            if symbols[ci] != ne:
-                continue
-            for ip, p in enumerate(g2_params):
-                g2 = np.exp(-p.eta * (rij_val - p.Rs) ** 2)
-                dg2_dr = (-2.0 * p.eta * (rij_val - p.Rs) * g2 * fcij
-                          + g2 * dfcij)
-                B[cj, ie * n_g2 + ip] += dF_diff * dg2_dr
+    for ie, ne in enumerate(elements):
+        mask_j = symbols[j] == ne
+        mask_i = symbols[i] == ne
+        offset = ie * n_g2
+        for ip in range(n_g2):
+            sel = mask & mask_j
+            np.add.at(B, (i[sel], offset + ip), dF_diff[sel] * dg2_dr[ip, sel])
+            sel = mask & mask_i
+            np.add.at(B, (j[sel], offset + ip), dF_diff[sel] * dg2_dr[ip, sel])
 
 
 def _g2_forces(forces, i, j, rij, rij_vec, fc, dfc, symbols,
                elements, g2_params, n_g2, dE_dG):
-    for idx in range(len(i)):
-        ci = i[idx]
-        cj = j[idx]
-        if ci >= cj:
+    mask = i < j
+    r_hat = rij_vec / rij[:, None]
+    g2_eta = np.array([p.eta for p in g2_params])
+    g2_Rs = np.array([p.Rs for p in g2_params])
+    g2v = np.exp(-g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) ** 2)
+    dg2_dr = (-2.0 * g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) * g2v
+              * fc[None, :] + g2v * dfc[None, :])
+
+    dEdr = np.zeros(len(i))
+    for ie, ne in enumerate(elements):
+        mask_j = symbols[j] == ne
+        mask_i = symbols[i] == ne
+        offset = ie * n_g2
+        for ip in range(n_g2):
+            sel = mask & mask_j
+            dEdr[sel] += dE_dG[i[sel], offset + ip] * dg2_dr[ip, sel]
+            sel = mask & mask_i
+            dEdr[sel] += dE_dG[j[sel], offset + ip] * dg2_dr[ip, sel]
+
+    np.add.at(forces, i[mask], dEdr[mask, None] * r_hat[mask])
+    np.add.at(forces, j[mask], -dEdr[mask, None] * r_hat[mask])
+
+
+def _g4_pairs(i_idx, j_idx, rij, rij_vec, fc, dfc, r_cut, symbols, elements):
+    """Yield per-central-atom vectorized G4 pair data.
+
+    For each central atom with at least two valid neighbor pairs, yield a dict
+    of arrays (over the ``a < b`` pairs of its neighbors) with keys:
+    ``ja``, ``jb``, ``pid``, ``ru``, ``rv``, ``rw``, ``u_hat``, ``v_hat``,
+    ``w_hat``, ``cos``, ``fcu``, ``fcv``, ``fcw``, ``dfcu``, ``dfcv``,
+    ``dfcw``.
+    """
+    n_elem = len(elements)
+    elem_idx = {e: k for k, e in enumerate(elements)}
+    atom_elem = np.array([elem_idx.get(s, -1) for s in symbols])
+
+    for ci in range(len(symbols)):
+        nei = np.flatnonzero(i_idx == ci)
+        n_n = len(nei)
+        if n_n < 2:
             continue
-        rij_val = rij[idx]
-        r_hat = rij_vec[idx] / rij_val
-        fcij = fc[idx]
-        dfcij = dfc[idx]
-        dEdr = 0.0
+        ai, bi = np.triu_indices(n_n, 1)
+        ia = nei[ai]
+        ib = nei[bi]
+        ja = j_idx[ia]
+        jb = j_idx[ib]
+        ea = atom_elem[ja]
+        eb = atom_elem[jb]
+        ok = (ea >= 0) & (eb >= 0)
+        if not np.any(ok):
+            continue
+        ia = ia[ok]
+        ib = ib[ok]
+        ja = ja[ok]
+        jb = jb[ok]
+        ea = ea[ok]
+        eb = eb[ok]
+        ru = rij[ia]
+        rv = rij[ib]
+        u_vec = rij_vec[ia]
+        v_vec = rij_vec[ib]
+        w_vec = u_vec - v_vec
+        rw = np.linalg.norm(w_vec, axis=1)
+        ok = rw < r_cut
+        if not np.any(ok):
+            continue
+        ia = ia[ok]
+        ib = ib[ok]
+        ja = ja[ok]
+        jb = jb[ok]
+        ea = ea[ok]
+        eb = eb[ok]
+        ru = ru[ok]
+        rv = rv[ok]
+        u_vec = u_vec[ok]
+        v_vec = v_vec[ok]
+        w_vec = w_vec[ok]
+        rw = rw[ok]
+        lo = np.minimum(ea, eb)
+        hi = np.maximum(ea, eb)
+        pid = lo * n_elem - lo * (lo - 1) // 2 + (hi - lo)
+        fcu = fc[ia]
+        fcv = fc[ib]
+        fcw = _cutoff_fn(rw, r_cut)
+        dfcu = dfc[ia]
+        dfcv = dfc[ib]
+        dfcw = _d_cutoff_fn(rw, r_cut)
+        dot = np.einsum('ij,ij->i', u_vec, v_vec)
+        cos = np.clip(dot / (ru * rv + 1e-15), -1.0, 1.0)
+        u_hat = u_vec / ru[:, None]
+        v_hat = v_vec / rv[:, None]
+        w_hat = w_vec / rw[:, None]
+        w_hat[rw <= 1e-15] = 0.0
+        yield dict(
+            ci=ci, ja=ja, jb=jb, pid=pid, ru=ru, rv=rv, rw=rw,
+            u_hat=u_hat, v_hat=v_hat, w_hat=w_hat, cos=cos,
+            fcu=fcu, fcv=fcv, fcw=fcw, dfcu=dfcu, dfcv=dfcv, dfcw=dfcw,
+        )
 
-        for ie, ne in enumerate(elements):
-            if symbols[cj] != ne:
-                continue
-            for ip, p in enumerate(g2_params):
-                g2 = np.exp(-p.eta * (rij_val - p.Rs) ** 2)
-                dg2_dr = (-2.0 * p.eta * (rij_val - p.Rs) * g2 * fcij
-                          + g2 * dfcij)
-                feat_idx = ie * n_g2 + ip
-                dEdr += dE_dG[ci, feat_idx] * dg2_dr
 
-        for ie, ne in enumerate(elements):
-            if symbols[ci] != ne:
-                continue
-            for ip, p in enumerate(g2_params):
-                g2 = np.exp(-p.eta * (rij_val - p.Rs) ** 2)
-                dg2_dr = (-2.0 * p.eta * (rij_val - p.Rs) * g2 * fcij
-                          + g2 * dfcij)
-                feat_idx = ie * n_g2 + ip
-                dEdr += dE_dG[cj, feat_idx] * dg2_dr
-
-        forces[ci] += dEdr * r_hat
-        forces[cj] -= dEdr * r_hat
-
-
-def _pair_index(elements, ej, ek):
-    a = elements.index(ej)
-    b = elements.index(ek)
-    i, j = (a, b) if a <= b else (b, a)
-    n = len(elements)
-    return i * n - i * (i - 1) // 2 + (j - i)
-
-
-def _fill_g4(desc, i, j, rij, rij_vec, fc, r_cut, symbols, elements,
+def _fill_g4(desc, i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements,
              g4_params, n_g2, n_g4):
-    natoms = len(symbols)
     n_elem = len(elements)
     g4_offset = n_elem * n_g2
+    g4_eta = np.array([p.eta for p in g4_params])
+    g4_zeta = np.array([p.zeta for p in g4_params])
+    g4_lambda = np.array([p.lambda_ for p in g4_params])
+    g4_amp = np.array([2.0 ** (1.0 - p.zeta) for p in g4_params])
 
-    for ci in range(natoms):
-        nei_mask = i == ci
-        nei_idx = np.where(nei_mask)[0]
-        n_n = len(nei_idx)
-        if n_n < 2:
-            continue
-        for a in range(n_n):
-            for b in range(a + 1, n_n):
-                ia = nei_idx[a]
-                ib = nei_idx[b]
-                ja = j[ia]
-                jb = j[ib]
-                ej, ek = symbols[ja], symbols[jb]
-                if ej not in elements or ek not in elements:
-                    continue
-                pid = _pair_index(elements, ej, ek)
-                rija = rij[ia]
-                rikb = rij[ib]
-                rjk_vec = rij_vec[ia] - rij_vec[ib]
-                rjk = np.linalg.norm(rjk_vec)
-                if rjk > r_cut:
-                    continue
-                fcij = fc[ia]
-                fcik = fc[ib]
-                fcjk = _cutoff_fn(rjk, r_cut)
-                dot = np.dot(rij_vec[ia], rij_vec[ib])
-                cos_theta = np.clip(dot / (rija * rikb + 1e-15), -1.0, 1.0)
-
-                for ip, p in enumerate(g4_params):
-                    val = (2.0 ** (1.0 - p.zeta)
-                           * (1.0 + p.lambda_ * cos_theta) ** p.zeta
-                           * np.exp(-p.eta * (rija ** 2 + rikb ** 2 + rjk ** 2))
-                           * fcij * fcik * fcjk)
-                    desc[ci, g4_offset + pid * n_g4 + ip] += val
+    for p in _g4_pairs(i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements):
+        ci = p["ci"]
+        r2 = p["ru"] ** 2 + p["rv"] ** 2 + p["rw"] ** 2
+        fcm = p["fcu"] * p["fcv"] * p["fcw"]
+        vals = (g4_amp[:, None]
+                * (1.0 + g4_lambda[:, None] * p["cos"][None, :]) ** g4_zeta[:, None]
+                * np.exp(-g4_eta[:, None] * r2[None, :])
+                * fcm[None, :])
+        for ip in range(n_g4):
+            for pidk in np.unique(p["pid"]):
+                m = p["pid"] == pidk
+                desc[ci, g4_offset + pidk * n_g4 + ip] += vals[ip, m].sum()
 
 
-def _g4_forces(forces, i_idx, j_idx, rij, rij_vec, fc, dfc, r_cut, symbols,
+def _g4_derivatives(eta, zeta, lam, amp, p):
+    """Return (dG4_dci, dG4_dja, dG4_djb) for one G4 parameter."""
+    ru, rv, rw = p["ru"], p["rv"], p["rw"]
+    cos = p["cos"]
+    r2 = ru ** 2 + rv ** 2 + rw ** 2
+    fcm = p["fcu"] * p["fcv"] * p["fcw"]
+    u_hat, v_hat, w_hat = p["u_hat"], p["v_hat"], p["w_hat"]
+    c1 = cos[:, None]
+
+    A = amp
+    Bv = (1.0 + lam * cos) ** zeta
+    C = np.exp(-eta * r2)
+    D = fcm
+
+    pref_ang = A * C * D
+    ang_deriv = zeta * lam * (1.0 + lam * cos) ** (zeta - 1.0)
+    dB_dcos = pref_ang * ang_deriv
+
+    pref_exp = A * Bv * D * C
+    exp_pre = -2.0 * eta
+
+    pref_fc_ja = A * Bv * C * p["fcv"] * p["fcw"]
+    pref_fc_jb = A * Bv * C * p["fcu"] * p["fcw"]
+    pref_fc_jab = A * Bv * C * p["fcu"] * p["fcv"]
+
+    dcos_dci = (c1 * u_hat - v_hat) / ru[:, None] \
+        + (c1 * v_hat - u_hat) / rv[:, None]
+    dcos_dja = (v_hat - c1 * u_hat) / ru[:, None]
+    dcos_djb = (u_hat - c1 * v_hat) / rv[:, None]
+
+    dri_dci = -u_hat
+    dri_dja = u_hat
+    dri_djb = np.zeros_like(u_hat)
+    drk_dci = -v_hat
+    drk_dja = np.zeros_like(v_hat)
+    drk_djb = v_hat
+    drjk_dci = np.zeros_like(w_hat)
+    drjk_dja = w_hat
+    drjk_djb = -w_hat
+
+    dG4_dci = _g4_gradient_v(dB_dcos, dcos_dci, pref_exp, exp_pre,
+        ru, dri_dci, rv, drk_dci, rw, drjk_dci,
+        pref_fc_ja, p["dfcu"], dri_dci, pref_fc_jb, p["dfcv"], drk_dci,
+        pref_fc_jab, p["dfcw"], drjk_dci)
+    dG4_dja = _g4_gradient_v(dB_dcos, dcos_dja, pref_exp, exp_pre,
+        ru, dri_dja, rv, drk_dja, rw, drjk_dja,
+        pref_fc_ja, p["dfcu"], dri_dja, pref_fc_jb, p["dfcv"], drk_dja,
+        pref_fc_jab, p["dfcw"], drjk_dja)
+    dG4_djb = _g4_gradient_v(dB_dcos, dcos_djb, pref_exp, exp_pre,
+        ru, dri_djb, rv, drk_djb, rw, drjk_djb,
+        pref_fc_ja, p["dfcu"], dri_djb, pref_fc_jb, p["dfcv"], drk_djb,
+        pref_fc_jab, p["dfcw"], drjk_djb)
+    return dG4_dci, dG4_dja, dG4_djb
+
+
+def _g4_gradient_v(dB_dcos, dcos, pref_exp, exp_pre,
+                   r_ij, dri, r_ik, drk, r_jk, drjk,
+                   pref_fc_ij, dfc_ij, dri_term,
+                   pref_fc_ik, dfc_ik, drk_term,
+                   pref_fc_jk, dfc_jk, drjk_term):
+    return (dB_dcos[:, None] * dcos
+            + pref_exp[:, None] * exp_pre
+            * (r_ij[:, None] * dri + r_ik[:, None] * drk + r_jk[:, None] * drjk)
+            + pref_fc_ij[:, None] * dfc_ij[:, None] * dri_term
+            + pref_fc_ik[:, None] * dfc_ik[:, None] * drk_term
+            + pref_fc_jk[:, None] * dfc_jk[:, None] * drjk_term)
+
+
+def _g4_forces(forces, i, j, rij, rij_vec, fc, dfc, r_cut, symbols,
                elements, g4_params, n_g2, n_g4, dE_dG):
-    natoms = len(symbols)
     n_elem = len(elements)
     g4_offset = n_elem * n_g2
+    g4_eta = np.array([p.eta for p in g4_params])
+    g4_zeta = np.array([p.zeta for p in g4_params])
+    g4_lambda = np.array([p.lambda_ for p in g4_params])
+    g4_amp = np.array([2.0 ** (1.0 - p.zeta) for p in g4_params])
 
-    for ci in range(natoms):
-        nei_mask = i_idx == ci
-        nei_idx = np.where(nei_mask)[0]
-        n_n = len(nei_idx)
-        if n_n < 2:
-            continue
-        for a in range(n_n):
-            for b in range(a + 1, n_n):
-                ia = nei_idx[a]
-                ib = nei_idx[b]
-                ja = j_idx[ia]
-                jb = j_idx[ib]
-                ej, ek = symbols[ja], symbols[jb]
-                if ej not in elements or ek not in elements:
-                    continue
-                pid = _pair_index(elements, ej, ek)
-
-                r_ci_ja = rij[ia]
-                r_ci_jb = rij[ib]
-                u_vec = rij_vec[ia]
-                v_vec = rij_vec[ib]
-                w_vec = u_vec - v_vec
-                r_ja_jb = np.linalg.norm(w_vec)
-                if r_ja_jb > r_cut:
-                    continue
-                fc_ci_ja = fc[ia]
-                fc_ci_jb = fc[ib]
-                fc_ja_jb = _cutoff_fn(r_ja_jb, r_cut)
-                dfc_ci_ja = dfc[ia]
-                dfc_ci_jb = dfc[ib]
-                dfc_ja_jb = _d_cutoff_fn(r_ja_jb, r_cut)
-
-                dot = np.dot(u_vec, v_vec)
-                cos_theta = np.clip(dot / (r_ci_ja * r_ci_jb + 1e-15), -1.0, 1.0)
-                u_hat = u_vec / r_ci_ja
-                v_hat = v_vec / r_ci_jb
-                w_hat = w_vec / r_ja_jb if r_ja_jb > 1e-15 else np.zeros(3)
-
-                for ip, p in enumerate(g4_params):
-                    w = dE_dG[ci, g4_offset + pid * n_g4 + ip]
-
-                    A = 2.0 ** (1.0 - p.zeta)
-                    B = (1.0 + p.lambda_ * cos_theta) ** p.zeta
-                    C = np.exp(-p.eta * (r_ci_ja ** 2 + r_ci_jb ** 2 + r_ja_jb ** 2))
-                    D = fc_ci_ja * fc_ci_jb * fc_ja_jb
-
-                    pref_ang = A * C * D
-                    ang_deriv = p.zeta * p.lambda_ * (1.0 + p.lambda_ * cos_theta) ** (p.zeta - 1.0)
-                    dB_dcos = pref_ang * ang_deriv
-
-                    pref_exp = A * B * D * C
-                    exp_pre = -2.0 * p.eta
-
-                    pref_fc_ja = A * B * C * fc_ci_jb * fc_ja_jb
-                    pref_fc_jb = A * B * C * fc_ci_ja * fc_ja_jb
-                    pref_fc_jab = A * B * C * fc_ci_ja * fc_ci_jb
-
-                    dcos_dci = (cos_theta * u_hat - v_hat) / r_ci_ja \
-                               + (cos_theta * v_hat - u_hat) / r_ci_jb
-                    dcos_dja = (v_hat - cos_theta * u_hat) / r_ci_ja
-                    dcos_djb = (u_hat - cos_theta * v_hat) / r_ci_jb
-
-                    dri_dci = -u_hat;    dri_dja = u_hat;        dri_djb = np.zeros(3)
-                    drk_dci = -v_hat;    drk_dja = np.zeros(3);   drk_djb = v_hat
-                    drjk_dci = np.zeros(3); drjk_dja = w_hat;    drjk_djb = -w_hat
-
-                    dG4_dci = _g4_gradient(dB_dcos, dcos_dci, pref_exp, exp_pre,
-                        r_ci_ja, dri_dci, r_ci_jb, drk_dci, r_ja_jb, drjk_dci,
-                        pref_fc_ja, dfc_ci_ja, dri_dci,
-                        pref_fc_jb, dfc_ci_jb, drk_dci,
-                        pref_fc_jab, dfc_ja_jb, drjk_dci)
-                    dG4_dja = _g4_gradient(dB_dcos, dcos_dja, pref_exp, exp_pre,
-                        r_ci_ja, dri_dja, r_ci_jb, drk_dja, r_ja_jb, drjk_dja,
-                        pref_fc_ja, dfc_ci_ja, dri_dja,
-                        pref_fc_jb, dfc_ci_jb, drk_dja,
-                        pref_fc_jab, dfc_ja_jb, drjk_dja)
-                    dG4_djb = _g4_gradient(dB_dcos, dcos_djb, pref_exp, exp_pre,
-                        r_ci_ja, dri_djb, r_ci_jb, drk_djb, r_ja_jb, drjk_djb,
-                        pref_fc_ja, dfc_ci_ja, dri_djb,
-                        pref_fc_jb, dfc_ci_jb, drk_djb,
-                        pref_fc_jab, dfc_ja_jb, drjk_djb)
-
-                    forces[ci] -= w * dG4_dci
-                    forces[ja] -= w * dG4_dja
-                    forces[jb] -= w * dG4_djb
+    for p in _g4_pairs(i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements):
+        ci = p["ci"]
+        for ip in range(n_g4):
+            w = dE_dG[ci, g4_offset + p["pid"] * n_g4 + ip]
+            dG4_dci, dG4_dja, dG4_djb = _g4_derivatives(
+                g4_eta[ip], g4_zeta[ip], g4_lambda[ip], g4_amp[ip], p
+            )
+            forces[ci] -= np.sum(w[:, None] * dG4_dci, axis=0)
+            np.add.at(forces, p["ja"], -w[:, None] * dG4_dja)
+            np.add.at(forces, p["jb"], -w[:, None] * dG4_djb)
 
 
-def _g4_force_weights(B, i_idx, j_idx, rij, rij_vec, fc, dfc, r_cut, symbols,
+def _g4_force_weights(B, i, j, rij, rij_vec, fc, dfc, r_cut, symbols,
                       elements, g4_params, n_g2, n_g4, dF):
-    natoms = len(symbols)
     n_elem = len(elements)
     g4_offset = n_elem * n_g2
+    g4_eta = np.array([p.eta for p in g4_params])
+    g4_zeta = np.array([p.zeta for p in g4_params])
+    g4_lambda = np.array([p.lambda_ for p in g4_params])
+    g4_amp = np.array([2.0 ** (1.0 - p.zeta) for p in g4_params])
 
-    for ci in range(natoms):
-        nei_mask = i_idx == ci
-        nei_idx = np.where(nei_mask)[0]
-        n_n = len(nei_idx)
-        if n_n < 2:
-            continue
-        for a in range(n_n):
-            for b in range(a + 1, n_n):
-                ia = nei_idx[a]
-                ib = nei_idx[b]
-                ja = j_idx[ia]
-                jb = j_idx[ib]
-                ej, ek = symbols[ja], symbols[jb]
-                if ej not in elements or ek not in elements:
-                    continue
-                pid = _pair_index(elements, ej, ek)
-
-                r_ci_ja = rij[ia]
-                r_ci_jb = rij[ib]
-                u_vec = rij_vec[ia]
-                v_vec = rij_vec[ib]
-                w_vec = u_vec - v_vec
-                r_ja_jb = np.linalg.norm(w_vec)
-                if r_ja_jb > r_cut:
-                    continue
-                fc_ci_ja = fc[ia]
-                fc_ci_jb = fc[ib]
-                fc_ja_jb = _cutoff_fn(r_ja_jb, r_cut)
-                dfc_ci_ja = dfc[ia]
-                dfc_ci_jb = dfc[ib]
-                dfc_ja_jb = _d_cutoff_fn(r_ja_jb, r_cut)
-
-                dot = np.dot(u_vec, v_vec)
-                cos_theta = np.clip(dot / (r_ci_ja * r_ci_jb + 1e-15), -1.0, 1.0)
-                u_hat = u_vec / r_ci_ja
-                v_hat = v_vec / r_ci_jb
-                w_hat = w_vec / r_ja_jb if r_ja_jb > 1e-15 else np.zeros(3)
-
-                for ip, p in enumerate(g4_params):
-                    A = 2.0 ** (1.0 - p.zeta)
-                    Bval = (1.0 + p.lambda_ * cos_theta) ** p.zeta
-                    C = np.exp(-p.eta * (r_ci_ja ** 2 + r_ci_jb ** 2 + r_ja_jb ** 2))
-                    D = fc_ci_ja * fc_ci_jb * fc_ja_jb
-
-                    pref_ang = A * C * D
-                    ang_deriv = p.zeta * p.lambda_ * (1.0 + p.lambda_ * cos_theta) ** (p.zeta - 1.0)
-                    dB_dcos = pref_ang * ang_deriv
-
-                    pref_exp = A * Bval * D * C
-                    exp_pre = -2.0 * p.eta
-
-                    pref_fc_ja = A * Bval * C * fc_ci_jb * fc_ja_jb
-                    pref_fc_jb = A * Bval * C * fc_ci_ja * fc_ja_jb
-                    pref_fc_jab = A * Bval * C * fc_ci_ja * fc_ci_jb
-
-                    dcos_dci = (cos_theta * u_hat - v_hat) / r_ci_ja \
-                               + (cos_theta * v_hat - u_hat) / r_ci_jb
-                    dcos_dja = (v_hat - cos_theta * u_hat) / r_ci_ja
-                    dcos_djb = (u_hat - cos_theta * v_hat) / r_ci_jb
-
-                    dri_dci = -u_hat;    dri_dja = u_hat;        dri_djb = np.zeros(3)
-                    drk_dci = -v_hat;    drk_dja = np.zeros(3);   drk_djb = v_hat
-                    drjk_dci = np.zeros(3); drjk_dja = w_hat;    drjk_djb = -w_hat
-
-                    dG4_dci = _g4_gradient(dB_dcos, dcos_dci, pref_exp, exp_pre,
-                        r_ci_ja, dri_dci, r_ci_jb, drk_dci, r_ja_jb, drjk_dci,
-                        pref_fc_ja, dfc_ci_ja, dri_dci,
-                        pref_fc_jb, dfc_ci_jb, drk_dci,
-                        pref_fc_jab, dfc_ja_jb, drjk_dci)
-                    dG4_dja = _g4_gradient(dB_dcos, dcos_dja, pref_exp, exp_pre,
-                        r_ci_ja, dri_dja, r_ci_jb, drk_dja, r_ja_jb, drjk_dja,
-                        pref_fc_ja, dfc_ci_ja, dri_dja,
-                        pref_fc_jb, dfc_ci_jb, drk_dja,
-                        pref_fc_jab, dfc_ja_jb, drjk_dja)
-                    dG4_djb = _g4_gradient(dB_dcos, dcos_djb, pref_exp, exp_pre,
-                        r_ci_ja, dri_djb, r_ci_jb, drk_djb, r_ja_jb, drjk_djb,
-                        pref_fc_ja, dfc_ci_ja, dri_djb,
-                        pref_fc_jb, dfc_ci_jb, drk_djb,
-                        pref_fc_jab, dfc_ja_jb, drjk_djb)
-
-                    feat_idx = g4_offset + pid * n_g4 + ip
-                    B[ci, feat_idx] += (np.dot(dF[ci], dG4_dci)
-                                        + np.dot(dF[ja], dG4_dja)
-                                        + np.dot(dF[jb], dG4_djb))
-
-
-def _g4_gradient(dB_dcos, dcos, pref_exp, exp_pre,
-                 r_ij, dri, r_ik, drk, r_jk, drjk,
-                 pref_fc_ij, dfc_ij, dri_term,
-                 pref_fc_ik, dfc_ik, drk_term,
-                 pref_fc_jk, dfc_jk, drjk_term):
-    return (dB_dcos * dcos
-            + pref_exp * exp_pre * (r_ij * dri + r_ik * drk + r_jk * drjk)
-            + pref_fc_ij * dfc_ij * dri_term
-            + pref_fc_ik * dfc_ik * drk_term
-            + pref_fc_jk * dfc_jk * drjk_term)
+    for p in _g4_pairs(i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements):
+        ci = p["ci"]
+        n_p = len(p["pid"])
+        for ip in range(n_g4):
+            dG4_dci, dG4_dja, dG4_djb = _g4_derivatives(
+                g4_eta[ip], g4_zeta[ip], g4_lambda[ip], g4_amp[ip], p
+            )
+            feat = g4_offset + p["pid"] * n_g4 + ip
+            contrib = (np.einsum('ij,ij->i', dG4_dci, np.broadcast_to(dF[ci], dG4_dci.shape))
+                       + np.einsum('ij,ij->i', dG4_dja, dF[p["ja"]])
+                       + np.einsum('ij,ij->i', dG4_djb, dF[p["jb"]]))
+            np.add.at(B, (np.full(n_p, ci), feat), contrib)
