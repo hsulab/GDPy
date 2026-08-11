@@ -1,4 +1,5 @@
 from collections import namedtuple
+from dataclasses import dataclass
 
 import numpy as np
 from ase.neighborlist import neighbor_list
@@ -6,6 +7,71 @@ from ase.neighborlist import neighbor_list
 
 G2Param = namedtuple("G2Param", ["eta", "Rs"])
 G4Param = namedtuple("G4Param", ["eta", "zeta", "lambda_"])
+
+
+@dataclass(frozen=True)
+class SparseDescriptorJacobian:
+    """Sparse coordinate derivatives of atom-centred descriptors.
+
+    Each entry stores ``dG[descriptor_atom, feature] / dr[coordinate_atom]``
+    as a three-vector. Duplicate entries are allowed and are accumulated by
+    the contraction methods.
+    """
+
+    n_atoms: int
+    n_features: int
+    descriptor_atoms: np.ndarray
+    features: np.ndarray
+    coordinate_atoms: np.ndarray
+    values: np.ndarray
+
+    @property
+    def nbytes(self):
+        return sum(
+            array.nbytes
+            for array in (
+                self.descriptor_atoms,
+                self.features,
+                self.coordinate_atoms,
+                self.values,
+            )
+        )
+
+    def forces(self, dE_dG):
+        """Contract the Jacobian with ``dE/dG`` and return ``-dE/dr``."""
+        dE_dG = np.asarray(dE_dG)
+        if dE_dG.shape != (self.n_atoms, self.n_features):
+            raise ValueError(
+                f"dE_dG has shape {dE_dG.shape}; expected "
+                f"{(self.n_atoms, self.n_features)}."
+            )
+        forces = np.zeros((self.n_atoms, 3), dtype=float)
+        coefficients = dE_dG[self.descriptor_atoms, self.features]
+        np.add.at(
+            forces,
+            self.coordinate_atoms,
+            -coefficients[:, None] * self.values,
+        )
+        return forces
+
+    def adjoint(self, force_residual):
+        """Contract coordinate derivatives with a force residual."""
+        force_residual = np.asarray(force_residual)
+        if force_residual.shape != (self.n_atoms, 3):
+            raise ValueError(
+                f"force_residual has shape {force_residual.shape}; expected "
+                f"{(self.n_atoms, 3)}."
+            )
+        result = np.zeros((self.n_atoms, self.n_features), dtype=float)
+        contributions = np.einsum(
+            "ij,ij->i", self.values, force_residual[self.coordinate_atoms]
+        )
+        np.add.at(
+            result,
+            (self.descriptor_atoms, self.features),
+            contributions,
+        )
+        return result
 
 
 def _normalize_params(params, param_type):
@@ -72,6 +138,131 @@ def compute_symmetry_functions(atoms, elements, g2_params, g4_params, r_cut):
     return desc
 
 
+def compute_symmetry_functions_and_derivatives(
+    atoms, elements, g2_params, g4_params, r_cut
+):
+    """Compute descriptors and their sparse coordinate Jacobian in one pass."""
+    g2_params = _normalize_params(g2_params, G2Param)
+    g4_params = _normalize_params(g4_params, G4Param)
+
+    natoms = len(atoms)
+    symbols = np.array(atoms.get_chemical_symbols())
+    n_elem = len(elements)
+    n_g2 = len(g2_params)
+    n_g4 = len(g4_params)
+    n_pairs = n_elem * (n_elem + 1) // 2
+    n_features = n_elem * n_g2 + n_pairs * n_g4
+    desc = np.zeros((natoms, n_features))
+
+    i, j, rij, rij_vec = _get_neighbor_info(atoms, r_cut)
+    fc = _cutoff_fn(rij, r_cut)
+    dfc = _d_cutoff_fn(rij, r_cut)
+
+    _fill_g2(desc, i, j, rij, fc, symbols, elements, g2_params, n_g2)
+    _fill_g4(
+        desc,
+        i,
+        j,
+        rij,
+        rij_vec,
+        fc,
+        dfc,
+        r_cut,
+        symbols,
+        elements,
+        g4_params,
+        n_g2,
+        n_g4,
+    )
+
+    descriptor_atoms = []
+    features = []
+    coordinate_atoms = []
+    values = []
+    _append_g2_derivatives(
+        descriptor_atoms,
+        features,
+        coordinate_atoms,
+        values,
+        i,
+        j,
+        rij,
+        rij_vec,
+        fc,
+        dfc,
+        symbols,
+        elements,
+        g2_params,
+        n_g2,
+    )
+    _append_g4_derivatives(
+        descriptor_atoms,
+        features,
+        coordinate_atoms,
+        values,
+        i,
+        j,
+        rij,
+        rij_vec,
+        fc,
+        dfc,
+        r_cut,
+        symbols,
+        elements,
+        g4_params,
+        n_g2,
+        n_g4,
+    )
+
+    if values:
+        jacobian_values = np.concatenate(values, axis=0)
+        descriptor_atoms_array = np.concatenate(descriptor_atoms).astype(
+            np.int64, copy=False
+        )
+        features_array = np.concatenate(features).astype(np.int64, copy=False)
+        coordinate_atoms_array = np.concatenate(coordinate_atoms).astype(
+            np.int64, copy=False
+        )
+        # G4 neighbor pairs contribute repeatedly to the same
+        # (descriptor atom, feature, coordinate atom) derivative. Collapse
+        # those duplicates once so every training epoch contracts the compact
+        # Jacobian rather than the raw pair expansion.
+        keys = (
+            (descriptor_atoms_array * n_features + features_array) * natoms
+            + coordinate_atoms_array
+        )
+        order = np.argsort(keys)
+        sorted_keys = keys[order]
+        starts = np.r_[0, np.flatnonzero(np.diff(sorted_keys)) + 1]
+        jacobian_values = np.add.reduceat(jacobian_values[order], starts, axis=0)
+        unique_keys = sorted_keys[starts]
+        coordinate_atoms_array = (unique_keys % natoms).astype(
+            np.int32, copy=False
+        )
+        descriptor_features = unique_keys // natoms
+        features_array = (descriptor_features % n_features).astype(
+            np.int32, copy=False
+        )
+        descriptor_atoms_array = (descriptor_features // n_features).astype(
+            np.int32, copy=False
+        )
+    else:
+        jacobian_values = np.empty((0, 3), dtype=float)
+        descriptor_atoms_array = np.empty(0, dtype=np.int64)
+        features_array = np.empty(0, dtype=np.int64)
+        coordinate_atoms_array = np.empty(0, dtype=np.int64)
+
+    jacobian = SparseDescriptorJacobian(
+        n_atoms=natoms,
+        n_features=n_features,
+        descriptor_atoms=descriptor_atoms_array,
+        features=features_array,
+        coordinate_atoms=coordinate_atoms_array,
+        values=jacobian_values,
+    )
+    return desc, jacobian
+
+
 def compute_forces(atoms, elements, g2_params, g4_params, r_cut, dE_dG):
     g2_params = _normalize_params(g2_params, G2Param)
     g4_params = _normalize_params(g4_params, G4Param)
@@ -115,6 +306,106 @@ def _fill_g2(desc, i, j, rij, fc, symbols, elements, g2_params, n_g2):
         offset = ie * n_g2
         for ip in range(n_g2):
             np.add.at(desc, (i[nei_mask], offset + ip), contrib[ip, nei_mask])
+
+
+def _append_entries(
+    descriptor_atoms,
+    features,
+    coordinate_atoms,
+    values,
+    descriptor_atom,
+    feature,
+    coordinate_atom,
+    derivative,
+):
+    derivative = np.asarray(derivative, dtype=float)
+    count = derivative.shape[0]
+    if count == 0:
+        return
+    descriptor_atoms.append(np.broadcast_to(descriptor_atom, (count,)))
+    features.append(np.broadcast_to(feature, (count,)))
+    coordinate_atoms.append(np.broadcast_to(coordinate_atom, (count,)))
+    values.append(derivative)
+
+
+def _append_g2_derivatives(
+    descriptor_atoms,
+    features,
+    coordinate_atoms,
+    values,
+    i,
+    j,
+    rij,
+    rij_vec,
+    fc,
+    dfc,
+    symbols,
+    elements,
+    g2_params,
+    n_g2,
+):
+    mask = i < j
+    r_hat = rij_vec / rij[:, None]
+    g2_eta = np.array([p.eta for p in g2_params])
+    g2_Rs = np.array([p.Rs for p in g2_params])
+    g2v = np.exp(-g2_eta[:, None] * (rij[None, :] - g2_Rs[:, None]) ** 2)
+    dg2_dr = (
+        -2.0
+        * g2_eta[:, None]
+        * (rij[None, :] - g2_Rs[:, None])
+        * g2v
+        * fc[None, :]
+        + g2v * dfc[None, :]
+    )
+
+    for ie, neighbor_element in enumerate(elements):
+        offset = ie * n_g2
+        for ip in range(n_g2):
+            selected = mask & (symbols[j] == neighbor_element)
+            derivative = dg2_dr[ip, selected, None] * r_hat[selected]
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                i[selected],
+                offset + ip,
+                i[selected],
+                -derivative,
+            )
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                i[selected],
+                offset + ip,
+                j[selected],
+                derivative,
+            )
+
+            selected = mask & (symbols[i] == neighbor_element)
+            derivative = dg2_dr[ip, selected, None] * r_hat[selected]
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                j[selected],
+                offset + ip,
+                j[selected],
+                derivative,
+            )
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                j[selected],
+                offset + ip,
+                i[selected],
+                -derivative,
+            )
 
 
 def compute_force_gradient_weights(atoms, elements, g2_params, g4_params,
@@ -409,3 +700,78 @@ def _g4_force_weights(B, i, j, rij, rij_vec, fc, dfc, r_cut, symbols,
                        + np.einsum('ij,ij->i', dG4_dja, dF[p["ja"]])
                        + np.einsum('ij,ij->i', dG4_djb, dF[p["jb"]]))
             np.add.at(B, (np.full(n_p, ci), feat), contrib)
+
+
+def _append_g4_derivatives(
+    descriptor_atoms,
+    features,
+    coordinate_atoms,
+    values,
+    i,
+    j,
+    rij,
+    rij_vec,
+    fc,
+    dfc,
+    r_cut,
+    symbols,
+    elements,
+    g4_params,
+    n_g2,
+    n_g4,
+):
+    n_elem = len(elements)
+    g4_offset = n_elem * n_g2
+    g4_eta = np.array([p.eta for p in g4_params])
+    g4_zeta = np.array([p.zeta for p in g4_params])
+    g4_lambda = np.array([p.lambda_ for p in g4_params])
+    g4_amp = np.array([2.0 ** (1.0 - p.zeta) for p in g4_params])
+
+    for pair_data in _g4_pairs(
+        i, j, rij, rij_vec, fc, dfc, r_cut, symbols, elements
+    ):
+        central_atom = pair_data["ci"]
+        for parameter_index in range(n_g4):
+            d_central, d_neighbor_a, d_neighbor_b = _g4_derivatives(
+                g4_eta[parameter_index],
+                g4_zeta[parameter_index],
+                g4_lambda[parameter_index],
+                g4_amp[parameter_index],
+                pair_data,
+            )
+            feature = (
+                g4_offset
+                + pair_data["pid"] * n_g4
+                + parameter_index
+            )
+            central = np.full(len(feature), central_atom, dtype=np.int64)
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                central,
+                feature,
+                central,
+                d_central,
+            )
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                central,
+                feature,
+                pair_data["ja"],
+                d_neighbor_a,
+            )
+            _append_entries(
+                descriptor_atoms,
+                features,
+                coordinate_atoms,
+                values,
+                central,
+                feature,
+                pair_data["jb"],
+                d_neighbor_b,
+            )

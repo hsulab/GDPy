@@ -1,5 +1,6 @@
 import tempfile
 import pathlib
+import json
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -13,7 +14,9 @@ def _train_minimal_model(extra_params=None):
     for _ in range(4):
         n = 2
         pos = np.random.randn(n, 3) * 2.0
-        a = Atoms("Cu" * n, positions=pos, pbc=False)
+        has_au = extra_params and "Au" in extra_params.get("elements", [])
+        species = "CuAu" if has_au else "Cu" * n
+        a = Atoms(species, positions=pos, pbc=False)
         ref = 1.0 / max(np.linalg.norm(pos[0] - pos[1]), 0.5)
         a.calc = SinglePointCalculator(a, energy=ref)
         ds.append(a)
@@ -81,9 +84,21 @@ class TestModelFile:
         calc, tmp = _train_minimal_model()
         model_path = pathlib.Path(tmp) / "nn_weights.npz"
         loaded = np.load(model_path)
-        for key in ["elements", "g2_eta", "g2_Rs", "g4_eta", "g4_zeta",
-                     "g4_lambda_", "r_cut", "hidden_sizes"]:
+        for key in ["format_version", "elements", "g2_eta", "g2_Rs", "g4_eta", "g4_zeta",
+                     "g4_lambda_", "r_cut", "hidden_sizes", "feature_mean",
+                     "feature_scale", "atomic_offsets", "W_0_0"]:
             assert key in loaded, f"Missing key: {key}"
+        assert int(loaded["format_version"]) == 2
+
+    def test_legacy_model_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "legacy.npz"
+            np.savez(path, elements=np.array(["Cu"]))
+            try:
+                ACSFNN(path)
+                assert False, "legacy models must be rejected"
+            except ValueError as error:
+                assert "Retrain" in str(error)
 
     def test_g2_only_model(self):
         calc, tmp = _train_minimal_model(extra_params=dict(
@@ -106,3 +121,42 @@ class TestModelFile:
         ))
         atoms = Atoms("Cu2", positions=[[0, 0, 0], [2.5, 0, 0]], calculator=calc)
         atoms.get_potential_energy()
+
+    def test_validation_and_history_artifacts(self):
+        np.random.seed(12)
+        dataset = []
+        for _ in range(6):
+            positions = np.random.randn(2, 3)
+            atoms = Atoms("Cu2", positions=positions, pbc=False)
+            atoms.calc = SinglePointCalculator(
+                atoms, energy=float(np.sum(positions**2))
+            )
+            dataset.append(atoms)
+        with tempfile.TemporaryDirectory() as tmp:
+            trainer = NnpTrainer(
+                config=dict(
+                    n_epochs=3,
+                    learning_rate=0.003,
+                    force_weight=0.0,
+                    validation_fraction=1.0 / 3.0,
+                    early_stopping_patience=2,
+                    batch_size=2,
+                    verbose=0,
+                ),
+                calculator_params=dict(
+                    elements=["Cu"],
+                    g2_params=[(0.1, 0.0)],
+                    g4_params=[],
+                    r_cut=6.0,
+                    hidden_sizes=[8],
+                ),
+                directory=tmp,
+                random_seed=10,
+            )
+            trainer.train(dataset)
+            config = json.loads((pathlib.Path(tmp) / "train_config.json").read_text())
+            history = json.loads((pathlib.Path(tmp) / "training_history.json").read_text())
+            assert config["dataset"]["n_training"] == 4
+            assert config["dataset"]["n_validation"] == 2
+            assert 1 <= len(history) <= 3
+            assert history[0]["validation_energy_rmse"] is not None
