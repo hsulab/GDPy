@@ -1,6 +1,7 @@
 import copy
 import json
 import time
+from collections.abc import Mapping
 
 import numpy as np
 from ase.io import write
@@ -67,14 +68,39 @@ class NnpTrainer(BasePotentialTrainer):
         calculator_params = self.calculator_params
         train_config = self.config
         n_epochs = train_config.get("n_epochs", self.train_epochs)
-        learning_rate = train_config.get("learning_rate", 0.001)
-        energy_weight = train_config.get("energy_weight", 1.0)
-        force_weight = train_config.get("force_weight", 0.1)
+        legacy_loss_keys = sorted(
+            {"energy_weight", "force_weight", "gradient_balance"}
+            & set(train_config)
+        )
+        if legacy_loss_keys:
+            raise ValueError(
+                "Legacy NNP loss options are no longer supported: "
+                f"{legacy_loss_keys}. Replace them with `learning_rate: "
+                "{start, stop}` and `loss: {start_pref_e, limit_pref_e, "
+                "start_pref_f, limit_pref_f}`."
+            )
+
+        learning_rate_config = train_config.get("learning_rate", {})
+        if not isinstance(learning_rate_config, Mapping):
+            raise ValueError(
+                "`learning_rate` must be a mapping with `start` and `stop`; "
+                "scalar learning rates belong to the removed NNP loss mode."
+            )
+        start_learning_rate = float(learning_rate_config.get("start", 0.003))
+        stop_learning_rate = float(learning_rate_config.get("stop", 1.0e-6))
+
+        loss_config = train_config.get("loss", {})
+        if not isinstance(loss_config, Mapping):
+            raise ValueError("`loss` must be a mapping of DeepMD-style prefactors.")
+        start_pref_e = float(loss_config.get("start_pref_e", 0.02))
+        limit_pref_e = float(loss_config.get("limit_pref_e", 1.0))
+        start_pref_f = float(loss_config.get("start_pref_f", 1000.0))
+        limit_pref_f = float(loss_config.get("limit_pref_f", 1.0))
+        train_forces = start_pref_f > 0.0 or limit_pref_f > 0.0
         verbose = train_config.get("verbose", 100)
         max_grad_norm = train_config.get("max_grad_norm", None)
         batch_size = train_config.get("batch_size", None)
         shuffle = bool(train_config.get("shuffle", True))
-        gradient_balance = bool(train_config.get("gradient_balance", True))
         validation_fraction = float(train_config.get("validation_fraction", 0.0))
         early_stopping_patience = train_config.get("early_stopping_patience", None)
         normalization_epsilon = float(
@@ -83,14 +109,20 @@ class NnpTrainer(BasePotentialTrainer):
 
         if n_epochs < 1:
             raise ValueError(f"n_epochs must be positive; got {n_epochs}.")
-        if learning_rate <= 0.0:
+        if start_learning_rate <= 0.0 or stop_learning_rate <= 0.0:
             raise ValueError(
-                f"learning_rate must be positive; got {learning_rate}."
+                "learning-rate endpoints must be positive; got "
+                f"start={start_learning_rate}, stop={stop_learning_rate}."
             )
-        if energy_weight < 0.0 or force_weight < 0.0:
-            raise ValueError("energy_weight and force_weight must be non-negative.")
-        if energy_weight == 0.0 and force_weight == 0.0:
-            raise ValueError("At least one loss weight must be positive.")
+        if stop_learning_rate > start_learning_rate:
+            raise ValueError(
+                "learning_rate.stop must not exceed learning_rate.start."
+            )
+        prefactors = (start_pref_e, limit_pref_e, start_pref_f, limit_pref_f)
+        if any(prefactor < 0.0 for prefactor in prefactors):
+            raise ValueError("All DeepMD loss prefactors must be non-negative.")
+        if not any(prefactors):
+            raise ValueError("At least one DeepMD loss prefactor must be positive.")
         if not 0.0 <= validation_fraction < 1.0:
             raise ValueError(
                 "validation_fraction must be in [0, 1); got "
@@ -134,13 +166,13 @@ class NnpTrainer(BasePotentialTrainer):
                     "Provide reference energies in the dataset."
                 )
             ref_energies[idx] = atoms.get_potential_energy()
-            if force_weight > 0 and (
+            if train_forces and (
                 atoms.calc is None or "forces" not in atoms.calc.results
             ):
                 raise ValueError(
                     f"Structure {idx} has no reference forces "
                     "(atoms.get_forces(apply_constraint=False) unavailable); "
-                    f"required since force_weight={force_weight}."
+                    "required because the force prefactors are nonzero."
                 )
             current_symbols = np.asarray(atoms.get_chemical_symbols(), dtype=str)
             unknown = sorted(set(current_symbols) - set(elements))
@@ -234,18 +266,30 @@ class NnpTrainer(BasePotentialTrainer):
         if batch_size < 1:
             raise ValueError(f"batch_size must be positive; got {batch_size}.")
         batch_size = min(batch_size, len(training_indices))
+        batches_per_epoch = (
+            len(training_indices) + batch_size - 1
+        ) // batch_size
+        total_training_steps = n_epochs * batches_per_epoch
 
         config_dump = dict(
             name=self.name,
             model_format_version=2,
             training=dict(
                 n_epochs=n_epochs,
-                learning_rate=learning_rate,
-                energy_weight=energy_weight,
-                force_weight=force_weight,
+                learning_rate=dict(
+                    start=start_learning_rate,
+                    stop=stop_learning_rate,
+                    schedule="smooth_exponential",
+                ),
+                loss=dict(
+                    type="deepmd",
+                    start_pref_e=start_pref_e,
+                    limit_pref_e=limit_pref_e,
+                    start_pref_f=start_pref_f,
+                    limit_pref_f=limit_pref_f,
+                ),
                 batch_size=batch_size,
                 shuffle=shuffle,
-                gradient_balance=gradient_balance,
                 max_grad_norm=max_grad_norm,
                 validation_fraction=validation_fraction,
                 early_stopping_patience=early_stopping_patience,
@@ -274,6 +318,7 @@ class NnpTrainer(BasePotentialTrainer):
         best_score = np.inf
         best_params = None
         epochs_without_improvement = 0
+        global_step = 0
 
         for epoch in range(n_epochs):
             epoch_start = time.perf_counter()
@@ -282,12 +327,38 @@ class NnpTrainer(BasePotentialTrainer):
                 self.rng.shuffle(epoch_indices)
             energy_gradient_norms = []
             force_gradient_norms = []
+            effective_energy_gradient_norms = []
+            effective_force_gradient_norms = []
+            gradient_cosines = []
+            epoch_learning_rates = []
+            energy_prefactors = []
+            force_prefactors = []
 
             for batch_start in range(0, len(epoch_indices), batch_size):
                 batch = epoch_indices[batch_start : batch_start + batch_size]
                 energy_grads = None
                 force_grads = None
-                force_components = sum(3 * len(dataset[index]) for index in batch)
+                learning_rate = _smooth_exponential_learning_rate(
+                    global_step,
+                    total_training_steps,
+                    start_learning_rate,
+                    stop_learning_rate,
+                )
+                energy_prefactor = _scheduled_prefactor(
+                    learning_rate,
+                    start_learning_rate,
+                    start_pref_e,
+                    limit_pref_e,
+                )
+                force_prefactor = _scheduled_prefactor(
+                    learning_rate,
+                    start_learning_rate,
+                    start_pref_f,
+                    limit_pref_f,
+                )
+                epoch_learning_rates.append(learning_rate)
+                energy_prefactors.append(energy_prefactor)
+                force_prefactors.append(force_prefactor)
 
                 for index in batch:
                     atoms = dataset[index]
@@ -302,16 +373,16 @@ class NnpTrainer(BasePotentialTrainer):
                     current = model.backward(
                         np.full(
                             num_atoms,
-                            2.0
-                            * energy_error
-                            / (len(batch) * num_atoms**2),
+                            _deepmd_energy_output_gradient(
+                                energy_error, num_atoms, len(batch)
+                            ),
                         )
                     )
                     energy_grads = _accumulate_elementwise_grads(
                         energy_grads, current
                     )
 
-                    if force_weight > 0.0:
+                    if train_forces:
                         _, dE_dG = model.energy_and_gradient(
                             descriptor, atom_symbols
                         )
@@ -323,7 +394,10 @@ class NnpTrainer(BasePotentialTrainer):
                             jacobian.adjoint(force_error)
                         )
                         _scale_elementwise_grads(
-                            current, -2.0 / force_components
+                            current,
+                            _force_double_backward_scale(
+                                num_atoms, len(batch)
+                            ),
                         )
                         force_grads = _accumulate_elementwise_grads(
                             force_grads, current
@@ -333,18 +407,17 @@ class NnpTrainer(BasePotentialTrainer):
                 force_norm = _elementwise_global_norm(force_grads)
                 energy_gradient_norms.append(energy_norm)
                 force_gradient_norms.append(force_norm)
-                if gradient_balance and energy_grads is not None and force_grads is not None:
-                    if energy_norm > 0.0:
-                        _scale_elementwise_grads(
-                            energy_grads, energy_weight / energy_norm
-                        )
-                    if force_norm > 0.0:
-                        _scale_elementwise_grads(
-                            force_grads, force_weight / force_norm
-                        )
-                else:
-                    _scale_elementwise_grads(energy_grads, energy_weight)
-                    _scale_elementwise_grads(force_grads, force_weight)
+                gradient_cosines.append(
+                    _elementwise_cosine(energy_grads, force_grads)
+                )
+                effective_energy_gradient_norms.append(
+                    energy_prefactor * energy_norm
+                )
+                effective_force_gradient_norms.append(
+                    force_prefactor * force_norm
+                )
+                _scale_elementwise_grads(energy_grads, energy_prefactor)
+                _scale_elementwise_grads(force_grads, force_prefactor)
                 total_grads = _accumulate_elementwise_grads(
                     energy_grads, force_grads
                 )
@@ -358,6 +431,7 @@ class NnpTrainer(BasePotentialTrainer):
                 adam_state = model.adam_update(
                     total_grads, learning_rate, adam_state
                 )
+                global_step += 1
 
             train_metrics = _evaluate_model(
                 model,
@@ -366,7 +440,7 @@ class NnpTrainer(BasePotentialTrainer):
                 ref_energies,
                 cached,
                 training_indices,
-                force_weight > 0.0,
+                train_forces,
             )
             validation_metrics = (
                 _evaluate_model(
@@ -376,15 +450,14 @@ class NnpTrainer(BasePotentialTrainer):
                     ref_energies,
                     cached,
                     validation_indices,
-                    force_weight > 0.0,
+                    train_forces,
                 )
                 if len(validation_indices)
                 else None
             )
             selection_metrics = validation_metrics or train_metrics
-            score = (
-                energy_weight * selection_metrics["energy_rmse"] ** 2
-                + force_weight * selection_metrics["force_rmse"] ** 2
+            score = _fixed_selection_score(
+                selection_metrics, limit_pref_e, limit_pref_f
             )
             improved = score < best_score
             if improved:
@@ -407,6 +480,14 @@ class NnpTrainer(BasePotentialTrainer):
                 epoch=epoch,
                 train_energy_rmse=train_metrics["energy_rmse"],
                 train_force_rmse=train_metrics["force_rmse"],
+                train_energy_loss=train_metrics["energy_loss"],
+                train_force_loss=train_metrics["force_loss"],
+                train_total_loss=(
+                    float(np.mean(energy_prefactors))
+                    * train_metrics["energy_loss"]
+                    + float(np.mean(force_prefactors))
+                    * train_metrics["force_loss"]
+                ),
                 validation_energy_rmse=(
                     validation_metrics["energy_rmse"]
                     if validation_metrics is not None
@@ -417,9 +498,29 @@ class NnpTrainer(BasePotentialTrainer):
                     if validation_metrics is not None
                     else None
                 ),
+                validation_energy_loss=(
+                    validation_metrics["energy_loss"]
+                    if validation_metrics is not None
+                    else None
+                ),
+                validation_force_loss=(
+                    validation_metrics["force_loss"]
+                    if validation_metrics is not None
+                    else None
+                ),
+                selection_score=score,
                 energy_gradient_norm=float(np.mean(energy_gradient_norms)),
                 force_gradient_norm=float(np.mean(force_gradient_norms)),
-                learning_rate=learning_rate,
+                effective_energy_gradient_norm=float(
+                    np.mean(effective_energy_gradient_norms)
+                ),
+                effective_force_gradient_norm=float(
+                    np.mean(effective_force_gradient_norms)
+                ),
+                gradient_cosine=float(np.mean(gradient_cosines)),
+                learning_rate=float(np.mean(epoch_learning_rates)),
+                energy_prefactor=float(np.mean(energy_prefactors)),
+                force_prefactor=float(np.mean(force_prefactors)),
                 epoch_seconds=time.perf_counter() - epoch_start,
                 best=improved,
             )
@@ -439,8 +540,15 @@ class NnpTrainer(BasePotentialTrainer):
                     f"train_E_RMSE/atom={train_metrics['energy_rmse']:.6f} eV, "
                     f"train_F_RMSE={train_metrics['force_rmse']:.6f} eV/A"
                     f"{validation_text}, "
-                    f"grad_norms(E/F)={row['energy_gradient_norm']:.3e}/"
+                    f"lr={row['learning_rate']:.3e}, "
+                    f"pref(E/F)={row['energy_prefactor']:.3e}/"
+                    f"{row['force_prefactor']:.3e}, "
+                    f"grad_raw(E/F)={row['energy_gradient_norm']:.3e}/"
                     f"{row['force_gradient_norm']:.3e}, "
+                    f"grad_eff(E/F)="
+                    f"{row['effective_energy_gradient_norm']:.3e}/"
+                    f"{row['effective_force_gradient_norm']:.3e}, "
+                    f"cos={row['gradient_cosine']:.3f}, "
                     f"time={row['epoch_seconds']:.3f} s"
                 )
 
@@ -534,6 +642,74 @@ def _elementwise_global_norm(grads):
     )
 
 
+def _elementwise_dot(first, second):
+    if first is None or second is None:
+        return 0.0
+    total = 0.0
+    for element in first:
+        for first_array, second_array in zip(
+            first[element]["weights"], second[element]["weights"]
+        ):
+            total += float(np.vdot(first_array, second_array))
+        for first_array, second_array in zip(
+            first[element]["biases"], second[element]["biases"]
+        ):
+            total += float(np.vdot(first_array, second_array))
+    return total
+
+
+def _elementwise_cosine(first, second):
+    first_norm = _elementwise_global_norm(first)
+    second_norm = _elementwise_global_norm(second)
+    if first_norm == 0.0 or second_norm == 0.0:
+        return 0.0
+    cosine = _elementwise_dot(first, second) / (first_norm * second_norm)
+    return float(np.clip(cosine, -1.0, 1.0))
+
+
+def _smooth_exponential_learning_rate(
+    step, total_steps, start_learning_rate, stop_learning_rate
+):
+    """Return a smooth exponential schedule including both endpoints."""
+    if total_steps <= 1:
+        return float(start_learning_rate)
+    progress = np.clip(step / (total_steps - 1), 0.0, 1.0)
+    return float(
+        start_learning_rate
+        * (stop_learning_rate / start_learning_rate) ** progress
+    )
+
+
+def _scheduled_prefactor(
+    learning_rate,
+    start_learning_rate,
+    start_prefactor,
+    limit_prefactor,
+):
+    ratio = learning_rate / start_learning_rate
+    return float(start_prefactor * ratio + limit_prefactor * (1.0 - ratio))
+
+
+def _deepmd_energy_loss(energy_error, num_atoms):
+    return float(energy_error**2 / num_atoms)
+
+
+def _deepmd_energy_output_gradient(energy_error, num_atoms, batch_size):
+    return float(2.0 * energy_error / (batch_size * num_atoms))
+
+
+def _force_double_backward_scale(num_atoms, batch_size):
+    # Forces contain a minus derivative of energy, hence the negative sign.
+    return float(-2.0 / (batch_size * 3 * num_atoms))
+
+
+def _fixed_selection_score(metrics, energy_prefactor, force_prefactor):
+    return float(
+        energy_prefactor * metrics["energy_loss"]
+        + force_prefactor * metrics["force_loss"]
+    )
+
+
 def _evaluate_model(
     model,
     dataset,
@@ -544,17 +720,21 @@ def _evaluate_model(
     evaluate_forces,
 ):
     energy_squared = 0.0
+    energy_loss = 0.0
     force_squared = 0.0
     force_components = 0
+    force_loss = 0.0
     for index in indices:
         descriptor, jacobian = cached[index]
         atomic_energies, dE_dG = model.energy_and_gradient(
             descriptor, symbols[index]
         )
-        energy_error_per_atom = (
-            float(np.sum(atomic_energies)) - ref_energies[index]
-        ) / len(dataset[index])
+        energy_error = float(np.sum(atomic_energies)) - ref_energies[index]
+        energy_error_per_atom = energy_error / len(dataset[index])
         energy_squared += energy_error_per_atom**2
+        energy_loss += _deepmd_energy_loss(
+            energy_error, len(dataset[index])
+        )
         if evaluate_forces:
             force_error = (
                 jacobian.forces(dE_dG)
@@ -562,12 +742,17 @@ def _evaluate_model(
             )
             force_squared += float(np.sum(force_error**2))
             force_components += force_error.size
+            force_loss += float(np.mean(force_error**2))
     return {
         "energy_rmse": float(np.sqrt(energy_squared / len(indices))),
         "force_rmse": (
             float(np.sqrt(force_squared / force_components))
             if force_components
             else 0.0
+        ),
+        "energy_loss": float(energy_loss / len(indices)),
+        "force_loss": (
+            float(force_loss / len(indices)) if evaluate_forces else 0.0
         ),
     }
 
