@@ -33,7 +33,17 @@ def _train_minimal_model(extra_params=None):
 
     tmp = tempfile.mkdtemp()
     t = NnpTrainer(
-        config=dict(n_epochs=5, learning_rate=0.01, verbose=0, force_weight=0.0),
+        config=dict(
+            n_epochs=5,
+            learning_rate=dict(start=0.01, stop=0.01),
+            loss=dict(
+                start_pref_e=1.0,
+                limit_pref_e=1.0,
+                start_pref_f=0.0,
+                limit_pref_f=0.0,
+            ),
+            verbose=0,
+        ),
         directory=tmp,
         calculator_params=params,
     )
@@ -136,8 +146,13 @@ class TestModelFile:
             trainer = NnpTrainer(
                 config=dict(
                     n_epochs=3,
-                    learning_rate=0.003,
-                    force_weight=0.0,
+                    learning_rate=dict(start=0.003, stop=0.001),
+                    loss=dict(
+                        start_pref_e=1.0,
+                        limit_pref_e=1.0,
+                        start_pref_f=0.0,
+                        limit_pref_f=0.0,
+                    ),
                     validation_fraction=1.0 / 3.0,
                     early_stopping_patience=2,
                     batch_size=2,
@@ -160,3 +175,40 @@ class TestModelFile:
             assert config["dataset"]["n_validation"] == 2
             assert 1 <= len(history) <= 3
             assert history[0]["validation_energy_rmse"] is not None
+            for key in [
+                "energy_prefactor",
+                "force_prefactor",
+                "effective_energy_gradient_norm",
+                "effective_force_gradient_norm",
+                "gradient_cosine",
+                "train_energy_loss",
+                "train_force_loss",
+                "selection_score",
+            ]:
+                assert key in history[0]
+            assert np.isclose(
+                history[0]["effective_energy_gradient_norm"],
+                history[0]["energy_prefactor"]
+                * history[0]["energy_gradient_norm"],
+            )
+
+    def test_legacy_loss_options_are_rejected(self):
+        atoms = Atoms("Cu2", positions=[[0, 0, 0], [2.0, 0, 0]], pbc=False)
+        atoms.calc = SinglePointCalculator(atoms, energy=0.5)
+        with tempfile.TemporaryDirectory() as tmp:
+            trainer = NnpTrainer(
+                config=dict(n_epochs=1, learning_rate=0.003, force_weight=0.0),
+                calculator_params=dict(
+                    elements=["Cu"],
+                    g2_params=[(0.1, 0.0)],
+                    g4_params=[],
+                    r_cut=6.0,
+                    hidden_sizes=[4],
+                ),
+                directory=tmp,
+            )
+            try:
+                trainer.train([atoms])
+                assert False, "legacy loss options must be rejected"
+            except ValueError as error:
+                assert "Legacy NNP loss options" in str(error)

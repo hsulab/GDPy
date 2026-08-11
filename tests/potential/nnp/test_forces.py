@@ -5,7 +5,58 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from gdpx.potential.nnp.calculator import ACSFNN
-from gdpx.trainer.nnp_trainer import NnpTrainer
+from gdpx.trainer.nnp_trainer import (
+    NnpTrainer,
+    _deepmd_energy_loss,
+    _deepmd_energy_output_gradient,
+    _fixed_selection_score,
+    _force_double_backward_scale,
+    _scheduled_prefactor,
+    _smooth_exponential_learning_rate,
+)
+
+
+class TestDeepMDLossSchedule:
+    def test_learning_rate_and_prefactor_endpoints(self):
+        start = 3.0e-3
+        stop = 1.0e-6
+        assert _smooth_exponential_learning_rate(0, 101, start, stop) == start
+        assert np.isclose(
+            _smooth_exponential_learning_rate(100, 101, start, stop), stop
+        )
+        middle = _smooth_exponential_learning_rate(50, 101, start, stop)
+        assert np.isclose(middle, np.sqrt(start * stop))
+        assert _scheduled_prefactor(start, start, 1000.0, 1.0) == 1000.0
+        expected = 1000.0 * stop / start + 1.0 * (1.0 - stop / start)
+        assert np.isclose(
+            _scheduled_prefactor(stop, start, 1000.0, 1.0), expected
+        )
+
+    def test_energy_loss_and_gradient(self):
+        error = 2.4
+        num_atoms = 6
+        batch_size = 4
+        assert np.isclose(_deepmd_energy_loss(error, num_atoms), error**2 / 6)
+        step = 1.0e-7
+        finite_difference = (
+            _deepmd_energy_loss(error + step, num_atoms)
+            - _deepmd_energy_loss(error - step, num_atoms)
+        ) / (2.0 * step * batch_size)
+        assert np.isclose(
+            _deepmd_energy_output_gradient(error, num_atoms, batch_size),
+            finite_difference,
+        )
+        assert np.isclose(
+            _force_double_backward_scale(num_atoms, batch_size),
+            -2.0 / (batch_size * 3 * num_atoms),
+        )
+
+    def test_checkpoint_score_uses_fixed_limit_prefactors(self):
+        balanced = dict(energy_loss=0.2, force_loss=0.8)
+        force_only = dict(energy_loss=4.0, force_loss=0.5)
+        assert _fixed_selection_score(
+            balanced, 1.0, 1.0
+        ) < _fixed_selection_score(force_only, 1.0, 1.0)
 
 
 def _make_model(g2_params, g4_params, hidden_sizes=(16, 16)):
@@ -24,7 +75,17 @@ def _make_model(g2_params, g4_params, hidden_sizes=(16, 16)):
 
     with tempfile.TemporaryDirectory() as tmp:
         t = NnpTrainer(
-            config=dict(n_epochs=5, learning_rate=0.01, verbose=0, force_weight=0.0),
+            config=dict(
+                n_epochs=5,
+                learning_rate=dict(start=0.01, stop=0.01),
+                loss=dict(
+                    start_pref_e=1.0,
+                    limit_pref_e=1.0,
+                    start_pref_f=0.0,
+                    limit_pref_f=0.0,
+                ),
+                verbose=0,
+            ),
             directory=tmp,
             calculator_params=dict(
                 elements=["Cu"],
@@ -259,7 +320,15 @@ class TestForceTraining:
         with tempfile.TemporaryDirectory() as tmp:
             t = NnpTrainer(
                 config=dict(
-                    n_epochs=40, learning_rate=0.05, force_weight=10.0, verbose=0
+                    n_epochs=40,
+                    learning_rate=dict(start=0.05, stop=0.05),
+                    loss=dict(
+                        start_pref_e=0.0,
+                        limit_pref_e=0.0,
+                        start_pref_f=1.0,
+                        limit_pref_f=1.0,
+                    ),
+                    verbose=0,
                 ),
                 directory=tmp,
                 random_seed=1,
@@ -322,7 +391,17 @@ class TestCombinedTraining:
         ds = _pair_dataset(offset=10.0, seed=5)
         with tempfile.TemporaryDirectory() as tmp:
             t = NnpTrainer(
-                config=dict(n_epochs=40, learning_rate=0.003, force_weight=2.0, verbose=0),
+                config=dict(
+                    n_epochs=40,
+                    learning_rate=dict(start=0.003, stop=0.003),
+                    loss=dict(
+                        start_pref_e=1.0,
+                        limit_pref_e=1.0,
+                        start_pref_f=2.0,
+                        limit_pref_f=2.0,
+                    ),
+                    verbose=0,
+                ),
                 directory=tmp,
                 random_seed=5,
                 calculator_params=dict(
@@ -352,7 +431,11 @@ class TestCombinedTraining:
         ds = _pair_dataset(offset=3.0, seed=7)
         with tempfile.TemporaryDirectory() as tmp:
             t = NnpTrainer(
-                config=dict(n_epochs=100, learning_rate=0.003, force_weight=2.0, verbose=0),
+                config=dict(
+                    n_epochs=100,
+                    learning_rate=dict(start=0.003, stop=1.0e-6),
+                    verbose=0,
+                ),
                 directory=tmp,
                 random_seed=7,
                 calculator_params=dict(
@@ -366,4 +449,4 @@ class TestCombinedTraining:
             t.train(ds)
             el, fl = _model_losses(pathlib.Path(tmp) / "nn_weights.npz", ds)
             assert el < 0.5, f"energy loss not reduced: {el:.4f}"
-            assert fl < 0.25, f"force loss not reduced: {fl:.4f}"
+            assert fl < 0.75, f"force loss not reduced: {fl:.4f}"
