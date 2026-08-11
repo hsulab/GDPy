@@ -247,7 +247,9 @@ class TestForceTraining:
             fl = 0.0
             for a in ds:
                 G = calc._compute_descriptor(a)
-                _, dEdG = calc.nn.energy_and_gradient(G)
+                _, dEdG = calc.model.energy_and_gradient(
+                    G, a.get_chemical_symbols()
+                )
                 Fp = compute_forces(
                     a, calc.model_elements, calc.g2_params, calc.g4_params, calc.r_cut, dEdG
                 )
@@ -260,6 +262,7 @@ class TestForceTraining:
                     n_epochs=40, learning_rate=0.05, force_weight=10.0, verbose=0
                 ),
                 directory=tmp,
+                random_seed=1,
                 calculator_params=dict(
                     elements=["Cu"],
                     g2_params=[(0.1, 0.0), (0.2, 0.0)],
@@ -304,9 +307,9 @@ def _model_losses(model_path, ds):
     fl = 0.0
     for a in ds:
         G = calc._compute_descriptor(a)
-        E = float(np.sum(calc.nn.forward(G))) + calc.energy_shift
+        E = float(np.sum(calc.model.forward(G, a.get_chemical_symbols())))
         el += (E - a.calc.results["energy"]) ** 2 / len(a)
-        _, dEdG = calc.nn.energy_and_gradient(G)
+        _, dEdG = calc.model.energy_and_gradient(G, a.get_chemical_symbols())
         Fp = compute_forces(
             a, calc.model_elements, calc.g2_params, calc.g4_params, calc.r_cut, dEdG
         )
@@ -315,12 +318,13 @@ def _model_losses(model_path, ds):
 
 
 class TestCombinedTraining:
-    def test_energy_shift_roundtrip(self):
+    def test_atomic_offset_roundtrip(self):
         ds = _pair_dataset(offset=10.0, seed=5)
         with tempfile.TemporaryDirectory() as tmp:
             t = NnpTrainer(
-                config=dict(n_epochs=40, learning_rate=0.003, force_weight=10.0, verbose=0),
+                config=dict(n_epochs=40, learning_rate=0.003, force_weight=2.0, verbose=0),
                 directory=tmp,
+                random_seed=5,
                 calculator_params=dict(
                     elements=["Cu"],
                     g2_params=[(0.1, 0.0), (0.2, 0.0)],
@@ -332,14 +336,14 @@ class TestCombinedTraining:
             t.train(ds)
             model = pathlib.Path(tmp) / "nn_weights.npz"
             loaded = np.load(model)
-            assert "energy_shift" in loaded
+            assert "atomic_offsets" in loaded
             ref_mean = np.mean([a.calc.results["energy"] for a in ds])
-            assert abs(float(loaded["energy_shift"]) - ref_mean) < 1e-9
+            assert abs(float(loaded["atomic_offsets"][0]) * 3 - ref_mean) < 1e-9
 
             from gdpx.potential.nnp.calculator import ACSFNN
 
             calc = ACSFNN(model_file=model)
-            assert abs(calc.energy_shift - ref_mean) < 1e-9
+            assert abs(float(calc.model.atomic_offsets[0]) * 3 - ref_mean) < 1e-9
             # predictions include the shift: reproduce the *uncentered* energies
             el, _ = _model_losses(model, ds)
             assert el < 1.0, f"shifted energies not recovered: energy loss {el:.4f}"
@@ -348,8 +352,9 @@ class TestCombinedTraining:
         ds = _pair_dataset(offset=3.0, seed=7)
         with tempfile.TemporaryDirectory() as tmp:
             t = NnpTrainer(
-                config=dict(n_epochs=60, learning_rate=0.003, force_weight=10.0, verbose=0),
+                config=dict(n_epochs=100, learning_rate=0.003, force_weight=2.0, verbose=0),
                 directory=tmp,
+                random_seed=7,
                 calculator_params=dict(
                     elements=["Cu"],
                     g2_params=[(0.1, 0.0), (0.2, 0.0)],

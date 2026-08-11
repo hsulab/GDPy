@@ -86,6 +86,7 @@ Read notes for the training of a specific MLIP formulation.
 
     deepmd.rst
     mace.rst
+    nnp.rst
 
 Use Scheduler
 -------------

@@ -1,5 +1,5 @@
 import numpy as np
-from gdpx.potential.nnp.nn import SimpleNN
+from gdpx.potential.nnp.nn import ElementwiseNN, SimpleNN
 
 
 class TestSimpleNN:
@@ -91,3 +91,83 @@ class TestSimpleNN:
                     B[p] = old
                     max_err = max(max_err, abs((Qp - Qm) / (2.0 * eps) - dQ["biases"][bi][p]))
             assert max_err < 1e-4, f"hs={hs}: max double-backward FD error = {max_err:.2e}"
+
+    def test_adam_state_persists(self):
+        nn = SimpleNN(3, hidden_sizes=(4,), seed=2)
+        nn.forward(np.ones((2, 3)))
+        gradients = nn.backward(np.ones(2))
+        state = nn.adam_update(gradients, 0.01, None)
+        state = nn.adam_update(gradients, 0.01, state)
+        assert state["t"] == 2
+
+
+class TestElementwiseNN:
+    def test_central_elements_use_different_networks(self):
+        model = ElementwiseNN(
+            3,
+            ["Cu", "Au"],
+            hidden_sizes=(4,),
+            feature_mean=np.zeros((2, 3)),
+            feature_scale=np.ones((2, 3)),
+            atomic_offsets=np.array([1.0, 2.0]),
+            rng=np.random.default_rng(4),
+        )
+        descriptors = np.zeros((2, 3))
+        energies = model.forward(descriptors, ["Cu", "Au"])
+        assert energies[0] != energies[1]
+
+    def test_normalized_gradient_matches_finite_difference(self):
+        model = ElementwiseNN(
+            3,
+            ["Cu", "Au"],
+            hidden_sizes=(4,),
+            feature_mean=np.array([[1.0, 2.0, 3.0], [0.5, 1.0, 1.5]]),
+            feature_scale=np.array([[2.0, 3.0, 4.0], [1.5, 2.5, 3.5]]),
+            rng=np.random.default_rng(5),
+        )
+        descriptors = np.array([[1.2, 2.4, 3.8], [0.7, 1.4, 2.1]])
+        symbols = ["Cu", "Au"]
+        _, gradient = model.energy_and_gradient(descriptors, symbols)
+        step = 1.0e-6
+        for atom_index in range(2):
+            for feature in range(3):
+                original = descriptors[atom_index, feature]
+                descriptors[atom_index, feature] = original + step
+                plus = model.forward(descriptors, symbols).sum()
+                descriptors[atom_index, feature] = original - step
+                minus = model.forward(descriptors, symbols).sum()
+                descriptors[atom_index, feature] = original
+                assert abs(
+                    gradient[atom_index, feature]
+                    - (plus - minus) / (2.0 * step)
+                ) < 1.0e-6
+
+    def test_normalized_double_backward_matches_finite_difference(self):
+        model = ElementwiseNN(
+            2,
+            ["Cu", "Au"],
+            hidden_sizes=(3,),
+            feature_mean=np.zeros((2, 2)),
+            feature_scale=np.array([[2.0, 3.0], [1.5, 2.5]]),
+            rng=np.random.default_rng(6),
+        )
+        descriptors = np.array([[0.2, 0.4], [0.6, 0.8]])
+        symbols = ["Cu", "Au"]
+        seed = np.array([[0.5, -0.2], [0.3, 0.7]])
+        model.energy_and_gradient(descriptors, symbols)
+        analytical = model.double_backward(seed)
+        step = 1.0e-6
+        for element in model.elements:
+            weight = model.networks[element].weights[0]
+            original = weight[0, 0]
+            weight[0, 0] = original + step
+            _, plus_gradient = model.energy_and_gradient(descriptors, symbols)
+            plus = np.sum(seed * plus_gradient)
+            weight[0, 0] = original - step
+            _, minus_gradient = model.energy_and_gradient(descriptors, symbols)
+            minus = np.sum(seed * minus_gradient)
+            weight[0, 0] = original
+            finite_difference = (plus - minus) / (2.0 * step)
+            assert abs(
+                analytical[element]["weights"][0][0, 0] - finite_difference
+            ) < 1.0e-5
