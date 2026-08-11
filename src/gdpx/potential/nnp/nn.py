@@ -3,15 +3,19 @@ import numpy as np
 
 class SimpleNN:
 
-    def __init__(self, n_input, hidden_sizes=(64, 64), seed=None):
-        if seed is not None:
-            np.random.seed(seed)
+    def __init__(self, n_input, hidden_sizes=(64, 64), seed=None, rng=None):
+        if rng is not None and seed is not None:
+            raise ValueError("Pass either seed or rng, not both.")
+        if rng is None:
+            rng = np.random.default_rng(seed)
         sizes = [n_input] + list(hidden_sizes) + [1]
         self.weights = []
         self.biases = []
         for i in range(len(sizes) - 1):
-            scale = np.sqrt(2.0 / sizes[i])
-            self.weights.append(np.random.randn(sizes[i], sizes[i + 1]) * scale)
+            # Xavier scaling keeps tanh units out of saturation when inputs
+            # have unit variance.
+            scale = np.sqrt(1.0 / sizes[i])
+            self.weights.append(rng.normal(size=(sizes[i], sizes[i + 1])) * scale)
             self.biases.append(np.zeros(sizes[i + 1]))
         self._cache_acts = None
         self._cache_y = None
@@ -191,3 +195,192 @@ class SimpleNN:
     def set_params(self, params):
         self.weights = [w.copy() for w in params["weights"]]
         self.biases = [b.copy() for b in params["biases"]]
+
+
+class ElementwiseNN:
+    """One normalized atomic-energy network per central element."""
+
+    def __init__(
+        self,
+        n_input,
+        elements,
+        hidden_sizes=(64, 64),
+        feature_mean=None,
+        feature_scale=None,
+        atomic_offsets=None,
+        rng=None,
+    ):
+        self.elements = [str(element) for element in elements]
+        if not self.elements:
+            raise ValueError("ElementwiseNN requires at least one element.")
+        if len(set(self.elements)) != len(self.elements):
+            raise ValueError(f"Duplicate elements are not allowed: {self.elements}.")
+        self.element_index = {element: i for i, element in enumerate(self.elements)}
+        self.n_input = int(n_input)
+        self.hidden_sizes = tuple(int(size) for size in hidden_sizes)
+        if rng is None:
+            rng = np.random.default_rng()
+
+        shape = (len(self.elements), self.n_input)
+        self.feature_mean = (
+            np.zeros(shape, dtype=float)
+            if feature_mean is None
+            else np.asarray(feature_mean, dtype=float).copy()
+        )
+        self.feature_scale = (
+            np.ones(shape, dtype=float)
+            if feature_scale is None
+            else np.asarray(feature_scale, dtype=float).copy()
+        )
+        self.atomic_offsets = (
+            np.zeros(len(self.elements), dtype=float)
+            if atomic_offsets is None
+            else np.asarray(atomic_offsets, dtype=float).copy()
+        )
+        if self.feature_mean.shape != shape or self.feature_scale.shape != shape:
+            raise ValueError(
+                "feature_mean and feature_scale must have shape "
+                f"{shape}; got {self.feature_mean.shape} and "
+                f"{self.feature_scale.shape}."
+            )
+        if self.atomic_offsets.shape != (len(self.elements),):
+            raise ValueError(
+                f"atomic_offsets must have shape {(len(self.elements),)}; "
+                f"got {self.atomic_offsets.shape}."
+            )
+        if np.any(self.feature_scale <= 0.0):
+            raise ValueError("All descriptor scales must be positive.")
+
+        self.networks = {
+            element: SimpleNN(self.n_input, self.hidden_sizes, rng=rng)
+            for element in self.elements
+        }
+        self._last_indices = None
+
+    def _indices(self, symbols):
+        symbols = np.asarray(symbols, dtype=str)
+        unknown = sorted(set(symbols) - set(self.elements))
+        if unknown:
+            raise ValueError(
+                f"Unknown central elements {unknown}; model elements are "
+                f"{self.elements}."
+            )
+        return symbols, {
+            element: np.flatnonzero(symbols == element)
+            for element in self.elements
+        }
+
+    def _normalized(self, descriptors, element, indices):
+        element_index = self.element_index[element]
+        return (
+            descriptors[indices] - self.feature_mean[element_index]
+        ) / self.feature_scale[element_index]
+
+    def forward(self, descriptors, symbols, include_offsets=True):
+        descriptors = np.asarray(descriptors, dtype=float)
+        symbols, indices = self._indices(symbols)
+        if descriptors.shape != (len(symbols), self.n_input):
+            raise ValueError(
+                f"descriptors have shape {descriptors.shape}; expected "
+                f"{(len(symbols), self.n_input)}."
+            )
+        energies = np.zeros(len(symbols), dtype=float)
+        for element, atom_indices in indices.items():
+            element_index = self.element_index[element]
+            values = self.networks[element].forward(
+                self._normalized(descriptors, element, atom_indices)
+            )
+            if include_offsets:
+                values = values + self.atomic_offsets[element_index]
+            energies[atom_indices] = values
+        self._last_indices = indices
+        return energies
+
+    def energy_and_gradient(self, descriptors, symbols, include_offsets=True):
+        descriptors = np.asarray(descriptors, dtype=float)
+        symbols, indices = self._indices(symbols)
+        if descriptors.shape != (len(symbols), self.n_input):
+            raise ValueError(
+                f"descriptors have shape {descriptors.shape}; expected "
+                f"{(len(symbols), self.n_input)}."
+            )
+        energies = np.zeros(len(symbols), dtype=float)
+        gradient = np.zeros_like(descriptors)
+        for element, atom_indices in indices.items():
+            element_index = self.element_index[element]
+            values, normalized_gradient = self.networks[element].energy_and_gradient(
+                self._normalized(descriptors, element, atom_indices)
+            )
+            if include_offsets:
+                values = values + self.atomic_offsets[element_index]
+            energies[atom_indices] = values
+            gradient[atom_indices] = (
+                normalized_gradient / self.feature_scale[element_index]
+            )
+        self._last_indices = indices
+        return energies, gradient
+
+    def backward(self, grad_output):
+        if self._last_indices is None:
+            raise RuntimeError("forward must be called before backward")
+        grad_output = np.asarray(grad_output, dtype=float)
+        return {
+            element: self.networks[element].backward(grad_output[atom_indices])
+            for element, atom_indices in self._last_indices.items()
+        }
+
+    def double_backward(self, descriptor_seed):
+        if self._last_indices is None:
+            raise RuntimeError(
+                "energy_and_gradient must be called before double_backward"
+            )
+        descriptor_seed = np.asarray(descriptor_seed, dtype=float)
+        gradients = {}
+        for element, atom_indices in self._last_indices.items():
+            element_index = self.element_index[element]
+            gradients[element] = self.networks[element].double_backward(
+                descriptor_seed[atom_indices]
+                / self.feature_scale[element_index]
+            )
+        return gradients
+
+    def adam_update(self, gradients, learning_rate, states):
+        if states is None:
+            states = {element: None for element in self.elements}
+        for element in self.elements:
+            states[element] = self.networks[element].adam_update(
+                gradients[element], learning_rate, states[element]
+            )
+        return states
+
+    def get_params(self):
+        return {
+            element: self.networks[element].get_params()
+            for element in self.elements
+        }
+
+    def set_params(self, params):
+        for element in self.elements:
+            self.networks[element].set_params(params[element])
+
+    def save_parameters(self, destination):
+        for element_index, element in enumerate(self.elements):
+            params = self.networks[element].get_params()
+            for layer, weight in enumerate(params["weights"]):
+                destination[f"W_{element_index}_{layer}"] = weight
+            for layer, bias in enumerate(params["biases"]):
+                destination[f"b_{element_index}_{layer}"] = bias
+
+    def load_parameters(self, source):
+        for element_index, element in enumerate(self.elements):
+            params = {
+                "weights": [
+                    source[f"W_{element_index}_{layer}"]
+                    for layer in range(len(self.hidden_sizes) + 1)
+                ],
+                "biases": [
+                    source[f"b_{element_index}_{layer}"]
+                    for layer in range(len(self.hidden_sizes) + 1)
+                ],
+            }
+            self.networks[element].set_params(params)

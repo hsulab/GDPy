@@ -1,6 +1,6 @@
 import copy
 import json
-import pathlib
+import time
 
 import numpy as np
 from ase.io import write
@@ -58,6 +58,10 @@ class NnpTrainer(BasePotentialTrainer):
         train_dir = self.directory
         train_dir.mkdir(parents=True, exist_ok=True)
 
+        dataset = list(dataset)
+        if not dataset:
+            raise ValueError("NnpTrainer requires a non-empty dataset.")
+
         self.write_input(dataset)
 
         calculator_params = self.calculator_params
@@ -68,6 +72,34 @@ class NnpTrainer(BasePotentialTrainer):
         force_weight = train_config.get("force_weight", 0.1)
         verbose = train_config.get("verbose", 100)
         max_grad_norm = train_config.get("max_grad_norm", None)
+        batch_size = train_config.get("batch_size", None)
+        shuffle = bool(train_config.get("shuffle", True))
+        gradient_balance = bool(train_config.get("gradient_balance", True))
+        validation_fraction = float(train_config.get("validation_fraction", 0.0))
+        early_stopping_patience = train_config.get("early_stopping_patience", None)
+        normalization_epsilon = float(
+            train_config.get("normalization_epsilon", 1.0e-8)
+        )
+
+        if n_epochs < 1:
+            raise ValueError(f"n_epochs must be positive; got {n_epochs}.")
+        if learning_rate <= 0.0:
+            raise ValueError(
+                f"learning_rate must be positive; got {learning_rate}."
+            )
+        if energy_weight < 0.0 or force_weight < 0.0:
+            raise ValueError("energy_weight and force_weight must be non-negative.")
+        if energy_weight == 0.0 and force_weight == 0.0:
+            raise ValueError("At least one loss weight must be positive.")
+        if not 0.0 <= validation_fraction < 1.0:
+            raise ValueError(
+                "validation_fraction must be in [0, 1); got "
+                f"{validation_fraction}."
+            )
+        if early_stopping_patience is not None:
+            early_stopping_patience = int(early_stopping_patience)
+            if early_stopping_patience < 1:
+                raise ValueError("early_stopping_patience must be positive.")
 
         if not calculator_params:
             raise ValueError(
@@ -75,41 +107,25 @@ class NnpTrainer(BasePotentialTrainer):
                 "elements, g2_params, g4_params, r_cut, hidden_sizes."
             )
 
-        config_dump = dict(
-            name=self.name,
-            training=dict(
-                n_epochs=n_epochs,
-                learning_rate=learning_rate,
-                energy_weight=energy_weight,
-                force_weight=force_weight,
-            ),
-            dataset=dict(
-                n_structures=len(dataset),
-                max_atoms=max(len(a) for a in dataset),
-                min_atoms=min(len(a) for a in dataset),
-            ),
-            calculator=copy.deepcopy(calculator_params),
-        )
-        with open(train_dir / "train_config.json", "w") as f:
-            json.dump(config_dump, f, indent=2)
-
         elements = calculator_params["elements"]
         g2_params_raw = calculator_params["g2_params"]
         g4_params_raw = calculator_params.get("g4_params", [])
         r_cut = calculator_params["r_cut"]
         hidden_sizes = calculator_params.get("hidden_sizes", (64, 64))
 
-        from gdpx.potential.nnp.descriptor import G2Param, G4Param, compute_n_features
+        from gdpx.potential.nnp.descriptor import (
+            G2Param,
+            G4Param,
+            compute_n_features,
+            compute_symmetry_functions_and_derivatives,
+        )
 
         g2_norm = [G2Param(*p) if not isinstance(p, G2Param) else p for p in g2_params_raw]
         g4_norm = [G4Param(*p) if not isinstance(p, G4Param) else p for p in g4_params_raw]
         n_features = compute_n_features(elements, g2_norm, g4_norm)
 
-        from gdpx.potential.nnp.nn import SimpleNN
-
-        nn = SimpleNN(n_features, hidden_sizes=hidden_sizes)
-
         ref_energies = np.zeros(len(dataset))
+        symbols = []
         for idx, atoms in enumerate(dataset):
             if atoms.calc is None or "energy" not in atoms.calc.results:
                 raise ValueError(
@@ -126,134 +142,330 @@ class NnpTrainer(BasePotentialTrainer):
                     "(atoms.get_forces(apply_constraint=False) unavailable); "
                     f"required since force_weight={force_weight}."
                 )
+            current_symbols = np.asarray(atoms.get_chemical_symbols(), dtype=str)
+            unknown = sorted(set(current_symbols) - set(elements))
+            if unknown:
+                raise ValueError(
+                    f"Structure {idx} contains elements {unknown} not present "
+                    f"in calculator elements {elements}."
+                )
+            symbols.append(current_symbols)
 
-        energy_shift = float(np.mean(ref_energies))
-
-        model_path = train_dir / WEIGHTS_NAME
-        save_dict = {}
-        params = nn.get_params()
-        for i, w in enumerate(params["weights"]):
-            save_dict[f"W{i}"] = w
-        for i, b in enumerate(params["biases"]):
-            save_dict[f"b{i}"] = b
-        save_dict["hidden_sizes"] = np.array(hidden_sizes)
-        save_dict["elements"] = np.array(elements)
-        save_dict["g2_eta"] = np.array([p.eta for p in g2_norm])
-        save_dict["g2_Rs"] = np.array([p.Rs for p in g2_norm])
-        save_dict["g4_eta"] = np.array([p.eta for p in g4_norm])
-        save_dict["g4_zeta"] = np.array([p.zeta for p in g4_norm])
-        save_dict["g4_lambda_"] = np.array([p.lambda_ for p in g4_norm])
-        save_dict["r_cut"] = np.float64(r_cut)
-        save_dict["energy_shift"] = np.float64(energy_shift)
-        np.savez_compressed(model_path, **save_dict)
-
-        from gdpx.potential.nnp.calculator import ACSFNN
-        from gdpx.potential.nnp.descriptor import (
-            compute_forces,
-            compute_force_gradient_weights,
+        cache_start = time.perf_counter()
+        cached = [
+            compute_symmetry_functions_and_derivatives(
+                atoms, elements, g2_norm, g4_norm, r_cut
+            )
+            for atoms in dataset
+        ]
+        cache_seconds = time.perf_counter() - cache_start
+        cache_bytes = sum(
+            descriptor.nbytes + jacobian.nbytes
+            for descriptor, jacobian in cached
         )
 
-        calc = ACSFNN(model_file=model_path)
+        indices = self.rng.permutation(len(dataset))
+        n_validation = int(round(validation_fraction * len(dataset)))
+        if validation_fraction > 0.0:
+            n_validation = max(1, n_validation)
+            if n_validation >= len(dataset):
+                raise ValueError(
+                    "validation_fraction leaves no structures for training."
+                )
+        validation_indices = indices[:n_validation]
+        training_indices = indices[n_validation:]
+
+        feature_mean = np.zeros((len(elements), n_features), dtype=float)
+        feature_scale = np.ones((len(elements), n_features), dtype=float)
+        for element_index, element in enumerate(elements):
+            environments = [
+                cached[index][0][symbols[index] == element]
+                for index in training_indices
+            ]
+            environments = [values for values in environments if len(values)]
+            if not environments:
+                raise ValueError(
+                    f"No training environments are available for element {element}."
+                )
+            values = np.concatenate(environments, axis=0)
+            feature_mean[element_index] = np.mean(values, axis=0)
+            standard_deviation = np.std(values, axis=0)
+            feature_scale[element_index] = np.where(
+                standard_deviation > normalization_epsilon,
+                standard_deviation,
+                1.0,
+            )
+
+        composition = np.array(
+            [
+                [np.count_nonzero(symbols[index] == element) for element in elements]
+                for index in training_indices
+            ],
+            dtype=float,
+        )
+        atomic_offsets = np.linalg.lstsq(
+            composition, ref_energies[training_indices], rcond=None
+        )[0]
+
+        from gdpx.potential.nnp.nn import ElementwiseNN
+
+        model = ElementwiseNN(
+            n_features,
+            elements,
+            hidden_sizes=hidden_sizes,
+            feature_mean=feature_mean,
+            feature_scale=feature_scale,
+            atomic_offsets=atomic_offsets,
+            rng=self.rng,
+        )
+        if init_model is not None:
+            from gdpx.potential.nnp.calculator import ACSFNN
+
+            initial = ACSFNN(init_model)
+            _validate_initial_model(model, initial, calculator_params)
+            model.feature_mean[...] = initial.model.feature_mean
+            model.feature_scale[...] = initial.model.feature_scale
+            model.atomic_offsets[...] = initial.model.atomic_offsets
+            model.set_params(initial.model.get_params())
+
+        if batch_size is None:
+            batch_size = len(training_indices)
+        batch_size = int(batch_size)
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be positive; got {batch_size}.")
+        batch_size = min(batch_size, len(training_indices))
+
+        config_dump = dict(
+            name=self.name,
+            model_format_version=2,
+            training=dict(
+                n_epochs=n_epochs,
+                learning_rate=learning_rate,
+                energy_weight=energy_weight,
+                force_weight=force_weight,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                gradient_balance=gradient_balance,
+                max_grad_norm=max_grad_norm,
+                validation_fraction=validation_fraction,
+                early_stopping_patience=early_stopping_patience,
+            ),
+            dataset=dict(
+                n_structures=len(dataset),
+                n_training=len(training_indices),
+                n_validation=len(validation_indices),
+                max_atoms=max(len(a) for a in dataset),
+                min_atoms=min(len(a) for a in dataset),
+                cache_seconds=cache_seconds,
+                cache_bytes=cache_bytes,
+            ),
+            calculator=copy.deepcopy(calculator_params),
+        )
+        with open(train_dir / "train_config.json", "w") as f:
+            json.dump(config_dump, f, indent=2)
+
+        self._print(
+            f"Cached {len(dataset)} descriptor Jacobians in "
+            f"{cache_seconds:.3f} s ({cache_bytes / 1024**2:.2f} MiB)."
+        )
 
         adam_state = None
+        history = []
+        best_score = np.inf
+        best_params = None
+        epochs_without_improvement = 0
 
         for epoch in range(n_epochs):
-            total_loss = 0.0
-            total_grads = None
-            e2_sum = 0.0
-            f2_sum = 0.0
-            f_ncomp = 0
+            epoch_start = time.perf_counter()
+            epoch_indices = np.array(training_indices, copy=True)
+            if shuffle:
+                self.rng.shuffle(epoch_indices)
+            energy_gradient_norms = []
+            force_gradient_norms = []
 
-            for atoms in dataset:
-                G = calc._compute_descriptor(atoms)
-                E_pred = float(np.sum(calc.nn.forward(G)))
-                E_ref = atoms.get_potential_energy() - energy_shift
-                dE = E_pred - E_ref
-                num_atoms = max(len(atoms), 1)
-                loss = energy_weight * dE**2 / num_atoms
-                e2_sum += (dE / num_atoms) ** 2
+            for batch_start in range(0, len(epoch_indices), batch_size):
+                batch = epoch_indices[batch_start : batch_start + batch_size]
+                energy_grads = None
+                force_grads = None
+                force_components = sum(3 * len(dataset[index]) for index in batch)
 
-                grad_output = np.full(len(atoms), 2.0 * energy_weight * dE / num_atoms)
-                grads = calc.nn.backward(grad_output)
-
-                if total_grads is None:
-                    total_grads = _copy_grads(grads)
-                else:
-                    _add_grads(total_grads, grads)
-
-                if force_weight > 0:
+                for index in batch:
+                    atoms = dataset[index]
+                    descriptor, jacobian = cached[index]
+                    atom_symbols = symbols[index]
                     num_atoms = len(atoms)
-                    forces_ref = atoms.get_forces(apply_constraint=False)
 
-                    _, dE_dG = calc.nn.energy_and_gradient(G)
-                    forces_pred = compute_forces(
-                        atoms,
-                        elements,
-                        g2_params_raw,
-                        g4_params_raw,
-                        r_cut,
-                        dE_dG,
+                    energy_pred = float(
+                        np.sum(model.forward(descriptor, atom_symbols))
+                    )
+                    energy_error = energy_pred - ref_energies[index]
+                    current = model.backward(
+                        np.full(
+                            num_atoms,
+                            2.0
+                            * energy_error
+                            / (len(batch) * num_atoms**2),
+                        )
+                    )
+                    energy_grads = _accumulate_elementwise_grads(
+                        energy_grads, current
                     )
 
-                    dF = forces_pred - forces_ref
-                    loss += force_weight * np.mean(dF**2)
-                    f2_sum += float(np.sum(dF**2))
-                    f_ncomp += 3 * num_atoms
+                    if force_weight > 0.0:
+                        _, dE_dG = model.energy_and_gradient(
+                            descriptor, atom_symbols
+                        )
+                        force_error = (
+                            jacobian.forces(dE_dG)
+                            - atoms.get_forces(apply_constraint=False)
+                        )
+                        current = model.double_backward(
+                            jacobian.adjoint(force_error)
+                        )
+                        _scale_elementwise_grads(
+                            current, -2.0 / force_components
+                        )
+                        force_grads = _accumulate_elementwise_grads(
+                            force_grads, current
+                        )
 
-                    B = compute_force_gradient_weights(
-                        atoms,
-                        elements,
-                        g2_params_raw,
-                        g4_params_raw,
-                        r_cut,
-                        dF,
-                    )
-                    force_grads = calc.nn.double_backward(B)
-                    _scale_grads(force_grads, -2.0 * force_weight / (3.0 * num_atoms))
-                    _add_grads(total_grads, force_grads)
-
-                total_loss += loss
-
-            n = len(dataset)
-            _scale_grads(total_grads, 1.0 / n)
-
-            if max_grad_norm is not None:
-                grad_norm = _global_norm(total_grads)
-                if grad_norm > max_grad_norm:
-                    _scale_grads(total_grads, max_grad_norm / grad_norm)
-
-            calc.nn.adam_update(total_grads, learning_rate, adam_state)
-
-            if verbose and epoch % verbose == 0:
-                avg_loss = total_loss / n
-                energy_rmse = np.sqrt(e2_sum / n)
-                force_rmse = np.sqrt(f2_sum / f_ncomp) if f_ncomp else 0.0
-                self._print(
-                    f"Epoch {epoch:5d}: loss = {avg_loss:.8f}  "
-                    f"(E_weight={energy_weight}, F_weight={force_weight})  "
-                    f"energy_RMSE(per-atom) = {energy_rmse:.6f} eV, "
-                    f"force_RMSE = {force_rmse:.6f} eV/A"
+                energy_norm = _elementwise_global_norm(energy_grads)
+                force_norm = _elementwise_global_norm(force_grads)
+                energy_gradient_norms.append(energy_norm)
+                force_gradient_norms.append(force_norm)
+                if gradient_balance and energy_grads is not None and force_grads is not None:
+                    if energy_norm > 0.0:
+                        _scale_elementwise_grads(
+                            energy_grads, energy_weight / energy_norm
+                        )
+                    if force_norm > 0.0:
+                        _scale_elementwise_grads(
+                            force_grads, force_weight / force_norm
+                        )
+                else:
+                    _scale_elementwise_grads(energy_grads, energy_weight)
+                    _scale_elementwise_grads(force_grads, force_weight)
+                total_grads = _accumulate_elementwise_grads(
+                    energy_grads, force_grads
                 )
 
-        params = calc.nn.get_params()
-        save_dict = {}
-        for i, w in enumerate(params["weights"]):
-            save_dict[f"W{i}"] = w
-        for i, b in enumerate(params["biases"]):
-            save_dict[f"b{i}"] = b
+                if max_grad_norm is not None:
+                    grad_norm = _elementwise_global_norm(total_grads)
+                    if grad_norm > max_grad_norm:
+                        _scale_elementwise_grads(
+                            total_grads, max_grad_norm / grad_norm
+                        )
+                adam_state = model.adam_update(
+                    total_grads, learning_rate, adam_state
+                )
 
-        hidden_sizes = [w.shape[1] for w in params["weights"][:-1]]
-        save_dict["hidden_sizes"] = np.array(hidden_sizes)
-        save_dict["elements"] = np.array(calc.model_elements)
-        save_dict["g2_eta"] = np.array([p.eta for p in calc.g2_params])
-        save_dict["g2_Rs"] = np.array([p.Rs for p in calc.g2_params])
-        save_dict["g4_eta"] = np.array([p.eta for p in calc.g4_params])
-        save_dict["g4_zeta"] = np.array([p.zeta for p in calc.g4_params])
-        save_dict["g4_lambda_"] = np.array([p.lambda_ for p in calc.g4_params])
-        save_dict["r_cut"] = np.float64(calc.r_cut)
-        save_dict["energy_shift"] = np.float64(energy_shift)
+            train_metrics = _evaluate_model(
+                model,
+                dataset,
+                symbols,
+                ref_energies,
+                cached,
+                training_indices,
+                force_weight > 0.0,
+            )
+            validation_metrics = (
+                _evaluate_model(
+                    model,
+                    dataset,
+                    symbols,
+                    ref_energies,
+                    cached,
+                    validation_indices,
+                    force_weight > 0.0,
+                )
+                if len(validation_indices)
+                else None
+            )
+            selection_metrics = validation_metrics or train_metrics
+            score = (
+                energy_weight * selection_metrics["energy_rmse"] ** 2
+                + force_weight * selection_metrics["force_rmse"] ** 2
+            )
+            improved = score < best_score
+            if improved:
+                best_score = score
+                best_params = model.get_params()
+                epochs_without_improvement = 0
+                _save_model(
+                    train_dir / WEIGHTS_NAME,
+                    model,
+                    hidden_sizes,
+                    elements,
+                    g2_norm,
+                    g4_norm,
+                    r_cut,
+                )
+            else:
+                epochs_without_improvement += 1
 
-        np.savez_compressed(train_dir / WEIGHTS_NAME, **save_dict)
+            row = dict(
+                epoch=epoch,
+                train_energy_rmse=train_metrics["energy_rmse"],
+                train_force_rmse=train_metrics["force_rmse"],
+                validation_energy_rmse=(
+                    validation_metrics["energy_rmse"]
+                    if validation_metrics is not None
+                    else None
+                ),
+                validation_force_rmse=(
+                    validation_metrics["force_rmse"]
+                    if validation_metrics is not None
+                    else None
+                ),
+                energy_gradient_norm=float(np.mean(energy_gradient_norms)),
+                force_gradient_norm=float(np.mean(force_gradient_norms)),
+                learning_rate=learning_rate,
+                epoch_seconds=time.perf_counter() - epoch_start,
+                best=improved,
+            )
+            history.append(row)
+            with open(train_dir / "training_history.json", "w") as f:
+                json.dump(history, f, indent=2)
+
+            if verbose and (epoch % verbose == 0 or epoch == n_epochs - 1):
+                validation_text = ""
+                if validation_metrics is not None:
+                    validation_text = (
+                        f", val_E_RMSE/atom={validation_metrics['energy_rmse']:.6f} eV"
+                        f", val_F_RMSE={validation_metrics['force_rmse']:.6f} eV/A"
+                    )
+                self._print(
+                    f"Epoch {epoch:5d}: "
+                    f"train_E_RMSE/atom={train_metrics['energy_rmse']:.6f} eV, "
+                    f"train_F_RMSE={train_metrics['force_rmse']:.6f} eV/A"
+                    f"{validation_text}, "
+                    f"grad_norms(E/F)={row['energy_gradient_norm']:.3e}/"
+                    f"{row['force_gradient_norm']:.3e}, "
+                    f"time={row['epoch_seconds']:.3f} s"
+                )
+
+            if (
+                early_stopping_patience is not None
+                and len(validation_indices)
+                and epochs_without_improvement >= early_stopping_patience
+            ):
+                self._print(
+                    f"Early stopping at epoch {epoch}; validation score did "
+                    f"not improve for {early_stopping_patience} epochs."
+                )
+                break
+
+        if best_params is not None:
+            model.set_params(best_params)
+        _save_model(
+            train_dir / WEIGHTS_NAME,
+            model,
+            hidden_sizes,
+            elements,
+            g2_norm,
+            g4_norm,
+            r_cut,
+        )
 
     def freeze(self):
         model_path = (self.directory / self.frozen_name).resolve()
@@ -289,3 +501,145 @@ def _scale_grads(grads, factor):
         grads["weights"][i] *= factor
     for i in range(len(grads["biases"])):
         grads["biases"][i] *= factor
+
+
+def _copy_elementwise_grads(grads):
+    if grads is None:
+        return None
+    return {element: _copy_grads(values) for element, values in grads.items()}
+
+
+def _accumulate_elementwise_grads(target, source):
+    if source is None:
+        return target
+    if target is None:
+        return _copy_elementwise_grads(source)
+    for element in target:
+        _add_grads(target[element], source[element])
+    return target
+
+
+def _scale_elementwise_grads(grads, factor):
+    if grads is None:
+        return
+    for values in grads.values():
+        _scale_grads(values, factor)
+
+
+def _elementwise_global_norm(grads):
+    if grads is None:
+        return 0.0
+    return float(
+        np.sqrt(sum(_global_norm(values) ** 2 for values in grads.values()))
+    )
+
+
+def _evaluate_model(
+    model,
+    dataset,
+    symbols,
+    ref_energies,
+    cached,
+    indices,
+    evaluate_forces,
+):
+    energy_squared = 0.0
+    force_squared = 0.0
+    force_components = 0
+    for index in indices:
+        descriptor, jacobian = cached[index]
+        atomic_energies, dE_dG = model.energy_and_gradient(
+            descriptor, symbols[index]
+        )
+        energy_error_per_atom = (
+            float(np.sum(atomic_energies)) - ref_energies[index]
+        ) / len(dataset[index])
+        energy_squared += energy_error_per_atom**2
+        if evaluate_forces:
+            force_error = (
+                jacobian.forces(dE_dG)
+                - dataset[index].get_forces(apply_constraint=False)
+            )
+            force_squared += float(np.sum(force_error**2))
+            force_components += force_error.size
+    return {
+        "energy_rmse": float(np.sqrt(energy_squared / len(indices))),
+        "force_rmse": (
+            float(np.sqrt(force_squared / force_components))
+            if force_components
+            else 0.0
+        ),
+    }
+
+
+def _save_model(
+    model_path,
+    model,
+    hidden_sizes,
+    elements,
+    g2_params,
+    g4_params,
+    r_cut,
+):
+    save_dict = {
+        "format_version": np.int64(2),
+        "hidden_sizes": np.asarray(hidden_sizes, dtype=np.int64),
+        "elements": np.asarray(elements),
+        "feature_mean": model.feature_mean,
+        "feature_scale": model.feature_scale,
+        "atomic_offsets": model.atomic_offsets,
+        "g2_eta": np.array([parameter.eta for parameter in g2_params]),
+        "g2_Rs": np.array([parameter.Rs for parameter in g2_params]),
+        "g4_eta": np.array([parameter.eta for parameter in g4_params]),
+        "g4_zeta": np.array([parameter.zeta for parameter in g4_params]),
+        "g4_lambda_": np.array([parameter.lambda_ for parameter in g4_params]),
+        "r_cut": np.float64(r_cut),
+    }
+    model.save_parameters(save_dict)
+    np.savez_compressed(model_path, **save_dict)
+
+
+def _validate_initial_model(model, initial, calculator_params):
+    initial_model = initial.model
+    if model.elements != initial_model.elements:
+        raise ValueError(
+            "Initial model elements do not match the requested calculator "
+            f"elements: {initial_model.elements} != {model.elements}."
+        )
+    if model.n_input != initial_model.n_input:
+        raise ValueError(
+            "Initial model descriptor width does not match the requested "
+            f"configuration: {initial_model.n_input} != {model.n_input}."
+        )
+    if model.hidden_sizes != initial_model.hidden_sizes:
+        raise ValueError(
+            "Initial model hidden sizes do not match the requested "
+            f"configuration: {initial_model.hidden_sizes} != "
+            f"{model.hidden_sizes}."
+        )
+    expected_g2 = np.asarray(calculator_params["g2_params"], dtype=float)
+    actual_g2 = np.asarray(
+        [(parameter.eta, parameter.Rs) for parameter in initial.g2_params],
+        dtype=float,
+    ).reshape((-1, 2))
+    expected_g4 = np.asarray(
+        calculator_params.get("g4_params", []), dtype=float
+    ).reshape((-1, 3))
+    actual_g4 = np.asarray(
+        [
+            (parameter.eta, parameter.zeta, parameter.lambda_)
+            for parameter in initial.g4_params
+        ],
+        dtype=float,
+    ).reshape((-1, 3))
+    if (
+        expected_g2.shape != actual_g2.shape
+        or not np.allclose(expected_g2, actual_g2)
+        or expected_g4.shape != actual_g4.shape
+        or not np.allclose(expected_g4, actual_g4)
+        or not np.isclose(float(calculator_params["r_cut"]), initial.r_cut)
+    ):
+        raise ValueError(
+            "Initial model descriptor parameters do not match the requested "
+            "calculator configuration."
+        )

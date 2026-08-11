@@ -1,8 +1,15 @@
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
-from .descriptor import compute_symmetry_functions, compute_forces, compute_n_features
-from .nn import SimpleNN
+from .descriptor import (
+    compute_n_features,
+    compute_symmetry_functions,
+    compute_symmetry_functions_and_derivatives,
+)
+from .nn import ElementwiseNN
+
+
+MODEL_FORMAT_VERSION = 2
 
 
 class ACSFNN(Calculator):
@@ -13,6 +20,17 @@ class ACSFNN(Calculator):
         super().__init__(**kwargs)
 
         loaded = np.load(model_file)
+        if "format_version" not in loaded:
+            raise ValueError(
+                "Legacy NNP model format is not supported. Retrain the model "
+                "with the current NnpTrainer to create a version-2 model."
+            )
+        format_version = int(np.asarray(loaded["format_version"]).flat[0])
+        if format_version != MODEL_FORMAT_VERSION:
+            raise ValueError(
+                f"Unsupported NNP model format version {format_version}; "
+                f"expected {MODEL_FORMAT_VERSION}."
+            )
 
         self.model_elements = [str(e) for e in loaded["elements"]]
         self.type_map = (
@@ -41,22 +59,23 @@ class ACSFNN(Calculator):
             for i in range(n_g4)
         ]
         self.r_cut = float(np.asarray(loaded["r_cut"]).flat[0])
-        self.energy_shift = (
-            float(np.asarray(loaded["energy_shift"]).flat[0])
-            if "energy_shift" in loaded
-            else 0.0
-        )
-
         hidden_sizes = [int(x) for x in loaded["hidden_sizes"]]
-        n_weights = sum(1 for k in loaded if k.startswith("W"))
-        weights = [loaded[f"W{i}"] for i in range(n_weights)]
-        biases = [loaded[f"b{i}"] for i in range(n_weights)]
-
         n_features = compute_n_features(
             self.model_elements, self.g2_params, self.g4_params
         )
-        self.nn = SimpleNN(n_features, hidden_sizes=hidden_sizes)
-        self.nn.set_params({"weights": weights, "biases": biases})
+        self.model = ElementwiseNN(
+            n_features,
+            self.model_elements,
+            hidden_sizes=hidden_sizes,
+            feature_mean=loaded["feature_mean"],
+            feature_scale=loaded["feature_scale"],
+            atomic_offsets=loaded["atomic_offsets"],
+            rng=np.random.default_rng(0),
+        )
+        self.model.load_parameters(loaded)
+        # ``nn`` was previously an internal single-network attribute. Keep a
+        # readable alias while callers migrate to the element-wise model.
+        self.nn = self.model
 
     def _compute_descriptor(self, atoms):
         return compute_symmetry_functions(
@@ -75,12 +94,21 @@ class ACSFNN(Calculator):
         super().calculate(atoms, properties, system_changes)
         self._validate_atoms(self.atoms)
 
-        G = self._compute_descriptor(self.atoms)
-        energy_per_atom, dE_dG = self.nn.energy_and_gradient(G)
-        self.results["energy"] = float(np.sum(energy_per_atom)) + self.energy_shift
-
         if "forces" in properties:
-            self.results["forces"] = compute_forces(
-                self.atoms, self.model_elements, self.g2_params, self.g4_params,
-                self.r_cut, dE_dG,
+            G, jacobian = compute_symmetry_functions_and_derivatives(
+                self.atoms,
+                self.model_elements,
+                self.g2_params,
+                self.g4_params,
+                self.r_cut,
             )
+            energy_per_atom, dE_dG = self.model.energy_and_gradient(
+                G, self.atoms.get_chemical_symbols()
+            )
+            self.results["forces"] = jacobian.forces(dE_dG)
+        else:
+            G = self._compute_descriptor(self.atoms)
+            energy_per_atom = self.model.forward(
+                G, self.atoms.get_chemical_symbols()
+            )
+        self.results["energy"] = float(np.sum(energy_per_atom))
