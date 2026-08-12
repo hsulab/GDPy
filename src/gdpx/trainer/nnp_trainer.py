@@ -319,6 +319,7 @@ class NnpTrainer(BasePotentialTrainer):
         best_params = None
         epochs_without_improvement = 0
         global_step = 0
+        log_header_printed = False
 
         for epoch in range(n_epochs):
             epoch_start = time.perf_counter()
@@ -529,28 +530,11 @@ class NnpTrainer(BasePotentialTrainer):
                 json.dump(history, f, indent=2)
 
             if verbose and (epoch % verbose == 0 or epoch == n_epochs - 1):
-                validation_text = ""
-                if validation_metrics is not None:
-                    validation_text = (
-                        f", val_E_RMSE/atom={validation_metrics['energy_rmse']:.6f} eV"
-                        f", val_F_RMSE={validation_metrics['force_rmse']:.6f} eV/A"
-                    )
-                self._print(
-                    f"Epoch {epoch:5d}: "
-                    f"train_E_RMSE/atom={train_metrics['energy_rmse']:.6f} eV, "
-                    f"train_F_RMSE={train_metrics['force_rmse']:.6f} eV/A"
-                    f"{validation_text}, "
-                    f"lr={row['learning_rate']:.3e}, "
-                    f"pref(E/F)={row['energy_prefactor']:.3e}/"
-                    f"{row['force_prefactor']:.3e}, "
-                    f"grad_raw(E/F)={row['energy_gradient_norm']:.3e}/"
-                    f"{row['force_gradient_norm']:.3e}, "
-                    f"grad_eff(E/F)="
-                    f"{row['effective_energy_gradient_norm']:.3e}/"
-                    f"{row['effective_force_gradient_norm']:.3e}, "
-                    f"cos={row['gradient_cosine']:.3f}, "
-                    f"time={row['epoch_seconds']:.3f} s"
-                )
+                has_validation = validation_metrics is not None
+                if not log_header_printed:
+                    self._print(_training_log_header(has_validation))
+                    log_header_printed = True
+                self._print(_training_log_row(row, has_validation))
 
             if (
                 early_stopping_patience is not None
@@ -707,6 +691,33 @@ def _fixed_selection_score(metrics, energy_prefactor, force_prefactor):
     return float(
         energy_prefactor * metrics["energy_loss"]
         + force_prefactor * metrics["force_loss"]
+    )
+
+
+def _training_log_header(has_validation):
+    columns = ["epoch", "E_tr/atom", "F_tr"]
+    if has_validation:
+        columns.extend(["E_val/atom", "F_val"])
+    columns.extend(["lr", "sec"])
+    return f"{columns[0]:>6s}" + "".join(
+        f" {column:>11s}" for column in columns[1:]
+    )
+
+
+def _training_log_row(row, has_validation):
+    values = [row["train_energy_rmse"], row["train_force_rmse"]]
+    if has_validation:
+        values.extend(
+            [row["validation_energy_rmse"], row["validation_force_rmse"]]
+        )
+    values.extend(
+        [
+            row["learning_rate"],
+            row["epoch_seconds"],
+        ]
+    )
+    return f"{row['epoch']:6d}" + "".join(
+        f" {value:11.4e}" for value in values
     )
 
 

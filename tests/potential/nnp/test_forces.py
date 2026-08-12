@@ -13,6 +13,8 @@ from gdpx.trainer.nnp_trainer import (
     _force_double_backward_scale,
     _scheduled_prefactor,
     _smooth_exponential_learning_rate,
+    _training_log_header,
+    _training_log_row,
 )
 
 
@@ -57,6 +59,38 @@ class TestDeepMDLossSchedule:
         assert _fixed_selection_score(
             balanced, 1.0, 1.0
         ) < _fixed_selection_score(force_only, 1.0, 1.0)
+
+    def test_compact_numeric_training_log(self):
+        row = dict(
+            epoch=12,
+            train_energy_rmse=0.1,
+            train_force_rmse=0.2,
+            validation_energy_rmse=0.3,
+            validation_force_rmse=0.4,
+            learning_rate=1.0e-3,
+            energy_prefactor=0.5,
+            force_prefactor=10.0,
+            energy_gradient_norm=2.0,
+            force_gradient_norm=3.0,
+            effective_energy_gradient_norm=1.0,
+            effective_force_gradient_norm=30.0,
+            gradient_cosine=-0.25,
+            epoch_seconds=0.15,
+            best=True,
+        )
+        header = _training_log_header(True)
+        output = _training_log_row(row, True)
+        assert header.split() == [
+            "epoch",
+            "E_tr/atom",
+            "F_tr",
+            "E_val/atom",
+            "F_val",
+            "lr",
+            "sec",
+        ]
+        assert len(output.split()) == len(header.split())
+        assert all(np.isfinite(float(value)) for value in output.split())
 
 
 def _make_model(g2_params, g4_params, hidden_sizes=(16, 16)):
