@@ -1,4 +1,5 @@
 from gdpx.worker.drive import DriverBasedWorker
+from gdpx.utils.archive import ZSTD_ARCHIVE_NAME
 
 
 def _create_computation_dirs(w, tmp_path):
@@ -76,6 +77,20 @@ class TestRetrieve:
         first = w.retrieve()
         second = w.retrieve(include_retrieved=False)
         assert len(second) == 0
+
+    def test_retrieve_creates_zstd_archive(self, mock_sched, fake_driver, fake_structure, tmp_path):
+        w = DriverBasedWorker(scheduler=mock_sched, directory=tmp_path)
+        w.set_drivers(fake_driver)
+        w.run([fake_structure])
+        _create_computation_dirs(w, tmp_path)
+        output_path = tmp_path / "cand0" / "output.txt"
+        output_path.write_text("finished")
+        mock_sched.finish(True)
+
+        w.retrieve(use_archive=True)
+
+        assert (tmp_path / ZSTD_ARCHIVE_NAME).is_file()
+        assert not output_path.parent.exists()
 
 
 class TestPairing:

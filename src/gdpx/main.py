@@ -126,7 +126,7 @@ def main():
     parser_compute.add_argument(
         "--archive",
         action="store_true",
-        help="whether archive computation folders when retrieve",
+        help="archive computation folders to cand.tar.zst when retrieving",
     )
     parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_data)")
     parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)

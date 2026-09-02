@@ -1,7 +1,6 @@
 import copy
 import io
 import pathlib
-import tarfile
 import traceback
 from typing import Optional
 
@@ -16,6 +15,7 @@ from gdpx.backend.plumed import (
     find_input_key_value,
     write_plumed_input_file,
 )
+from gdpx.utils.archive import open_archive
 
 from ..driver import BaseDriver
 from ..observer import create_an_observer
@@ -264,11 +264,11 @@ class LmpDriver(BaseDriver):
         else:
             rpath = self.directory.relative_to(self.directory.parent)
             colvar_tarname = str(rpath / "COLVAR")
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with open_archive(archive_path) as tar:
                 for tarinfo in tar:
                     if tarinfo.name.startswith(self.directory.name):
                         if tarinfo.name == colvar_tarname:
-                            colvar_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                            colvar_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
 
         dump_period_in_ps = self.setting.dump_period * self.setting.timestep / 1000.0
 

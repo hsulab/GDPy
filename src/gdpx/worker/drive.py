@@ -5,7 +5,6 @@ import json
 import pathlib
 import shlex
 import shutil
-import tarfile
 import tempfile
 import time
 import uuid
@@ -23,6 +22,7 @@ from gdpx.worker.registry import WORKER_REGISTRY
 from gdpx.potential.manager import BasePotentialManager
 from gdpx.scheduler import LocalScheduler
 from gdpx.scheduler.scheduler import BaseScheduler
+from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
 from gdpx.utils.profiler import CustomTimer
 
 from .pairing import Pairing
@@ -735,18 +735,17 @@ class DriverBasedWorker(BaseWorker):
         if unretrieved_wdirs:
             unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
             if not self._share_wdir:
-                archive_path = (self.directory / "cand.tgz").absolute()
-                if not archive_path.exists():
+                archive_path = find_driver_archive(self.directory)
+                if archive_path is None:
                     results = self._read_results(unretrieved_wdirs)
                 else:
                     self._print("read archived data...")
                     results = self._read_results(unretrieved_wdirs, archive_path=archive_path)
 
-                if use_archive and not archive_path.exists():
+                if use_archive and archive_path is None:
                     self._print("archive computation folders...")
-                    with tarfile.open(archive_path, "w:gz", compresslevel=6) as tar:
-                        for w in unretrieved_wdirs:
-                            tar.add(w, arcname=w.name)
+                    archive_path = (self.directory / ZSTD_ARCHIVE_NAME).absolute()
+                    create_zstd_archive(archive_path, ((w, w.name) for w in unretrieved_wdirs))
                     for w in unretrieved_wdirs:
                         shutil.rmtree(w)
             else:

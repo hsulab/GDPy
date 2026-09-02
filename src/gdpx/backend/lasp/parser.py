@@ -4,7 +4,6 @@
 
 import io
 import pathlib
-import tarfile
 import tempfile
 import warnings
 from typing import Optional
@@ -14,6 +13,8 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.geometry import find_mic
 from ase.io import read, write
+
+from gdpx.utils.archive import open_archive
 
 
 def is_number(s):
@@ -160,15 +161,15 @@ def read_lasp_structures(
         stru_tarname = str(rpath / "allstr.arc")
         afrc_tarname = str(rpath / "allfor.arc")
         lout_tarname = str(rpath / "lasp.out")
-        with tarfile.open(archive_path, "r:gz") as tar:
+        with open_archive(archive_path) as tar:
             for tarinfo in tar:
                 if tarinfo.name.startswith(wdir.name):
                     if tarinfo.name == stru_tarname:
-                        stru_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        stru_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                     elif tarinfo.name == afrc_tarname:
-                        afrc_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        afrc_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                     elif tarinfo.name == lout_tarname:
-                        lout_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        lout_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                     else:
                         ...
                 else:
@@ -190,10 +191,10 @@ def read_lasp_structures(
     else:
         rpath = wdir.relative_to(mdir.parent)
         vel_tarname = str(rpath / "vel.arc")
-        with tarfile.open(archive_path, "r:gz") as tar:
+        with open_archive(archive_path) as tar:
             for tarinfo in tar:
                 if tarinfo.name == vel_tarname:
-                    vel_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                    vel_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                 else:
                     ...
             else:

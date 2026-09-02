@@ -2,7 +2,6 @@ import io
 import os
 import pathlib
 import pickle
-import tarfile
 from typing import Optional
 
 from ase import Atoms
@@ -16,6 +15,7 @@ from ase.io.lammpsdata import write_lammps_data
 from gdpx import config
 from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
 from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
+from gdpx.utils.archive import open_archive
 from gdpx.utils.strconv import integers_to_string
 
 from .constants import ASELMPCONFIG, parse_type_list
@@ -48,17 +48,17 @@ def _read_a_single_trajectory(
         log_tarname = str(rpath / log_fname)
         devi_tarname = str(rpath / ASELMPCONFIG.deviation_filename)
         prism_io, devi_io = None, None
-        with tarfile.open(archive_path, "r:gz") as tar:
+        with open_archive(archive_path) as tar:
             for tarinfo in tar:
                 if tarinfo.name.startswith(wdir.name):
                     if tarinfo.name == traj_tarname:
-                        traj_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        traj_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                     elif tarinfo.name == prism_tarname:
-                        prism_io = io.BytesIO(tar.extractfile(tarinfo.name).read())
+                        prism_io = io.BytesIO(tar.extractfile(tarinfo).read())
                     elif tarinfo.name == log_tarname:
-                        log_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        log_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
                     elif tarinfo.name == devi_tarname:
-                        devi_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        devi_io = io.StringIO(tar.extractfile(tarinfo).read().decode())
 
     assert traj_io is not None
     assert log_io is not None

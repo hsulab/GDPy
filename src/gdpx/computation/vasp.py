@@ -3,7 +3,6 @@ import io
 import pathlib
 import re
 import shutil
-import tarfile
 import traceback
 from typing import Optional
 
@@ -16,6 +15,7 @@ from ase.io import read, write
 
 from gdpx.backend.vasp import read_oszicar, read_outcar_scf, read_report, write_vasp
 from gdpx.data.extatoms import ScfErrAtoms
+from gdpx.utils.archive import open_archive
 from gdpx.utils.cmdrun import run_ase_calculator
 from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
 
@@ -645,18 +645,18 @@ class VaspDriver(BaseDriver):
             vasprun_name = str((wdir / "vasprun.xml").relative_to(self.directory.parent))
             oszicar_name = str((wdir / "OSZICAR").relative_to(self.directory.parent))
             outcar_name = str((wdir / "OUTCAR").relative_to(self.directory.parent))
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with open_archive(archive_path) as tar:
                 for tarinfo in tar:
                     if tarinfo.name == vasprun_name:
-                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        fobj = io.StringIO(tar.extractfile(tarinfo).read().decode())
                         frames = read(fobj, ":", format="vasp-xml")
                         fobj.close()
                         flags[0] = True
                     if tarinfo.name == oszicar_name:
-                        oszicar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        oszicar_fobj = io.StringIO(tar.extractfile(tarinfo).read().decode())
                         flags[1] = True
                     if tarinfo.name == outcar_name:
-                        outcar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        outcar_fobj = io.StringIO(tar.extractfile(tarinfo).read().decode())
                         flags[2] = True
                     if all(flags):
                         break
@@ -777,7 +777,7 @@ class VaspDriver(BaseDriver):
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         else:
             pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with open_archive(archive_path) as tar:
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)

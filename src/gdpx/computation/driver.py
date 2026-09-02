@@ -4,7 +4,6 @@ import dataclasses
 import pathlib
 import re
 import shutil
-import tarfile
 import warnings
 from typing import Optional, Union
 
@@ -16,6 +15,7 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 
 from gdpx.core.component import BaseComponent
 from gdpx.group import evaluate_constraint_expression
+from gdpx.utils.archive import open_archive
 from gdpx.utils.strconv import integers_to_string
 
 from .md.md_utils import force_temperature
@@ -517,7 +517,7 @@ class BaseDriver(BaseComponent):
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         else:
             pattern = self.directory.name + "/" + r"[0-9][0-9][0-9][0-9][.]run"
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with open_archive(archive_path) as tar:
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
