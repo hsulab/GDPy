@@ -5,7 +5,6 @@ import io
 import json
 import pathlib
 import shutil
-import tarfile
 import traceback
 import warnings
 from typing import Optional, Tuple
@@ -21,6 +20,7 @@ from ase.optimize.optimize import Dynamics
 
 from gdpx import config as GDPCONFIG
 from gdpx.backend.ase import EnhancedCalculator
+from gdpx.utils.archive import open_archive
 
 from .driver import EARLYSTOP_KEY, BaseDriver, Controller, DriverSetting
 from .observer import create_an_observer
@@ -993,10 +993,10 @@ class AseDriver(BaseDriver):
                 frames = []
         else:
             target_name = str((wdir / self.xyz_fname).relative_to(self.directory.parent))
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with open_archive(archive_path) as tar:
                 for tarinfo in tar:
                     if tarinfo.name == target_name:
-                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        fobj = io.StringIO(tar.extractfile(tarinfo).read().decode())
                         frames = read(fobj, ":", format="extxyz")
                         fobj.close()
                         break
