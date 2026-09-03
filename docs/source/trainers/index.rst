@@ -30,13 +30,15 @@ The `config.yaml` requires two sections `dataset` and `trainer` to define a trai
       batchsize: 16
       random_seed: 1112
     trainer:
-      name: deepmd
-      command: dp
-      freeze_command: dp
-      config: ./dpconfig.json
-      type_list: ["H", "O"]
-      train_epochs: 100
-      random_seed: 1112
+      provider: deepmd
+      method: default
+      parameters:
+        command: dp
+        freeze_command: dp
+        config: ./dpconfig.json
+        type_list: ["H", "O"]
+        train_epochs: 100
+        random_seed: 1112
 
 In the `dataset` section, a `dataset` is defined. **gdp** will load the structures in the 
 dataset and convert to the proper format required by the trainer.
@@ -57,7 +59,7 @@ A typical `xyz` dataset looks like
         ├── init_aimd.xyz
         └── iter_dpmd.xyz
 
-In the `trainer` section, a `trainer` is defined. The parameters related to the model 
+In the `trainer` section, a provider-owned trainer is defined. Parameters related to the model
 architecture is defined in `config`, which may be different by models. 
 **gdp** will automatically update some parameters in the `config`, which include 
 the training dataset section and training epochs.

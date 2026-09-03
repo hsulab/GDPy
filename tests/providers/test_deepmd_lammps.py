@@ -24,3 +24,9 @@ def test_deepmd_materializes_for_lammps_without_importing_deepmd_runtime(tmp_pat
     assert isinstance(runtime.materialization, LammpsPotentialMaterialization)
     assert "pair_style deepmd" in runtime.materialization.commands[0]
     assert runtime.executor.setting.task == "min"
+
+
+def test_lammps_provider_advertises_single_point_execution():
+    from gdpx.providers import CapabilityKind, get_provider_manager
+
+    assert get_provider_manager().supports("lammps", CapabilityKind.EXECUTOR, "spc")

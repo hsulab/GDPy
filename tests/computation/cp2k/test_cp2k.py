@@ -10,10 +10,10 @@ from gdpx.execution.factory import create_worker, create_workers
 def cp2k_config():
     """"""
     params = dict(
+        schema_version=2,
         potential = dict(
-            name = "cp2k",
-            params = dict(
-                backend = "cp2k",
+            provider = "cp2k",
+            parameters = dict(
                 command = "srun /mnt/scratch2/chemistry-apps/dkb01416/cp2k/developed/cp2k-9.1/exe/local/cp2k.psmp",
                 template = "/mnt/scratch2/users/40247882/porous/inputs/PBE+D3_RKS.inp",
                 basis_set = "DZVP-MOLOPT-SR-GTH",
@@ -22,9 +22,10 @@ def cp2k_config():
                 potential_file = "/mnt/scratch2/chemistry-apps/dkb01416/cp2k/developed/cp2k-9.1/data/GTH_POTENTIALS"
             ),
         ),
-        driver = dict(
-            backend = "ase",
-            ignore_convergence = True,
+        executor = dict(
+            provider = "cp2k",
+            method = "spc",
+            parameters = dict(ignore_convergence = True),
         )
     )
 
@@ -32,7 +33,7 @@ def cp2k_config():
 
 def test_empty(cp2k_config):
     """"""
-    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
+    worker = create_worker(cp2k_config)
     print(worker)
 
     driver = worker.driver
@@ -44,7 +45,7 @@ def test_empty(cp2k_config):
 
 def test_broken(cp2k_config):
     """"""
-    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
+    worker = create_worker(cp2k_config)
     print(worker)
 
     driver = worker.driver
@@ -56,7 +57,7 @@ def test_broken(cp2k_config):
 
 def test_broken_by_abort(cp2k_config):
     """"""
-    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
+    worker = create_worker(cp2k_config)
     print(worker)
     print(worker.driver.ignore_convergence)
 

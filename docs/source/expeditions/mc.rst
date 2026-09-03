@@ -18,7 +18,7 @@ The related commands are
     # - explore configuration space defined by `config.yaml` 
     #   results will be written to the `results` folder
     #   a log file will be written to `results/gdp.out` as well
-    $ gdp -d exp -p worker.yaml explore ./config.yaml
+    $ gdp -d exp -r runtime.yaml explore ./config.yaml
 
     # - after MC is converged i.e. reaches the maximum number of steps,
     #   the MC trajectory is stored at `results/mc.xyz`
@@ -99,26 +99,27 @@ only apply to atoms in the surface region including Cu and O.
     steps: 5
   dump_period: 1
 
-For the `worker.yaml`, the parameter **`use_single`** must be **true** as
+Use a single-worker runtime for sequential Monte Carlo moves:
 
 .. code-block:: yaml
 
-  use_single: true
+  schema_version: 2
   potential:
-    name: deepmd
-    params:
-      backend: lammps
+    provider: deepmd
+    parameters:
       command: lmp -in in.lammps 2>&1 > lmp.out
       type_list: [Cu, O]
       model:
         - ./graph.pb
-  driver:
-    backend: lammps
-    task: min
-    ignore_convergence: false
-    run:
+  executor:
+    provider: lammps
+    method: min
+    parameters:
+      ignore_convergence: false
       fmax: 0.05
       steps: 400
+  options:
+    worker: single
 
 
 Application

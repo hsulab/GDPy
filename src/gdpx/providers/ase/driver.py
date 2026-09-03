@@ -816,11 +816,11 @@ class AseDriver(BaseDriver):
             # Update run_params in settings
             target_steps = self.setting.get_run_params(*args, **kwargs)["steps"]
             if target_steps > 0:
-                if self.setting.task == "md":
-                    steps = target_steps - start_step
-                else:
-                    # ase v3.22.1 opt will reset max_steps to steps in run
-                    steps = target_steps
+                steps = target_steps - start_step
+                if steps <= 0:
+                    raise ValueError(
+                        f"Target step {target_steps} must exceed restart step {start_step}."
+                    )
             else:
                 raise Exception("The remaining steps should be greater than 0.")
 

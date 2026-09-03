@@ -6,7 +6,7 @@ from typing import Any, Mapping, Union
 from gdpx.providers.capabilities import CapabilityKind
 from gdpx.providers.configuration import RuntimeConfig
 from gdpx.providers.errors import MaterializationError, MissingCapabilityError
-from gdpx.providers.specs import Materialization
+from gdpx.providers.specs import Materialization, thaw
 from gdpx.providers.targets import AseCalculatorMaterialization
 
 from .runtime import Runtime
@@ -23,7 +23,7 @@ class RuntimeResolver:
             CapabilityKind.POTENTIAL,
             config.potential.method or "default",
         )
-        potential = potential_factory.create(config.potential.parameters)
+        potential = potential_factory.create(thaw(config.potential.parameters))
         executor_factory = self.providers.require(
             config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
         )
@@ -34,7 +34,7 @@ class RuntimeResolver:
                 target=f"{config.executor.provider}.legacy",
                 payload=getattr(potential, "calc", potential),
             )
-            executor = executor_factory.create(config.executor.parameters, potential=potential)
+            executor = executor_factory.create(thaw(config.executor.parameters), potential=potential)
         else:
             try:
                 materializer = self.providers.require(
@@ -57,7 +57,7 @@ class RuntimeResolver:
             modifier_instances = self._create_modifiers(config)
             materialization = self._apply_modifiers(materialization, target, modifier_instances)
             executor = executor_factory.create(
-                config.executor.parameters,
+                thaw(config.executor.parameters),
                 potential=potential,
                 materialization=materialization,
             )
@@ -69,7 +69,7 @@ class RuntimeResolver:
         else:
             scheduler_provider = scheduler_config.provider
             scheduler_method = scheduler_config.method or "default"
-            scheduler_parameters = scheduler_config.parameters
+            scheduler_parameters = thaw(scheduler_config.parameters)
             scheduler_factory = self.providers.require(
                 scheduler_provider, CapabilityKind.SCHEDULER, scheduler_method
             )
@@ -91,7 +91,7 @@ class RuntimeResolver:
             factory = self.providers.require(
                 component.provider, CapabilityKind.MODIFIER, component.method
             )
-            instances.append(factory.create(component.parameters))
+            instances.append(factory.create(thaw(component.parameters)))
         return tuple(instances)
 
     @staticmethod

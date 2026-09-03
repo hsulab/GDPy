@@ -120,7 +120,7 @@ def test_reax_nvt_continue():
         with open(wdir / "cand0" / "lmp.out", "w") as fopen:
             fopen.write("".join(lines[:-1]))
 
-        worker_params["driver"]["run"]["steps"] = 29
+        worker_params["executor"]["parameters"]["steps"] = 29
 
         worker = create_worker(worker_params)
         worker.directory = wdir

@@ -23,6 +23,29 @@ def test_emt_ase_vertical_slice_resolves_and_evaluates():
     assert isinstance(atoms.get_potential_energy(), float)
 
 
+def test_nested_executor_parameters_are_thawed_before_factory_use():
+    runtime = get_provider_manager().resolve_runtime(
+        {
+            "schema_version": 2,
+            "potential": {"provider": "emt", "parameters": {}},
+            "executor": {
+                "provider": "ase",
+                "method": "md",
+                "parameters": {
+                    "controller": {"name": "langevin", "params": {"friction": 0.01}},
+                    "ensemble": "nvt",
+                    "dump_period": 2,
+                    "velocity_seed": 1112,
+                    "steps": 3,
+                },
+            },
+        }
+    )
+
+    assert runtime.executor.setting.dump_period == 2
+    assert runtime.executor.setting.steps == 3
+
+
 def test_legacy_emt_schema_is_rejected():
     with pytest.raises(ProviderConfigurationError, match="Legacy fields found"):
         get_provider_manager().resolve_runtime(
