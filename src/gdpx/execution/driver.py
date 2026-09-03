@@ -255,13 +255,23 @@ class BaseDriver(BaseComponent):
         else:
             prev_command = ""
 
-        self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
+        def restore_calculator_state():
+            if hasattr(self.calc, "command"):
+                self.calc.command = prev_command
+            self.calc.parameters = prev_params
+            self.calc.reset()
 
-        # restore calculator
-        if hasattr(self.calc, "command"):
-            self.calc.command = prev_command
-        self.calc.parameters = prev_params
-        self.calc.reset()
+        try:
+            self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
+        except BaseException:
+            try:
+                restore_calculator_state()
+            except Exception as cleanup_error:
+                # Cleanup must not replace the computation's original traceback.
+                self._debug(f"Failed to restore calculator state: {cleanup_error!r}")
+            raise
+        else:
+            restore_calculator_state()
 
         return
 

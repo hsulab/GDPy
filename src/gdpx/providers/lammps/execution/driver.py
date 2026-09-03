@@ -1,7 +1,6 @@
 import copy
 import io
 import pathlib
-import traceback
 from typing import Optional
 
 import numpy as np
@@ -204,12 +203,12 @@ class LmpDriver(BaseDriver):
 
         self.setting.temp = curr_temperature
         self.setting.press = curr_pressure
-
-        dynamics = self._create_dynamics(atoms, *args, **kwargs)
-        self._write_plumed(ckpt_wdir, finish_steps, curr_temperature)
-
-        self.setting.temp = prev_temperature
-        self.setting.press = prev_pressure
+        try:
+            dynamics = self._create_dynamics(atoms, *args, **kwargs)
+            self._write_plumed(ckpt_wdir, finish_steps, curr_temperature)
+        finally:
+            self.setting.temp = prev_temperature
+            self.setting.press = prev_pressure
 
         halt = self._setup_observers()
 
@@ -230,10 +229,7 @@ class LmpDriver(BaseDriver):
         )
         atoms.calc = self.calc
 
-        try:
-            _ = atoms.get_forces()
-        except Exception:
-            self._debug(traceback.format_exc())
+        _ = atoms.get_forces()
 
     def _read_a_single_trajectory(self, *args, **kwargs):
         return _read_a_single_trajectory(*args, **kwargs, print_func=self._print, debug_func=self._debug)

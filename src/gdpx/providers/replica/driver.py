@@ -165,12 +165,7 @@ class ReplicaDriver(BaseDriver):
         )
         atoms.calc = self.calc
 
-        try:
-            _ = atoms.get_forces()
-        except Exception:
-            import traceback
-
-            self._debug(traceback.format_exc())
+        _ = atoms.get_forces()
 
     # --- trajectory reading --------------------------------------------------
 

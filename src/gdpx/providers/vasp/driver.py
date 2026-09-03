@@ -3,7 +3,6 @@ import io
 import pathlib
 import re
 import shutil
-import traceback
 from typing import Optional
 
 import numpy as np
@@ -604,16 +603,7 @@ class VaspDriver(BaseDriver):
             #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
             shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
 
-        # TODO: Make gdpx process exists when calculation failed,
-        #       which maybe due to machine error and should be checked by users manually
-        try:
-            run_ase_calculator("vasp", self.calc.command, self.directory)
-        except Exception as e:
-            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
-            # TODO: Deal with different exceptions...
-            # If CalculationFailed and no outputs, it may not have an appropriate
-            # caculation environment...
+        run_ase_calculator("vasp", self.calc.command, self.directory)
 
         return
 

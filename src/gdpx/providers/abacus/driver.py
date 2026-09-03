@@ -4,7 +4,6 @@
 
 import dataclasses
 import pathlib
-import traceback
 
 from ase import Atoms
 
@@ -60,20 +59,16 @@ class AbacusDriver(BaseDriver):
         # NOTE: abacus uses GenericFileIO
         self.calc.directory = pathlib.Path(self.calc.directory)
 
-        try:
-            if ckpt_wdir is None:  # start from the scratch
-                run_params = self.setting.get_run_params(**kwargs)
-                run_params.update(**self.setting.get_init_params())
+        if ckpt_wdir is None:  # start from the scratch
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
 
-                self._preprocess_constraints(atoms, run_params)
-                ...
-            else:
-                ...
-            atoms.calc = self.calc
-            _ = atoms.get_forces()
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
+            self._preprocess_constraints(atoms, run_params)
+            ...
+        else:
+            ...
+        atoms.calc = self.calc
+        _ = atoms.get_forces()
 
         return
 

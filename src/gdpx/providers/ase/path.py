@@ -6,7 +6,6 @@ import copy
 import dataclasses
 import functools
 import pathlib
-import traceback
 from typing import Callable
 
 import numpy as np
@@ -275,13 +274,7 @@ class AseStringReactor(BaseStringReactor):
             nebtraj_fpath=self.cache_nebtraj,
         )
 
-        try:
-            # steps = run_params["steps"]
-            # self._print(f"{steps =}")
-            dynamics.run(steps=run_params["steps"], fmax=run_params["fmax"])
-        except Exception as e:
-            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
+        dynamics.run(steps=run_params["steps"], fmax=run_params["fmax"])
 
         # Always save the last step
         dump_period = self.setting.dump_period

@@ -10,6 +10,8 @@ from importlib import import_module
 __all__ = [
     "BaseWorker",
     "DriverBasedWorker",
+    "DriverBatchError",
+    "DriverFailure",
     "SingleWorker",
     "ExpeditionBasedWorker",
     "TrainerBasedWorker",
@@ -23,6 +25,8 @@ __all__ = [
 _EXPORTS = {
     "BaseWorker": (".worker", "BaseWorker"),
     "DriverBasedWorker": (".drive", "DriverBasedWorker"),
+    "DriverBatchError": (".drive", "DriverBatchError"),
+    "DriverFailure": (".drive", "DriverFailure"),
     "run_computation_in_commandline": (".drive", "run_computation_in_commandline"),
     "SingleWorker": (".single", "SingleWorker"),
     "ExpeditionBasedWorker": (".explore", "ExpeditionBasedWorker"),

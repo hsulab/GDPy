@@ -1,7 +1,6 @@
 import dataclasses
 import os
 import pathlib
-import traceback
 
 import numpy as np
 from ase import Atoms, units
@@ -260,11 +259,8 @@ class Cp2kStringReactor(BaseStringReactor):
             self.calc.atoms = atoms
             self.calc.write_input(atoms)
             run_cp2k("cp2k", self.calc.command, self.directory)
+        finally:
             self.calc.atoms = None
-
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
 
         return
 

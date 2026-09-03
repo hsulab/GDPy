@@ -4,7 +4,6 @@
 
 import dataclasses
 import pathlib
-import traceback
 from typing import Optional
 
 import numpy as np
@@ -613,12 +612,8 @@ class Cp2kDriver(BaseDriver):
 
         self.calc.parameters.inp = "\n".join(sec.write())
 
-        try:
-            atoms.calc = self.calc
-            _ = atoms.get_forces()
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.format_exc())
+        atoms.calc = self.calc
+        _ = atoms.get_forces()
 
         return
 

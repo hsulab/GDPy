@@ -5,7 +5,6 @@
 import dataclasses
 import os
 import pathlib
-import traceback
 from pathlib import Path
 from typing import Optional
 
@@ -393,12 +392,8 @@ class LaspDriver(BaseDriver):
 
             self.calc.set(**run_params)
 
-        try:
-            atoms.calc = self.calc
-            _ = atoms.get_forces()
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
+        atoms.calc = self.calc
+        _ = atoms.get_forces()
 
         return
 
