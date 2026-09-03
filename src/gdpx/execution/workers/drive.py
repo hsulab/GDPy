@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import functools
 import json
 import pathlib
@@ -6,6 +7,7 @@ import shlex
 import shutil
 import tempfile
 import time
+import traceback
 import uuid
 from typing import Optional, Union
 
@@ -29,6 +31,31 @@ from .worker import BaseWorker
 # ---------------------------------------------------------------------------
 # Module-level command-line runners
 # ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class DriverFailure:
+    """One failed structure in a driver batch."""
+
+    computation_index: int
+    workdir: str
+    driver_index: int
+    driver_name: str
+    exception: Exception
+    traceback: str
+
+
+class DriverBatchError(RuntimeError):
+    """Raised after every structure in a batch has been attempted."""
+
+    def __init__(self, failures: list[DriverFailure]):
+        self.failures = tuple(failures)
+        details = "; ".join(
+            f"{failure.workdir} ({failure.driver_name}): "
+            f"{type(failure.exception).__name__}: {failure.exception}"
+            for failure in self.failures
+        )
+        super().__init__(f"{len(self.failures)} driver computation(s) failed: {details}")
 
 
 def run_computation_in_commandline(
@@ -86,58 +113,83 @@ def run_computation_in_commandline(
             return all_drivers[0]
         return all_drivers[idx]
 
-    # Run computations
-    with CustomTimer(name="run-driver", func=print_func):
-        if not share_wdir:
-            for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
-                d_idx = 0 if driver_indices is None else driver_indices[gi]
-                curr_driver = _get_driver(d_idx)
-                curr_driver.directory = directory / dirname
-                prev_random_seed = curr_driver.random_seed
-                curr_driver.set_rng(seed=rs)
-                print_func(
-                    f"{time.asctime(time.localtime(time.time()))} {dirname} {curr_driver.directory.name} is running..."
-                )
-                curr_driver.reset()
-                curr_driver.run(atoms, read_ckpt=True, extra_info=None)
-                curr_driver.set_rng(seed=prev_random_seed)
-        else:
-            # shared working directory mode
-            cache_fpath = directory / "_data" / f"{identifier}_cache.xyz"
-            if cache_fpath.exists():
-                cache_frames = read(cache_fpath, ":")
-                cache_wdirs = [a.info["wdir"] for a in cache_frames]
+    failures: list[DriverFailure] = []
+
+    def _record_failure(gi: int, dirname: str, d_idx: int, driver: BaseDriver, error: Exception) -> None:
+        traceback_text = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        failure = DriverFailure(
+            computation_index=gi,
+            workdir=dirname,
+            driver_index=d_idx,
+            driver_name=getattr(driver, "name", driver.__class__.__name__),
+            exception=error,
+            traceback=traceback_text,
+        )
+        failures.append(failure)
+        print_func(f"ERROR: driver computation failed in {dirname} ({failure.driver_name})\n{traceback_text}")
+
+    # Run computations. State shared by reused driver instances is always restored.
+    try:
+        with CustomTimer(name="run-driver", func=print_func):
+            if not share_wdir:
+                for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
+                    d_idx = 0 if driver_indices is None else driver_indices[gi]
+                    curr_driver = _get_driver(d_idx)
+                    curr_driver.directory = directory / dirname
+                    prev_random_seed = curr_driver.random_seed
+                    try:
+                        curr_driver.set_rng(seed=rs)
+                        print_func(
+                            f"{time.asctime(time.localtime(time.time()))} {dirname} "
+                            f"{curr_driver.directory.name} is running..."
+                        )
+                        curr_driver.reset()
+                        curr_driver.run(atoms, read_ckpt=True, extra_info=None)
+                    except Exception as error:
+                        _record_failure(gi, dirname, d_idx, curr_driver, error)
+                    finally:
+                        curr_driver.set_rng(seed=prev_random_seed)
             else:
-                cache_wdirs = []
+                # shared working directory mode
+                cache_fpath = directory / "_data" / f"{identifier}_cache.xyz"
+                if cache_fpath.exists():
+                    cache_frames = read(cache_fpath, ":")
+                    cache_wdirs = [a.info["wdir"] for a in cache_frames]
+                else:
+                    cache_wdirs = []
 
-            temp_wdir = directory / "_shared"
-            for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
-                if dirname in cache_wdirs:
-                    continue
-                d_idx = 0 if driver_indices is None else driver_indices[gi]
-                curr_driver = _get_driver(d_idx)
-                if temp_wdir.exists():
-                    shutil.rmtree(temp_wdir)
-                curr_driver.directory = temp_wdir
-                if gi % print_period == 0 or gi + 1 == len(structures):
-                    print_func(
-                        f"{time.asctime(time.localtime(time.time()))} {dirname} "
-                        f"{curr_driver.directory.name} is running..."
-                    )
-                curr_driver.set_rng(seed=rs)
-                curr_driver.reset()
-                curr_driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=dirname))
-                new_atoms = curr_driver.read_trajectory()[-1]
-                new_atoms.info["wdir"] = atoms.info["wdir"]
-                write(
-                    directory / "_data" / f"{identifier}_cache.xyz",
-                    new_atoms,
-                    append=True,
-                )
+                temp_wdir = directory / "_shared"
+                for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
+                    if dirname in cache_wdirs:
+                        continue
+                    d_idx = 0 if driver_indices is None else driver_indices[gi]
+                    curr_driver = _get_driver(d_idx)
+                    prev_random_seed = curr_driver.random_seed
+                    try:
+                        if temp_wdir.exists():
+                            shutil.rmtree(temp_wdir)
+                        curr_driver.directory = temp_wdir
+                        if gi % print_period == 0 or gi + 1 == len(structures):
+                            print_func(
+                                f"{time.asctime(time.localtime(time.time()))} {dirname} "
+                                f"{curr_driver.directory.name} is running..."
+                            )
+                        curr_driver.set_rng(seed=rs)
+                        curr_driver.reset()
+                        curr_driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=dirname))
+                        new_atoms = curr_driver.read_trajectory()[-1]
+                        new_atoms.info["wdir"] = atoms.info["wdir"]
+                        write(cache_fpath, new_atoms, append=True)
+                    except Exception as error:
+                        _record_failure(gi, dirname, d_idx, curr_driver, error)
+                    finally:
+                        curr_driver.set_rng(seed=prev_random_seed)
+    finally:
+        for driver, previous_prefix in zip(all_drivers, prev_prefixes):
+            driver.setting.machine_prefix = previous_prefix
 
-    # Restore machine prefixes
-    for d, prev in zip(all_drivers, prev_prefixes):
-        d.setting.machine_prefix = prev
+    if failures:
+        raise DriverBatchError(failures) from failures[0].exception
 
     return
 

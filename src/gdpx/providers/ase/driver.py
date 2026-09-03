@@ -5,7 +5,6 @@ import io
 import json
 import pathlib
 import shutil
-import traceback
 import warnings
 from typing import Optional, Tuple
 
@@ -889,59 +888,63 @@ class AseDriver(BaseDriver):
             devi_fpath=self.directory / self.devi_fname,
         )
 
-        # run simulation
+        def cleanup_after_run():
+            try:
+                # Some interactive calculators need their child processes stopped.
+                if hasattr(self.calc, "finalize"):
+                    self.calc.finalize()
+                if isinstance(self.calc, EnhancedCalculator):
+                    for calc in self.calc.mixer.calcs:
+                        if hasattr(calc, "finalize"):
+                            calc.finalize()
+            finally:
+                # To restart, velocities are always retained only for this run.
+                self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
+
         try:
             dynamics.run(**run_params)
-        except:
-            self._print(f"{traceback.format_exc()}.")
 
-        # make sure the max_steps are the same as input even if
-        # it is set by earlystop observer
-        dynamics.max_steps = self.setting.steps
+            # make sure the max_steps are the same as input even if
+            # it is set by earlystop observer
+            dynamics.max_steps = self.setting.steps
 
-        # Check if the last frame is properly stored
-        dump_period = self.setting.dump_period
-        ckpt_period = self.setting.ckpt_period
+            # Check if the last frame is properly stored. This is only safe after
+            # a successful dynamics run; periodic callbacks retain earlier output
+            # when the run itself fails.
+            dump_period = self.setting.dump_period
+            ckpt_period = self.setting.ckpt_period
 
-        should_dump_last, should_ckpt_last = False, False
-        # task min optimiser dumps every step to log but we control saved structures
-        # by dump_period
-        # TODO: If the computation failed, the codes below will throw an error.
-        #       We better skip the failed structures and move on to next one?
-        nsteps = atoms.info["step"] + 1
-        if nsteps > 0 and (nsteps - 1) % dump_period != 0:
-            should_dump_last = True
-            if atoms.info.get(EARLYSTOP_KEY, False):
+            should_dump_last, should_ckpt_last = False, False
+            nsteps = atoms.info["step"] + 1
+            if nsteps > 0 and (nsteps - 1) % dump_period != 0:
                 should_dump_last = True
-        if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
-            should_ckpt_last = True
+                if atoms.info.get(EARLYSTOP_KEY, False):
+                    should_dump_last = True
+            if nsteps > 0 and (nsteps - 1) % ckpt_period != 0:
+                should_ckpt_last = True
 
-        if should_dump_last:
-            self._debug("dump the last frame...")
-            update_atoms_info(atoms, dynamics)
-            save_trajectory(atoms, self.directory / self.xyz_fname)
-            retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
+            if should_dump_last:
+                self._debug("dump the last frame...")
+                update_atoms_info(atoms, dynamics)
+                save_trajectory(atoms, self.directory / self.xyz_fname)
+                retrieve_and_save_deviation(atoms, self.directory / self.devi_fname)
 
-        if should_ckpt_last:
-            self._debug("ckpt the last frame...")
-            save_checkpoint(
-                dynamics,
-                atoms,
-                self.directory,
-                ckpt_number=self.setting.ckpt_number,
-            )
-
-        # Some interactive calculator needs kill processes after finishing,
-        # e.g. VaspInteractive...
-        if hasattr(self.calc, "finalize"):
-            self.calc.finalize()
-        if isinstance(self.calc, EnhancedCalculator):
-            for calc in self.calc.mixer.calcs:
-                if hasattr(calc, "finalize"):
-                    calc.finalize()
-
-        # To restart, velocities are always retained
-        self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
+            if should_ckpt_last:
+                self._debug("ckpt the last frame...")
+                save_checkpoint(
+                    dynamics,
+                    atoms,
+                    self.directory,
+                    ckpt_number=self.setting.ckpt_number,
+                )
+        except BaseException:
+            try:
+                cleanup_after_run()
+            except Exception as cleanup_error:
+                self._debug(f"Failed to finalize ASE driver: {cleanup_error!r}")
+            raise
+        else:
+            cleanup_after_run()
 
         return
 

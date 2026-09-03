@@ -174,28 +174,37 @@ class BaseStringReactor(BaseReactor):
             prev_command = self.calc.command
             self.calc.command = self.setting.machine_prefix + " " + prev_command
 
-        # Run calculation
-        if not self._verify_checkpoint():
-            self._debug(f"... start from the scratch @ {self.directory.name} ...")
-            self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun(structures, *args, **kwargs)
-        else:
-            self._debug(f"... restart @ {self.directory.name} ...")
-            converged = self.read_convergence()
-            if not converged:
-                self._debug(f"... unconverged @ {self.directory.name} ...")
-                ckpt_wdir = self._save_checkpoint() if read_ckpt else None
-                self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
-                self._irun(structures, ckpt_wdir=ckpt_wdir, *args, **kwargs)
+        def restore_calculator_state():
+            if hasattr(self.calc, "command"):
+                self.calc.command = prev_command
+            self.calc.parameters = prev_params
+            self.calc.reset()
+
+        try:
+            # Run calculation
+            if not self._verify_checkpoint():
+                self._debug(f"... start from the scratch @ {self.directory.name} ...")
+                self.directory.mkdir(parents=True, exist_ok=True)
+                self._irun(structures, *args, **kwargs)
             else:
-                self._debug(f"... converged @ {self.directory.name} ...")
-
-        # Restore the calculator parameters
-        if hasattr(self.calc, "command"):
-            self.calc.command = prev_command
-
-        self.calc.parameters = prev_params
-        self.calc.reset()
+                self._debug(f"... restart @ {self.directory.name} ...")
+                converged = self.read_convergence()
+                if not converged:
+                    self._debug(f"... unconverged @ {self.directory.name} ...")
+                    ckpt_wdir = self._save_checkpoint() if read_ckpt else None
+                    self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
+                    self._irun(structures, ckpt_wdir=ckpt_wdir, *args, **kwargs)
+                else:
+                    self._debug(f"... converged @ {self.directory.name} ...")
+        except BaseException:
+            try:
+                restore_calculator_state()
+            except Exception as cleanup_error:
+                # Cleanup must not replace the computation's original traceback.
+                self._debug(f"Failed to restore calculator state: {cleanup_error!r}")
+            raise
+        else:
+            restore_calculator_state()
 
         return
 

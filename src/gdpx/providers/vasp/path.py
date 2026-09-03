@@ -5,7 +5,6 @@
 import dataclasses
 import os
 import re
-import traceback
 
 import numpy as np
 from ase import Atoms
@@ -279,11 +278,7 @@ class VaspStringReactor(BaseStringReactor):
             )
 
         # run calculation
-        try:
-            run_ase_calculator("vasp", atoms.calc.command, self.directory)
-        except Exception as e:
-            self._debug(e)
-            self._debug(traceback.print_exc())
+        run_ase_calculator("vasp", atoms.calc.command, self.directory)
 
         return
 
