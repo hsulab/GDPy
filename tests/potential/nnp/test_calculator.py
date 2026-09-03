@@ -4,8 +4,8 @@ import json
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from gdpx.potential.nnp.calculator import ACSFNN
-from gdpx.trainer.nnp_trainer import NnpTrainer
+from gdpx.providers.nnp.calculator import ACSFNN
+from gdpx.providers.nnp.trainer import NnpTrainer
 
 
 def _train_minimal_model(extra_params=None):

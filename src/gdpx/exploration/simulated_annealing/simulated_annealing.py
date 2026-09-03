@@ -132,8 +132,9 @@ class SimulatedAnnealing(BaseExpedition):
 
     def _make_step_worker(self, istep: int):
         """"""
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
         worker = copy.deepcopy(self.worker)
 
         worker.directory = self.directory / self.comput_dirname / f"gen{istep}"
@@ -150,8 +151,9 @@ class SimulatedAnnealing(BaseExpedition):
 
     def get_workers(self):
         """"""
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
 
         workers = []
         for istep in range(self.num_slices):

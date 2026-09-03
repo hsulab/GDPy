@@ -1,5 +1,5 @@
 def test_deepmd_materializes_for_lammps_without_importing_deepmd_runtime(tmp_path):
-    from gdpx.execution.targets import LammpsPotentialMaterialization
+    from gdpx.providers.targets import LammpsPotentialMaterialization
     from gdpx.providers import get_provider_manager
     from gdpx.providers.deepmd import DeepMDPotential
 
@@ -24,4 +24,3 @@ def test_deepmd_materializes_for_lammps_without_importing_deepmd_runtime(tmp_pat
     assert isinstance(runtime.materialization, LammpsPotentialMaterialization)
     assert "pair_style deepmd" in runtime.materialization.commands[0]
     assert runtime.executor.setting.task == "min"
-

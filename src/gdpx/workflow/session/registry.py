@@ -22,12 +22,3 @@ class workflow_registers:
     @classmethod
     def create(cls, category: str, name: str, convert_name: bool = True, *args, **kwargs):
         return cls.get(category, name, convert_name)(*args, **kwargs)
-
-
-# Populate the legacy catalog only when the workflow layer is imported.  This
-# keeps importing gdpx.core.register independent of gdpx.session.
-from gdpx.core.catalog import registers
-
-registers.variable = VARIABLE_REGISTRY
-registers.operation = OPERATION_REGISTRY
-registers.placeholder = PLACEHOLDER_REGISTRY

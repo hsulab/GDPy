@@ -65,13 +65,14 @@ Provider configurations use schema version 2::
 The executor declares the materialization interface it consumes. Resolution
 fails before submission when the potential cannot produce that interface.
 
-Legacy manager plugins
-----------------------
+Breaking boundary in 0.1
+------------------------
 
-The manager registry, ``potter`` configuration, and
-``BasePotentialManager.create_driver`` remain available for one compatibility
-release. New plugins should use providers; legacy configuration is read but
-all new serialization uses schema version 2.
+Provider entry points and schema version 2 are the only supported extension
+boundary. The former manager registries, ``potter`` configuration, and
+``BasePotentialManager.create_driver`` API have been removed. A missing
+``schema_version`` or a legacy component key is an error rather than an
+implicit migration.
 
 Provider boundary
 -----------------

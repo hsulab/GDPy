@@ -9,7 +9,7 @@ NequIPCalculator = pytest.importorskip("nequip.ase").NequIPCalculator
 
 from ase.io import read, write
 
-from gdpx.backend.ase.mixer import CommitteeCalculator
+from gdpx.providers.ase.backend.mixer import CommitteeCalculator
 
 
 def test_nequip_committee():

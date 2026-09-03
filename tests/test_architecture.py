@@ -32,7 +32,7 @@ def test_domain_modules_do_not_import_workflow_layers():
                 elif isinstance(node, ast.ImportFrom) and node.module:
                     names = [node.module]
                 for name in names:
-                    if name == "gdpx.nodes" or name.startswith("gdpx.nodes.") or name == "gdpx.session" or name.startswith("gdpx.session."):
+                    if name == "gdpx.workflow.nodes" or name.startswith("gdpx.workflow.nodes.") or name == "gdpx.workflow.session" or name.startswith("gdpx.workflow.session."):
                         violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: {name}")
     assert not violations, "Domain-to-workflow imports found:\n" + "\n".join(violations)
 
@@ -40,9 +40,9 @@ def test_domain_modules_do_not_import_workflow_layers():
 def test_representative_imports_do_not_load_workflow_modules():
     code = """
 import importlib, sys
-for name in ('gdpx.builder', 'gdpx.factory.region', 'gdpx.factory.computer', 'gdpx.compute.service'):
+for name in ('gdpx.structures.builders', 'gdpx.structures.regions', 'gdpx.execution.factory', 'gdpx.execution.lifecycle'):
     importlib.import_module(name)
-loaded = sorted(name for name in sys.modules if name == 'gdpx.nodes' or name.startswith('gdpx.nodes.') or name == 'gdpx.session' or name.startswith('gdpx.session.'))
+loaded = sorted(name for name in sys.modules if name == 'gdpx.workflow.nodes' or name.startswith('gdpx.workflow.nodes.') or name == 'gdpx.workflow.session' or name.startswith('gdpx.workflow.session.'))
 assert not loaded, loaded
 """
     environment = os.environ.copy()
@@ -60,8 +60,8 @@ def test_domain_modules_do_not_import_cli_or_global_registry():
                 if isinstance(node, ast.ImportFrom) and node.module:
                     if node.module == "gdpx.cli" or node.module.startswith("gdpx.cli."):
                         violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: {node.module}")
-                    if node.module == "gdpx.core.register" and any(alias.name == "registers" for alias in node.names):
-                        violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: global registers")
+                    if node.module in {"gdpx.core.register", "gdpx.core.catalog"}:
+                        violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: legacy global registry")
     assert not violations, "Reverse/application registry dependencies found:\n" + "\n".join(violations)
 
 
@@ -71,7 +71,7 @@ def test_all_domain_packages_import_without_workflow_or_optional_dependencies():
 import importlib, sys
 for name in {package_names}:
     importlib.import_module('gdpx.' + name)
-loaded = sorted(name for name in sys.modules if name == 'gdpx.nodes' or name.startswith('gdpx.nodes.') or name == 'gdpx.session' or name.startswith('gdpx.session.'))
+loaded = sorted(name for name in sys.modules if name == 'gdpx.workflow.nodes' or name.startswith('gdpx.workflow.nodes.') or name == 'gdpx.workflow.session' or name.startswith('gdpx.workflow.session.'))
 assert not loaded, loaded
 """
     environment = os.environ.copy()
@@ -80,7 +80,7 @@ assert not loaded, loaded
 
 
 def test_region_factory_does_not_mutate_configuration():
-    from gdpx.factory.region import create_region
+    from gdpx.structures.regions.factory import create_region
 
     config = {"method": "sphere", "origin": [0.0, 0.0, 0.0], "radius": 2.0}
     original = {"method": "sphere", "origin": [0.0, 0.0, 0.0], "radius": 2.0}
@@ -90,8 +90,8 @@ def test_region_factory_does_not_mutate_configuration():
 
 
 def test_selector_factory_accepts_workflow_free_selection_config():
-    from gdpx.factory.components import create_selector
-    from gdpx.selector.interval import IntervalSelector
+    from gdpx.workflow.factory import create_selector
+    from gdpx.analysis.selectors.interval import IntervalSelector
 
     config = {"selection": [{"method": "interval", "period": 7}]}
     original = copy.deepcopy(config)
@@ -136,13 +136,13 @@ def test_internal_absolute_import_graph_is_acyclic():
 
 
 def test_potential_base_does_not_own_executor_resolution():
-    path = ROOT / "src" / "gdpx" / "potential" / "manager.py"
+    path = ROOT / "src" / "gdpx" / "providers" / "manager_base.py"
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     forbidden = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:
-            if node.module.startswith(("gdpx.computation", "gdpx.reactor")):
+            if node.module.startswith("gdpx.execution"):
                 forbidden.append((node.lineno, node.module))
     assert not forbidden, f"Potential manager imports executor implementations: {forbidden}"
 
@@ -165,30 +165,26 @@ def test_providers_do_not_depend_on_execution_implementations():
     assert not violations, "Provider-to-execution imports found:\n" + "\n".join(violations)
 
 
-def test_legacy_package_trees_are_forwarding_layers_only():
+def test_legacy_package_trees_are_removed():
     legacy_roots = {
         "backend", "bias", "builder", "colvar", "comparator", "computation",
         "compute", "dataloader", "describer", "expedition", "geometry",
         "graph", "group", "nodes", "potential", "reactor", "region",
         "scheduler", "selector", "session", "trainer", "validator", "worker",
     }
-    violations = []
-    for root in sorted(legacy_roots):
-        for path in (ROOT / "src" / "gdpx" / root).rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            definitions = [
-                node.name for node in tree.body
-                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-            ]
-            if definitions:
-                violations.append(f"{path.relative_to(ROOT)}: {', '.join(definitions)}")
-    assert not violations, "Business logic remains in compatibility packages:\n" + "\n".join(violations)
+    remaining = sorted(root for root in legacy_roots if (ROOT / "src" / "gdpx" / root).exists())
+    assert not remaining
 
 
 def test_global_legacy_factory_modules_are_removed():
     assert not (ROOT / "src" / "gdpx" / "providers" / "legacy.py").exists()
     assert not (ROOT / "src" / "gdpx" / "providers" / "managed.py").exists()
     assert not (ROOT / "src" / "gdpx" / "execution" / "legacy.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "execution" / "compat.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "providers" / "compat_registry.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "providers" / "trainer_registry.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "core" / "register.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "core" / "catalog.py").exists()
 
 
 def test_lazy_registry_defers_module_import():

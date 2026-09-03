@@ -8,7 +8,7 @@ import tempfile
 
 from ase.io import read, write
 
-from gdpx.factory.computer import create_workers
+from gdpx.execution.factory import create_worker, create_workers
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def emt_md_config():
 
 def test_empty(emt_config):
     """"""
-    worker = create_workers(dict(potential=emt_config["potential"], driver=emt_config["driver"]))[0]
+    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
 
     driver = worker.driver
     driver.directory = "./assets/empty_driver"
@@ -63,7 +63,7 @@ def test_empty(emt_config):
 
 def test_broken_spc(emt_config):
     """"""
-    worker = create_workers(dict(potential=emt_config["potential"], driver=emt_config["driver"]))[0]
+    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
 
     driver = worker.driver
     driver.directory = "./assets/broken_ase_spc"
@@ -81,7 +81,7 @@ def test_broken_spc(emt_config):
 
 def test_finished_spc(emt_config):
     """"""
-    worker = create_workers(dict(potential=emt_config["potential"], driver=emt_config["driver"]))[0]
+    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
 
     driver = worker.driver
     driver.directory = "./assets/finished_ase_spc"
@@ -100,7 +100,7 @@ def test_finished_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # - run 10 steps
         config = copy.deepcopy(emt_md_config)
-        worker = create_workers(dict(potential=config["potential"], driver=config["driver"]))[0]
+        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -122,7 +122,7 @@ def test_restart_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # tmpdir = "./xxx"
         config = copy.deepcopy(emt_md_config)
-        worker = create_workers(dict(potential=config["potential"], driver=config["driver"]))[0]
+        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -140,7 +140,7 @@ def test_restart_md(emt_md_config):
         config["driver"]["run"]["steps"] = 20
         print("new: ", config)
 
-        worker = create_workers(dict(potential=config["potential"], driver=config["driver"]))[0]
+        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
 
         driver = worker.driver
         driver.directory = tmpdir

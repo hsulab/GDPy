@@ -1,191 +1,120 @@
-"""Construct computation workers without depending on workflow variables."""
+"""Create execution workers from resolved schema-v2 runtimes."""
 
 from __future__ import annotations
 
-import copy
-import itertools
 import pathlib
 from collections.abc import Mapping, Sequence
 from typing import Callable
 
-from ase.calculators.calculator import BaseCalculator
-
 from gdpx.execution.driver import BaseDriver
-from gdpx.execution.compat import create_compat_executor
-from gdpx.execution.schedulers.factory import canonicalise_scheduler
-from gdpx.providers.manager_base import BasePotentialManager
-from gdpx.providers.potential_utils import convert_input_to_potter
 from gdpx.execution.reactor import BaseReactor
+from gdpx.execution.runtime import Runtime
 from gdpx.execution.workers.drive import DriverBasedWorker
-from gdpx.execution.workers.grid import GridDriverBasedWorker
 from gdpx.execution.workers.react import ReactorBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 from gdpx.execution.workers.worker import BaseWorker
+from gdpx.providers import RuntimeConfig
 
 
-def _is_runtime_config(config) -> bool:
-    return isinstance(config, Mapping) and (
-        config.get("schema_version") == 2
-        or (
-            isinstance(config.get("potential"), Mapping)
-            and "provider" in config["potential"]
-            and "executor" in config
-        )
-    )
+RuntimeInput = Runtime | RuntimeConfig | Mapping
 
 
-def _create_runtime_worker(config, *, directory, print_func):
+def _resolve(value: RuntimeInput) -> Runtime:
+    if isinstance(value, Runtime):
+        return value
     from gdpx.execution import resolve_runtime
-    from gdpx.providers import CapabilityKind, RuntimeConfig, get_provider_manager
 
-    runtime_config = RuntimeConfig.from_mapping(config)
-    runtime = resolve_runtime(runtime_config)
-    options = dict(runtime_config.options)
-    scheduler_config = runtime_config.scheduler
-    if scheduler_config is None:
-        scheduler_config_provider = "local"
-        scheduler_parameters = {}
-        scheduler_method = "default"
-    else:
-        scheduler_config_provider = scheduler_config.provider
-        scheduler_parameters = scheduler_config.parameters
-        scheduler_method = scheduler_config.method or "default"
-    scheduler_factory = get_provider_manager().require(
-        scheduler_config_provider, CapabilityKind.SCHEDULER, scheduler_method
-    )
-    scheduler = scheduler_factory.create(scheduler_parameters)
-    batchsize = options.pop("batchsize", 1)
-    share_wdir = options.pop("share_wdir", False)
-    use_single = options.pop("use_single", False)
+    config = value if isinstance(value, RuntimeConfig) else RuntimeConfig.from_mapping(value)
+    return resolve_runtime(config)
+
+
+def create_worker(
+    value: RuntimeInput,
+    *,
+    directory="./",
+    print_func: Callable = print,
+) -> BaseWorker:
+    """Create exactly one worker from one complete runtime."""
+    runtime = _resolve(value)
+    options = dict(runtime.config.options)
+    batch_size = options.pop("batch_size", 1)
+    worker_kind = options.pop("worker", "batch")
+    share_workdir = options.pop("share_workdir", False)
     retain_info = options.pop("retain_info", False)
     if options:
-        raise TypeError(f"Unknown runtime worker options: {', '.join(sorted(options))}")
+        raise TypeError(f"Unknown runtime options: {', '.join(sorted(options))}.")
+
     if isinstance(runtime.executor, BaseDriver):
-        if use_single:
-            worker = SingleWorker(None, runtime.executor, scheduler)
-            worker.runtime = runtime
+        if worker_kind == "single":
+            worker = SingleWorker(runtime=runtime)
+        elif worker_kind == "batch":
+            worker = DriverBasedWorker(runtime=runtime)
         else:
-            worker = DriverBasedWorker(runtime=runtime, scheduler=scheduler)
-        worker._share_wdir = share_wdir
-        worker._retain_info = retain_info
+            raise ValueError(f"Unknown driver worker kind {worker_kind!r}; expected 'batch' or 'single'.")
+        worker._share_wdir = bool(share_workdir)
+        worker._retain_info = bool(retain_info)
     elif isinstance(runtime.executor, BaseReactor):
-        worker = ReactorBasedWorker(runtime.provider_potential, runtime.executor, scheduler=scheduler)
-        worker.runtime = runtime
+        if worker_kind != "batch":
+            raise ValueError("Reactor runtimes support only the 'batch' worker kind.")
+        worker = ReactorBasedWorker(runtime=runtime)
     else:
         raise TypeError(f"Unsupported runtime executor {type(runtime.executor).__name__}.")
-    worker.batchsize = batchsize
-    worker.directory = pathlib.Path(directory) / "w0"
-    print_func(f"runtime {runtime_config.potential.provider}/{runtime_config.executor.provider}")
-    return [worker]
 
-
-def broadcast_and_adjust_potter(
-    inp,
-    estimate_uncertainty: bool | None = False,
-    switch_backend: str | None = None,
-    print_func: Callable = print,
-) -> list[BasePotentialManager]:
-    potter = convert_input_to_potter(inp)
-    if not isinstance(potter, BasePotentialManager):
-        raise TypeError(f"Expected BasePotentialManager, got {type(potter).__name__}.")
-    potters = potter.broadcast(potter) if hasattr(potter, "broadcast") else [potter]
-    if not all(isinstance(item.calc, BaseCalculator) for item in potters):
-        raise TypeError("Every potential manager must contain an ASE calculator.")
-    for index, item in enumerate(potters):
-        print_func(f"potter-{index} {item.name}")
-        if estimate_uncertainty is not None and hasattr(item, "switch_uncertainty_estimation"):
-            item.switch_uncertainty_estimation(estimate_uncertainty)
-        if switch_backend is not None and hasattr(item, "switch_backend"):
-            item.switch_backend(backend=switch_backend)
-    return potters
-
-
-def create_workers(config=None, *, directory="./", print_func: Callable = print, **overrides) -> list[BaseWorker]:
-    """Create broadcast computation workers from configuration."""
-    if isinstance(config, BaseWorker):
-        if overrides:
-            raise TypeError("Overrides cannot be applied to an existing worker.")
-        return [config]
-    if _is_runtime_config(config):
-        if overrides:
-            merged = copy.deepcopy(dict(config))
-            merged.update(copy.deepcopy(overrides))
-            config = merged
-        return _create_runtime_worker(config, directory=directory, print_func=print_func)
-    if isinstance(config, Sequence) and not isinstance(config, (str, bytes, Mapping)):
-        if all(isinstance(item, BaseWorker) for item in config):
-            return list(config)
-    if config is None:
-        params = {}
-    elif isinstance(config, Mapping):
-        params = copy.deepcopy(dict(config))
-    else:
-        raise TypeError(f"Computer must be a mapping or worker, got {type(config).__name__}.")
-    params.update(copy.deepcopy(overrides))
-    if "potter" not in params and "potential" in params:
-        params["potter"] = params.pop("potential")
-    if "potter" not in params:
-        raise ValueError("Computer configuration requires `potter` (or legacy `potential`).")
-
-    potters = broadcast_and_adjust_potter(
-        params.pop("potter"),
-        estimate_uncertainty=params.pop("estimate_uncertainty", None),
-        switch_backend=params.pop("switch_backend", None),
-        print_func=print_func,
+    worker.batchsize = int(batch_size)
+    worker.directory = pathlib.Path(directory)
+    print_func(
+        f"runtime {runtime.config.potential.provider}/"
+        f"{runtime.config.executor.provider}:{runtime.config.executor.method}"
     )
-    driver_input = params.pop("driver", {})
-    drivers = copy.deepcopy(list(driver_input) if isinstance(driver_input, list) else [dict(driver_input)])
-    scheduler = canonicalise_scheduler(params.pop("scheduler", {}))
-    use_grid = params.pop("use_grid", False)
-    batchsize = params.pop("batchsize", 1)
-    share_wdir = params.pop("share_wdir", False)
-    use_single = params.pop("use_single", False)
-    retain_info = params.pop("retain_info", False)
-    if params:
-        raise TypeError(f"Unknown computer options: {', '.join(sorted(params))}")
-
-    directory = pathlib.Path(directory)
-    pairs = list(itertools.product(range(len(drivers)), range(len(potters))))
-    if use_grid:
-        grid_potters = [potters[p_index] for _, p_index in pairs]
-        grid_drivers = [create_compat_executor(potters[p_index], drivers[d_index]) for d_index, p_index in pairs]
-        worker = GridDriverBasedWorker(grid_potters, grid_drivers, scheduler=scheduler)
-        worker.batchsize = batchsize
-        worker.directory = directory
-        return [worker]
-
-    workers: list[BaseWorker] = []
-    for index, (driver_index, potter_index) in enumerate(pairs):
-        potter = potters[potter_index]
-        driver = create_compat_executor(potter, drivers[driver_index])
-        if isinstance(driver, BaseDriver):
-            worker = SingleWorker(potter, driver, scheduler) if use_single else DriverBasedWorker(potter, driver, scheduler)
-            worker._share_wdir = share_wdir
-            worker._retain_info = retain_info
-        elif isinstance(driver, BaseReactor):
-            worker = ReactorBasedWorker(potter, driver, scheduler)
-        else:
-            raise TypeError(f"Unsupported driver {type(driver).__name__}.")
-        worker.batchsize = batchsize
-        worker.directory = directory / f"w{index}"
-        workers.append(worker)
-    return workers
+    return worker
 
 
-def create_worker_chains(configs, *, directory="./", print_func: Callable = print) -> list[list[BaseWorker]]:
-    """Create worker-major chains from a sequence of computer configs."""
-    steps = [create_workers(config, directory=directory, print_func=print_func) for config in configs]
-    if not steps:
-        raise ValueError("A worker chain requires at least one computer configuration.")
-    width = len(steps[0])
-    if any(len(step) != width for step in steps):
-        raise ValueError("Every worker-chain step must create the same number of workers.")
-    return [[step[index] for step in steps] for index in range(width)]
+def create_workers(
+    values: Sequence[RuntimeInput],
+    *,
+    directory="./",
+    print_func: Callable = print,
+) -> list[BaseWorker]:
+    """Create independent workers from an explicit non-empty runtime list."""
+    if isinstance(values, (str, bytes, Mapping, Runtime, RuntimeConfig)):
+        raise TypeError("create_workers requires an explicit sequence; use create_worker for one runtime.")
+    runtimes = list(values)
+    if not runtimes:
+        raise ValueError("At least one runtime is required.")
+    root = pathlib.Path(directory)
+    return [
+        create_worker(
+            value,
+            directory=root if len(runtimes) == 1 else root / f"w{index}",
+            print_func=print_func,
+        )
+        for index, value in enumerate(runtimes)
+    ]
 
 
-def canonicalise_worker(inp_worker):
-    """Compatibility adapter returning the first canonical worker."""
-    if inp_worker is None:
-        return None
-    workers = create_workers(inp_worker)
-    return workers[0]
+def create_worker_chains(
+    chains: Sequence[Sequence[RuntimeInput]],
+    *,
+    directory="./",
+    print_func: Callable = print,
+) -> list[list[BaseWorker]]:
+    """Create explicit worker chains; each inner sequence is one ordered chain."""
+    if not chains:
+        raise ValueError("At least one worker chain is required.")
+    root = pathlib.Path(directory)
+    result = []
+    for chain_index, values in enumerate(chains):
+        if not values:
+            raise ValueError(f"Worker chain {chain_index} is empty.")
+        chain_root = root if len(chains) == 1 else root / f"chain{chain_index}"
+        result.append(
+            [
+                create_worker(
+                    value,
+                    directory=chain_root / f"step{step_index}",
+                    print_func=print_func,
+                )
+                for step_index, value in enumerate(values)
+            ]
+        )
+    return result

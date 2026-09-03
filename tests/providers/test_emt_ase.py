@@ -1,7 +1,9 @@
 from ase import Atoms
 
-from gdpx.execution.targets import AseCalculatorMaterialization
-from gdpx.providers import CapabilityKind, get_provider_manager
+from gdpx.providers.targets import AseCalculatorMaterialization
+import pytest
+
+from gdpx.providers import CapabilityKind, ProviderConfigurationError, get_provider_manager
 from gdpx.providers.emt import EmtPotential
 
 
@@ -21,16 +23,14 @@ def test_emt_ase_vertical_slice_resolves_and_evaluates():
     assert isinstance(atoms.get_potential_energy(), float)
 
 
-def test_legacy_emt_schema_uses_new_provider_implementation():
-    runtime = get_provider_manager().resolve_runtime(
-        {
-            "potter": {"name": "emt", "params": {"backend": "ase"}},
-            "driver": {"backend": "ase", "task": "min", "steps": 1},
-        }
-    )
-
-    assert isinstance(runtime.provider_potential, EmtPotential)
-    assert runtime.executor.setting.task == "min"
+def test_legacy_emt_schema_is_rejected():
+    with pytest.raises(ProviderConfigurationError, match="Legacy fields found"):
+        get_provider_manager().resolve_runtime(
+            {
+                "potter": {"name": "emt", "params": {"backend": "ase"}},
+                "driver": {"backend": "ase", "task": "min", "steps": 1},
+            }
+        )
 
 
 def test_manager_materialize_selects_the_requested_target():

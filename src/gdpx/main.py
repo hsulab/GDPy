@@ -10,7 +10,6 @@ import numpy as np
 
 from gdpx import config
 from gdpx.bootstrap import bootstrap_registries
-from gdpx.core.catalog import registers
 from gdpx.utils.parser import parse_input_file
 from gdpx.utils.strconv import dictionary_to_string
 
@@ -28,12 +27,12 @@ def main():
 
     parser.add_argument("-d", "--directory", default=pathlib.Path.cwd(), help="working directory")
 
-    # the workflow tracker
+    # Runtime shared by exploration and validation commands.
     parser.add_argument(
-        "-p",
-        "--potential",
+        "-r",
+        "--runtime",
         default=None,
-        help="target potential related configuration (json/yaml)",
+        help="schema-v2 runtime configuration (json/yaml)",
     )
 
     parser.add_argument("-nj", "--n_jobs", default=1, type=int, help="number of processors")
@@ -49,7 +48,7 @@ def main():
     parser_session = subparsers.add_parser(
         "session",
         help="run gdpy session",
-        description=str(registers.variable) + "\n" + str(registers.operation),
+        description="Run a declarative GDPy workflow.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_session.add_argument("SESSION", help="session configuration file (json/yaml)")
@@ -67,7 +66,7 @@ def main():
     parser_build = subparsers.add_parser(
         "build",
         help="build structures",
-        description=str(registers.builder),
+        description="Build atomic structures.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_build.add_argument("CONFIG", help="builder configuration file (json/yaml)")
@@ -83,7 +82,7 @@ def main():
     parser_convert = subparsers.add_parser(
         "convert",
         help="convert dataset formats",
-        description=str(registers.dataloader),
+        description="Convert dataset formats.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_convert.add_argument("INPUT", help="path of the input dataset")
@@ -94,7 +93,7 @@ def main():
     parser_train = subparsers.add_parser(
         "train",
         help="automatic training utilities",
-        description=str(registers.trainer) + "\n" + str(registers.dataloader),
+        description="Train a provider-owned potential model.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_train.add_argument("CONFIG", help="training configuration file (json/yaml)")
@@ -103,7 +102,7 @@ def main():
     parser_compute = subparsers.add_parser(
         "compute",
         help="compute structures with basic methods (MD, MIN, and ...)",
-        description=str(registers.manager).lower() + "\n" + str(registers.bias) + "\n" + str(registers.scheduler),
+        description="Execute structures using a schema-v2 runtime.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_compute.add_argument(
@@ -135,7 +134,7 @@ def main():
     parser_explore = subparsers.add_parser(
         "explore",
         help="explore structures with advanced methods (GA, MC, and ...)",
-        description=str(registers.expedition),
+        description="Run a structural exploration method.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_explore.add_argument("CONFIG", help="json/yaml file that stores parameters for a task")
@@ -150,7 +149,7 @@ def main():
     parser_select = subparsers.add_parser(
         "select",
         help="apply various selection operations",
-        description=str(registers.selector) + "\n" + str(registers.comparator),
+        description="Select structures for downstream workflows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_select.add_argument("CONFIG", help="selection configuration file")
@@ -160,7 +159,7 @@ def main():
     parser_describe = subparsers.add_parser(
         "describe",
         help="compute descriptors for given structures",
-        description=str(registers.describer),
+        description="Compute structure descriptors.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_describe.add_argument("CONFIG", help="describer configuration")
@@ -170,7 +169,7 @@ def main():
     parser_validate = subparsers.add_parser(
         "validate",
         help="validate properties with trained models",
-        description=str(registers.validator),
+        description="Validate model predictions.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_validate.add_argument("CONFIG", help="validation configuration file")
@@ -216,16 +215,7 @@ def main():
     for l in dictionary_to_string(rng_state).split("\n"):
         config._print(l)
 
-    # - potential
-    if args.potential and args.subcommand != "compute":
-        # a worker or a List of worker
-        from .cli.compute import convert_input_to_computer
-
-        computer = convert_input_to_computer(args.potential)
-        workers = computer.value
-    else:
-        computer = None
-        workers = [None]
+    runtime = parse_input_file(args.runtime) if args.runtime and args.subcommand != "compute" else None
 
     # - use subcommands
     if args.subcommand == "session":
@@ -259,7 +249,7 @@ def main():
 
         run_computation(
             args.STRUCTURE,
-            args.potential,
+            args.runtime,
             batch=args.batch,
             spawn=args.spawn,
             archive=args.archive,
@@ -271,12 +261,13 @@ def main():
         from .cli.explore import run_expedition
 
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, workers[0], spawn=args.spawn)
+        run_expedition(params, args.wait, args.directory, runtime, spawn=args.spawn)
     elif args.subcommand == "validate":
         from .cli.validate import run_validation
+        from .execution.factory import create_worker
 
         params = parse_input_file(args.CONFIG)
-        run_validation(params, args.directory, workers[0])
+        run_validation(params, args.directory, None if runtime is None else create_worker(runtime))
     else:
         ...
 

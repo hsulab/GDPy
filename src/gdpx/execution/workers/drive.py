@@ -1,6 +1,5 @@
 import copy
 import functools
-import itertools
 import json
 import pathlib
 import shlex
@@ -19,13 +18,10 @@ from joblib import Parallel, delayed
 from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.execution.driver import BaseDriver
 from .registry import WORKER_REGISTRY
-from gdpx.providers.manager_base import BasePotentialManager
-from gdpx.execution.schedulers import LocalScheduler
-from gdpx.execution.schedulers.scheduler import BaseScheduler
+from gdpx.execution.runtime import Runtime
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
 from gdpx.utils.profiler import CustomTimer
 
-from .pairing import Pairing
 from .store import JobRecord
 from .utils import copy_minimal_frames, get_file_md5, split_batches
 from .worker import BaseWorker
@@ -155,9 +151,7 @@ def run_computation_in_commandline(
 class DriverBasedWorker(BaseWorker):
     """Monitor driver-based jobs.
 
-    Unifies the original DriverBasedWorker, SingleWorker, and
-    GridDriverBasedWorker into a single class.  The *pairing* parameter
-    controls how N driver configurations map to M input structures.
+    Executes one resolved runtime over one or more input structures.
 
     Lifetime: queued (running) -> finished -> retrieved
 
@@ -174,41 +168,18 @@ class DriverBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        # --- backward-compatible args ---
-        potter: Optional[BasePotentialManager] = None,
-        driver: Optional[Union[BaseDriver, list[BaseDriver]]] = None,
-        scheduler_: Optional[BaseScheduler] = None,
-        # --- new-style args ---
-        scheduler: Optional[BaseScheduler] = None,
+        runtime: Runtime,
         directory: Optional[Union[str, pathlib.Path]] = None,
         batchsize: int = 1,
-        pairing: Union[Pairing, str] = Pairing.AUTO,
-        runtime=None,
         *args,
         **kwargs,
     ):
         super().__init__(directory=directory, batchsize=batchsize, *args, **kwargs)
-
-        # Backward compat: scheduler_ -> scheduler
-        self.scheduler = scheduler_ if scheduler_ is not None else (scheduler or LocalScheduler())
-
+        if not isinstance(runtime, Runtime):
+            raise TypeError(f"Expected Runtime, got {type(runtime).__name__}.")
         self.runtime = runtime
-        # Potter is stored only for legacy serialisation; it is NOT used at runtime.
-        if potter is None and runtime is not None and hasattr(runtime.provider_potential, "as_dict"):
-            potter = runtime.provider_potential
-        self.potter = potter
-
-        # Always internal list of driver instances
-        self._drivers: list[BaseDriver] = []
-        if driver is None and runtime is not None:
-            driver = runtime.executor
-        if driver is not None:
-            if isinstance(driver, list):
-                self._drivers = driver
-            else:
-                self._drivers = [driver]
-
-        self._pairing = Pairing(pairing) if isinstance(pairing, str) else pairing
+        self.scheduler = runtime.scheduler
+        self._drivers: list[BaseDriver] = [runtime.executor]
 
     # ------------------------------------------------------------------
     # Driver access
@@ -216,27 +187,11 @@ class DriverBasedWorker(BaseWorker):
 
     @property
     def driver(self) -> BaseDriver:
-        if len(self._drivers) == 1:
-            return self._drivers[0]
-        raise AttributeError(
-            f"{self.__class__.__name__} has {len(self._drivers)} drivers; "
-            "use `worker.drivers[i]` or `worker.set_drivers()`."
-        )
-
-    @driver.setter
-    def driver(self, d: BaseDriver):
-        self._drivers = [d]
+        return self._drivers[0]
 
     @property
     def drivers(self) -> list[BaseDriver]:
         return self._drivers
-
-    def set_drivers(self, *drivers: BaseDriver):
-        """Set one or more driver configurations."""
-        self._drivers = list(drivers)
-
-    def add_driver(self, driver: BaseDriver):
-        self._drivers.append(driver)
 
     # ------------------------------------------------------------------
     # Task planning — how drivers pair with structures
@@ -248,43 +203,7 @@ class DriverBasedWorker(BaseWorker):
         The length of the returned list is the total number of tasks.
         Each task is a single (driver, structure) computation.
         """
-        nd, ns = len(self._drivers), num_structures
-        if self._pairing == Pairing.AUTO:
-            return self._infer_pairing(nd, ns)
-        elif self._pairing == Pairing.BROADCAST:
-            assert nd == 1, f"BROADCAST requires 1 driver, got {nd}."
-            return [(0, i) for i in range(ns)]
-        elif self._pairing == Pairing.REPEAT:
-            return [(i, 0) for i in range(nd)]
-        elif self._pairing == Pairing.BIJECTION:
-            assert nd == ns, f"BIJECTION requires N drivers == M structures, got N={nd}, M={ns}."
-            return [(i, i) for i in range(ns)]
-        elif self._pairing == Pairing.PRODUCT:
-            return list(itertools.product(range(nd), range(ns)))
-        elif self._pairing == Pairing.PARTITION:
-            return self._partition_across_drivers(nd, ns)
-        else:
-            raise ValueError(f"Unknown Pairing: {self._pairing}")
-
-    def _infer_pairing(self, nd: int, ns: int) -> list[tuple[int, int]]:
-        if nd == 1:
-            return [(0, i) for i in range(ns)]
-        if ns == 1:
-            return [(i, 0) for i in range(nd)]
-        if nd == ns:
-            return [(i, i) for i in range(ns)]
-        raise ValueError(
-            f"Cannot infer Pairing from {nd} drivers and {ns} structures. "
-            f"Set an explicit Pairing (e.g. PRODUCT, PARTITION)."
-        )
-
-    def _partition_across_drivers(self, nd: int, ns: int) -> list[tuple[int, int]]:
-        """Split *ns* structures evenly across *nd* drivers."""
-        plan = []
-        for si in range(ns):
-            di = si % nd
-            plan.append((di, si))
-        return plan
+        return [(0, index) for index in range(num_structures)]
 
     # ------------------------------------------------------------------
     # Preprocessing (MD5 caching, seed generation)
@@ -415,8 +334,8 @@ class DriverBasedWorker(BaseWorker):
             with open(task_plan_path, "w") as fopen:
                 json.dump(
                     dict(
-                        pairing=self._pairing.name,
-                        num_drivers=len(self._drivers),
+                        mode="broadcast",
+                        num_executors=1,
                         num_structures=num_frames,
                         tasks=[
                             dict(global_index=i, driver_index=di, structure_index=si)
@@ -849,24 +768,11 @@ class DriverBasedWorker(BaseWorker):
     # ------------------------------------------------------------------
 
     def as_dict(self) -> dict:
-        if self.runtime is not None:
-            worker_params = self.runtime.config.to_dict()
-            worker_params["batchsize"] = self.batchsize
-            worker_params["share_wdir"] = self._share_wdir
-            worker_params["retain_info"] = self._retain_info
-            return copy.deepcopy(worker_params)
-        worker_params = {}
-        if self.potter is not None:
-            worker_params["potter"] = self.potter.as_dict()
-        if self._drivers:
-            worker_params["driver"] = self._drivers[0].as_dict()
-        else:
-            worker_params["driver"] = {}
-        worker_params["scheduler"] = self.scheduler.as_dict()
-
-        worker_params = copy.deepcopy(worker_params)
-        worker_params["batchsize"] = self.batchsize
-        worker_params["share_wdir"] = self._share_wdir
-        worker_params["retain_info"] = self._retain_info
-
-        return worker_params
+        worker_params = self.runtime.config.to_dict()
+        worker_params["options"] = {
+            "batch_size": self.batchsize,
+            "worker": "batch",
+            "share_workdir": self._share_wdir,
+            "retain_info": self._retain_info,
+        }
+        return copy.deepcopy(worker_params)

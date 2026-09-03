@@ -32,15 +32,10 @@ def create_describer(config):
 
 
 def create_trainer(config):
-    from gdpx.providers.trainer_registry import REGISTER as registry
-    from gdpx.providers.training import BasePotentialTrainer
+    from gdpx.providers import ComponentConfig, get_provider_manager
 
-    existing, params = _params(config, BasePotentialTrainer)
-    if existing is not None:
-        return existing
-    name = params.pop("name")
-    class_name = "".join(part.capitalize() for part in name.split("_")) + "Trainer"
-    return registry[class_name](**params)
+    component = config if isinstance(config, ComponentConfig) else ComponentConfig(**copy.deepcopy(dict(config)))
+    return get_provider_manager().create_training(component)
 
 
 def create_expedition(config):

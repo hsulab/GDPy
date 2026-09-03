@@ -1,6 +1,6 @@
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("comparator")
+REGISTER = Registry("comparator")
 
 REGISTER.register_lazy("cartesian_coordinate", "gdpx.analysis.comparators.cartesian", "CartesianCoordinateComparator")
 REGISTER.register_lazy("coordination", "gdpx.analysis.comparators.coordination", "CoordinationComparator")

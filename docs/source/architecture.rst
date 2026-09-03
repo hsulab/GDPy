@@ -35,16 +35,14 @@ replica.  NEB and string methods are path transition-state executors because
 their concrete request contains a path of replicas.  They are exploration only
 when another algorithm adaptively chooses or changes those requests.
 
-Migration boundary
-------------------
+Public boundary
+---------------
 
 The implementation packages are now ``providers``, ``execution``,
 ``exploration``, ``workflow``, ``structures``, ``analysis``, ``modifiers``, and
-``data``.  The former ``potential``, ``trainer``, ``computation``, ``reactor``,
-``worker``, ``scheduler``, ``expedition``, and singular domain packages contain
-forwarding imports only and remain for one minor release.
-
-Schema-v1 ``potter``/``driver`` input remains readable through a compatibility
-translator.  New serialization is schema version 2.  Calculators are created
-only after the executor target is known.  Unsupported target/modifier
+``data``.  Version 0.1 removes the former compatibility packages and global
+registry catalog; integrations enter through the ``gdpx.providers`` plugin
+group. Runtime input requires ``schema_version: 2`` and explicit
+``potential``/``executor`` component sections. Calculators are created only
+after the executor target is known, and unsupported target/modifier
 combinations fail explicitly.

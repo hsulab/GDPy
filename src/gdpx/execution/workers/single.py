@@ -10,17 +10,14 @@ original :class:`SingleWorker` API for backward compatibility.
 
 
 import pathlib
-from typing import Optional, Union
+from typing import Union
 
 from tinydb import Query, TinyDB
 
-from gdpx.execution.driver import BaseDriver
 from .registry import WORKER_REGISTRY
-from gdpx.providers.manager_base import BasePotentialManager
-from gdpx.execution.schedulers.scheduler import BaseScheduler
+from gdpx.execution.runtime import Runtime
 
 from .drive import DriverBasedWorker
-from .pairing import Pairing
 
 
 @WORKER_REGISTRY.register
@@ -38,18 +35,13 @@ class SingleWorker(DriverBasedWorker):
 
     def __init__(
         self,
-        potter: Optional[BasePotentialManager] = None,
-        driver: Optional[Union[BaseDriver, list[BaseDriver]]] = None,
-        scheduler: Optional[BaseScheduler] = None,
+        runtime: Runtime,
         directory: Union[str, pathlib.Path] = "./",
     ) -> None:
         super().__init__(
-            potter=potter,
-            driver=driver,
-            scheduler_=scheduler,
+            runtime=runtime,
             directory=directory,
             batchsize=1,
-            pairing=Pairing.BROADCAST,
         )
         self._wdir_name: str = ""
 
@@ -57,9 +49,7 @@ class SingleWorker(DriverBasedWorker):
     def from_a_worker(worker: DriverBasedWorker) -> "SingleWorker":
         """Create a SingleWorker sharing its configuration with *worker*."""
         single = SingleWorker(
-            potter=getattr(worker, "potter", None),
-            driver=worker.drivers if worker.drivers else None,
-            scheduler=worker.scheduler,
+            runtime=worker.runtime,
             directory=worker.directory,
         )
         single._share_wdir = worker._share_wdir
@@ -106,7 +96,7 @@ class SingleWorker(DriverBasedWorker):
 
     def as_dict(self) -> dict:
         params = super().as_dict()
-        params["use_single"] = True
+        params["options"]["worker"] = "single"
         return params
 
 

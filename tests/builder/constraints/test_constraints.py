@@ -7,7 +7,7 @@ import numpy as np
 
 from ase import Atoms
 
-from gdpx.group.constraint import canonicalise_constraint_expression, evaluate_constraint_expression
+from gdpx.structures.groups.constraint import canonicalise_constraint_expression, evaluate_constraint_expression
 
 @pytest.fixture(scope="function")
 def rng():

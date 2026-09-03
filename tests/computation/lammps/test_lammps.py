@@ -14,7 +14,7 @@ import yaml
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.factory.computer import create_workers
+from gdpx.execution.factory import create_worker, create_workers
 from gdpx.utils.parser import parse_input_file
 
 """
@@ -43,7 +43,7 @@ def test_reax_nvt():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = create_workers(parse_input_file("./assets/reaxnvt.yaml"))[0]
+    worker = create_worker(parse_input_file("./assets/reaxnvt.yaml"))
 
     results = run_computation(structures, worker)
 
@@ -62,7 +62,7 @@ def test_reax_nvt_archive():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = create_workers(parse_input_file("./assets/reaxnvt.yaml"))[0]
+    worker = create_worker(parse_input_file("./assets/reaxnvt.yaml"))
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         worker.directory = tmpdirname
@@ -104,7 +104,7 @@ def test_reax_nvt_continue():
         # wdir = "./_xxx"
         wdir = pathlib.Path(wdir)
         # run first simulation
-        worker = create_workers(worker_params)[0]
+        worker = create_worker(worker_params)
         worker.directory = wdir
         worker.run(structures)
         # worker.inspect(structures)
@@ -122,7 +122,7 @@ def test_reax_nvt_continue():
 
         worker_params["driver"]["run"]["steps"] = 29
 
-        worker = create_workers(worker_params)[0]
+        worker = create_worker(worker_params)
         worker.directory = wdir
         worker.run(structures)
         worker.inspect(structures)

@@ -85,7 +85,7 @@ class Cp2kExecutorFactory:
                 ignore_convergence=ignore_convergence,
                 random_seed=random_seed,
             )
-        executor.pot_params = manager.as_dict()
+        executor.pot_params = manager._implementation_config()
         return executor
 
 

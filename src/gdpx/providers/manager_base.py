@@ -4,8 +4,7 @@
 
 import abc
 import copy
-import warnings
-from typing import Any, Generic, TypeVar, cast
+from typing import Generic, TypeVar, cast
 
 from ase.calculators.calculator import Calculator
 
@@ -76,30 +75,8 @@ class BasePotentialManager(abc.ABC, Generic[CalcT]):
 
         return
 
-    def create_driver(self, dyn_params: dict = None) -> Any:
-        """Create a driver for dynamics.
-
-        The default dynamics backend will be the same as the calculator.
-        The ase-based dynamics can be used for all calculators.
-
-        Args:
-            dyn_params: Parameters for driver.
-
-        Returns:
-            A driver instance.
-
-        """
-        warnings.warn(
-            "PotentialManager.create_driver() is deprecated; resolve a Runtime through ProviderManager instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from gdpx.execution.compat import create_compat_executor
-
-        return create_compat_executor(self, dyn_params or {})
-
-    def as_dict(self):
-        """"""
+    def _implementation_config(self):
+        """Return provider-internal calculator parameters."""
         params = {}
         params["name"] = self.name
         params["params"] = copy.deepcopy(self.calc_params)

@@ -1,4 +1,4 @@
-from gdpx.factory.computer import create_workers
+from gdpx.execution.factory import create_worker
 
 
 def test_schema_v2_creates_a_runtime_backed_worker():
@@ -7,13 +7,12 @@ def test_schema_v2_creates_a_runtime_backed_worker():
         "potential": {"provider": "emt", "parameters": {}},
         "executor": {"provider": "ase", "method": "min", "parameters": {"steps": 1}},
         "scheduler": {"provider": "local", "parameters": {}},
-        "batchsize": 2,
+        "options": {"batch_size": 2},
     }
 
-    worker = create_workers(config)[0]
+    worker = create_worker(config)
 
     assert worker.runtime.config.executor.method == "min"
     assert worker.batchsize == 2
     assert worker.as_dict()["schema_version"] == 2
     assert worker.as_dict()["potential"]["provider"] == "emt"
-

@@ -15,11 +15,10 @@ from ase.data import atomic_numbers
 from ase.formula import Formula
 from ase.io import read, write
 
-from gdpx.execution.lifecycle.runtime import create_computer as convert_input_to_computer
-from gdpx.execution.lifecycle.runtime import run_workers as run_worker
+from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_workers
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.analysis.comparators import create_comparator
-from gdpx.execution.factory import canonicalise_worker
+from gdpx.execution.factory import create_worker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
@@ -470,7 +469,7 @@ class ConcurrentHopping(BaseExpedition):
         # Parse monte carlo settings
         self.num_mcmoves = num_mcmoves
         self.operators, self.op_probs = parse_operators(operators)
-        self.mcworker = canonicalise_worker(mcworker)
+        self.mcworker = create_worker(mcworker)
 
         # Some convergence criteria
         self.convergence = convergence
@@ -488,7 +487,7 @@ class ConcurrentHopping(BaseExpedition):
 
     def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
         """Overwrite this function as we need computer in this expedition."""
-        self.worker = worker if isinstance(worker, list) else convert_input_to_computer(worker)
+        self.worker = worker if isinstance(worker, list) else create_runtime_workers(worker)
 
         return
 
@@ -620,7 +619,9 @@ class ConcurrentHopping(BaseExpedition):
         candidates_confids = [a.info["confid"] for a in candidates_to_explore]
         self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
 
-        is_finished = run_worker(candidates_to_explore, self.worker, archive=self.use_archive, directory=gen_wdir)  # type: ignore
+        is_finished = execute_workers(
+            candidates_to_explore, self.worker, archive=self.use_archive, directory=gen_wdir
+        )  # type: ignore
         if is_finished:
             relaxed_candidates = read(gen_wdir / "results" / "end_frames.xyz", ":")
             explored_candidates = canonical_candidates_from_worker_results(

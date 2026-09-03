@@ -21,10 +21,11 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx.structures.builders.factory import canonicalise_builder
-from gdpx.execution.factory import create_workers
+from gdpx.execution.factory import create_worker, create_workers
+from gdpx.providers import RuntimeConfig
 from gdpx.execution.workers.drive import DriverBasedWorker
 
-PLAN_SCHEMA_VERSION = 1
+PLAN_SCHEMA_VERSION = 2
 DEFAULT_PLAN_RELPATH = pathlib.Path("_data") / "compute-plan.json"
 
 
@@ -145,18 +146,16 @@ def _normalise_config(config: Union[str, pathlib.Path, dict, list]) -> Union[dic
         parsed = config
     if not isinstance(parsed, (dict, list)):
         raise ComputeLifecycleError(f"Compute configuration must be a mapping or list, got {type(parsed).__name__}.")
-    normalised = copy.deepcopy(parsed)
-    configs = normalised if isinstance(normalised, list) else [normalised]
+    configs = copy.deepcopy(parsed if isinstance(parsed, list) else [parsed])
+    normalised = []
     for item in configs:
         if not isinstance(item, dict):
             raise ComputeLifecycleError("Every compute configuration must be a mapping.")
-        if "potter" not in item and "potential" in item:
-            item["potter"] = item.pop("potential")
-        if "potter" not in item:
-            raise ComputeLifecycleError("Compute configuration has no `potter` (or legacy `potential`) section.")
+        normalised.append(RuntimeConfig.from_mapping(item).to_dict())
     # Plans are JSON artifacts. Convert pathlib and scalar-like configuration
     # values once here so an in-memory plan and a reloaded plan compare equally.
-    return json.loads(json.dumps(normalised, default=str))
+    value = normalised if isinstance(parsed, list) else normalised[0]
+    return json.loads(json.dumps(value, default=str))
 
 
 def _load_structures(structures: Iterable[Union[str, pathlib.Path, Atoms]]) -> list[Atoms]:
@@ -187,16 +186,15 @@ def _plan_digest(payload: dict) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def _create_computer(config: Union[dict, list]):
-    if isinstance(config, list):
-        raise ComputeLifecycleError("The first lifecycle implementation supports ordinary computers only, not chains.")
-    computer = create_workers(copy.deepcopy(config))
-    if not isinstance(computer, list) or (computer and isinstance(computer[0], list)):
-        raise ComputeLifecycleError("The first lifecycle implementation supports ordinary computers only, not chains.")
-    workers = computer
+def _create_workers(config: Union[dict, list]):
+    workers = (
+        create_workers(copy.deepcopy(config))
+        if isinstance(config, list)
+        else [create_worker(copy.deepcopy(config))]
+    )
     if not workers or not all(isinstance(worker, DriverBasedWorker) for worker in workers):
         raise ComputeLifecycleError("The first lifecycle implementation supports DriverBasedWorker computations only.")
-    return computer, workers
+    return workers
 
 
 def _serialise_batches(worker: DriverBasedWorker, batches) -> tuple[ComputeBatch, ...]:
@@ -282,7 +280,7 @@ def prepare_compute(
     input_path.parent.mkdir(parents=True, exist_ok=True)
     write(input_path, frames)
 
-    _, workers = _create_computer(normalised_config)
+    workers = _create_workers(normalised_config)
     worker_plans = []
     num_workers = len(workers)
     for worker_index, worker in enumerate(workers):
@@ -345,7 +343,7 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
 
 
 def _restore(plan: ComputePlan):
-    _, workers = _create_computer(plan.config)
+    workers = _create_workers(plan.config)
     if len(workers) != len(plan.workers):
         raise ComputeLifecycleError("Saved plan and reconstructed worker counts differ.")
     frames = read(pathlib.Path(plan.directory) / plan.structure_file, ":")

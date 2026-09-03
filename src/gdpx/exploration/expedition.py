@@ -8,7 +8,7 @@ from typing import Any
 
 from gdpx.core.component import BaseComponent
 from gdpx.structures.builders.builder import StructureBuilder
-from gdpx.execution.service import LegacyExecutionWorker, WorkerExecutionService
+from gdpx.execution.service import ExecutionWorker, WorkerExecutionService
 
 
 class BaseExpedition(BaseComponent):
@@ -20,7 +20,7 @@ class BaseExpedition(BaseComponent):
     def read_convergence(self) -> bool: ...
 
     @abc.abstractmethod
-    def get_workers(self) -> list[LegacyExecutionWorker]: ...
+    def get_workers(self) -> list[ExecutionWorker]: ...
 
     def run(self, *args, **kwargs) -> None:
         """"""
@@ -49,7 +49,7 @@ class BaseExpedition(BaseComponent):
             if not worker:
                 raise ValueError("Cannot register an empty worker list.")
             worker = worker[0]
-        if not isinstance(worker, LegacyExecutionWorker):
+        if not isinstance(worker, ExecutionWorker):
             raise TypeError(f"Expected a worker instance, got {type(worker).__name__}.")
         self.worker = worker
         self.execution = WorkerExecutionService(worker)

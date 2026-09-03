@@ -5,8 +5,8 @@ import numpy as np
 
 from ase.io import read, write
 
-from gdpx.builder.random_bulk import RandomBulkBuilder
-from gdpx.builder.utils import compute_molecule_number_from_density
+from gdpx.structures.builders.random_bulk import RandomBulkBuilder
+from gdpx.structures.builders.utils import compute_molecule_number_from_density
 
 def test_number():
     """"""

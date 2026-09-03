@@ -1,5 +1,4 @@
 """Small, dependency-free implementation registry."""
-
 from __future__ import annotations
 
 import warnings
@@ -85,8 +84,3 @@ class Registry:
             row = keys[offset : offset + 5]
             content += ("  " + "{:<24s}" * len(row) + "\n").format(*row)
         return content
-
-
-# Historical names retained for downstream plugins.
-Register = Registry
-BaseRegister = Registry

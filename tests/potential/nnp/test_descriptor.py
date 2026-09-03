@@ -1,7 +1,7 @@
 import numpy as np
 from ase import Atoms
 
-from gdpx.potential.nnp.descriptor import (
+from gdpx.providers.nnp.descriptor import (
     compute_force_gradient_weights,
     compute_forces,
     compute_symmetry_functions,

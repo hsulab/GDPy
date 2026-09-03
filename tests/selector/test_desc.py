@@ -13,7 +13,7 @@ from ase.io import read, write
 
 from gdpx.data.array import AtomsNDArray
 from gdpx.cli.select import run_selection
-from gdpx.factory.components import create_selector
+from gdpx.workflow.factory import create_selector
 
 
 @pytest.fixture

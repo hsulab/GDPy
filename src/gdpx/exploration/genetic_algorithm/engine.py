@@ -546,8 +546,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
             gen_info = da.get_generation_info()
 
         assert self.worker is not None, "GA has not set its worker properly."
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
 
         workers = []
         for i in range(gen_info.num):

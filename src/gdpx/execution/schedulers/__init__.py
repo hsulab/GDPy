@@ -10,16 +10,16 @@ Example:
 
     .. code-block:: python
 
-        >>> from gdpx.scheduler.local import LocalScheduler
+        >>> from gdpx.execution.schedulers.local import LocalScheduler
         >>> params = dict()
         >>> scheduler = LocalScheduler(**params)
 
 """
 
 from gdpx import config
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("scheduler")
+REGISTER = Registry("scheduler")
 
 from .scheduler import BaseScheduler
 

@@ -8,7 +8,7 @@ jax = pytest.importorskip("jax")
 import jax.numpy as jnp
 import numpy as np
 
-from gdpx.bias.gaussian.distance import (compute_bias_forces,
+from gdpx.modifiers.bias.gaussian.distance import (compute_bias_forces,
                                          compute_colvar_and_gradient,
                                          compute_gaussian_and_gradient)
 

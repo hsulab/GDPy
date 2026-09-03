@@ -1,6 +1,6 @@
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("selector")
+REGISTER = Registry("selector")
 
 from .compare import CompareSelector
 

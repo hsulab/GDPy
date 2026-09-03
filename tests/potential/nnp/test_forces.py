@@ -4,8 +4,8 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gdpx.potential.nnp.calculator import ACSFNN
-from gdpx.trainer.nnp_trainer import (
+from gdpx.providers.nnp.calculator import ACSFNN
+from gdpx.providers.nnp.trainer import (
     NnpTrainer,
     _deepmd_energy_loss,
     _deepmd_energy_output_gradient,
@@ -247,7 +247,7 @@ class TestRandomStructures:
 
 class TestForceGradient:
     def test_force_loss_gradient_matches_fd(self):
-        from gdpx.potential.nnp.descriptor import (
+        from gdpx.providers.nnp.descriptor import (
             G2Param,
             G4Param,
             compute_forces,
@@ -255,7 +255,7 @@ class TestForceGradient:
             compute_n_features,
             compute_symmetry_functions,
         )
-        from gdpx.potential.nnp.nn import SimpleNN
+        from gdpx.providers.nnp.nn import SimpleNN
 
         np.random.seed(3)
         elements = ["Cu", "Au"]
@@ -334,8 +334,8 @@ class TestForceTraining:
             a.calc = SinglePointCalculator(a, energy=ref, forces=forces)
             ds.append(a)
 
-        from gdpx.potential.nnp.calculator import ACSFNN
-        from gdpx.potential.nnp.descriptor import compute_forces
+        from gdpx.providers.nnp.calculator import ACSFNN
+        from gdpx.providers.nnp.descriptor import compute_forces
 
         def eval_force_loss(model_path):
             calc = ACSFNN(model_file=model_path)
@@ -402,8 +402,8 @@ def _pair_dataset(n_structures=3, offset=0.0, seed=11):
 
 
 def _model_losses(model_path, ds):
-    from gdpx.potential.nnp.calculator import ACSFNN
-    from gdpx.potential.nnp.descriptor import compute_forces
+    from gdpx.providers.nnp.calculator import ACSFNN
+    from gdpx.providers.nnp.descriptor import compute_forces
 
     calc = ACSFNN(model_file=model_path)
     el = 0.0
@@ -453,7 +453,7 @@ class TestCombinedTraining:
             ref_mean = np.mean([a.calc.results["energy"] for a in ds])
             assert abs(float(loaded["atomic_offsets"][0]) * 3 - ref_mean) < 1e-9
 
-            from gdpx.potential.nnp.calculator import ACSFNN
+            from gdpx.providers.nnp.calculator import ACSFNN
 
             calc = ACSFNN(model_file=model)
             assert abs(float(calc.model.atomic_offsets[0]) * 3 - ref_mean) < 1e-9

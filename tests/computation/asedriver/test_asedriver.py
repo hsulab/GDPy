@@ -13,7 +13,7 @@ import yaml
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.factory.computer import create_workers
+from gdpx.execution.factory import create_worker, create_workers
 
 #  NOTE: AseDriver must dump the last frame of the trajectory
 #        For example, a 9-frame trajectory with a dump period of 3,
@@ -33,9 +33,9 @@ def test_ase_min(dump_period, num_frames):
         # tmpdirname = f"_xxx_{num_frames}"
 
         config = copy.deepcopy(worker_params)
-        config["driver"]["init"]["dump_period"] = dump_period
+        config["executor"]["parameters"]["dump_period"] = dump_period
 
-        worker = create_workers(config)[0]
+        worker = create_worker(config)
         worker.directory = tmpdirname
 
         worker.run(structures)
@@ -58,9 +58,9 @@ def test_ase_nvt(dump_period, num_frames):
         # tmpdirname = f"_xxx_{num_frames}"
 
         config = copy.deepcopy(worker_params)
-        config["driver"]["init"]["dump_period"] = dump_period
+        config["executor"]["parameters"]["dump_period"] = dump_period
 
-        worker = create_workers(config)[0]
+        worker = create_worker(config)
         worker.directory = tmpdirname
 
         worker.run(structures)
@@ -86,17 +86,17 @@ def test_ase_min_restart(dump_period, ckpt_period):
 
         # run first 24 steps
         config = copy.deepcopy(worker_params)
-        config["driver"]["init"]["dump_period"] = dump_period
-        config["driver"]["init"]["ckpt_period"] = ckpt_period
+        config["executor"]["parameters"]["dump_period"] = dump_period
+        config["executor"]["parameters"]["ckpt_period"] = ckpt_period
 
-        worker = create_workers(config)[0]
+        worker = create_worker(config)
         worker.directory = tmpdirname
         worker.run(structures)
 
         #
         os.remove(tmpdirname / "_local_jobs.json")
-        config["driver"]["run"]["steps"] = 37
-        worker = create_workers(config)[0]
+        config["executor"]["parameters"]["steps"] = 37
+        worker = create_worker(config)
         worker.directory = tmpdirname
         worker.run(structures)
 
@@ -125,17 +125,17 @@ def test_ase_nvt_restart(dump_period, ckpt_period):
 
         # run first 24 steps
         config = copy.deepcopy(worker_params)
-        config["driver"]["init"]["dump_period"] = dump_period
-        config["driver"]["init"]["ckpt_period"] = ckpt_period
+        config["executor"]["parameters"]["dump_period"] = dump_period
+        config["executor"]["parameters"]["ckpt_period"] = ckpt_period
 
-        worker = create_workers(config)[0]
+        worker = create_worker(config)
         worker.directory = tmpdirname
         worker.run(structures)
 
         #
         os.remove(tmpdirname / "_local_jobs.json")
-        config["driver"]["run"]["steps"] = 37
-        worker = create_workers(config)[0]
+        config["executor"]["parameters"]["steps"] = 37
+        worker = create_worker(config)
         worker.directory = tmpdirname
         worker.run(structures)
 

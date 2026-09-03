@@ -12,9 +12,9 @@ from ase.data import atomic_numbers
 from ase.ga.utilities import closest_distances_generator
 from ase.neighborlist import NeighborList, natural_cutoffs
 
-from gdpx.core.register import Register
+from gdpx.core.registry import Registry
 
-OBSERVER_REGISTER = Register("observer")
+OBSERVER_REGISTER = Registry("observer")
 
 
 class Observer:

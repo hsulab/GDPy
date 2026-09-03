@@ -20,8 +20,8 @@ from joblib import Parallel, delayed
 from tinydb import Query, TinyDB
 
 from gdpx.data.array import AtomsNDArray
-from gdpx.providers.manager_base import BasePotentialManager
 from gdpx.execution.reactor import BaseReactor
+from gdpx.execution.runtime import Runtime
 from gdpx.utils.profiler import CustomTimer
 
 from .registry import WORKER_REGISTRY
@@ -79,20 +79,19 @@ class ReactorBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        potter,
-        driver: BaseReactor,
-        scheduler=None,
+        runtime: Runtime,
         *args,
         **kwargs,
     ):
         """"""
         super().__init__(*args, **kwargs)
-
-        assert isinstance(potter, BasePotentialManager)
-
-        self.potter = potter
-        self.driver = driver
-        self.scheduler = scheduler
+        if not isinstance(runtime, Runtime):
+            raise TypeError(f"Expected Runtime, got {type(runtime).__name__}.")
+        if not isinstance(runtime.executor, BaseReactor):
+            raise TypeError(f"Runtime executor must be a BaseReactor, got {type(runtime.executor).__name__}.")
+        self.runtime = runtime
+        self.driver = runtime.executor
+        self.scheduler = runtime.scheduler
 
         return
 
@@ -626,15 +625,13 @@ class ReactorBasedWorker(BaseWorker):
 
     def as_dict(self) -> dict:
         """"""
-        worker_params = {}
-        worker_params["potter"] = self.potter.as_dict()
-        worker_params["driver"] = self.driver.as_dict()
-        worker_params["scheduler"] = self.scheduler.as_dict()
-
-        worker_params = copy.deepcopy(worker_params)
-
-        worker_params["batchsize"] = self.batchsize
-
+        worker_params = self.runtime.config.to_dict()
+        worker_params["options"] = {
+            "batch_size": self.batchsize,
+            "worker": "batch",
+            "share_workdir": False,
+            "retain_info": False,
+        }
         return worker_params
 
 
