@@ -1,6 +1,5 @@
-"""Workflow adapters over GDPy's domain APIs.
+"""Workflow sessions, operations, variables, and orchestration nodes."""
 
-Existing implementations remain in :mod:`gdpx.session` and :mod:`gdpx.nodes`
-during the compatibility release.  Domain packages must not import this layer.
-"""
+from .session import BaseSession, SessionState
 
+__all__ = ["BaseSession", "SessionState"]

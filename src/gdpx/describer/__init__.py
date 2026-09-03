@@ -1,37 +1,11 @@
-from gdpx.core.register import BaseRegister
+"""Deprecated compatibility namespace for :mod:`gdpx.analysis.descriptors`."""
 
-REGISTER = BaseRegister("describer")
+import warnings
 
-from .spc import SpcDescriber
+warnings.warn(
+    "gdpx.describer is deprecated; import from gdpx.analysis.descriptors.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-REGISTER.register("spc")(SpcDescriber)
-
-from .coordinate import CoordinateDescriber
-
-REGISTER.register("coordinate")(CoordinateDescriber)
-
-from .coordination import CoordinationDescriber
-
-REGISTER.register("coordination")(CoordinationDescriber)
-
-from .connectivity import ConnectivityDescriber
-
-REGISTER.register("connectivity")(ConnectivityDescriber)
-
-from .dissociative import DissociativeDescriber
-
-REGISTER.register("dissociative")(DissociativeDescriber)
-
-from .formation_energy import FormationEnergyDescriber
-
-REGISTER.register("formation_energy")(FormationEnergyDescriber)
-
-REGISTER.register_lazy("soap", "gdpx.describer.soap", "SoapDescriber")
-
-from .cluster import ClusterDescriber
-
-REGISTER.register("cluster")(ClusterDescriber)
-
-from .colvar import ColvarDescriber
-
-REGISTER.register("colvar")(ColvarDescriber)
+from gdpx.analysis.descriptors import *  # noqa: E402,F401,F403

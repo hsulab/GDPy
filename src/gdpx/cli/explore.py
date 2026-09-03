@@ -6,10 +6,10 @@ import pathlib
 from typing import Optional, Union
 
 from gdpx import config
-from gdpx.factory.components import create_expedition
-from gdpx.factory.scheduler import canonicalise_scheduler
-from gdpx.factory.computer import canonicalise_worker
-from gdpx.worker.explore import ExpeditionBasedWorker, run_expedition_in_commandline
+from gdpx.workflow.factory import create_expedition
+from gdpx.execution.schedulers.factory import canonicalise_scheduler
+from gdpx.execution.factory import canonicalise_worker
+from gdpx.execution.workers.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
 
 def run_expedition(

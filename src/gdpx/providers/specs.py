@@ -49,10 +49,11 @@ class PotentialSpec:
     provider: str
     parameters: Mapping[str, Any] = field(default_factory=dict)
     version: Optional[str] = None
+    method: str = "default"
 
     def __post_init__(self) -> None:
-        if not self.provider:
-            raise ValueError("Potential provider cannot be empty.")
+        if not self.provider or not self.method:
+            raise ValueError("Potential provider and method cannot be empty.")
         object.__setattr__(self, "parameters", freeze(self.parameters))
 
 
@@ -85,10 +86,10 @@ class TrainingSpec:
     provider: str
     parameters: Mapping[str, Any] = field(default_factory=dict)
     artifacts: Tuple[Artifact, ...] = ()
+    method: str = "default"
 
     def __post_init__(self) -> None:
-        if not self.provider:
-            raise ValueError("Training provider cannot be empty.")
+        if not self.provider or not self.method:
+            raise ValueError("Training provider and method cannot be empty.")
         object.__setattr__(self, "parameters", freeze(self.parameters))
         object.__setattr__(self, "artifacts", tuple(self.artifacts))
-

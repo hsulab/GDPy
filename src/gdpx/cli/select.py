@@ -4,11 +4,11 @@ from typing import Union
 from ase.io import write
 
 from gdpx import config
-from gdpx.builder.builder import StructureBuilder
+from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.components import create_selector
-from gdpx.selector.selector import BaseSelector
+from gdpx.structures.builders.factory import canonicalise_builder
+from gdpx.workflow.factory import create_selector
+from gdpx.analysis.selectors.selector import BaseSelector
 from gdpx.utils.parser import parse_input_file
 
 

@@ -1,0 +1,364 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+import copy
+import dataclasses
+import functools
+import pathlib
+import traceback
+from typing import Callable
+
+import numpy as np
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io import read, write
+from ase.mep import NEB
+from ase.optimize.optimize import Dynamics
+
+from gdpx import config as GDPCONFIG
+from .backend import EnhancedCalculator
+
+from gdpx.execution.path import BaseStringReactor, Controller, StringReactorSetting
+
+
+def update_atoms_info(
+    neb: NEB,
+    dyn: Dynamics,
+    start_step: int = 0,
+    print_func: Callable = print,
+    debug_func: Callable = print,
+) -> None:
+    """"""
+    print_func(f"step = {dyn.nsteps}")
+
+    for i, atoms in enumerate(neb.iterimages()):
+        atoms.info["step"] = dyn.nsteps + start_step
+        atoms.info["image"] = i
+
+    return
+
+
+def convert_atoms(atoms: Atoms) -> Atoms:
+    # - save atoms
+    atoms_to_save = Atoms(
+        symbols=atoms.get_chemical_symbols(),
+        positions=atoms.get_positions().copy(),
+        cell=atoms.get_cell().copy(),
+        pbc=copy.deepcopy(atoms.get_pbc()),
+    )
+    if "tags" in atoms.arrays:
+        atoms_to_save.set_tags(atoms.get_tags())
+    if atoms.get_kinetic_energy() > 0.0:
+        atoms_to_save.set_momenta(atoms.get_momenta())
+    results = dict(
+        energy=atoms.get_potential_energy(),
+        forces=copy.deepcopy(atoms.get_forces()),
+    )
+    spc = SinglePointCalculator(atoms, **results)
+    atoms_to_save.calc = spc
+
+    # - save atoms info
+    # FIXME: Why cannot get step by ["step"]???
+    atoms_to_save.info["step"] = atoms.info.get("step")
+    atoms_to_save.info["image"] = atoms.info.get("image")
+
+    # - save special keys and arrays from calc
+    natoms = len(atoms)
+    # -- add deviation
+    for k, v in atoms.calc.results.items():
+        if k in GDPCONFIG.VALID_DEVI_FRAME_KEYS:
+            atoms_to_save.info[k] = v
+    for k, v in atoms.calc.results.items():
+        if k in GDPCONFIG.VALID_DEVI_ATOMIC_KEYS:
+            atoms_to_save.arrays[k] = np.reshape(v, (natoms, -1))
+
+    # -- check special metadata
+    calc = atoms.calc
+    if isinstance(calc, EnhancedCalculator):
+        atoms_to_save.info["host_energy"] = copy.deepcopy(calc.results["host_energy"])
+        atoms_to_save.arrays["host_forces"] = copy.deepcopy(calc.results["host_forces"])
+
+    return atoms_to_save
+
+
+def save_nebtraj(neb: NEB, nebtraj_fpath: pathlib.Path) -> None:
+    """Create a clean atoms from the input and save simulation trajectory.
+
+    We need an explicit copy of atoms as some calculators may not return all
+    necessary information. For example, schnet only returns required properties.
+    If only energy is required, there are no forces.
+
+    """
+    # - append to traj
+    for atoms in neb.iterimages():
+        atoms_to_save = convert_atoms(atoms)
+        write(nebtraj_fpath, atoms_to_save, append=True)
+
+    return
+
+
+@dataclasses.dataclass
+class BFGSMinimiser(Controller):
+
+    name: str = "bfgs"
+
+    def __post_init__(self):
+        """"""
+        # BFGS takes considerate time for solving hessian.
+        from ase.optimize import BFGS
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(BFGS, maxstep=maxstep))
+
+        return
+
+
+@dataclasses.dataclass
+class FireMinimiser(Controller):
+
+    name: str = "fire"
+
+    def __post_init__(self):
+        """"""
+        # BUG: Strange behaviour for neb.
+        from ase.optimize import FIRE
+
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(FIRE, dt=dt, maxstep=maxstep))
+
+        return
+
+
+@dataclasses.dataclass
+class MDMinimiser(Controller):
+
+    name: str = "mdmin"
+
+    def __post_init__(self):
+        """"""
+        from ase.optimize import MDMin
+
+        dt = self.params.get("timestep", 0.1)
+
+        maxstep = self.params.get("maxstep", 0.2)
+        assert maxstep is not None
+
+        self.params.update(driver_cls=functools.partial(MDMin, dt=dt, maxstep=maxstep))
+
+        return
+
+
+controllers = dict(
+    bfgs=BFGSMinimiser,
+    fire=FireMinimiser,
+    mdmin=MDMinimiser,
+)
+
+
+@dataclasses.dataclass
+class AseStringReactorSetting(StringReactorSetting):
+
+    backend: str = "ase"
+
+    controller: dict = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        """"""
+        _init_params = {}
+        _init_params.update(**self.controller)
+
+        if self.controller:
+            cont_cls_name = self.controller.get("name", "mdmin")
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = controllers["mdmin"]
+
+        cont = cont_cls(**_init_params)
+        self.driver_cls = cont.params.pop("driver_cls")
+
+        # There is a bug in ASE as it checks `if steps` then fails when spc.
+        if self.steps == 0:
+            self.steps = -1
+
+        return
+
+    def get_run_params(self, *args, **kwargs):
+        """"""
+        steps_ = kwargs.get("steps", self.steps)
+        if steps_ <= 0:
+            steps_ = -1
+        run_params = dict(constraint=kwargs.get("constraint", self.constraint), steps=steps_, fmax=self.fmax)
+
+        return run_params
+
+
+class AseStringReactor(BaseStringReactor):
+    """Find the minimum energy path based on input structures.
+
+    Methods based on the number of input structures such as single, double, multi...
+
+    """
+
+    name = "ase"
+
+    traj_name: str = "nebtraj.xyz"
+
+    setting_cls = AseStringReactorSetting
+
+    def _verify_checkpoint(self, *args, **kwargs) -> bool:
+        """"""
+        verified = super()._verify_checkpoint(*args, **kwargs)
+        if verified:
+            if self.cache_nebtraj.exists() and self.cache_nebtraj.stat().st_size != 0:
+                verified = True
+            else:
+                verified = False
+        else:
+            ...
+
+        return verified
+
+    def _irun(self, structures: list[Atoms], ckpt_wdir=None, *args, **kwargs):
+        """"""
+        # run_params = self.setting.get_run_params()
+        run_params = self.setting.get_run_params(**kwargs)
+        run_params.update(**self.setting.get_init_params())
+
+        start_step = 0
+        if ckpt_wdir is None:  # start from the scratch
+            images = self._align_structures(structures, run_params)
+            write(self.directory / "images.xyz", images)
+        else:
+            nebtraj = self.read_trajectory()
+            images = nebtraj[-1]
+            start_step = images[0].info["step"]
+            run_params["steps"] = run_params["steps"] - start_step
+
+        for a in images:
+            a.calc = self.calc
+
+        neb = NEB(
+            images=images,
+            k=self.setting.kspring,
+            climb=self.setting.climb,
+            remove_rotation_and_translation=False,
+            method="aseneb",
+            allow_shared_calculator=True,
+            precon=None,
+        )
+
+        dynamics = self.setting.driver_cls(neb, logfile=self.directory / "neb.log", trajectory=None)
+        self._print(f"{dynamics.__class__.__name__} with a maxstep of {dynamics.maxstep}")
+        dynamics.attach(
+            update_atoms_info,
+            interval=self.setting.dump_period,
+            neb=neb,
+            dyn=dynamics,
+            start_step=start_step,
+            print_func=self._print,
+            debug_func=self._debug,
+        )
+        dynamics.attach(
+            save_nebtraj,
+            interval=self.setting.dump_period,
+            neb=neb,
+            nebtraj_fpath=self.cache_nebtraj,
+        )
+
+        try:
+            # steps = run_params["steps"]
+            # self._print(f"{steps =}")
+            dynamics.run(steps=run_params["steps"], fmax=run_params["fmax"])
+        except Exception as e:
+            self._debug(f"Exception of {self.__class__.__name__} is {e}.")
+            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
+
+        # Always save the last step
+        dump_period = self.setting.dump_period
+        if dump_period > 1:
+            # optimiser dumps every step to log!!
+            data = np.loadtxt(self.directory / "neb.log", dtype=str, skiprows=1)
+            if len(data.shape) == 1:
+                data = data[np.newaxis, :]
+            nsteps = data.shape[0]
+            if nsteps > 0 and (nsteps - 1) % dump_period != 0:
+                update_atoms_info(
+                    neb,
+                    dynamics,
+                    start_step=start_step,
+                    print_func=self._print,
+                    debug_func=self._debug,
+                )
+                save_nebtraj(neb, self.cache_nebtraj)
+        else:
+            ...
+
+        return
+
+    def _read_a_single_trajectory(self, wdir, *args, **kwargs):
+        """"""
+        cache_nebtraj = wdir / self.traj_name
+        nimages_per_band = int(np.loadtxt(self.directory / "nimages"))
+        if cache_nebtraj.exists():
+            images = read(cache_nebtraj, ":")
+        else:
+            raise FileNotFoundError(f"No cache trajectory {str(cache_nebtraj)}.")
+
+        nimages = len(images)
+        assert nimages % nimages_per_band == 0, "Inconsistent number of bands."
+        nbands = int(nimages / nimages_per_band)
+
+        reshaped_images = []
+        for i in range(nbands):
+            reshaped_images.append(images[i * nimages_per_band : (i + 1) * nimages_per_band])
+
+        return reshaped_images
+
+    def read_convergence(self, *args, **kwargs) -> bool:
+        """"""
+        converged = False
+        if self.cache_nebtraj.exists():
+            images = self.read_trajectory()
+            nsteps = images[-1][0].info["step"] + 1
+
+            # end_band = images[-1]
+            # for a in end_band:
+            #     self._preprocess_constraints(a, self.setting.constraint)
+            # self._print(end_band[3].get_forces(apply_constraint=True))
+            # self._print(np.max(np.fabs(end_band[3].get_forces(apply_constraint=True))))
+
+            # NOTE: Read convergece from neb.log instead of computing fmax from
+            #       structures as sometimes it is inconsistent due to some reasons
+            #       (precision?)
+
+            # Step     Time          Energy         fmax
+            # BFGS:    0 21:24:07     -195.368118        5.8916
+            data = np.loadtxt(self.directory / "neb.log", dtype=str, skiprows=1)
+            if len(data.shape) == 1:
+                data = data[np.newaxis, :]
+            end_step = data.shape[0]
+            assert end_step == nsteps, "Inconsistent `end_step` in neb.log and nebtraj.xyz."
+            end_fmax = float(data[-1, -1])
+
+            # nt = NEBTools(end_band)
+            # fmax = nt.get_fmax()
+
+            if (end_fmax <= self.setting.fmax) or (end_step >= self.setting.steps + 1):
+                converged = True
+            self._print(f"STEP: {end_step} >= {self.setting.steps} MAXFRC: {end_fmax} <=? {self.setting.fmax}")
+
+        return converged
+
+
+if __name__ == "__main__":
+    ...

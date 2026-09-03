@@ -1,9 +1,11 @@
-from gdpx.core.register import BaseRegister
+"""Deprecated compatibility namespace for :mod:`gdpx.analysis.comparators`."""
 
-REGISTER = BaseRegister("comparator")
+import warnings
 
-REGISTER.register_lazy("cartesian_coordinate", "gdpx.comparator.cartesian", "CartesianCoordinateComparator")
-REGISTER.register_lazy("coordination", "gdpx.comparator.coordination", "CoordinationComparator")
-REGISTER.register_lazy("graph", "gdpx.comparator.graph", "GraphComparator")
-REGISTER.register_lazy("single_point", "gdpx.comparator.singlepoint", "SinglePointComparator")
-REGISTER.register_lazy("reaction", "gdpx.comparator.reaction", "ReactionComparator")
+warnings.warn(
+    "gdpx.comparator is deprecated; import from gdpx.analysis.comparators.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from gdpx.analysis.comparators import *  # noqa: E402,F401,F403

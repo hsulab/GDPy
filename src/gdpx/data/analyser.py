@@ -7,7 +7,7 @@ import time
 import numpy as np
 import scipy as sp
 
-from gdpx.selector.abstract import create_selector
+from gdpx.analysis.selectors.abstract import create_selector
 from gdpx.utils.comparasion import parity_plot_dict, rms_dict
 from gdpx.data.operators import append_predictions, merge_predicted_forces, xyz2results
 from ase.calculators.singlepoint import SinglePointCalculator

@@ -5,6 +5,7 @@ from typing import Any, Mapping, Union
 
 from gdpx.providers.capabilities import CapabilityKind
 from gdpx.providers.configuration import RuntimeConfig
+from gdpx.providers.errors import MaterializationError, MissingCapabilityError
 from gdpx.providers.specs import Materialization
 from gdpx.providers.targets import AseCalculatorMaterialization
 
@@ -17,7 +18,11 @@ class RuntimeResolver:
 
     def resolve(self, value: Union[RuntimeConfig, Mapping[str, Any]]) -> Runtime:
         config = value if isinstance(value, RuntimeConfig) else RuntimeConfig.from_mapping(value)
-        potential_factory = self.providers.require(config.potential.provider, CapabilityKind.POTENTIAL, "default")
+        potential_factory = self.providers.require(
+            config.potential.provider,
+            CapabilityKind.POTENTIAL,
+            config.potential.method or "default",
+        )
         potential = potential_factory.create(config.potential.parameters)
         executor_factory = self.providers.require(
             config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
@@ -30,10 +35,24 @@ class RuntimeResolver:
             )
             executor = executor_factory.create(config.executor.parameters, potential=potential)
         else:
-            materializer = self.providers.require(
-                config.potential.provider, CapabilityKind.MATERIALIZER, target
-            )
-            materialization = materializer.materialize(potential, target)
+            try:
+                materializer = self.providers.require(
+                    config.potential.provider, CapabilityKind.MATERIALIZER, target
+                )
+            except MissingCapabilityError as error:
+                raise MaterializationError(
+                    f"Potential {config.potential.provider!r}/{config.potential.method or 'default'} "
+                    f"cannot materialize target {target!r} required by executor "
+                    f"{config.executor.provider!r}/{config.executor.method!r}."
+                ) from error
+            try:
+                materialization = materializer.materialize(potential, target)
+            except MaterializationError:
+                raise
+            except Exception as error:
+                raise MaterializationError(
+                    f"Failed to materialize {config.potential.provider!r} for target {target!r}: {error}"
+                ) from error
             modifier_instances = self._create_modifiers(config)
             materialization = self._apply_modifiers(materialization, target, modifier_instances)
             executor = executor_factory.create(
@@ -65,11 +84,11 @@ class RuntimeResolver:
         if not modifiers:
             return materialization
         if target != "ase.calculator" or not isinstance(materialization, AseCalculatorMaterialization):
-            raise ValueError(
+            raise MaterializationError(
                 f"Modifiers are not supported by materialization target {target!r}; "
                 "select an ASE executor or install a target-specific modifier provider."
             )
-        from gdpx.backend.ase import EnhancedCalculator
+        from gdpx.providers.ase.backend import EnhancedCalculator
 
         calculator = EnhancedCalculator([materialization.calculator, *modifiers])
         return AseCalculatorMaterialization(calculator, materialization.artifacts)

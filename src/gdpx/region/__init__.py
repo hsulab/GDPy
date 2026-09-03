@@ -1,19 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated compatibility namespace for :mod:`gdpx.structures.regions`."""
 
+import warnings
 
-from .registry import REGION_REGISTRY as REGISTER
+warnings.warn(
+    "gdpx.region is deprecated; import from gdpx.structures.regions.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-from .region import AutoRegion, CubeRegion, CylinderRegion, LatticeRegion, SphereRegion
-
-REGISTER.register(AutoRegion)
-REGISTER.register(CubeRegion)
-REGISTER.register(SphereRegion)
-REGISTER.register(CylinderRegion)
-REGISTER.register(LatticeRegion)
+from gdpx.structures.regions import (  # noqa: E402,F401
+    AutoRegion, CubeRegion, CylinderRegion, LatticeRegion, REGISTER, SphereRegion,
+)
 
 __all__ = ["REGISTER", "AutoRegion", "CubeRegion", "CylinderRegion", "LatticeRegion", "SphereRegion"]
-
-
-if __name__ == "__main__":
-    ...

@@ -1,3 +1,3 @@
-from .calculator import ACSFNN
-from .descriptor import compute_n_features
-from .manager import NnAcsfManager
+"""Deprecated forwarding module for :mod:`gdpx.providers.nnp`."""
+
+from gdpx.providers.nnp import *  # noqa: F401,F403

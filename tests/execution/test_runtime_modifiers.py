@@ -2,6 +2,7 @@ import pytest
 
 from gdpx.execution.resolver import RuntimeResolver
 from gdpx.providers import CapabilityKind, Provider, ProviderManager
+from gdpx.providers import MaterializationError
 from gdpx.providers.targets import AseCalculatorMaterialization, LammpsPotentialMaterialization
 
 
@@ -65,5 +66,20 @@ def test_modifier_is_not_silently_ignored_for_unsupported_target():
     providers.register(Provider("mods", capabilities={CapabilityKind.MODIFIER: {"bias": Factory(object())}}))
     providers.register(Provider("engine", capabilities={CapabilityKind.EXECUTOR: {"md": ExecutorFactory("lammps.potential")}}))
 
-    with pytest.raises(ValueError, match="Modifiers are not supported"):
+    with pytest.raises(MaterializationError, match="Modifiers are not supported"):
         RuntimeResolver(providers).resolve(runtime_config("lammps.potential"))
+
+
+def test_incompatible_potential_and_executor_has_typed_error():
+    providers = ProviderManager()
+    providers.register(Provider("model", capabilities={
+        CapabilityKind.POTENTIAL: {"default": Factory(object())},
+    }))
+    providers.register(Provider("engine", capabilities={
+        CapabilityKind.EXECUTOR: {"md": ExecutorFactory("missing.target")},
+    }))
+    config = runtime_config("missing.target")
+    config["modifiers"] = []
+
+    with pytest.raises(MaterializationError, match="cannot materialize target"):
+        RuntimeResolver(providers).resolve(config)

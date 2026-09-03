@@ -1,11 +1,11 @@
 import pathlib
 from typing import Union
 
-from gdpx.builder.builder import StructureBuilder
+from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.data.array import AtomsNDArray
-from gdpx.describer.describer import BaseDescriber
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.components import create_describer
+from gdpx.analysis.descriptors.describer import BaseDescriber
+from gdpx.structures.builders.factory import canonicalise_builder
+from gdpx.workflow.factory import create_describer
 
 
 def describe_structures(config: dict, structures, directory: Union[str, pathlib.Path] = "./"):

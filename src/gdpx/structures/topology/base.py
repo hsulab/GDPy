@@ -1,0 +1,245 @@
+import copy
+import functools
+import itertools
+from typing import Optional
+
+import ase.data
+import networkx as nx
+import numpy as np
+from ase import Atoms
+from ase.neighborlist import neighbor_list
+
+from .build import build_atomic_graph
+from .data import NeighbourData
+from .domain import domain_graph_functions
+from .expand import build_expand_graph, expand_graph_functions
+from .partial import partial_graph_functions
+
+
+def get_bond_distance_dict(atoms: Atoms, ratio: float = 1.02, skin: float = 0.0) -> dict[tuple[int, int], float]:
+    """"""
+    chemical_symbols = atoms.get_chemical_symbols()
+    bond_pairs = itertools.combinations_with_replacement(set(chemical_symbols), 2)
+    bond_distance_dict = {}
+    for s1, s2 in bond_pairs:
+        n1, n2 = ase.data.atomic_numbers[s1], ase.data.atomic_numbers[s2]
+        r1, r2 = ase.data.covalent_radii[n1], ase.data.covalent_radii[n2]
+        bond_distance_dict[(n1, n2)] = (r1 + r2) * ratio + skin * 2
+        bond_distance_dict[(n2, n1)] = (r1 + r2) * ratio + skin * 2
+
+    return bond_distance_dict
+
+
+def rebuild_cluster_by_depth_first_search(
+    atoms: Atoms, group_indices: list[int], start_indices: list[int], neigh: NeighbourData
+) -> None:
+    """Ensure that atoms in the given cluster groups have proper connectivities.
+
+    This uses a neighbour list with bothways=True.
+    The start_indices must be from separate connected components (clusters).
+
+    Args:
+        atoms: The ASE Atoms object to be modified in place.
+        group_indices: The indices of atoms in the cluster.
+        start_indices: The starting indices for depth-first search.
+        neigh: The neighbour data containing senders, receivers, distances, and shifts.
+
+    Returns:
+        None
+
+    """
+    senders, receivers, shifts = neigh.senders, neigh.receivers, neigh.shifts
+    neigh_idx_dict: dict[int, list[int]] = {i: [] for i in group_indices}
+    neigh_sft_dict: dict[int, list[tuple[float, float, float]]] = {i: [] for i in group_indices}
+    for i, j, d in zip(senders, receivers, shifts):
+        if i in group_indices and j in group_indices:
+            neigh_idx_dict[i].append(j)
+            neigh_sft_dict[i].append(d)
+
+    def dfs_stack(c: np.ndarray, prev_positions: np.ndarray, positions: np.ndarray, start_indices: list[int]):
+        """"""
+        visited = set()
+
+        stack = [(i, positions[i]) for i in start_indices]
+        while stack:
+            i, p = stack.pop()
+            if i in visited:
+                continue
+            visited.add(i)
+
+            nei_indices, nei_shifts = neigh_idx_dict[i], neigh_sft_dict[i]
+            for j, s in zip(nei_indices, nei_shifts):
+                if j not in visited:
+                    # Calculate the distance vector considering periodic boundary conditions
+                    v = prev_positions[j] + np.dot(s, c) - p
+                    v -= np.dot(np.round(v / c.diagonal()), c)
+                    positions[j] = p + v
+                    stack.append((j, positions[j]))
+
+        return positions
+
+    positions = dfs_stack(atoms.cell.array, atoms.positions, copy.deepcopy(atoms.positions), start_indices)
+
+    atoms.positions = positions
+
+    return
+
+
+def prune_neighbour_data_by_bond_distance(
+    atoms: Atoms,
+    neigh: NeighbourData,
+    bond_distance_dict: dict[tuple[int, int], float],
+) -> NeighbourData:
+    """"""
+    chemical_symbols = atoms.get_chemical_symbols()
+    senders, receivers, distances, shifts = [], [], [], []
+    for i, j, d, s in zip(neigh.senders, neigh.receivers, neigh.distances, neigh.shifts):
+        s_i, s_j = chemical_symbols[i], chemical_symbols[j]
+        n_i, n_j = ase.data.atomic_numbers[s_i], ase.data.atomic_numbers[s_j]
+        if d <= bond_distance_dict[(n_i, n_j)]:
+            senders.append(i)
+            receivers.append(j)
+            distances.append(d)
+            shifts.append(s)
+    senders = np.array(senders, dtype=int)
+    receivers = np.array(receivers, dtype=int)
+    distances = np.array(distances, dtype=float)
+    shifts = np.array(shifts, dtype=int)
+
+    return NeighbourData(senders, receivers, distances, shifts)
+
+
+def prune_graph_by_ignored_bonds(
+    graph: nx.Graph,
+    indices: list[int],
+    ignored_bonds: list[str],
+) -> nx.Graph:
+    """"""
+    edges_to_remove = []
+    for u, v, data in graph.edges(data=True):
+        bond = data.get("bond", "")
+        if bond in ignored_bonds:
+            edges_to_remove.append((u, v))
+    graph.remove_edges_from(edges_to_remove)
+    # we keep only nodes that are in edges or in indices
+    node_ids_in_edges = set()
+    for u, v in graph.edges():
+        node_ids_in_edges.add(u)
+        node_ids_in_edges.add(v)
+    nodes_to_remove = [u for u in graph.nodes() if u not in node_ids_in_edges and int(u.split("_")[-1]) not in indices]
+    graph.remove_nodes_from(nodes_to_remove)
+
+    return graph
+
+
+class AtomicGraph:
+    def __init__(self, atoms: Atoms, graph_type: str = "partial", **kwargs) -> None:
+        """"""
+        if graph_type == "partial":
+            build_func = build_atomic_graph
+            graph_functions = partial_graph_functions
+            self.self_interaction = False
+        elif graph_type == "domain":
+            build_func = build_atomic_graph
+            graph_functions = domain_graph_functions
+            self.self_interaction = True
+        elif graph_type == "expand":
+            build_func = build_expand_graph
+            graph_functions = expand_graph_functions
+            self.self_interaction = False
+        else:
+            raise Exception(f"Unknown graph building method `{graph_type}`.")
+
+        self.graph_type = graph_type
+
+        self._build = functools.partial(
+            build_func,
+            node_id_func=graph_functions.node_id_func,
+            add_edge_func=graph_functions.add_edge_func,
+            **kwargs,
+        )
+
+        self._atoms: Atoms = atoms
+        self._graph: Optional[nx.Graph] = None
+
+        return
+
+    def build(
+        self,
+        group_indices: Optional[list[int]] = None,
+        cutoff: Optional[float] = None,
+        ratio: float = 1.03,
+        skin: float = 0.0,
+        ignored_bonds: Optional[list[str]] = None,
+    ) -> None:
+        """"""
+        group_indices = group_indices if group_indices is not None else list(range(len(self._atoms)))
+
+        if cutoff is None:
+            bond_distance_dict = get_bond_distance_dict(self._atoms, ratio=ratio, skin=skin)
+            cutoff = max(bond_distance_dict.values())
+            self._neigh = prune_neighbour_data_by_bond_distance(
+                self._atoms,
+                NeighbourData(
+                    *neighbor_list("ijdS", self._atoms, cutoff=cutoff, self_interaction=self.self_interaction)
+                ),
+                bond_distance_dict=bond_distance_dict,
+            )
+        else:
+            self._neigh = NeighbourData(
+                *neighbor_list("ijdS", self._atoms, cutoff=cutoff, self_interaction=self.self_interaction)
+            )
+
+        self._graph = self._build(
+            self._atoms,
+            self._neigh,
+            group_indices=group_indices,
+        )
+        if ignored_bonds is not None:
+            self._graph = prune_graph_by_ignored_bonds(
+                self._graph,
+                indices=group_indices,
+                ignored_bonds=ignored_bonds,
+            )
+
+        return
+
+    @property
+    def graph(self) -> Optional[nx.Graph]:
+        """"""
+        return self._graph
+
+    def get_cluster_indices(self) -> list[list[int]]:
+        """"""
+        assert self._graph is not None, "Graph has not been built yet."
+        cluster_groups = []
+        for component in nx.connected_components(self._graph):
+            cluster_indices = [int(node.split("_")[-1]) for node in component]
+            cluster_groups.append(cluster_indices)
+
+        return cluster_groups
+
+    def get_clusters(self, rebuild: bool = False) -> list[Atoms]:
+        """"""
+        assert self._graph is not None, "Graph has not been built yet."
+        cluster_groups = self.get_cluster_indices()
+
+        if rebuild:
+            atoms = copy.deepcopy(self._atoms)
+            rebuild_cluster_by_depth_first_search(
+                atoms,
+                group_indices=list(itertools.chain.from_iterable(cluster_groups)),
+                start_indices=[indices[0] for indices in cluster_groups],
+                neigh=self._neigh,
+            )
+        else:
+            atoms = self._atoms
+
+        clusters = []
+        for cluster_indices in cluster_groups:
+            cluster = atoms[cluster_indices]  # getitem makes deep copy
+            assert isinstance(cluster, Atoms)
+            cluster.info["_host_indices"] = cluster_indices
+            clusters.append(cluster)
+
+        return clusters

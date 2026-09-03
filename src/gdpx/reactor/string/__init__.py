@@ -3,8 +3,8 @@
 
 
 from .pathway import AseStringReactor
-from .cp2k import Cp2kStringReactor
-from .vasp import VaspStringReactor
+from gdpx.providers.cp2k.path import Cp2kStringReactor
+from gdpx.providers.vasp.path import VaspStringReactor
 from .grid import ZeroStringReactor
 
 

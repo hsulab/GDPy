@@ -14,7 +14,7 @@ import numpy as np
 from ase.io import read, write
 from ase.constraints import FixAtoms
 
-from gdpx.selector.structure_selection import calc_feature, cur_selection, select_structures
+from gdpx.analysis.selectors.structure_selection import calc_feature, cur_selection, select_structures
 
 """
 data route

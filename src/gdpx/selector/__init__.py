@@ -1,37 +1,11 @@
-from gdpx.core.register import BaseRegister
+"""Deprecated compatibility namespace for :mod:`gdpx.analysis.selectors`."""
 
-REGISTER = BaseRegister("selector")
+import warnings
 
-from .compare import CompareSelector
+warnings.warn(
+    "gdpx.selector is deprecated; import from gdpx.analysis.selectors.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-REGISTER.register("compare")(CompareSelector)
-
-from .interval import IntervalSelector
-
-REGISTER.register("interval")(IntervalSelector)
-
-from .invariant import InvariantSelector
-
-REGISTER.register("invariant")(InvariantSelector)
-
-from .locate import LocateSelector
-
-REGISTER.register("locate")(LocateSelector)
-
-from .property import PropertySelector
-
-REGISTER.register("property")(PropertySelector)
-
-from .random import RandomSelector
-
-REGISTER.register("random")(RandomSelector)
-
-from .scf import ScfSelector
-
-REGISTER.register("scf")(ScfSelector)
-
-from .sinfo import StructureInfoSelector
-
-REGISTER.register("structure_info")(StructureInfoSelector)
-
-REGISTER.register_lazy("descriptor", "gdpx.selector.descriptor", "DescriptorSelector")
+from gdpx.analysis.selectors import *  # noqa: E402,F401,F403

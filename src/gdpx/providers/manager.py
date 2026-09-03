@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import importlib
 from collections.abc import Callable, Iterator
-from typing import Dict, Optional, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 from .capabilities import CapabilityKind
 from .errors import (
@@ -128,12 +128,39 @@ class ProviderManager:
             )
         return implementations[implementation]
 
+    def supports(
+        self,
+        provider_name: str,
+        kind: CapabilityKind,
+        implementation: Optional[str] = None,
+    ) -> bool:
+        """Return whether a provider advertises a capability without creating it."""
+        try:
+            implementations = self.get(provider_name).implementations(kind)
+        except UnknownProviderError:
+            return False
+        if implementation is None:
+            return bool(implementations)
+        return implementation in implementations
+
+    def list_capabilities(
+        self, provider_name: str
+    ) -> Mapping[CapabilityKind, Tuple[str, ...]]:
+        """Return a stable, read-only description of a provider's implementations."""
+        provider = self.get(provider_name)
+        return {
+            kind: tuple(sorted(implementations))
+            for kind, implementations in provider.capabilities.items()
+        }
+
     def resolve_runtime(self, config):
         resolver_module = importlib.import_module("gdpx.execution.resolver")
         return resolver_module.RuntimeResolver(self).resolve(config)
 
-    def materialize(self, potential, target, *, provider_name: str, implementation: str = "default", **context):
-        materializer = self.require(provider_name, CapabilityKind.MATERIALIZER, implementation)
+    def materialize(self, potential, target, *, provider_name: str, implementation: str | None = None, **context):
+        materializer = self.require(
+            provider_name, CapabilityKind.MATERIALIZER, implementation or target
+        )
         return materializer.materialize(potential, target, **context)
 
     def create_training(self, config):
@@ -157,9 +184,7 @@ def get_provider_manager() -> ProviderManager:
     global _DEFAULT_MANAGER
     if _DEFAULT_MANAGER is None:
         _DEFAULT_MANAGER = ProviderManager()
-        from .legacy import register_legacy_providers
         from .builtin import register_builtin_providers
 
-        register_legacy_providers(_DEFAULT_MANAGER)
         register_builtin_providers(_DEFAULT_MANAGER)
     return _DEFAULT_MANAGER

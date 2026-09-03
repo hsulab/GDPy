@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated compatibility namespace for :mod:`gdpx.structures.geometry`."""
 
+import warnings
 
-"""This module contains utility functions to modify Atoms object."""
-
-
-if __name__ == "__main__":
-    ...
+warnings.warn(
+    "gdpx.geometry is deprecated; import from gdpx.structures.geometry.",
+    DeprecationWarning,
+    stacklevel=2,
+)
   

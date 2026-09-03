@@ -7,7 +7,7 @@ import pathlib
 from ase.io import write
 
 from gdpx import config
-from gdpx.factory.dataloader import create_dataloader
+from gdpx.data.loaders.factory import create_dataloader
 
 
 def convert_dataset(dataset_path, inp_format: str, out_format: str, directory: pathlib.Path):

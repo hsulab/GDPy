@@ -1,0 +1,376 @@
+import copy
+import itertools
+import time
+from typing import Optional
+
+import numpy as np
+from ase import Atoms
+
+from gdpx.exploration.persist.database import GlobalOptimisationDatabase as GODB
+from gdpx.utils.atoms_tags import get_tags_per_species
+from gdpx.utils.profiler import CustomTimer
+
+
+def count_looks_like(a, all_cand, comp):
+    """Utility method for counting occurrences."""
+    n = 0
+    for b in all_cand:
+        if a.info["confid"] == b.info["confid"]:
+            continue
+        if comp.looks_like(a, b):
+            n += 1
+    return n
+
+
+def compute_population_fitness(structures: list[Atoms], with_history=True) -> list[float]:
+    """Calculates the fitness."""
+    scores = [x.info["key_value_pairs"]["raw_score"] for x in structures]
+    min_s = min(scores)
+    max_s = max(scores)
+    T = min_s - max_s
+
+    f = [0.5 * (1.0 - np.tanh(2.0 * (s - max_s) / T - 1.0)) for s in scores]
+    if with_history:
+        M = [float(atoms.info["n_paired"]) for atoms in structures]
+        L = [float(atoms.info["looks_like"]) for atoms in structures]
+        f = [f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i]) for i in range(len(f))]
+
+    return f
+
+
+class Population:
+    """This is a minimal implementation of the population class.
+
+    The fitness with history is from the paper
+    L.B. Vilhelmsen et al., JACS, 2012, 134 (30), pp 12807-12816
+    and the roulete wheel selection scheme described in
+    R.L. Johnston Dalton Transactions,
+    Vol. 22, No. 22. (2003), pp. 4193-4207
+
+    """
+
+    def __init__(
+        self,
+        data_connection: GODB,
+        population_size: int,
+        comparator=None,
+        use_extinct: bool = False,
+        rng=np.random.default_rng(),
+        print_func=print,
+        debug_func=print,
+    ):
+        """"""
+        self._print = print_func
+        self._debug = debug_func
+
+        self.dc = data_connection
+        self.pop_size = population_size
+        if comparator is None:
+            from ase.ga.standard_comparators import AtomsComparator
+
+            comparator = AtomsComparator()
+        self.comparator = comparator
+        self.use_extinct = use_extinct
+        self.rng = rng
+
+        self.pop = []
+        self.pairs: Optional[list[tuple[int, int]]] = None
+        self.all_cand = None
+
+        self.__initialise_population__()
+
+        return
+
+    def __initialise_population__(self) -> None:
+        """Private method that initialises the population when the population is created."""
+        # Get all relaxed candidates from the database
+        ue = self.use_extinct
+        all_cand = self.dc.get_all_relaxed_candidates(use_extinct=ue)
+        all_cand.sort(key=lambda x: x.info["key_value_pairs"]["raw_score"], reverse=True)
+
+        # Precompute fingerprints and cache them in the atoms.info,
+        # the first cache size is set to 2 times the population size.
+        cache_size = min(self.pop_size * 2, len(all_cand))
+        self._print(f"Caching fingerprints with a size of {cache_size}")
+        cache_fingerprints(all_cand[:cache_size], self.comparator, self._print)
+
+        # Fill up the population with the self.pop_size most stable unique candidates.
+        st = time.time()
+        i = 0
+        while i < len(all_cand) and len(self.pop) < self.pop_size:
+            # Add the candidate if it does not look like any in the population
+            # show progress every 100 structures
+            if i % 50 == 0:
+                et = time.time()
+                self._print(f"Used {et - st:.2f} seconds to check {i:>4d} candidates and add {len(self.pop):>4d}.")
+                st = time.time()
+            c = all_cand[i]
+            i += 1
+            eq = False
+            for a in self.pop:
+                if self.comparator.looks_like(a, c):
+                    eq = True
+                    break
+            if not eq:
+                self.pop.append(c)
+            # Compute more fingerprints if the population is not full
+            if i >= cache_size:
+                cache_size = min(cache_size * 2, len(all_cand))
+                self._print(f"Caching fingerprints with an increased size of {cache_size}")
+                cache_fingerprints(all_cand[i:cache_size], self.comparator, self._print)
+
+        # Add the looks_like information to each candidate in the population
+        for a in self.pop:
+            a.info["looks_like"] = count_looks_like(a, all_cand, self.comparator)
+
+        # Delete the fingerprints for saving memory
+        delete_fingerprints(all_cand[:cache_size], self.comparator, self._print)
+
+        # Calculate the participation of each candidate in the pairing
+        self.all_cand = all_cand
+        self.__calc_participation__()
+
+        return
+
+    def __calc_participation__(self) -> None:
+        """Determines, from the database, how many times each
+        candidate has been used to generate new candidates."""
+        (participation, pairs) = self.dc.get_participation_in_pairing()
+        for a in self.pop:
+            if a.info["confid"] in participation.keys():
+                a.info["n_paired"] = participation[a.info["confid"]]
+            else:
+                a.info["n_paired"] = 0
+        self.pairs = pairs
+
+        return
+
+    def get_current_population(self) -> list[Atoms]:
+        """Returns a copy of the current population."""
+        return [a.copy() for a in self.pop]
+
+    def get_two_candidates(self, with_history=True) -> Optional[tuple[Atoms, Atoms]]:
+        """Returns two candidates for pairing employing the
+        fitness criteria.
+        """
+        if len(self.pop) < 2:
+            return None
+
+        fit = compute_population_fitness(self.pop, with_history=with_history)
+
+        fmax = max(fit)
+        c1 = self.pop[0]
+        c2 = self.pop[0]
+        used_before = False
+        while c1.info["confid"] == c2.info["confid"] and not used_before:
+            nnf = True
+            while nnf:
+                t = self.rng.integers(len(self.pop))
+                if fit[t] > self.rng.random() * fmax:
+                    c1 = self.pop[t]
+                    nnf = False
+            nnf = True
+            while nnf:
+                t = self.rng.integers(len(self.pop))
+                if fit[t] > self.rng.random() * fmax:
+                    c2 = self.pop[t]
+                    nnf = False
+
+            c1id = c1.info["confid"]
+            c2id = c2.info["confid"]
+            if self.pairs is not None:
+                used_before = (min([c1id, c2id]), max([c1id, c2id])) in self.pairs
+            else:
+                raise Exception("This should not happen.")
+
+        return (c1.copy(), c2.copy())
+
+    def get_one_candidate(self, with_history=True) -> Optional[Atoms]:
+        """Returns one candidate for mutation employing the
+        fitness criteria.
+        """
+        c1 = None
+        if len(self.pop) < 1:
+            return c1
+
+        fit = compute_population_fitness(self.pop, with_history=with_history)
+        fmax = max(fit)
+        nnf = True
+        while nnf:
+            t = self.rng.integers(len(self.pop))
+            if fit[t] > self.rng.random() * fmax:
+                c1 = self.pop[t]
+                nnf = False
+
+        if c1 is not None:
+            c1 = copy.deepcopy(c1)
+        else:
+            ...
+
+        return c1
+
+
+def group_structures_by_chemical_symbols(
+    structures: list[Atoms],
+) -> list[tuple[str, list[Atoms]]]:
+    """Group structures by their chemical symbols.
+
+    Note:
+        We do not use chemical_formula here as structures with different chemical
+        compositions may have the same chemical formula.
+
+    """
+    tribes_ = {}
+    for k, v in itertools.groupby(structures, key=lambda a: "".join(a.get_chemical_symbols())):
+        if k in tribes_:
+            tribes_[k].extend(list(v))
+        else:
+            tribes_[k] = list(v)
+
+    tribes = []
+    for k, v in tribes_.items():
+        tags_dict = get_tags_per_species(v[0])
+        name = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
+        tribes.append((name, v))
+
+    return tribes
+
+
+def select_tribe_structures(
+    tribes: list[tuple[str, list[Atoms]]], min_size: int, rng: np.random.Generator
+) -> Optional[list[Atoms]]:
+    """Select structures from a tribe based on number probability.
+
+    Args:
+        tribes: Severl tribes.
+        min_size: The minimum number of structures in the tribe will be considered.
+        rng: Random number generator.
+
+    Returns:
+        A list of Atoms or None if no tribe satisfies `min_size`.
+
+    """
+    weights = []
+    for tribe in tribes:
+        size = len(tribe[1])
+        if size >= min_size:
+            weights.append(1.0 / size**0.5)
+        else:
+            weights.append(0.0)
+    weights = np.array(weights)
+
+    wsum = np.sum(weights)
+    if wsum > 0.0:
+        weights = weights / np.sum(weights)
+
+        tribe_indices = list(range(len(tribes)))
+        selected_tribe_index = rng.choice(tribe_indices, size=1, replace=False, p=weights)[0]
+        tribe_structures = tribes[selected_tribe_index][1]
+    else:
+        tribe_structures = None
+
+    return tribe_structures
+
+
+def cache_fingerprints(structures: list[Atoms], comparator, print_func) -> None:
+    """"""
+    num_structures = len(structures)
+    if hasattr(comparator, "_precompute_fingerprint"):
+        with CustomTimer(f"Precomputing fingerprints for {num_structures} structures", print_func):
+            comparator._precompute_fingerprint(structures)
+
+    return
+
+
+def delete_fingerprints(structures: list[Atoms], comparator, print_func) -> None:
+    """"""
+    num_structures = len(structures)
+    if hasattr(comparator, "_delete_fingerprint"):
+        with CustomTimer(f"Deleting fingerprints for {num_structures} structures", print_func):
+            comparator._delete_fingerprint(structures)
+
+    return
+
+
+class PopulationWithVariableComposition(Population):
+    def __initialise_population__(self) -> None:
+        """Private method that initialises the population when the population is created."""
+        super().__initialise_population__()
+
+        # Get tribes and select one tribe (composition) to get two structures
+        self.tribes = group_structures_by_chemical_symbols(self.pop)
+
+        return
+
+    def get_two_candidates(self, with_history=True) -> Optional[tuple[Atoms, Atoms]]:
+        """Returns two candidates for pairing employing the fitness criteria."""
+        assert hasattr(self, "tribes"), "No tribes due to error from population initialisation."
+
+        if len(self.pop) < 2:
+            return None
+
+        # Select a tribe
+        tribe_structures = select_tribe_structures(self.tribes, min_size=2, rng=self.rng)
+        if tribe_structures is not None:
+            num_structures_in_tribe = len(tribe_structures)
+        else:
+            return None
+
+        # Pick two structures from the selected tribe
+        fit = compute_population_fitness(tribe_structures, with_history=with_history)
+        fmax = max(fit)
+        c1 = tribe_structures[0]
+        c2 = tribe_structures[0]
+        used_before = False
+        while c1.info["confid"] == c2.info["confid"] and not used_before:
+            nnf = True
+            while nnf:
+                t = self.rng.integers(num_structures_in_tribe)
+                if fit[t] > self.rng.random() * fmax:
+                    c1 = tribe_structures[t]
+                    nnf = False
+            nnf = True
+            while nnf:
+                t = self.rng.integers(num_structures_in_tribe)
+                if fit[t] > self.rng.random() * fmax:
+                    c2 = tribe_structures[t]
+                    nnf = False
+
+            c1id = c1.info["confid"]
+            c2id = c2.info["confid"]
+            if self.pairs is not None:
+                used_before = (min([c1id, c2id]), max([c1id, c2id])) in self.pairs
+            else:
+                raise Exception("This should not happen.")
+        return (c1.copy(), c2.copy())
+
+    def get_one_candidate(self, with_history: bool = True) -> Optional[Atoms]:
+        """Returns one candidate employing the fitness criteria."""
+        c1 = None
+        if len(self.pop) < 1:
+            return c1
+
+        tribe_structures = select_tribe_structures(self.tribes, min_size=1, rng=self.rng)
+        if tribe_structures is not None:
+            num_structures_in_tribe = len(tribe_structures)
+        else:
+            return None
+
+        if num_structures_in_tribe > 1:
+            fit = compute_population_fitness(tribe_structures, with_history=with_history)
+            fmax = max(fit)
+            nnf = True
+            while nnf:
+                t = self.rng.integers(num_structures_in_tribe)
+                if fit[t] > self.rng.random() * fmax:
+                    c1 = self.pop[t]
+                    nnf = False
+        else:
+            c1 = tribe_structures[0]
+
+        if c1 is not None:
+            c1 = copy.deepcopy(c1)
+        else:
+            ...
+
+        return c1

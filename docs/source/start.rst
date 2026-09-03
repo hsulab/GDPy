@@ -1,7 +1,7 @@
 Getting Started
 ===============
-Here, we would introduce several basic components of GDPy, namely **potential**, 
-**driver**, **worker**. This section demonstrates how to use **gdp** to computate a number of structures.
+This section introduces the schema-v2 **potential**, **executor**, and
+**scheduler** components used to calculate structures with GDPy.
 
 The related commands are 
 
@@ -20,12 +20,22 @@ An example input file (`worker.yaml`) is organised as follows:
 
 .. code-block:: yaml
 
+    schema_version: 2
     potential:
-        ... # define the backend, the model path and the specific parameters
-    driver:
-        ... # define the init and the run parameters of a simulation
+        provider: deepmd
+        parameters:
+            model: ./graph.pb
+    executor:
+        provider: ase
+        method: md
+        parameters:
+            ensemble: nvt
+            temp: 600
+            timestep: 1.0
+            steps: 100
     scheduler:
-        ... # define a scheduler 
+        provider: local
+        parameters: {}
 
 Units
 -----
@@ -35,19 +45,19 @@ Time ``fs``, Length ``AA``, Energy ``eV``, Force ``eV/AA``.
 
 Potential
 ---------
-We have supported several MLIP formulations based on an ``AbstractPotentialManager`` 
-class to access **driver**, **expedition**, and **training** through workflows. 
+Potential providers describe a model independently of the software that will
+execute it. Materialization connects the two at runtime.
 
 The example below shows how to define a **deepmd** potential using the **ase** backend 
 in a **yaml** file: 
 
 .. code-block:: yaml
 
-    # -- ase interface
+    schema_version: 2
     potential:
-        name: deepmd # name of the potential
-        params: # potential-specifc params
-            backend: ase # ase or lammps
+        provider: deepmd
+        method: default
+        parameters:
             model: ./graph.pb
 
 See :ref:`Potential Examples` section for more details. 
@@ -55,25 +65,21 @@ See :ref:`Potential Examples` section for more details.
 
 Driver
 ------
-After potential is defined, we need to further specify what simulation would be 
-perfomed in the **driver** section. A driver (``AbstractDriver``) is the basic 
-unit with an attacthed **ase** ``calculators`` for basic dynamics tasks, namely, 
-minimisation, molecular dynamics and transition-state search. Through a driver, 
-we can reuse the input file to perform the same simulation with several different 
-backends.
+The **executor** specifies the concrete calculation. Its provider determines
+the software, while ``method`` selects single point, minimization, molecular
+dynamics, dimer, or a path method such as NEB.
 
 The example below shows how to define a **driver** in a **yaml** file: 
 
 .. code-block:: yaml
 
-    driver:
-        backend: external # this means using the same backend as the calc
-        task: md # molecular dynamics (md) or minimisation (min)
-        init:
-            md_style: nvt # thermostat NVT
+    executor:
+        provider: ase
+        method: md
+        parameters:
+            ensemble: nvt
             temp: 600 # temperature, Kelvin
             timestep: 1.0 # fs
-        run:
             steps: 100
 
 See :ref:`Driver Examples` section for more details. 

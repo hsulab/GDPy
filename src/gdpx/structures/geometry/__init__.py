@@ -1,2 +1,1 @@
-"""Geometry namespace; implementations remain import-compatible in gdpx.geometry."""
-
+"""Geometry operations over atomistic structures."""

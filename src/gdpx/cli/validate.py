@@ -1,8 +1,8 @@
 import pathlib
 from typing import Union
 
-from gdpx.factory.computer import canonicalise_worker
-from gdpx.factory.validator import canonicalise_validator
+from gdpx.execution.factory import canonicalise_worker
+from gdpx.analysis.validators.factory import canonicalise_validator
 
 
 def run_validation(config: dict, directory: Union[str, pathlib.Path], worker):

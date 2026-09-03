@@ -148,13 +148,47 @@ def test_potential_base_does_not_own_executor_resolution():
 
 
 def test_providers_do_not_depend_on_execution_implementations():
+    # Provider contracts and discovery stay below execution. Integration
+    # packages may implement executor adapters using the public execution SDK.
+    contract_modules = {
+        "capabilities.py", "configuration.py", "errors.py", "manager.py",
+        "provider.py", "specs.py", "targets.py",
+    }
     violations = []
     for path in (ROOT / "src" / "gdpx" / "providers").rglob("*.py"):
+        if path.parent.name != "providers" or path.name not in contract_modules:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("gdpx.execution"):
                 violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: {node.module}")
     assert not violations, "Provider-to-execution imports found:\n" + "\n".join(violations)
+
+
+def test_legacy_package_trees_are_forwarding_layers_only():
+    legacy_roots = {
+        "backend", "bias", "builder", "colvar", "comparator", "computation",
+        "compute", "dataloader", "describer", "expedition", "geometry",
+        "graph", "group", "nodes", "potential", "reactor", "region",
+        "scheduler", "selector", "session", "trainer", "validator", "worker",
+    }
+    violations = []
+    for root in sorted(legacy_roots):
+        for path in (ROOT / "src" / "gdpx" / root).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            definitions = [
+                node.name for node in tree.body
+                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            ]
+            if definitions:
+                violations.append(f"{path.relative_to(ROOT)}: {', '.join(definitions)}")
+    assert not violations, "Business logic remains in compatibility packages:\n" + "\n".join(violations)
+
+
+def test_global_legacy_factory_modules_are_removed():
+    assert not (ROOT / "src" / "gdpx" / "providers" / "legacy.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "providers" / "managed.py").exists()
+    assert not (ROOT / "src" / "gdpx" / "execution" / "legacy.py").exists()
 
 
 def test_lazy_registry_defers_module_import():

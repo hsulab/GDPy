@@ -48,3 +48,20 @@ def test_default_manager_exposes_existing_integrations_lazily():
     assert manager.require("emt", CapabilityKind.POTENTIAL, "default")
     assert manager.require("ase", CapabilityKind.EXECUTOR, "min")
 
+
+def test_runtime_uses_selected_potential_method():
+    chosen = 17
+    manager = ProviderManager()
+    manager.register(Provider("model", capabilities={CapabilityKind.POTENTIAL: {"chosen": PotentialFactory()}}))
+    manager.register(Provider("engine", capabilities={CapabilityKind.EXECUTOR: {"evaluate": ExecutorFactory()}}))
+
+    runtime = manager.resolve_runtime(
+        {
+            "schema_version": 2,
+            "potential": {"provider": "model", "method": "chosen", "parameters": {}},
+            "executor": {"provider": "engine", "method": "evaluate", "parameters": {"value": chosen}},
+        }
+    )
+
+    assert runtime.potential.method == "chosen"
+    assert runtime.run("atoms") == ("atoms", chosen)

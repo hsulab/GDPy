@@ -63,6 +63,31 @@ def test_provider_manager_extends_distinct_capabilities():
         manager.extend(Provider("demo", capabilities={CapabilityKind.TRAINER: {"default": object()}}))
 
 
+def test_provider_manager_introspection_does_not_create_components():
+    factory = object()
+    manager = ProviderManager()
+    manager.register(Provider("demo", capabilities={CapabilityKind.EXECUTOR: {"md": factory}}))
+
+    assert manager.supports("demo", CapabilityKind.EXECUTOR)
+    assert manager.supports("demo", CapabilityKind.EXECUTOR, "md")
+    assert not manager.supports("demo", CapabilityKind.EXECUTOR, "min")
+    assert not manager.supports("missing", CapabilityKind.EXECUTOR)
+    assert manager.list_capabilities("demo") == {CapabilityKind.EXECUTOR: ("md",)}
+
+
+def test_potential_method_round_trips_and_selects_factory():
+    source = {
+        "schema_version": 2,
+        "potential": {"provider": "models", "method": "small", "parameters": {}},
+        "modifiers": [],
+        "executor": {"provider": "engine", "method": "md", "parameters": {}},
+    }
+    config = RuntimeConfig.from_mapping(source)
+
+    assert config.potential_spec().method == "small"
+    assert config.to_dict() == source
+
+
 def test_ambiguous_capability_requires_an_implementation_name():
     manager = ProviderManager()
     manager.register(Provider("demo", capabilities={CapabilityKind.EXECUTOR: {"md": object(), "min": object()}}))

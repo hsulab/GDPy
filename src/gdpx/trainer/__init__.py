@@ -1,28 +1,5 @@
-from gdpx import config
-from gdpx.core.register import BaseRegister
+"""Deprecated trainer namespace; use provider trainer capabilities."""
 
-REGISTER = BaseRegister("trainer")
+from gdpx.providers.trainer_registry import REGISTER
 
-from .deepmd.deepmd import DeepmdTrainer
-REGISTER.register(DeepmdTrainer)
-
-try:
-    from .deepmd.deepmd_jax import DeepmdJaxTrainer
-    REGISTER.register(DeepmdJaxTrainer)
-except ImportError as e:
-    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
-
-from .nequip import NequipTrainer
-REGISTER.register(NequipTrainer)
-
-from .mace import MaceTrainer
-REGISTER.register(MaceTrainer)
-
-from .reann.beann import BeannTrainer
-REGISTER.register(BeannTrainer)
-
-from .reann.reann import ReannTrainer
-REGISTER.register(ReannTrainer)
-
-from .nnp_trainer import NnpTrainer
-REGISTER.register(NnpTrainer)
+__all__ = ["REGISTER"]

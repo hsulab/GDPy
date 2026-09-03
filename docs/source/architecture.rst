@@ -4,12 +4,14 @@ GDPy architecture
 GDPy separates integration ownership from runtime responsibility.  Dependencies
 flow in one direction::
 
-    core -> providers -> execution -> exploration -> workflow -> cli
+    core/domain -> providers -> execution -> exploration -> workflow -> cli
 
 The data, structures, modifiers, and analysis packages are domain libraries and
 must not import workflow or CLI modules.  Providers own software-specific
-knowledge (for example, how a DeepMD model is represented in LAMMPS), while
-executors own the act of running a calculation.  Exploration algorithms may
+knowledge as one vertical plugin: model specifications, materializers,
+executable adapters, trainers, and artifacts.  For example, DeepMD owns both
+its ASE-calculator and LAMMPS-potential materializations, while ASE and LAMMPS
+own the corresponding execution mechanisms.  Exploration algorithms may
 request calculations from the execution service, but execution must never
 depend on exploration.
 
@@ -36,9 +38,13 @@ when another algorithm adaptively chooses or changes those requests.
 Migration boundary
 ------------------
 
-Legacy potential managers and workers are compatibility adapters for one
-release.  Their calculators are now created after an executor target is known,
-not while parsing the potential specification.  ASE modifiers are composed at
-materialization time.  Other engines must expose a target-specific modifier
-materializer; GDPy rejects such combinations rather than silently dropping a
-requested bias.
+The implementation packages are now ``providers``, ``execution``,
+``exploration``, ``workflow``, ``structures``, ``analysis``, ``modifiers``, and
+``data``.  The former ``potential``, ``trainer``, ``computation``, ``reactor``,
+``worker``, ``scheduler``, ``expedition``, and singular domain packages contain
+forwarding imports only and remain for one minor release.
+
+Schema-v1 ``potter``/``driver`` input remains readable through a compatibility
+translator.  New serialization is schema version 2.  Calculators are created
+only after the executor target is known.  Unsupported target/modifier
+combinations fail explicitly.

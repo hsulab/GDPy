@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+import pathlib
+from typing import Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+import omegaconf
+from ase import Atoms
+from joblib import Parallel, delayed
+from scipy.optimize import curve_fit
+from scipy.spatial import distance_matrix
+
+try:
+    plt.style.use("presentation")
+except Exception as e:
+    ...
+
+from gdpx.data.array import AtomsNDArray
+from gdpx.structures.geometry.align import wrap_traj
+from gdpx.structures.groups import evaluate_group_expression
+from gdpx.utils.profiler import CustomTimer
+from gdpx.utils.strconv import string_to_array
+
+from .validator import BaseValidator
+
+
+def jpcc2020_func(T, Tm, x1, x2, x3, x4):
+    """JPCC2020"""
+
+    return x1 / (1 + np.exp(-x2 * (T - Tm))) + x3 * T + x4
+
+
+def sigmoid_func(T, Tm, x1, x2, x4):
+    """"""
+
+    return x1 / (1 + np.exp(-x2 * (T - Tm))) + x4
+
+
+def get_distance_matrix(atoms: Atoms, indices=None):
+    """"""
+    if indices is None:
+        return atoms.get_all_distances(mic=False, vector=False)
+    else:
+        selected_positions = atoms.positions[indices, :]
+        return distance_matrix(selected_positions, selected_positions)
+
+
+def recenter_com_by_group(frames: list[Atoms], group_indices: list[int]):
+    """"""
+    # FIXME: The current implementation is the center of positions.
+    #        We should implement center of mass later!!!
+    atoms = frames[0]
+    positions = atoms.positions[group_indices, :]
+    init_com = np.mean(positions, axis=0)
+
+    for atoms in frames[1:]:
+        positions = atoms.positions[group_indices, :]
+        curr_com = np.mean(positions, axis=0)
+        atoms.positions[group_indices, :] -= curr_com - init_com
+
+    return frames
+
+
+def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool = False, n_jobs=1):
+    """Calculate Lindemann Index of each atom.
+
+    Returns:
+        An array with shape (natoms,)
+
+    """
+    # FIXME: Use unwrapped positions when under PBC?
+    frames = wrap_traj(frames)  # align structures
+
+    group_indices = evaluate_group_expression(frames[0], group)
+    num_atoms = len(group_indices)
+
+    if recenter_com:
+        frames = recenter_com_by_group(frames, group_indices)
+        # from ase.io import write
+        # write("./xxx.xyz", frames)
+    else:
+        ...
+
+    frames = frames[start:]
+
+    with CustomTimer("Lindemann Index"):
+        distances = Parallel(n_jobs=n_jobs)(delayed(get_distance_matrix)(atoms, group_indices) for atoms in frames)
+    distances = np.array(distances)
+
+    dis2 = np.square(distances)
+    dis2_avg = np.average(dis2, axis=0)
+
+    dis_avg = np.average(distances, axis=0)
+    masked_dis_avg = dis_avg + np.eye(num_atoms)  # avoid 0. in denominator
+    # print(masked_dis_avg)
+
+    q = np.sum(np.sqrt(dis2_avg - dis_avg**2) / masked_dis_avg, axis=1) / (num_atoms - 1)
+
+    return q
+
+
+class MeltingPointValidator(BaseValidator):
+    """Estimate the melting point from a series of MD simulations.
+
+    For nanoparticles, the lindeman index is used. MD simulations with various
+    initial temperatures are performed. For bulk, phase co-existence approach is used.
+    Different initial temperatures are set for solid and liquid, where the steady state is
+    found.
+
+    """
+
+    def __init__(
+        self,
+        group,
+        temperatures: Union[list[float], str],
+        run_fit: bool = True,
+        start=0,
+        fitting="sigmoid",
+        recenter_com: bool = False,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
+    ):
+        """"""
+        super().__init__(directory, *args, **kwargs)
+
+        self.group = group
+
+        self.recenter_com = recenter_com
+
+        self.run_fit = run_fit
+
+        self.start = start
+
+        if isinstance(temperatures, list) or isinstance(temperatures, omegaconf.ListConfig):
+            temperatures = temperatures
+        elif isinstance(temperatures, str):
+            temperatures = string_to_array(temperatures)
+        else:
+            raise TypeError(f"Unknown {temperatures} of type {type(temperatures)}.")
+
+        self.temperatures = temperatures
+
+        assert fitting in [
+            "sigmoid",
+            "jpcc2020",
+        ], "Unsupported fitting function."
+        self.fitting = fitting
+
+        return
+
+    def _process_data(self, data) -> list[list[Atoms]]:
+        """"""
+        data = AtomsNDArray(data)
+
+        if data.ndim == 1:
+            data = [data.tolist()]
+        elif data.ndim == 2:  # assume it is from extract_cache...
+            data = data.tolist()
+        elif data.ndim == 3:  # assume it is from a compute node...
+            data_ = []
+            for d in data[:]:  # TODO: add squeeze method?
+                data_.extend(d)
+            data = data_
+        else:
+            raise RuntimeError(f"Invalid shape {data.shape}.")
+
+        return data
+
+    def run(self, dataset: dict, worker=None, *args, **kwargs):
+        """"""
+        super().run()
+
+        self._print("process reference ->")
+        reference = dataset.get("reference")
+        if reference is not None:
+            reference = self._process_data(reference)
+            data = self._compute_melting_point(reference, prefix="ref-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit)
+
+        self._print("process prediction ->")
+        prediction = dataset.get("prediction")
+        if prediction is not None:
+            prediction = self._process_data(prediction)
+            data = self._compute_melting_point(prediction, prefix="pre-")
+            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit)
+
+        return
+
+    def _compute_melting_point(self, trajectories, prefix=""):
+        """"""
+        start, intv, end = self.start, None, None
+        temperatures = self.temperatures
+
+        num_trajectories = len(trajectories)
+        num_temperatures = len(temperatures)
+        assert (
+            num_trajectories == num_temperatures
+        ), f"Inconsitent number of trajectories {num_trajectories} and temperatures {num_temperatures}."
+
+        qnames = [str(t) for t in temperatures]
+
+        cached_data_path = self.directory / f"{prefix}qmat.txt"
+        if not cached_data_path.exists():
+            self._debug(f"nprocessors: {self.njobs}")
+            with CustomTimer("joblib", func=self._print):
+                qmat = Parallel(n_jobs=1)(
+                    delayed(_icalc_local_lindemann_index)(
+                        [a for a in curr_frames if a is not None],
+                        start=start,  # wrap_traj based on the first, so we should take start after wrap
+                        group=self.group,
+                        recenter_com=self.recenter_com,
+                        n_jobs=self.njobs,
+                    )
+                    for curr_frames in trajectories
+                )
+            qmat = np.array(qmat)
+
+            np.savetxt(
+                cached_data_path,
+                qmat.T,
+                header=("{:>11s}" + "{:>12s}" * (len(qnames) - 1)).format(*qnames),
+                fmt="%12.4f",
+            )
+        else:
+            qmat = np.loadtxt(cached_data_path).T
+
+        # - postprocess data
+        t = temperatures
+        q = np.average(qmat, axis=1)
+
+        sorted_indices = [x[0] for x in sorted(enumerate(temperatures), key=lambda x: x[1])]
+        self._debug(sorted_indices)
+
+        data = np.vstack(([t[i] for i in sorted_indices], [q[i] for i in sorted_indices])).T
+
+        np.savetxt(
+            self.directory / f"{prefix}data.txt",
+            data,
+            header="{:>11s}  {:>12s}".format("temperature", "<q>"),
+            fmt="%12.4f",
+        )
+
+        return data
+
+    def _plot_figure(self, q, t: list[float], prefix="", run_fit=True):
+        """"""
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
+
+        # - text
+        fig.suptitle("Lindemann Index")
+
+        ax.set_xlabel("Temperature [K]")
+        ax.set_ylabel("$<q(T)>$")
+
+        # -
+        ax.scatter(t, q)
+
+        # - fitted curve
+        if run_fit:
+            if self.fitting == "sigmoid":
+                func = sigmoid_func
+                initial_guess = [np.median(t), np.max(q), 1.0, np.min(q)]
+            elif self.fitting == "jpcc2020":
+                func = jpcc2020_func
+                initial_guess = [np.median(t), np.max(q), 1.0, 0.0, np.min(q)]
+            coefs, cov = curve_fit(func, t, q, initial_guess, method="dogbox")
+            self._debug(coefs)
+
+            t_ = np.arange(np.min(t), np.max(t), 2.0)
+            q_ = func(t_, *coefs)
+            ax.plot(t_, q_, label=f"$T_m={coefs[0]:>8.2f}$")
+
+            ax.legend(loc="upper left")
+
+        plt.savefig(self.directory / f"{prefix}mp.png")
+
+        return
+
+    def _compare_results(self):
+        """Compare reference and prediction."""
+
+        return
+
+
+if __name__ == "__main__":
+    ...

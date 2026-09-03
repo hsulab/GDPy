@@ -15,7 +15,7 @@ materializer translates that object to the interface required by an executor::
 
     provider = Provider(
         name="example",
-        version="1",
+        version="2",
         capabilities={
             CapabilityKind.POTENTIAL: {"default": potential_factory},
             CapabilityKind.MATERIALIZER: {
@@ -49,6 +49,7 @@ Provider configurations use schema version 2::
     schema_version: 2
     potential:
       provider: example
+      method: default
       parameters:
         model: model.bin
     executor:
@@ -72,3 +73,12 @@ The manager registry, ``potter`` configuration, and
 release. New plugins should use providers; legacy configuration is read but
 all new serialization uses schema version 2.
 
+Provider boundary
+-----------------
+
+Use one provider package per external software or model family.  That package
+owns its potential factories, materializers, executor adapters, trainer
+factories, parsers, and artifact conventions.  A potential provider does not
+own every program that can execute it: DeepMD publishes both
+``ase.calculator`` and ``lammps.potential`` materializations, which ASE and
+LAMMPS consume independently.

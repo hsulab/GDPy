@@ -222,7 +222,7 @@ class StructureDatabase:
     
     def _select(self, params):
         """"""
-        from gdpx.selector import create_selector
+        from gdpx.analysis.selectors import create_selector
         selector = create_selector(params)
         selector.logger = self.logger
 

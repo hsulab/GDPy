@@ -72,7 +72,11 @@ class RuntimeConfig:
         return data
 
     def potential_spec(self) -> PotentialSpec:
-        return PotentialSpec(self.potential.provider, self.potential.parameters)
+        return PotentialSpec(
+            self.potential.provider,
+            self.potential.parameters,
+            method=self.potential.method or "default",
+        )
 
     def modifier_specs(self) -> Tuple[ModifierSpec, ...]:
         return tuple(

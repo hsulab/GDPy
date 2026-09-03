@@ -10,13 +10,16 @@ from .results import (
     TransitionStateResult, ValidationReport,
 )
 from .runtime import Runtime
+from .driver import BaseDriver, Controller, DriverSetting
+from .reactor import BaseReactor
 from .service import (
     ExecutionHandle, ExecutionService, ExecutionStatus, LegacyExecutionWorker, WorkerExecutionService,
 )
 from .targets import AseCalculatorMaterialization, LammpsPotentialMaterialization, NativeInputMaterialization
 
 __all__ = [
-    "AseCalculatorMaterialization", "DynamicsExecutor", "EvaluationExecutor", "EvaluationResult",
+    "AseCalculatorMaterialization", "BaseDriver", "BaseReactor", "Controller", "DriverSetting", "DynamicsExecutor",
+    "EvaluationExecutor", "EvaluationResult",
     "ExecutionHandle", "ExecutionResult", "ExecutionService", "ExecutionStatus", "Executor",
     "LegacyExecutionWorker", "WorkerExecutionService",
     "LammpsPotentialMaterialization", "LocalTransitionStateExecutor", "NativeInputMaterialization",

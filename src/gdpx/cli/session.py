@@ -7,7 +7,7 @@ from typing import Optional, Union
 import yaml
 
 from gdpx import config
-from gdpx.session.interface import SessionInitialiser, run_session_from_dict
+from gdpx.workflow.session.interface import SessionInitialiser, run_session_from_dict
 
 
 def run_session(

@@ -1,6 +1,1 @@
-"""Registry for worker implementations."""
-
-from gdpx.core.registry import Registry
-
-
-WORKER_REGISTRY = Registry("worker")
+from gdpx.execution.workers.registry import *  # noqa: F401,F403
