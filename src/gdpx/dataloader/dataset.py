@@ -11,6 +11,7 @@ from ase.formula import Formula
 from ase.io import read
 
 from gdpx.core.component import BaseComponent
+from gdpx.data.interfaces import DatasetSource
 
 from .utils import get_composition_from_system_tree, is_a_valid_system_name
 
@@ -123,7 +124,7 @@ def parse_batchsize_setting(batchsize: Union[int, str], num_atoms: int) -> int:
     return new_batchsize
 
 
-class AbstractDataloader(BaseComponent): ...
+class AbstractDataloader(BaseComponent, DatasetSource): ...
 
 
 class XyzDataloader(AbstractDataloader):

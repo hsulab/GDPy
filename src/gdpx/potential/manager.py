@@ -4,20 +4,12 @@
 
 import abc
 import copy
-from typing import Generic, TypeVar, Union, cast
+import warnings
+from typing import Any, Generic, TypeVar, cast
 
-import numpy as np
 from ase.calculators.calculator import Calculator
 
-from gdpx import config
 from gdpx.backend.ase import DummyCalculator
-from gdpx.computation import register_drivers
-from gdpx.computation.driver import BaseDriver
-from gdpx.reactor import register_reactors
-from gdpx.reactor.reactor import BaseReactor
-
-DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "ts", "cmin", "md", "freq"]
-DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
 
 
 CalcT = TypeVar("CalcT", bound=Calculator)
@@ -84,7 +76,7 @@ class BasePotentialManager(abc.ABC, Generic[CalcT]):
 
         return
 
-    def create_driver(self, dyn_params: dict = {}) -> Union[BaseDriver, BaseReactor]:
+    def create_driver(self, dyn_params: dict = None) -> Any:
         """Create a driver for dynamics.
 
         The default dynamics backend will be the same as the calculator.
@@ -97,62 +89,14 @@ class BasePotentialManager(abc.ABC, Generic[CalcT]):
             A driver instance.
 
         """
-        # Check whether the calculator is properly registered.
-        if not hasattr(self, "calc"):
-            raise AttributeError("Cannot create driver since a calculator has not been properly registered.")
-
-        # Parse backends
-        self.dyn_params = dyn_params
-        dynamics = dyn_params.get("backend", self.calc_backend)
-        if dynamics == "external":
-            dynamics = self.calc_backend
-
-        if (self.calc_backend, dynamics) not in self.valid_combinations:
-            raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
-
-        # Merge parameters for compatibility
-        merged_params = {}
-        if "task" in dyn_params:
-            merged_params.update(task=dyn_params.get("task", "min"))
-
-        if "init" in dyn_params or "run" in dyn_params:
-            merged_params.update(**dyn_params.get("init", {}))
-            merged_params.update(**dyn_params.get("run", {}))
-        else:
-            merged_params.update(**dyn_params)
-
-        # Add extra parameters for keys besides task, init, and run
-        merged_params.update(
-            ignore_convergence=dyn_params.get("ignore_convergence", False),
-            random_seed=dyn_params.get("random_seed", None),
+        warnings.warn(
+            "PotentialManager.create_driver() is deprecated; resolve a Runtime through ProviderManager instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        from gdpx.execution.legacy import create_legacy_executor
 
-        # Check some special parameters
-        ignore_convergence = merged_params.pop("ignore_convergence", False)
-
-        # TODO: make PotentialManager a subclass of BaseComponent as well?
-        assert isinstance(config.GRNG, np.random.Generator)
-        random_seed = merged_params.pop("random_seed", int(config.GRNG.integers(0, 1_000_000_000_000)))
-
-        # Create the driver instance
-        task = merged_params.get("task", "min")
-        if task in DYNAMICS_DRIVER_TASKS:
-            driver_cls = register_drivers[dynamics]  # The dynamics backend has already been checked.
-        elif task in DYNAMICS_REACTOR_TASKS:
-            driver_cls = register_reactors[dynamics]
-        else:
-            raise Exception(f"Unknown task {task} for dynamics backend {dynamics}.")
-
-        driver = driver_cls(
-            self.calc,
-            merged_params,
-            directory=self.calc.directory,
-            ignore_convergence=ignore_convergence,
-            random_seed=random_seed,
-        )
-        driver.pot_params = self.as_dict()
-
-        return driver
+        return create_legacy_executor(self, dyn_params or {})
 
     def as_dict(self):
         """"""

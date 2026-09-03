@@ -1,70 +1,74 @@
-Extensions
-==========
+Provider plugins
+================
 
-This section is about how to extend GDPy with custom python files.
+GDPy integrations are stateless providers. A provider may expose potentials,
+materializers, executors, trainers, dataset codecs, modifiers, collective
+variables, schedulers, or exploration strategies through a capability map.
 
-Custom Potential
+A minimal potential provider
+----------------------------
+
+The potential factory returns a backend-neutral object. A separate
+materializer translates that object to the interface required by an executor::
+
+    from gdpx.providers import CapabilityKind, Provider
+
+    provider = Provider(
+        name="example",
+        version="1",
+        capabilities={
+            CapabilityKind.POTENTIAL: {"default": potential_factory},
+            CapabilityKind.MATERIALIZER: {
+                "ase.calculator": ase_materializer,
+                "lammps.potential": lammps_materializer,
+            },
+        },
+    )
+
+Factories implement ``create(parameters, **context)``. Materializers implement
+``materialize(potential, target, **context)``. Providers must not retain the
+created calculator, executor, training run, or working-directory state.
+
+Plugin discovery
 ----------------
 
-First we define a class named ``EmtManager`` that is a subclass of ``AbstractPotentialManager``
-in ``emt.py``. We need to implement two attributes (``implemented_backends`` and ``valid_combinations``) 
-and one method (``register_calculator``). Here, we only implement one backend that uses built-in EMT calculator 
-in **ase**.
+External distributions publish one entry point in ``pyproject.toml``::
 
-.. code-block:: python3
+    [project.entry-points."gdpx.providers"]
+    example = "example_gdpx:load_provider"
 
-    #!/usr/bin/env python3
-    # -*- coding: utf-8 -*
+The callable returns a :class:`gdpx.providers.Provider` whose name matches the
+entry-point name. Provider modules should import optional scientific packages
+only from the factory or materializer that needs them.
 
-    from ase.calculators.emt import EMT
+Configuration
+-------------
 
-    from GDPy.potential.manager import AbstractPotentialManager
+Provider configurations use schema version 2::
 
-    class EmtManager(AbstractPotentialManager):
-
-        name = "emt"
-        implemented_backends = ["ase"]
-
-        valid_combinations = [
-            ["ase", "ase"]
-        ]
-
-
-        def register_calculator(self, calc_params, *args, **kwargs):
-            super().register_calculator(calc_params)
-
-            if self.calc_backend == "ase":
-                calc = EMT()
-
-            self.calc = calc
-
-            return
-
-    if __name__ == "__main__":
-        pass
-
-Then we can use EMT through ``pot.yaml``.
-
-.. code-block:: yaml
-
+    schema_version: 2
     potential:
-        name: ./emt.py # lowercase
-        params:
-            backend: ase
-    driver:
-        backend: external
-        task: min
-        run: 
-            fmax: 0.05
-            steps: 10
+      provider: example
+      parameters:
+        model: model.bin
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        fmax: 0.05
+        steps: 10
+    scheduler:
+      provider: local
+      parameters: {}
 
-At last, we optimise a **H2O** molecule with **EMT**. The results are stored in the directory **cand0**.
+The executor declares the materialization interface it consumes. Resolution
+fails before submission when the potential cannot produce that interface.
 
-.. code-block:: shell
+Legacy manager plugins
+----------------------
 
-    $ gdp driver ./pot.yaml -s H2O
-    nframes:  1
-    potter:  emt
-    *** run-driver time:   0.1517 ***
-    [1.8792752663147125]
+The manager registry, ``potter`` configuration, and
+``BasePotentialManager.create_driver`` remain available for one compatibility
+release. New plugins should use providers; legacy configuration is read but
+all new serialization uses schema version 2.
 

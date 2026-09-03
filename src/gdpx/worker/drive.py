@@ -183,6 +183,7 @@ class DriverBasedWorker(BaseWorker):
         directory: Optional[Union[str, pathlib.Path]] = None,
         batchsize: int = 1,
         pairing: Union[Pairing, str] = Pairing.AUTO,
+        runtime=None,
         *args,
         **kwargs,
     ):
@@ -191,11 +192,16 @@ class DriverBasedWorker(BaseWorker):
         # Backward compat: scheduler_ -> scheduler
         self.scheduler = scheduler_ if scheduler_ is not None else (scheduler or LocalScheduler())
 
-        # Potter is stored only for serialisation; it is NOT used at runtime.
+        self.runtime = runtime
+        # Potter is stored only for legacy serialisation; it is NOT used at runtime.
+        if potter is None and runtime is not None and hasattr(runtime.provider_potential, "as_dict"):
+            potter = runtime.provider_potential
         self.potter = potter
 
         # Always internal list of driver instances
         self._drivers: list[BaseDriver] = []
+        if driver is None and runtime is not None:
+            driver = runtime.executor
         if driver is not None:
             if isinstance(driver, list):
                 self._drivers = driver
@@ -843,6 +849,12 @@ class DriverBasedWorker(BaseWorker):
     # ------------------------------------------------------------------
 
     def as_dict(self) -> dict:
+        if self.runtime is not None:
+            worker_params = self.runtime.config.to_dict()
+            worker_params["batchsize"] = self.batchsize
+            worker_params["share_wdir"] = self._share_wdir
+            worker_params["retain_info"] = self._retain_info
+            return copy.deepcopy(worker_params)
         worker_params = {}
         if self.potter is not None:
             worker_params["potter"] = self.potter.as_dict()

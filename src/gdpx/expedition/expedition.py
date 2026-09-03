@@ -4,12 +4,11 @@
 
 import abc
 import logging
-from typing import Union
+from typing import Any
 
 from gdpx.core.component import BaseComponent
 from gdpx.builder.builder import StructureBuilder
-from gdpx.worker.drive import DriverBasedWorker
-from gdpx.worker.single import SingleWorker
+from gdpx.execution.service import LegacyExecutionWorker, WorkerExecutionService
 
 
 class BaseExpedition(BaseComponent):
@@ -21,7 +20,7 @@ class BaseExpedition(BaseComponent):
     def read_convergence(self) -> bool: ...
 
     @abc.abstractmethod
-    def get_workers(self) -> list[Union[DriverBasedWorker, SingleWorker]]: ...
+    def get_workers(self) -> list[LegacyExecutionWorker]: ...
 
     def run(self, *args, **kwargs) -> None:
         """"""
@@ -50,9 +49,10 @@ class BaseExpedition(BaseComponent):
             if not worker:
                 raise ValueError("Cannot register an empty worker list.")
             worker = worker[0]
-        if not isinstance(worker, (DriverBasedWorker, SingleWorker)):
+        if not isinstance(worker, LegacyExecutionWorker):
             raise TypeError(f"Expected a worker instance, got {type(worker).__name__}.")
         self.worker = worker
+        self.execution = WorkerExecutionService(worker)
 
         return
 
