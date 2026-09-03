@@ -111,6 +111,12 @@ class GlobalOptimisationDatabase:
         )
         self.connection.update(confid, confid=confid)
         candidate.info["confid"] = confid
+        candidate.info["data"] = data
+        candidate.info["key_value_pairs"] = {
+            **key_value_pairs,
+            "extinct": 0,
+            **kwargs,
+        }
 
         return
 
