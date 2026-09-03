@@ -5,37 +5,16 @@ from __future__ import annotations
 import importlib
 
 from gdpx import config
-from gdpx.core.catalog import registers
-from gdpx.core.registry import Register
-
-
-DOMAIN_REGISTRIES = (
-    ("bias", "bias"),
-    ("builder", "builder"),
-    ("colvar", "colvar"),
-    ("comparator", "comparator"),
-    ("dataloader", "dataloader"),
-    ("describer", "describer"),
-    ("expedition", "expedition"),
-    ("manager", "potential"),
-    ("region", "region"),
-    ("scheduler", "scheduler"),
-    ("selector", "selector"),
-    ("trainer", "trainer"),
-    ("validator", "validator"),
-)
-
 WORKFLOW_MODULES = (
     "builder",
     "comparator",
-    "computer",
     "correction",
     "data",
     "dataset",
     "describer",
     "driver",
     "expedition",
-    "potential",
+    "runtime",
     "reactor",
     "region",
     "scheduler",
@@ -50,18 +29,7 @@ def bootstrap_registries(custom_module_paths=None, *, disable_import_info: bool 
     errors = []
     from gdpx.providers import get_provider_manager
 
-    registers.provider = get_provider_manager()
-    for registry_name, module_name in DOMAIN_REGISTRIES:
-        try:
-            module = importlib.import_module(f"gdpx.{module_name}")
-            setattr(registers, registry_name, module.REGISTER)
-        except ImportError as error:
-            setattr(registers, registry_name, Register(registry_name))
-            errors.append((module_name, error))
-
-    from gdpx.execution.workers.registry import WORKER_REGISTRY
-
-    registers.worker = WORKER_REGISTRY
+    get_provider_manager()
     modules = [f"gdpx.workflow.nodes.{name}" for name in WORKFLOW_MODULES]
     if custom_module_paths:
         modules.extend(custom_module_paths)

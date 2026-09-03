@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
 """Add bias on potential energy surface. 
 
@@ -11,7 +11,7 @@ ones to pure python codes as jax need accelerate them a lot.
 
 """
 
-REGISTER = BaseRegister("bias")
+REGISTER = Registry("bias")
 
 from .afir import AFIRCalculator
 

@@ -8,9 +8,9 @@ import tempfile
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.builder.graph.insert import GraphInsertModifier
-from gdpx.builder.graph.remove import GraphRemoveModifier
-from gdpx.builder.graph.swap import GraphSwapModifier
+from gdpx.structures.builders.graph.insert import GraphInsertModifier
+from gdpx.structures.builders.graph.remove import GraphRemoveModifier
+from gdpx.structures.builders.graph.swap import GraphSwapModifier
 
 config.logger.setLevel(logging.DEBUG)
 

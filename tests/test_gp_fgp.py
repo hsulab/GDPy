@@ -13,7 +13,7 @@ def _load(path):
 
 
 def test_fgp_fit_predict():
-    from gdpx.potential.gp import FGP
+    from gdpx.providers.gp import FGP
 
     traj, forces = _load("test_data/cu13")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,
@@ -30,7 +30,7 @@ def test_fgp_fit_predict():
 
 
 def test_sgp_fit_predict():
-    from gdpx.potential.gp import SGP
+    from gdpx.providers.gp import SGP
 
     traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=50, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
@@ -46,7 +46,7 @@ def test_sgp_fit_predict():
 
 
 def test_gp_optimize():
-    from gdpx.potential.gp import SGP
+    from gdpx.providers.gp import SGP
 
     traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=50, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
@@ -62,7 +62,7 @@ def test_gp_optimize():
 
 
 def test_fgp_in_sample_accuracy():
-    from gdpx.potential.gp import FGP
+    from gdpx.providers.gp import FGP
 
     traj, forces = _load("test_data/cu13")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,
@@ -77,7 +77,7 @@ def test_fgp_in_sample_accuracy():
 
 
 def test_sgp_in_sample_accuracy():
-    from gdpx.potential.gp import SGP
+    from gdpx.providers.gp import SGP
 
     traj, forces = _load("test_data/cu13")
     gp = SGP(n_inducing=80, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
@@ -92,7 +92,7 @@ def test_sgp_in_sample_accuracy():
 
 
 def test_sgp_periodic_bulk():
-    from gdpx.potential.gp import SGP
+    from gdpx.providers.gp import SGP
 
     traj, forces = _load("test_data/cu32")
     gp = SGP(n_inducing=100, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.3,
@@ -109,7 +109,7 @@ def test_sgp_periodic_bulk():
 
 
 def test_sgp_multielement_aucu():
-    from gdpx.potential.gp import SGP
+    from gdpx.providers.gp import SGP
 
     traj, forces = _load("test_data/aucu")
     gp = SGP(n_inducing=100, r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5,
@@ -126,7 +126,7 @@ def test_sgp_multielement_aucu():
 
 
 def test_fgp_multielement_aucu():
-    from gdpx.potential.gp import FGP
+    from gdpx.providers.gp import FGP
 
     traj, forces = _load("test_data/aucu")
     gp = FGP(r_cut_2b=6.0, sigma_2b=1.0, length_2b=0.5, noise=0.1,

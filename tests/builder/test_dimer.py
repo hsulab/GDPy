@@ -3,7 +3,7 @@
 
 import pytest
 
-from gdpx.builder.dimer import DimerBuilder
+from gdpx.structures.builders.dimer import DimerBuilder
 
 
 class TestDimerBuilder:

@@ -8,7 +8,7 @@ from typing import Optional, Union
 from gdpx import config
 from gdpx.workflow.factory import create_expedition
 from gdpx.execution.schedulers.factory import canonicalise_scheduler
-from gdpx.execution.factory import canonicalise_worker
+from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.explore import ExpeditionBasedWorker, run_expedition_in_commandline
 
 
@@ -16,7 +16,7 @@ def run_expedition(
     exp_params: dict,
     wait: Optional[float] = None,
     directory: Union[str, pathlib.Path] = "./",
-    potter=None,
+    runtime=None,
     spawn: Optional[str] = None,
 ):
     """Run an expedition.
@@ -25,19 +25,19 @@ def run_expedition(
         exp_params: Expedition parameters.
         wait: Time to wait between runs. Defaults to None.
         directory: Directory for the expedition. Defaults to "./".
-        potter: Optional worker parameters. If None, it will be taken from `exp_params`.
+        runtime: Optional schema-v2 runtime. If omitted, use ``exp_params.runtime``.
         spawn: Comma-separated indices of expeditions to run in commandline. Defaults to None.
 
     """
     directory = pathlib.Path(directory)
 
-    if potter is not None:
-        worker_params = potter
+    if runtime is not None:
+        runtime_params = runtime
     else:
-        if "worker" in exp_params:
-            worker_params = exp_params.pop("worker")
+        if "runtime" in exp_params:
+            runtime_params = exp_params.pop("runtime")
         else:
-            raise RuntimeError("Expedition must have a worker.")
+            raise RuntimeError("Exploration requires a runtime.")
 
     # Pop scheduler as expedition does not have it as an argument
     scheduler_params = exp_params.pop("scheduler", {})
@@ -52,7 +52,7 @@ def run_expedition(
 
     for curr_expedition in expedition:
         if hasattr(curr_expedition, "register_worker"):
-            curr_expedition.register_worker(canonicalise_worker(worker_params))
+            curr_expedition.register_worker(create_worker(runtime_params))
 
     num_expeditions = len(expedition)
     if spawn:  # Run expedition in commandline as input files are prepared by worker

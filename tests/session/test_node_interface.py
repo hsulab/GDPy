@@ -1,7 +1,7 @@
-from gdpx.session.node import NodeKind, WorkflowNode
-from gdpx.session.operation import Operation
-from gdpx.session.sequential import SequentialSession
-from gdpx.session.variable import Variable
+from gdpx.workflow.session.node import NodeKind, WorkflowNode
+from gdpx.workflow.session.operation import Operation
+from gdpx.workflow.session.sequential import SequentialSession
+from gdpx.workflow.session.variable import Variable
 
 
 class AddOne(Operation):

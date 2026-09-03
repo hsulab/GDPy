@@ -1,0 +1,16 @@
+potter:
+  name: nnp
+  params:
+    model_file: ./nnp_train/nn_weights.npz
+    type_map: ["Cu", "Au"]
+
+driver:
+  backend: ase
+  task: langevin_nvt
+  timestep: 1.0
+  temperature: 300.0
+  nsteps: 10000
+  loginterval: 100
+
+scheduler:
+  batch: 1

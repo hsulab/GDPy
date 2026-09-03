@@ -28,6 +28,7 @@ class RuntimeResolver:
             config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
         )
         target = getattr(executor_factory, "target", None)
+        modifier_instances = ()
         if target is None:
             materialization = Materialization(
                 target=f"{config.executor.provider}.legacy",
@@ -60,6 +61,19 @@ class RuntimeResolver:
                 potential=potential,
                 materialization=materialization,
             )
+        scheduler_config = config.scheduler
+        if scheduler_config is None:
+            from gdpx.execution.schedulers.local import LocalScheduler
+
+            scheduler = LocalScheduler()
+        else:
+            scheduler_provider = scheduler_config.provider
+            scheduler_method = scheduler_config.method or "default"
+            scheduler_parameters = scheduler_config.parameters
+            scheduler_factory = self.providers.require(
+                scheduler_provider, CapabilityKind.SCHEDULER, scheduler_method
+            )
+            scheduler = scheduler_factory.create(scheduler_parameters)
         return Runtime(
             potential=config.potential_spec(),
             materialization=materialization,
@@ -68,6 +82,7 @@ class RuntimeResolver:
             config=config,
             provider_potential=potential,
             modifier_instances=modifier_instances if target is not None else (),
+            scheduler=scheduler,
         )
 
     def _create_modifiers(self, config):

@@ -12,12 +12,12 @@ try:
     from jax import numpy as jnp
     from jax import jacfwd, jacrev
 
-    from gdpx.builder.hypercube import (
+    from gdpx.structures.builders.hypercube import (
         compute_bond_distances,
         compute_bond_angles,
         pseudo_inverse_of_jacobian,
     )
-    from gdpx.builder.hypercube import HypercubeBuilder
+    from gdpx.structures.builders.hypercube import HypercubeBuilder
 
 except ModuleNotFoundError:
     ...

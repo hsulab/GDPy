@@ -1,5 +1,5 @@
 import numpy as np
-from gdpx.potential.nnp.nn import ElementwiseNN, SimpleNN
+from gdpx.providers.nnp.nn import ElementwiseNN, SimpleNN
 
 
 class TestSimpleNN:

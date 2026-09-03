@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("validator")
+REGISTER = Registry("validator")
 
 from .dimer import DimerValidator
 

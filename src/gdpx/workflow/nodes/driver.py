@@ -2,7 +2,7 @@ import copy
 import itertools
 import pathlib
 import time
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 import h5py
 import numpy as np
@@ -15,107 +15,14 @@ from gdpx import config
 from gdpx.providers.ase.observer import create_an_observer
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.workflow.nodes.computer import ComputerVariable
+from gdpx.execution import Runtime
+from gdpx.execution.factory import create_worker, create_worker_chains, create_workers
+from gdpx.workflow.nodes.runtime import RuntimeVariable
 from gdpx.analysis.selectors.scf import ScfSelector
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.variable import Variable
 from gdpx.utils.profiler import CustomTimer
-from gdpx.utils.strconv import string_to_array
 from gdpx.execution.workers.drive import DriverBasedWorker
-
-
-def merge_driver_params(params: dict):
-    """"""
-    copied_params = copy.deepcopy(params)
-    merged_params = dict(
-        backend=copied_params.get("backend", "external"),
-        ignore_convergence=copied_params.get("ignore_convergence", False),
-    )
-    merged_params.update(**copied_params.get("init", {}))
-    merged_params.update(**copied_params.get("run", {}))
-
-    # HACK: Computer and Reactor both use this variable
-    #       but Reactor does not have task keyword for now
-    #       we need update it later.
-    task = copied_params.get("task", "")
-    if task:
-        merged_params.update(task=task)
-    else:
-        ...
-
-    return merged_params
-
-
-@registers.variable.register
-class DriverVariable(Variable):
-    def __init__(self, **kwargs):
-        """"""
-        # Check broadcast method either product or bijection
-        _broadcast_method = kwargs.get("_broadcast_method", "product")
-
-        # Check driver definitions
-        if "drivers" in kwargs:
-            driver_params = []
-            for params in kwargs["drivers"]:
-                driver_params.extend(
-                    self._broadcast_drivers(merge_driver_params(params), broadcast_method=_broadcast_method)
-                )
-        else:
-            merged_params = merge_driver_params(kwargs)
-            driver_params = self._broadcast_drivers(merged_params, broadcast_method=_broadcast_method)
-
-        initial_value = driver_params
-
-        super().__init__(initial_value)
-
-        return
-
-    def _broadcast_drivers(
-        self, params: dict, broadcast_method: Literal["product", "bijection"] = "product"
-    ) -> list[dict]:
-        """Broadcast parameters if there were any parameter is a list."""
-        # Find parameters with list values
-        params_, plengths = {}, []
-        for k, v in params.items():
-            if isinstance(v, list):
-                n = len(v)
-            elif isinstance(v, str):
-                if ":" in v and k != "constraint":
-                    v = string_to_array(v).tolist()
-                    n = len(v)
-                else:
-                    n = 1
-            else:  # int, float, string
-                n = 1
-            params_[k] = v
-            plengths.append((k, n))
-
-        # Get parameter names with more than one value
-        keys_to_broadcast = sorted([k for k, n in plengths if n > 1])
-
-        params = params_
-
-        # Broadcast parameters
-        params_list = []
-        if broadcast_method == "product":
-            values_to_broadcast = list(itertools.product(*[params_[k] for k in keys_to_broadcast]))
-            for values in values_to_broadcast:
-                new_params = copy.deepcopy(params)
-                new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
-                params_list.append(new_params)
-        elif broadcast_method == "bijection":
-            values_to_broadcast = [params_[k] for k in keys_to_broadcast]
-            num_values_list = [len(values) for values in values_to_broadcast]
-            if len(set(num_values_list)) != 1:
-                raise RuntimeError("Broadcast method bijection requires all parameters to have the same length.")
-            for values in zip(*values_to_broadcast):
-                new_params = copy.deepcopy(params)
-                new_params.update({k: v for k, v in zip(keys_to_broadcast, values)})
-                params_list.append(new_params)
-        else:
-            raise RuntimeError(f"Unknown broadcast method: {broadcast_method}")
-
-        return params_list
 
 
 def extract_results_from_workers(
@@ -312,7 +219,7 @@ class compute(Operation):
 
     def __init__(
         self,
-        worker: Variable,
+        runtime: Variable,
         *,
         structures: Optional[Variable] = None,
         builder: Optional[Variable] = None,
@@ -331,7 +238,7 @@ class compute(Operation):
 
         Args:
             builder: A builder node.
-            worker: A worker node.
+            runtime: A resolved runtime node or explicit runtime list.
             batchsize: Worker's batchsize can be overwritten by this.
             share_wdir: Worker's share_wdir can be overwritten by this.
             retain_info: Worker's retain_info parameter.
@@ -346,7 +253,7 @@ class compute(Operation):
                 raise RuntimeError("Either `structures` or `builder` should be set.")
         else:
             ...
-        super().__init__(input_nodes=[structures, worker], directory=directory)
+        super().__init__(input_nodes=[structures, runtime], directory=directory)
 
         # - worker-run-related settings
         self.batchsize = batchsize
@@ -368,16 +275,15 @@ class compute(Operation):
 
     def _preprocess_input_nodes(self, input_nodes):
         """"""
-        builder, worker = input_nodes
-        if isinstance(worker, dict) or isinstance(worker, omegaconf.dictconfig.DictConfig):
-            worker = ComputerVariable(**worker)
-
-        return builder, worker
+        structures, runtime = input_nodes
+        if isinstance(runtime, dict) or isinstance(runtime, omegaconf.dictconfig.DictConfig):
+            runtime = RuntimeVariable.from_mapping(runtime, directory=self.directory)
+        return structures, runtime
 
     def forward(
         self,
         structures: Union[list[Atoms], AtomsNDArray],
-        workers: list[DriverBasedWorker],
+        runtimes,
     ) -> Union[list[DriverBasedWorker], list[AtomsNDArray]]:
         """Run simulations with given structures and workers.
 
@@ -392,14 +298,18 @@ class compute(Operation):
         """
         super().forward()
 
+        if isinstance(runtimes, Runtime):
+            workers = [create_worker(runtimes)]
+        elif isinstance(runtimes, (list, tuple)) and all(isinstance(item, Runtime) for item in runtimes):
+            workers = create_workers(runtimes)
+        else:
+            raise TypeError(f"compute requires Runtime values, got {type(runtimes).__name__}.")
+
         num_workers = len(workers)
 
         # FIXME: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
-        try:  # DriverBasedWorker
-            driver0_dict = workers[0].driver.as_dict()
-        except:  # GridDriverBasedWorker
-            driver0_dict = dict(task="unknown")
+        driver0_dict = workers[0].driver.as_dict()
 
         if num_workers == 1 and driver0_dict.get("task", "min") == "min" and (driver0_dict.get("steps", 0) <= 0):
             # check input data type
@@ -672,7 +582,7 @@ class compute_chain(Operation):
     def __init__(
         self,
         structures,
-        worker,
+        runtime_chain,
         *,
         observers=None,
         batchsize: Optional[int] = None,
@@ -681,7 +591,7 @@ class compute_chain(Operation):
         directory: Union[str, pathlib.Path] = "./",
     ):
         """"""
-        super().__init__(input_nodes=[structures, worker], directory=directory)
+        super().__init__(input_nodes=[structures, runtime_chain], directory=directory)
 
         # Other parameters
         self.observers = []
@@ -697,9 +607,20 @@ class compute_chain(Operation):
 
         return
 
-    def forward(self, structures, workers):
+    def forward(self, structures, runtime_chains):
         """"""
         super().forward()
+
+        if isinstance(runtime_chains, tuple) and all(isinstance(item, Runtime) for item in runtime_chains):
+            workers = create_worker_chains([runtime_chains])
+        elif (
+            isinstance(runtime_chains, (list, tuple))
+            and runtime_chains
+            and all(isinstance(chain, (list, tuple)) for chain in runtime_chains)
+        ):
+            workers = create_worker_chains(runtime_chains)
+        else:
+            raise TypeError("compute_chain requires a RuntimeChainVariable or explicit runtime chains.")
 
         num_chains = len(workers)
 

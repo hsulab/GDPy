@@ -79,9 +79,11 @@ class UncertaintyValidator(BaseValidator):
                 "The uncertainty validator requires a worker that runs single-point calculation with uncertainty estimation."
             )
 
-        is_uncertainty_enabled = worker.potter.calc_params.get("estimate_uncertainty", False)
+        is_uncertainty_enabled = worker.runtime.config.potential.parameters.get(
+            "estimate_uncertainty", False
+        )
         if not is_uncertainty_enabled:
-            raise Exception(f"The potential `{worker.potter}` does not support uncertainty estimation.")
+            raise ValueError("The runtime potential does not enable uncertainty estimation.")
 
         # TODO: We need check if the worker is spc as well.
 

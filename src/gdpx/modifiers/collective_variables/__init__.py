@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("colvar")
+REGISTER = Registry("colvar")
 
 REGISTER.register_lazy("DistanceColvar", "gdpx.modifiers.collective_variables.distance", "DistanceColvar")
 REGISTER.register_lazy("RmsdColvar", "gdpx.modifiers.collective_variables.rmsd", "RmsdColvar")

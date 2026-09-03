@@ -1,10 +1,10 @@
 """Adaptive exploration algorithms built on the execution-service boundary."""
 
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
 from .protocol import Exploration, ExplorationResult, ExplorationStrategy, Proposal
 
-REGISTER = BaseRegister("exploration")
+REGISTER = Registry("exploration")
 
 REGISTER.register_lazy("genetic_algorithm", "gdpx.exploration.genetic_algorithm.engine", "GeneticAlgorithmBroadcaster")
 REGISTER.register_lazy("basin_hopping", "gdpx.exploration.monte_carlo.basin_hopping", "BasinHopping")

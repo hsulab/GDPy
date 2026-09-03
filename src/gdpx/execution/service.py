@@ -32,8 +32,8 @@ class ExecutionService(abc.ABC):
 
 
 @runtime_checkable
-class LegacyExecutionWorker(Protocol):
-    """Structural contract implemented by existing worker classes."""
+class ExecutionWorker(Protocol):
+    """Structural contract implemented by execution workers."""
 
     def run(self, inputs: Any, **kwargs: Any) -> Any:
         ...
@@ -51,8 +51,8 @@ class LegacyExecutionWorker(Protocol):
 class WorkerExecutionService(ExecutionService):
     """Expose a legacy worker through the new operational lifecycle."""
 
-    def __init__(self, worker: LegacyExecutionWorker) -> None:
-        if not isinstance(worker, LegacyExecutionWorker):
+    def __init__(self, worker: ExecutionWorker) -> None:
+        if not isinstance(worker, ExecutionWorker):
             raise TypeError(f"Expected a worker-like object, got {type(worker).__name__}.")
         self.worker = worker
         self._handles: Dict[str, bool] = {}

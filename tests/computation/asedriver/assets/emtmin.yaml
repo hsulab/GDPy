@@ -1,13 +1,13 @@
-potter:
-  name: emt
-  params:
-    backend: ase
-driver:
-  task: min
-  backend: ase
-  init:
+schema_version: 2
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: min
+  parameters:
     dump_period: 1
-  run:
     fmax: 0.000000000001
     steps: 23
-  random_seed: 1112
+    random_seed: 1112
+options: {}

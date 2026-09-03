@@ -4,7 +4,7 @@
 
 import pytest
 
-from gdpx.factory.computer import create_workers
+from gdpx.execution.factory import create_worker, create_workers
 
 @pytest.fixture
 def cp2k_config():
@@ -32,7 +32,7 @@ def cp2k_config():
 
 def test_empty(cp2k_config):
     """"""
-    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
+    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
     print(worker)
 
     driver = worker.driver
@@ -44,7 +44,7 @@ def test_empty(cp2k_config):
 
 def test_broken(cp2k_config):
     """"""
-    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
+    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
     print(worker)
 
     driver = worker.driver
@@ -56,7 +56,7 @@ def test_broken(cp2k_config):
 
 def test_broken_by_abort(cp2k_config):
     """"""
-    worker = create_workers(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))[0]
+    worker = create_worker(dict(potential=cp2k_config["potential"], driver=cp2k_config["driver"]))
     print(worker)
     print(worker.driver.ignore_convergence)
 

@@ -1,6 +1,6 @@
-from gdpx.core.register import BaseRegister
+from gdpx.core.registry import Registry
 
-REGISTER = BaseRegister("describer")
+REGISTER = Registry("describer")
 
 from .spc import SpcDescriber
 

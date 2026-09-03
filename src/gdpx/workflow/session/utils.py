@@ -33,6 +33,16 @@ def create_variable(vx_name: Optional[str], vx_params: Any):
     node_params = copy.deepcopy(vx_params)
     node_type = node_params.pop("type", None)
     assert node_type is not None, f"{vx_name} has no type."
+    migrations = {
+        "potter": "potential",
+        "driver": "executor",
+        "computer": "runtime",
+        "computer_chain": "runtime_chain",
+    }
+    if node_type in migrations:
+        raise ValueError(
+            f"Workflow variable type {node_type!r} was removed; use {migrations[node_type]!r}."
+        )
     node_template = node_params.pop("template", None)
     config._debug(vx_name)
     config._debug(node_params)

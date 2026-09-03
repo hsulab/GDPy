@@ -11,7 +11,8 @@ import yaml
 
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.factory import create_trainer
-from gdpx.providers.manager_base import BasePotentialManager
+from gdpx.providers import ComponentConfig
+from gdpx.providers.specs import thaw
 from gdpx.providers.training import BasePotentialTrainer
 from gdpx.execution.schedulers.scheduler import BaseScheduler
 from gdpx.workflow.session.operation import Operation
@@ -24,13 +25,17 @@ from .scheduler import SchedulerVariable
 @registers.variable.register
 class TrainerVariable(Variable):
 
-    def __init__(self, directory="./", **kwargs):
+    def __init__(self, provider, method="default", parameters=None, directory="./"):
         """"""
-        trainer = create_trainer(kwargs)
+        self.config = ComponentConfig(provider, method, parameters or {})
+        trainer = create_trainer(self.config)
 
         super().__init__(initial_value=trainer, directory=directory)
 
         return
+
+    def as_dict(self) -> dict:
+        return self.config.to_dict()
 
 
 @registers.operation.register
@@ -43,7 +48,7 @@ class train(Operation):
         self,
         dataset,
         trainer,
-        potter,
+        potential,
         scheduler=DummyVariable(),
         size: int = 1,
         init_models=None,
@@ -53,13 +58,16 @@ class train(Operation):
         directory="./",
     ) -> None:
         """"""
-        input_nodes = [dataset, trainer, scheduler, potter]
+        input_nodes = [dataset, trainer, scheduler, potential]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
-        assert trainer.value.name == potter.value.name, "Trainer and potter have inconsistent name."
-        assert (
-            trainer.value.type_list == potter.value.as_dict()["params"]["type_list"]
-        ), "Trainer and potter have inconsistent type_list."
+        if not isinstance(potential.value, ComponentConfig):
+            raise TypeError("train requires a PotentialVariable.")
+        if trainer.config.provider != potential.value.provider:
+            raise ValueError("Trainer and potential providers must match.")
+        type_list = potential.value.parameters.get("type_list")
+        if type_list is not None and trainer.value.type_list != list(type_list):
+            raise ValueError("Trainer and potential type lists must match.")
 
         self.size = size  # number of models
         if init_models is not None:
@@ -79,7 +87,7 @@ class train(Operation):
 
     def _preprocess_input_nodes(self, input_nodes):
         """"""
-        dataset, trainer, scheduler, potter = input_nodes
+        dataset, trainer, scheduler, potential = input_nodes
 
         if isinstance(scheduler, Variable):
             scheduler = scheduler
@@ -89,14 +97,14 @@ class train(Operation):
         else:
             raise RuntimeError(f"Unknown {scheduler} for the scheduler.")
 
-        return dataset, trainer, scheduler, potter
+        return dataset, trainer, scheduler, potential
 
     def forward(
         self,
         dataset,
         trainer: BasePotentialTrainer,
         scheduler: BaseScheduler,
-        potter: BasePotentialManager,
+        potential: ComponentConfig,
     ):
         """"""
         super().forward()
@@ -138,7 +146,7 @@ class train(Operation):
         )
 
         # - run
-        manager = None
+        trained_potential = None
 
         _ = worker.run(dataset, size=self.size, init_models=init_models)
         _ = worker.inspect(resubmit=True)
@@ -147,14 +155,17 @@ class train(Operation):
             self._print("Frozen Models: ")
             for m in models:
                 self._print(f"  {str(m) =}")
-            potter_params = potter.as_dict()
-            potter_params["params"]["model"] = models
-            potter.register_calculator(potter_params["params"])
-            manager = potter
+            parameters = thaw(potential.parameters)
+            parameters["model"] = models
+            trained_potential = ComponentConfig(
+                potential.provider,
+                potential.method,
+                parameters,
+            )
         else:
             self._print("TrainWorker has not finished.")
 
-        if manager is not None:
+        if trained_potential is not None:
             self.status = "finished"
 
         # - some imported packages change `logging.basicConfig`
@@ -166,15 +177,15 @@ class train(Operation):
             if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
                 logging.root.removeHandler(h)
 
-        return manager
+        return trained_potential
 
 
 @registers.operation.register
-class save_potter(Operation):
+class save_potential(Operation):
 
-    def __init__(self, potter, dst_path=None, directory="./") -> None:
+    def __init__(self, potential, dst_path=None, directory="./") -> None:
         """"""
-        input_nodes = [potter]
+        input_nodes = [potential]
         super().__init__(input_nodes, directory)
 
         if dst_path is not None:
@@ -186,22 +197,22 @@ class save_potter(Operation):
 
         return
 
-    def forward(self, potter):
+    def forward(self, potential):
         """"""
         super().forward()
 
-        self._output_path = self.directory / "potter.yaml"
+        self._output_path = self.directory / "potential.yaml"
         with open(self._output_path, "w") as fopen:
-            yaml.safe_dump(potter.as_dict(), fopen, indent=2)
+            yaml.safe_dump(potential.to_dict(), fopen, indent=2)
 
         if self.dst_path.exists():
-            self._print("remove previous potter...")
+            self._print("remove previous potential...")
             self.dst_path.unlink()
         self.dst_path.symlink_to(self._output_path)
 
         self.status = "finished"
 
-        return potter
+        return potential
 
 
 if __name__ == "__main__":

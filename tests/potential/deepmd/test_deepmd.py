@@ -13,8 +13,8 @@ from ase import Atoms
 from ase.io import read, write
 from ase.build import molecule
 
-from gdpx.compute.runtime import run_workers
-from gdpx.factory.computer import create_workers
+from gdpx.execution.lifecycle.runtime import run_workers
+from gdpx.execution.factory import create_worker, create_workers
 from gdpx.utils.parser import parse_input_file
 
 
@@ -93,7 +93,7 @@ def test_spc_driver(create_pot_config, backend, command, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = create_workers(params)[0]
+            worker = create_worker(params)
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -125,7 +125,7 @@ def test_min_driver(create_pot_config, backend, command, driver, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = create_workers(params)[0]
+            worker = create_worker(params)
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:

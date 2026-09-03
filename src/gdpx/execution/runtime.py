@@ -17,6 +17,7 @@ class Runtime:
     config: RuntimeConfig
     provider_potential: Any = None
     modifier_instances: Sequence[Any] = ()
+    scheduler: Any = None
 
     def run(self, inputs: Any, **kwargs: Any) -> Any:
         return self.executor.run(inputs, **kwargs)

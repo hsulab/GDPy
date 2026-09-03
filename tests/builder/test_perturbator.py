@@ -5,8 +5,8 @@ import pytest
 
 from ase.io import read, write
 
-from gdpx.builder.species import MoleculeBuilder
-from gdpx.builder.perturbator import PerturbatorBuilder
+from gdpx.structures.builders.species import MoleculeBuilder
+from gdpx.structures.builders.perturbator import PerturbatorBuilder
 
 
 @pytest.mark.basic

@@ -11,7 +11,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx.structures.builders.factory import canonicalise_builder
-from gdpx.execution.factory import create_worker_chains, create_workers
+from gdpx.execution.factory import create_worker, create_worker_chains, create_workers
 from gdpx.execution.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
 
@@ -21,16 +21,18 @@ class CompState(enum.Enum):
     FINISHED = "finished"
 
 
-def create_computer(config):
-    """Create workers or worker chains without mutating input configuration."""
+def create_runtime_workers(config):
+    """Create workers or worker chains from explicit schema-v2 runtimes."""
     if isinstance(config, (str, pathlib.Path)):
         config = parse_input_file(input_fpath=config)
     config = copy.deepcopy(config)
     if isinstance(config, dict):
-        return create_workers(config)
+        return [create_worker(config)]
     if isinstance(config, list) and config:
-        return create_worker_chains(config) if len(config) > 1 else create_workers(config[0])
-    raise TypeError(f"Computer configuration must be a non-empty mapping or list, got {type(config).__name__}.")
+        if isinstance(config[0], list):
+            return create_worker_chains(config)
+        return create_workers(config)
+    raise TypeError(f"Runtime configuration must be a non-empty mapping or list, got {type(config).__name__}.")
 
 
 def run_one_worker(structures, worker, directory, batch=None, spawn=False, archive=False):
@@ -54,8 +56,8 @@ def run_one_worker(structures, worker, directory, batch=None, spawn=False, archi
     return state
 
 
-def run_workers(structures, computer, *, batch=None, spawn=False, archive=False, directory="MyWorker") -> bool:
-    """Run workers or a single worker chain through the legacy runtime."""
+def execute_workers(structures, workers, *, batch=None, spawn=False, archive=False, directory="MyWorker") -> bool:
+    """Run independent workers or a single explicit worker chain."""
     for handler in list(logging.root.handlers):
         if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
             logging.root.removeHandler(handler)
@@ -74,33 +76,28 @@ def run_workers(structures, computer, *, batch=None, spawn=False, archive=False,
             raise TypeError(f"Unsupported structure type {type(structures[0]).__name__}.")
         frames = structures
 
-    if not isinstance(computer, list) and hasattr(computer, "value"):
-        computer = computer.value
+    if not isinstance(workers, list) and hasattr(workers, "value"):
+        workers = workers.value
     states = []
-    if isinstance(computer, list) and (not computer or not isinstance(computer[0], list)):
-        for index, worker in enumerate(computer):
-            worker_directory = directory if len(computer) == 1 else directory / f"w{index}"
+    if isinstance(workers, list) and (not workers or not isinstance(workers[0], list)):
+        for index, worker in enumerate(workers):
+            worker_directory = directory if len(workers) == 1 else directory / f"w{index}"
             states.append(run_one_worker(frames, worker, worker_directory, batch, spawn, archive))
-    elif isinstance(computer, list) and computer and isinstance(computer[0], list):
-        if len(computer) != 1:
-            raise ValueError(f"Only one worker chain is supported, got {len(computer)}.")
+    elif isinstance(workers, list) and workers and isinstance(workers[0], list):
+        if len(workers) != 1:
+            raise ValueError(f"Only one worker chain is supported, got {len(workers)}.")
         current_frames = frames
-        for index, worker in enumerate(computer[0]):
+        for index, worker in enumerate(workers[0]):
             step_directory = directory / f"chainstep.{index:02d}"
             state = run_one_worker(current_frames, worker, step_directory, batch, spawn, archive)
             states.append(state)
             if state is not CompState.FINISHED:
                 break
             current_frames = read(step_directory / "results" / "end_frames.xyz", ":")
-            if index + 1 == len(computer[0]):
+            if index + 1 == len(workers[0]):
                 result_link = directory / "results"
                 if not result_link.exists():
                     result_link.symlink_to((step_directory / "results").relative_to(directory))
     else:
-        raise TypeError(f"Unsupported computer {type(computer).__name__}.")
+        raise TypeError(f"Unsupported workers {type(workers).__name__}.")
     return bool(states) and all(state is CompState.FINISHED for state in states)
-
-
-# Compatibility names used by older callers.
-convert_input_to_computer = create_computer
-run_worker = run_workers

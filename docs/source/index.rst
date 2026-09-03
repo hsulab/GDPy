@@ -66,6 +66,7 @@ Supported **Expeditions**
 
    extensions/index
    architecture
+   migration-0.1
    data/index
 .. modules/modules
 

@@ -595,8 +595,9 @@ class MonteCarlo(BaseExpedition):
 
     def get_workers(self):
         """Get all workers used by this expedition."""
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
 
         # workers = []
         # for curr_wdir in wdirs:
@@ -618,8 +619,9 @@ class MonteCarlo(BaseExpedition):
         engine_params["method"] = "monte_carlo"
         engine_params["builder"] = self.builder.as_dict()
         engine_params["worker"] = self.worker.as_dict()
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
         engine_params["operators"] = []
         for op in self.operators:
             engine_params["operators"].append(op.as_dict())

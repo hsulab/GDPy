@@ -10,23 +10,10 @@ from ase.io import write
 
 from gdpx.data.array import AtomsNDArray
 from gdpx.structures.groups import evaluate_group_expression
-from gdpx.providers.mixer import MixerManager
-from gdpx.execution.workers.grid import GridDriverBasedWorker
+from gdpx.execution.factory import create_worker
+from gdpx.providers import ComponentConfig
 
 from ..expedition import BaseExpedition
-
-
-def create_mixer(basic_params, *args, **kwargs):
-    """"""
-    potters = [basic_params]
-    for x in args:
-        potters.append(x)
-    calc_params = dict(backend="ase", potters=potters)
-
-    mixer = MixerManager()
-    mixer.register_calculator(calc_params=calc_params)
-
-    return mixer
 
 
 def convert_index_to_formula(atoms, group_indices: list[list[int]]):
@@ -137,42 +124,21 @@ class AFIRSearch(BaseExpedition):
 
         return
 
-    def _spawn_computers(self, pair: list[list[int]], gamma_factors: list[float], *args, **kwargs):
-        """Spawn AFIR computers."""
-        # if hasattr(self.worker.potter, "remove_loaded_models"):
-        #     self.worker.potter.remove_loaded_models()
-
-        # get parameters from host worker
-        host_dict = self.worker.potter.as_dict()
-        # self._print(f"{host_dict =}")
-
-        driver_dict = self.worker.driver.as_dict()
-        # self._print(f"{driver_dict =}")
-
-        bias_list = []
+    def _spawn_workers(self, pair: list[list[int]], gamma_factors: list[float], *args, **kwargs):
+        """Create explicit runtimes with one AFIR modifier per gamma value."""
+        workers = []
         for g in gamma_factors:
-            curr_bias = dict(name="bias", params={})
-            curr_bias["params"]["backend"] = "ase"
-            curr_bias["params"]["method"] = "afir"
-            curr_bias["params"]["gamma"] = g
-            curr_bias["params"]["groups"] = pair
-            curr_bias["params"]["use_pbc"] = False  # FIXME:
-            bias_list.append(curr_bias)
-
-        # Use shared host potter to reduce loading time and memory usage
-        # as some large models may lead to OOM issue if non-shared.
-        potters, drivers = [], []
-        for b in bias_list:
-            # p = create_mixer(host_dict, b)
-            p = create_mixer(self.worker.potter, b)
-            driver = p.create_driver(driver_dict)
-            potters.append(p)
-            drivers.append(driver)
-
-        # for p in potters:
-        #     self._print(f"{p.potters[0]}")
-
-        return potters, drivers
+            modifier = ComponentConfig(
+                "builtin",
+                "afir",
+                {"gamma": g, "groups": pair, "use_pbc": False},
+            )
+            runtime_config = dataclasses.replace(
+                self.worker.runtime.config,
+                modifiers=(*self.worker.runtime.config.modifiers, modifier),
+            )
+            workers.append(create_worker(runtime_config))
+        return workers
 
     def run(self, *args, **kwargs) -> None:
         """"""
@@ -243,23 +209,19 @@ class AFIRSearch(BaseExpedition):
                 self._print(f"  {str(r):<48s}")
             group_indices = [m.atomic_indices for m in rxn_pair]
 
-            potters, drivers = self._spawn_computers(group_indices, self.gamma_factors)
-            curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
-            curr_worker.directory = comput_dpath / f"pair{i}"
-            curr_worker.batchsize = self.worker.batchsize
-            grid_workers.append(curr_worker)
-
-            num_potters = len(potters)
-            curr_worker.run([atoms for _ in range(num_potters)])
+            pair_workers = self._spawn_workers(group_indices, self.gamma_factors)
+            for gamma_index, curr_worker in enumerate(pair_workers):
+                curr_worker.directory = comput_dpath / f"pair{i}" / f"gamma{gamma_index}"
+                curr_worker.batchsize = self.worker.batchsize
+                curr_worker.run([atoms])
+            grid_workers.append(pair_workers)
 
         # extract each pair
         worker_status = []
-        for i, curr_worker in enumerate(grid_workers):
-            curr_worker.inspect(resubmit=True)
-            if curr_worker.get_number_of_running_jobs() == 0:
-                worker_status.append(True)
-            else:
-                worker_status.append(False)
+        for pair_workers in grid_workers:
+            for curr_worker in pair_workers:
+                curr_worker.inspect(resubmit=True)
+                worker_status.append(curr_worker.get_number_of_running_jobs() == 0)
 
         if all(worker_status):
             results = self._extract_results(grid_workers)
@@ -285,9 +247,11 @@ class AFIRSearch(BaseExpedition):
         num_workers = len(workers)
 
         results = []
-        for i, worker in enumerate(workers):
-            curr_results = worker.retrieve(include_retrieved=True)
-            results.append(curr_results)
+        for pair_workers in workers:
+            pair_results = []
+            for worker in pair_workers:
+                pair_results.extend(worker.retrieve(include_retrieved=True))
+            results.append(pair_results)
         results = AtomsNDArray(results)
 
         return results
@@ -338,19 +302,16 @@ class AFIRSearch(BaseExpedition):
     def get_workers(self, *args, **kwargs):
         """"""
         workers = []
-        if hasattr(self.worker.potter, "remove_loaded_models"):
-            self.worker.potter.remove_loaded_models()
-
         with open(self.directory / "pairs.json", "r") as fopen:
             pairs = json.load(fopen)
         num_pairs = len(pairs)
 
         workers = []
         for i in range(num_pairs):
-            potters, drivers = self._spawn_computers(pairs[i], self.gamma_factors)
-            curr_worker = GridDriverBasedWorker(potters=potters, drivers=drivers)
-            curr_worker.directory = self.directory / "comput" / f"pair{i}"
-            assert curr_worker.directory.exists()
-            workers.append(curr_worker)
+            pair_workers = self._spawn_workers(pairs[i], self.gamma_factors)
+            for gamma_index, curr_worker in enumerate(pair_workers):
+                curr_worker.directory = self.directory / "comput" / f"pair{i}" / f"gamma{gamma_index}"
+                assert curr_worker.directory.exists()
+                workers.append(curr_worker)
 
         return workers

@@ -8,7 +8,7 @@ import functools
 from ase import Atoms
 from ase.io import write
 
-from gdpx.execution.factory import canonicalise_worker
+from gdpx.execution.factory import create_worker
 from gdpx.utils.strconv import dictionary_to_string
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
@@ -39,10 +39,9 @@ class HybridMonteCarlo(MonteCarlo):
             if isinstance(subprocedure, list):
                 assert len(subprocedure) == 2 and subprocedure[0] == "monte_carlo", ""
                 worker_name = subprocedure[1].split("_")[1]
-                worker_params = self.extra_workers.get(worker_name, None)
-                worker_params["potter"] = self.worker.potter  # use potter from the main worker
-                if worker_params is not None:
-                    subworker = canonicalise_worker(worker_params)
+                runtime_config = self.extra_workers.get(worker_name, None)
+                if runtime_config is not None:
+                    subworker = create_worker(runtime_config)
                     if isinstance(subworker, DriverBasedWorker):
                         self._print("Convert a DriverBasedWorker to a SingleWorker.")
                         subworker = SingleWorker.from_a_worker(subworker)
@@ -57,10 +56,9 @@ class HybridMonteCarlo(MonteCarlo):
                     raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
             elif subprocedure.startswith("worker"):
                 worker_name = subprocedure.split("_")[1]
-                worker_params = self.extra_workers.get(worker_name, None)
-                worker_params["potter"] = self.worker.potter  # use potter from the main worker
-                if worker_params is not None:
-                    subworker = canonicalise_worker(worker_params)
+                runtime_config = self.extra_workers.get(worker_name, None)
+                if runtime_config is not None:
+                    subworker = create_worker(runtime_config)
                     assert subworker is not None, f"Unknown worker {worker_name} in extra_workers."
                     # if isinstance(subworker, DriverBasedWorker):
                     #     self._print("Convert a DriverBasedWorker to a SingleWorker.")
@@ -268,8 +266,9 @@ class HybridMonteCarlo(MonteCarlo):
             _, self._protype_workers = self._parse_procedure()
 
         target_worker = self._protype_workers[0]  # dynamics
-        if hasattr(target_worker.potter, "remove_loaded_models"):
-            target_worker.potter.remove_loaded_models()
+        potential = target_worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
 
         # Find all directories start with step
         working_directories = sorted(self.directory.glob("step.*"), key=lambda x: int(x.name.split(".")[1]))

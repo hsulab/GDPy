@@ -3,7 +3,7 @@ import json
 
 from ase import Atoms
 
-from gdpx.compute import (
+from gdpx.execution.lifecycle import (
     PlanConflictError,
     collect_compute,
     inspect_compute,
@@ -15,14 +15,14 @@ from gdpx.compute import (
 
 def _emt_config():
     return {
-        "potential": {"name": "emt", "params": {"backend": "ase"}},
-        "driver": {
-            "task": "min",
-            "backend": "ase",
-            "init": {"dump_period": 1},
-            "run": {"steps": 1, "fmax": 0.5},
-            "random_seed": 17,
+        "schema_version": 2,
+        "potential": {"provider": "emt", "parameters": {}},
+        "executor": {
+            "provider": "ase",
+            "method": "min",
+            "parameters": {"dump_period": 1, "steps": 1, "fmax": 0.5, "random_seed": 17},
         },
+        "options": {},
     }
 
 
@@ -37,8 +37,8 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
     plan = prepare_compute(config, [_cu()], tmp_path)
 
     assert config == original
-    assert plan.config["potter"] == original["potential"]
-    assert "potential" not in plan.config
+    assert plan.config["potential"] == original["potential"]
+    assert plan.schema_version == 2
     assert plan.path.exists()
     assert not (tmp_path / "_local_jobs.json").exists()
     assert (tmp_path / "_data" / "scripts" / "run-w0-b0.script").exists()
@@ -84,8 +84,8 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
 
 def test_submit_all_dry_run_scheduler_batches(tmp_path):
     config = _emt_config()
-    config["scheduler"] = {"backend": "slurm", "is_dry_run": True}
-    config["batchsize"] = 1
+    config["scheduler"] = {"provider": "slurm", "parameters": {"is_dry_run": True}}
+    config["options"] = {"batch_size": 1}
     second = _cu()
     second.positions[0, 0] = 0.1
     plan = prepare_compute(config, [_cu(), second], tmp_path)

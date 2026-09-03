@@ -8,6 +8,7 @@ from gdpx.providers import (
     DuplicateProviderError,
     MissingCapabilityError,
     Provider,
+    ProviderConfigurationError,
     ProviderManager,
     RuntimeConfig,
     UnknownProviderError,
@@ -81,6 +82,7 @@ def test_potential_method_round_trips_and_selects_factory():
         "potential": {"provider": "models", "method": "small", "parameters": {}},
         "modifiers": [],
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
+        "options": {},
     }
     config = RuntimeConfig.from_mapping(source)
 
@@ -103,7 +105,7 @@ def test_schema_v2_is_immutable_and_round_trips():
         "modifiers": [],
         "executor": {"provider": "lammps", "method": "md", "parameters": {"steps": 10}},
         "scheduler": {"provider": "local", "parameters": {}},
-        "batchsize": 2,
+        "options": {"batch_size": 2},
     }
     original = copy.deepcopy(source)
     config = RuntimeConfig.from_mapping(source)
@@ -114,7 +116,7 @@ def test_schema_v2_is_immutable_and_round_trips():
     assert original == config.to_dict()
 
 
-def test_legacy_runtime_translation_does_not_mutate_input():
+def test_legacy_runtime_is_rejected_without_mutating_input():
     source = {
         "potter": {"name": "deepmd", "params": {"backend": "ase", "model": "m.pb"}},
         "driver": {"backend": "external", "task": "md", "steps": 20},
@@ -123,40 +125,24 @@ def test_legacy_runtime_translation_does_not_mutate_input():
     }
     original = copy.deepcopy(source)
 
-    with pytest.warns(DeprecationWarning):
-        config = RuntimeConfig.from_mapping(source)
+    with pytest.raises(ProviderConfigurationError, match="Legacy fields found: driver, potter"):
+        RuntimeConfig.from_mapping(source)
 
     assert source == original
-    assert config.potential.provider == "deepmd"
-    assert config.executor.provider == "ase"
-    assert config.executor.method == "md"
-    assert config.executor.parameters["steps"] == 20
-    assert config.scheduler.provider == "local"
-    assert config.options["batchsize"] == 4
-    assert config.to_dict()["schema_version"] == 2
 
 
-def test_legacy_dimer_controller_maps_to_explicit_method():
-    with pytest.warns(DeprecationWarning):
-        config = RuntimeConfig.from_mapping(
+def test_legacy_dimer_controller_is_rejected():
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 2"):
+        RuntimeConfig.from_mapping(
             {
                 "potential": {"name": "cp2k", "params": {"backend": "cp2k"}},
                 "driver": {"task": "ts", "controller": {"name": "dimer_ts"}},
             }
         )
 
-    assert config.executor.method == "dimer"
-
-
-def test_every_builtin_potential_is_exposed_through_provider_manager():
-    from gdpx.potential import REGISTER
+def test_builtin_potentials_are_exposed_through_provider_manager():
     from gdpx.providers import get_provider_manager
 
     manager = get_provider_manager()
-    missing = []
-    for name in REGISTER.keys():
-        try:
-            manager.require(name, CapabilityKind.POTENTIAL, "default")
-        except (UnknownProviderError, MissingCapabilityError):
-            missing.append(name)
-    assert not missing
+    for name in ("emt", "deepmd", "mace", "nequip", "reann"):
+        assert manager.require(name, CapabilityKind.POTENTIAL, "default")

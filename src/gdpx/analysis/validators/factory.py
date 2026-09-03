@@ -4,7 +4,7 @@ from typing import Union
 from . import REGISTER as VALIDATOR_REGISTER
 from .validator import BaseValidator
 from gdpx.structures.builders import canonicalise_builder
-from gdpx.execution.factory import canonicalise_worker
+from gdpx.execution.factory import create_worker
 
 
 def canonicalise_validator(
@@ -26,8 +26,9 @@ def canonicalise_validator(
                 config["structures"] = resolved
             else:
                 config["structures"] = canonicalise_builder(structures)
-        if config.get("worker") is not None:
-            config["worker"] = canonicalise_worker(config["worker"])
+        runtime = config.pop("runtime", None)
+        if runtime is not None:
+            config["worker"] = create_worker(runtime)
         validator = VALIDATOR_REGISTER[method](**config)
     else:
         if not isinstance(config, BaseValidator):

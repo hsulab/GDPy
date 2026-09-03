@@ -3,7 +3,7 @@
 
 import pytest
 
-from gdpx.builder.species import MoleculeBuilder
+from gdpx.structures.builders.species import MoleculeBuilder
 
 
 def test_molecule():

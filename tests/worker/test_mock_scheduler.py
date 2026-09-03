@@ -1,4 +1,4 @@
-from gdpx.scheduler.scheduler import BaseScheduler
+from gdpx.execution.schedulers.scheduler import BaseScheduler
 
 
 class MockScheduler(BaseScheduler):

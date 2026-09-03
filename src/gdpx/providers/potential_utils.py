@@ -2,16 +2,10 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import pathlib
-from typing import Any, Optional, Union
-
-import omegaconf
+from typing import Union
 
 from gdpx.providers.ase.backend import CommitteeCalculator
-from gdpx.utils.parser import parse_input_file
-
-from .manager_base import BasePotentialManager
 
 
 def canonicalise_input_models(model: Union[str, list[str]], must_exist: bool = True) -> list[str]:
@@ -88,44 +82,6 @@ def canonicalise_plumed_for_lammps(params: dict) -> dict:
     )
 
     return new_params
-
-
-def potter_from_dict(inp_dict: dict) -> "BasePotentialManager":
-    """"""
-    name = inp_dict.get("name", None)
-    if name is None:
-        raise Exception(f"The input dictionary `{inp_dict}` does not define a valid potter.")
-    from gdpx.providers.compat_registry import REGISTER as manager_registry
-
-    potter = manager_registry[name]()
-    potter.register_calculator(inp_dict.get("params", {}))
-    potter.version = inp_dict.get("version", "unknown")
-
-    return potter
-
-
-def convert_input_to_potter(inp: Any) -> Optional["BasePotentialManager"]:
-    """Convert an input to a potter and adjust its behaviour."""
-    potter = None
-    if isinstance(inp, BasePotentialManager):
-        potter = inp
-    elif isinstance(inp, dict) or isinstance(inp, omegaconf.dictconfig.DictConfig):
-        # DictConfig must be cast to dict as sometimes it cannot be overwritten.
-        if isinstance(inp, omegaconf.dictconfig.DictConfig):
-            inp = omegaconf.OmegaConf.to_object(inp)
-        assert isinstance(inp, dict)
-        potter_params = copy.deepcopy(inp)
-        potter = potter_from_dict(potter_params)
-    elif isinstance(inp, str) or isinstance(inp, pathlib.Path):
-        if pathlib.Path(inp).exists():
-            potter_params = parse_input_file(input_fpath=inp)
-            potter = potter_from_dict(potter_params)
-        else:
-            raise RuntimeError(f"The potter configuration `{inp}` does not exist.")
-    else:
-        raise RuntimeError(f"Unknown {inp} of type {type(inp)} for the potter.")
-
-    return potter
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ jax = pytest.importorskip("jax")
 import jax.numpy as jnp
 import numpy as np
 
-from gdpx.bias.harmonic.distance import (
+from gdpx.modifiers.bias.harmonic.distance import (
     compute_distance, compute_distance_harmonic_energy_and_forces)
 
 
