@@ -1,0 +1,82 @@
+"""Compose provider capabilities into executable runtimes."""
+
+import importlib
+from typing import Any, Mapping, Union
+
+from gdpx.providers.capabilities import CapabilityKind
+from gdpx.providers.configuration import RuntimeConfig
+from gdpx.providers.specs import Materialization
+from gdpx.providers.targets import AseCalculatorMaterialization
+
+from .runtime import Runtime
+
+
+class RuntimeResolver:
+    def __init__(self, providers: Any) -> None:
+        self.providers = providers
+
+    def resolve(self, value: Union[RuntimeConfig, Mapping[str, Any]]) -> Runtime:
+        config = value if isinstance(value, RuntimeConfig) else RuntimeConfig.from_mapping(value)
+        potential_factory = self.providers.require(config.potential.provider, CapabilityKind.POTENTIAL, "default")
+        potential = potential_factory.create(config.potential.parameters)
+        executor_factory = self.providers.require(
+            config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
+        )
+        target = getattr(executor_factory, "target", None)
+        if target is None:
+            materialization = Materialization(
+                target=f"{config.executor.provider}.legacy",
+                payload=getattr(potential, "calc", potential),
+            )
+            executor = executor_factory.create(config.executor.parameters, potential=potential)
+        else:
+            materializer = self.providers.require(
+                config.potential.provider, CapabilityKind.MATERIALIZER, target
+            )
+            materialization = materializer.materialize(potential, target)
+            modifier_instances = self._create_modifiers(config)
+            materialization = self._apply_modifiers(materialization, target, modifier_instances)
+            executor = executor_factory.create(
+                config.executor.parameters,
+                potential=potential,
+                materialization=materialization,
+            )
+        return Runtime(
+            potential=config.potential_spec(),
+            materialization=materialization,
+            executor=executor,
+            modifiers=config.modifier_specs(),
+            config=config,
+            provider_potential=potential,
+            modifier_instances=modifier_instances if target is not None else (),
+        )
+
+    def _create_modifiers(self, config):
+        instances = []
+        for component in config.modifiers:
+            factory = self.providers.require(
+                component.provider, CapabilityKind.MODIFIER, component.method
+            )
+            instances.append(factory.create(component.parameters))
+        return tuple(instances)
+
+    @staticmethod
+    def _apply_modifiers(materialization, target, modifiers):
+        if not modifiers:
+            return materialization
+        if target != "ase.calculator" or not isinstance(materialization, AseCalculatorMaterialization):
+            raise ValueError(
+                f"Modifiers are not supported by materialization target {target!r}; "
+                "select an ASE executor or install a target-specific modifier provider."
+            )
+        from gdpx.backend.ase import EnhancedCalculator
+
+        calculator = EnhancedCalculator([materialization.calculator, *modifiers])
+        return AseCalculatorMaterialization(calculator, materialization.artifacts)
+
+
+def resolve_runtime(value, providers=None) -> Runtime:
+    if providers is None:
+        provider_module = importlib.import_module("gdpx.providers.manager")
+        providers = provider_module.get_provider_manager()
+    return RuntimeResolver(providers).resolve(value)

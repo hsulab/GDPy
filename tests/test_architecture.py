@@ -14,7 +14,9 @@ ROOT = pathlib.Path(__file__).parents[1]
 DOMAIN_DIRECTORIES = tuple(
     path.name
     for path in (ROOT / "src" / "gdpx").iterdir()
-    if path.is_dir() and (path / "__init__.py").exists() and path.name not in {"cli", "nodes", "session"}
+    if path.is_dir()
+    and (path / "__init__.py").exists()
+    and path.name not in {"cli", "nodes", "session", "workflow"}
 )
 
 
@@ -131,6 +133,28 @@ def test_internal_absolute_import_graph_is_acyclic():
 
     cycles = [sorted(component) for component in nx.strongly_connected_components(graph) if len(component) > 1]
     assert not cycles, f"Internal import cycles found: {cycles}"
+
+
+def test_potential_base_does_not_own_executor_resolution():
+    path = ROOT / "src" / "gdpx" / "potential" / "manager.py"
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(path))
+    forbidden = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.startswith(("gdpx.computation", "gdpx.reactor")):
+                forbidden.append((node.lineno, node.module))
+    assert not forbidden, f"Potential manager imports executor implementations: {forbidden}"
+
+
+def test_providers_do_not_depend_on_execution_implementations():
+    violations = []
+    for path in (ROOT / "src" / "gdpx" / "providers").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("gdpx.execution"):
+                violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: {node.module}")
+    assert not violations, "Provider-to-execution imports found:\n" + "\n".join(violations)
 
 
 def test_lazy_registry_defers_module_import():

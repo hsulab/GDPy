@@ -4,8 +4,7 @@ from typing import Any, Optional, Union
 
 from gdpx.core.component import BaseComponent
 from gdpx.data.array import AtomsNDArray
-from gdpx.dataloader.dataset import AbstractDataloader
-from gdpx.worker.drive import DriverBasedWorker
+from gdpx.execution.service import ExecutionService, WorkerExecutionService
 
 
 def canonicalise_structures_to_validate(structures) -> dict[str, Any]:
@@ -33,7 +32,7 @@ def canonicalise_structures_to_validate(structures) -> dict[str, Any]:
             ...
         elif isinstance(v, AtomsNDArray):
             ...
-        elif isinstance(v, AbstractDataloader):
+        elif hasattr(v, "load_frames"):
             v = v.load_frames()
         else:
             raise Exception(f"{k} structures {type(v)} is not a dict or loader.")
@@ -46,7 +45,8 @@ class BaseValidator(BaseComponent):
     def __init__(
         self,
         structures: Optional[Any] = None,
-        worker: Optional[DriverBasedWorker] = None,
+        worker: Optional[Any] = None,
+        execution: Optional[ExecutionService] = None,
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Optional[Union[int, dict]] = None,
         n_jobs: Optional[int] = None,
@@ -61,6 +61,7 @@ class BaseValidator(BaseComponent):
 
         self.structures = structures
         self.worker = worker
+        self.execution = execution or (WorkerExecutionService(worker) if worker is not None else None)
 
         return
 

@@ -48,6 +48,9 @@ WORKFLOW_MODULES = (
 def bootstrap_registries(custom_module_paths=None, *, disable_import_info: bool = False) -> None:
     """Load domain registries, workers, workflow adapters, and plugins in order."""
     errors = []
+    from gdpx.providers import get_provider_manager
+
+    registers.provider = get_provider_manager()
     for registry_name, module_name in DOMAIN_REGISTRIES:
         try:
             module = importlib.import_module(f"gdpx.{module_name}")
