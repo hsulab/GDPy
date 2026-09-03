@@ -1,9 +1,13 @@
-potter:
-  name: vasp
-  params:
-    backend: vasp
+schema_version: 2
+potential:
+  provider: vasp
+  parameters:
     command: mpirun -n 4 vasp_gam 2>&1 > vasp.out
     incar: ./assets/INCAR
     kpts: [1, 1, 1]
     pp_path: ./assets
     # vdw_path: /home/jx1279/apps/vasp/potpaw
+executor:
+  provider: vasp
+  method: spc
+  parameters: {}

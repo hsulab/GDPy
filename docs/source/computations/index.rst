@@ -3,203 +3,69 @@
 Computations
 ============
 
-This section gives more details how to run basic simulations with different potentials 
-using a unified input file, which is generally made up of three components. We 
-need to define what potential to use in the **potential** section, what simulation to run 
-in the **driver** section, and finally what **scheduler** to delegate if necessary. 
-See Worker_Examples_ in the GDPy repository for prepared input files.
+Every computation is described by one schema-v2 runtime: a potential, an
+executor, optional modifiers, and an optional scheduler. The potential defines
+the model; the executor defines the software and calculation method.
 
-.. _Worker_Examples: https://github.com/hsulab/GDPy/tree/main/examples/computations/worker
+.. code-block:: yaml
 
-The related commands are 
+    schema_version: 2
+    potential:
+      provider: deepmd
+      parameters:
+        model: ./graph.pb
+        type_list: [H, O]
+    executor:
+      provider: ase
+      method: md
+      parameters:
+        ensemble: nvt
+        temp: 300
+        timestep: 1.0
+        steps: 1000
+        dump_period: 10
+    scheduler:
+      provider: local
+      parameters: {}
+    options:
+      batch_size: 1
 
-.. code-block:: shell
+Run it with::
 
-    # gdp -h for more info
-    $ gdp -h
-
-    # --- run simulations on local nodes or submitted to job queues
-    $ gdp -p ./worker.yaml compute ./structures.xyz
-
-    # - if -d option is used, results would be written to the folder `./results`
-    $ gdp -d ./results -p ./worker.yaml compute ./structures.xyz
+    gdp --runtime runtime.yaml compute structures.xyz
 
 Compute lifecycle
 -----------------
 
-The traditional command above remains available and performs the complete compute
-lifecycle.  For automation, the lifecycle can also be controlled explicitly::
+The lifecycle can be controlled explicitly::
 
-    $ gdp -d ./results -p ./worker.yaml compute prepare ./structures.xyz
-    $ gdp -d ./results compute submit
-    $ gdp -d ./results compute status
-    $ gdp -d ./results compute collect
+    gdp -d results -r runtime.yaml compute prepare structures.xyz
+    gdp -d results compute submit
+    gdp -d results compute status
+    gdp -d results compute resubmit --batch 0
+    gdp -d results compute collect
 
-``prepare`` creates ``_data/compute-plan.json`` with a snapshot of the structures,
-normalised configuration, task pairing, batches, and random seeds.  It does not run
-or submit a simulation.  ``submit`` consumes that plan, while ``status`` only
-inspects it and never resubmits work.  An incomplete batch can be resubmitted
-explicitly with ``compute resubmit --batch N``.
+``prepare`` writes a versioned plan without submitting work. ``status`` is
+read-only, and resubmission is always explicit.
 
-An example input file (`worker.yaml`) is organised as follows: 
-
-.. code-block:: yaml
-
-    potential:
-        ... # define the backend, the model path and the specific parameters
-    driver:
-        ... # define the init and the run parameters of a simulation
-    scheduler:
-        ... # define a scheduler 
-
-Potential
+Executors
 ---------
 
-Potential is the engine to drive any simulation. See :ref:`Potential Examples` 
-section for more details on how to define a potential. 
+Use ``spc`` for single-point evaluation, ``min`` for minimization, and ``md``
+for molecular dynamics. Executor parameters are flat settings such as
+``steps``, ``fmax``, ``constraint``, ``ensemble``, and ``dump_period``.
 
+Transition-state executors have two shapes. ``dimer`` is local and consumes
+one replica; ``neb`` is a path executor and consumes endpoints or an ordered
+image sequence.
 
-.. _Driver Examples:
+Schedulers and batching
+-----------------------
 
-Driver
-------
+If ``scheduler`` is omitted, GDPy uses the local scheduler. Queue schedulers
+are provider components with their submission settings in ``parameters``.
+``options.batch_size`` controls how many structures are assigned to a task.
 
-The driver supports **minisation**, **molecular dynamics**, and **transition state search**. 
-For the **driver** section, `backend`, `task`, `init`, and `run` should be specified 
-for each simulation. If an `external` backend is used, the minimisation would use 
-the same backend defined in the **potential** section if it is valid. 
-
-An example input file (`worker.yaml`) is
-
-.. code-block:: yaml
-
-    driver:
-        backend: external # options are external, ase, lammps, and lasp
-        task: min         # options are min, md, and ts
-        init:
-            ...           # initialisation parameters
-        run:
-            ...           # running parameters
-
-Constraints
-___________
-
-Constraints are of great help when simulating some systems, for instance, surfaces. 
-There are two ways to fix atoms in structures. The constraints could be either stored
-in the structure file (e.g. move_mask of xyz and FractionalXYZ of xsd) or specified 
-in `run: constraints`. If the latter one is used, the file-attached constraints would 
-be overridden. 
-
-Constraints can be specified as:
-
-.. code-block:: yaml
-
-    # 1. similiar to lammps group definition by atom ids
-    run:
-        # fix atoms with indices 1,2,3,4, 6,7,8, starting from 1
-        constraints: "1:4 6:8"
-
-    # 2. useful for surface systems
-    run:
-        # fix 8 atoms with the smallest z-coordinates
-        # NOTE: this does not consider PBC...
-        constraints: "lowest 8"
-
-
-Minimisation
-____________
-
-To drive a minisation, the minimal parameetrs are `steps` and `fmax`. Specific 
-minisation algorithm can be defined in `init: min_style: ...`. The default `min_style` 
-is `BFGS` for the `ase` backend while `fire` for the `lammps` backend.
-
-.. code-block:: yaml
-
-    driver:
-        backend: external
-        task: min
-        init:
-            min_style: bfgs
-        run:
-            steps: 200 # number of steps
-            fmax: 0.05 # unit eV/AA, convergence criteria for atomic forces
-
-Molecular Dynamics
-__________________
-
-To driver a molecular dynamics, thermostat and related parameters need to set in 
-`init: ...`. Three thermostats are supported both by `ase` and `lammps`, 
-which are nve, nvt and npt.
-
-.. code-block:: yaml
-
-    driver:
-        backend: external
-        task: md
-        init:
-            # 1. NVE
-            md_style: nve # options are nve, nvt, and npt
-            timestep: 2.0 # fs, verlet integration timestep
-            # 2. NVT 
-            #md_style: nvt # options are nve, nvt, and npt
-            #timestep: 2.0 # fs, verlet integration timestep
-            #temp: 300     # Kelvin, temperature
-            #Tdamp: 100    # fs, temperature control frequency
-            # 3. NPT
-            #md_style: nvt # options are nve, nvt, and npt
-            #timestep: 2.0 # fs, verlet integration timestep
-            #temp: 300     # Kelvin, temperature
-            #Tdamp: 100    # fs, Heatbath frequency
-            #pres: 1.0     # atm, equilibrium pressure
-            #Pdamp: 100    # fs, pressure control frequency
-        run:
-            steps: 200 # number of steps
-
-Transition-State Search
-_______________________
-
-We are working on the interface to methods of Sella_ using the `ase` backend 
-and NEB using the `lammps` backend.
-
-.. _Sella: https://github.com/zadorlab/sella
-
-
-Worker
-------
-
-If the **scheduler** section is defined in the input file (`worker.yaml`), a worker 
-would be created to delegate simulations to the queue. Instead of using server 
-database, we implement a light-weight file-based database using TinyDB_ to manage jobs.
-
-.. _TinyDB: https://tinydb.readthedocs.io
-
-Currently, we only support the **slurm** scheduler. The definition is 
-
-.. code-block:: yaml
-
-    scheduler:
-        backend: slurm
-        ...
-        # SLURM-PARAMETERS
-        ntasks: ...
-        time: ...
-        ...
-        environs: "conda activte py37" # working environment setting
-
-An additional keyword **batchsize** can be set in the input file as 
-
-.. code-block:: yaml
-
-    batchsize: 3
-    potential:
-        ...
-    driver:
-        ...
-    scheduler:
-        ...
-
-which would split the input structures into groups that run as separate jobs. 
-For example, two jobs would be submitted if we set a **batchsize** of 3 and have 
-5 input structures. The first job would have 3 structures and the second one would 
-have 2 structures. The default **batchsize** is 1 that one structure would occupy 
-one job.
+For multiple independent calculations, provide an explicit list of complete
+runtimes. For sequential calculations, provide an explicit nested runtime
+chain. GDPy does not broadcast components or construct a Cartesian grid.

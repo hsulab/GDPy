@@ -1,22 +1,22 @@
-potter:
-  name: vasp
-  params:
-    backend: vasp
+schema_version: 2
+potential:
+  provider: vasp
+  parameters:
     command: mpirun -n 4 vasp_gam 2>&1 > vasp.out
     incar: ./assets/INCAR
     kpts: [1, 1, 1]
     pp_path: ./assets
     # vdw_path: /home/jx1279/apps/vasp/potpaw
-driver:
-  task: md
-  random_seed: 1112
-  init:
+executor:
+  provider: vasp
+  method: md
+  parameters:
+    random_seed: 1112
     velocity_seed: 1112
     ensemble: nvt
     controller:
       name: langevin
       params:
         friction: 0.01 # fs^-1
-  run:
     steps: 5
     #constraint: "1:4"

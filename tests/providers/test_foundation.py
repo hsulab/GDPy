@@ -50,6 +50,53 @@ def test_provider_manager_loads_lazy_provider_once():
     assert len(calls) == 1
 
 
+def test_provider_manager_discovers_entry_points_lazily(monkeypatch):
+    loaded = []
+
+    class EntryPoint:
+        name = "external"
+
+        def load(self):
+            loaded.append(True)
+            return lambda: Provider("external")
+
+    class EntryPoints(list):
+        def select(self, *, group):
+            assert group == "gdpx.providers"
+            return self
+
+    monkeypatch.setattr(
+        "gdpx.providers.manager.importlib.metadata.entry_points",
+        lambda: EntryPoints([EntryPoint()]),
+    )
+    manager = ProviderManager()
+    manager.discover()
+
+    assert loaded == []
+    assert manager.get("external").name == "external"
+    assert loaded == [True]
+
+
+def test_training_parameters_are_thawed_before_factory_use():
+    received = []
+
+    class TrainerFactory:
+        def create(self, parameters, **context):
+            parameters["nested"]["epochs"] = 2
+            received.append(parameters)
+            return object()
+
+    manager = ProviderManager()
+    manager.register(
+        Provider("demo", capabilities={CapabilityKind.TRAINER: {"default": TrainerFactory()}})
+    )
+    manager.create_training(
+        {"provider": "demo", "parameters": {"nested": {"epochs": 1}}}
+    )
+
+    assert received == [{"nested": {"epochs": 2}}]
+
+
 def test_provider_manager_extends_distinct_capabilities():
     manager = ProviderManager()
     potential = object()

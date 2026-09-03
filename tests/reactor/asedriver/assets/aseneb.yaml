@@ -1,12 +1,15 @@
-type: reactor
-potter: 
-  name: emt
-driver:
-  init:
+schema_version: 2
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: neb
+  parameters:
     dump_period: 2
     nimages: 3
-    mic: false
-  run:
+    interpolation:
+      mic: false
     fmax: 0.08
     steps: 5
     constraint: "1:8"

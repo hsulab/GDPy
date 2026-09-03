@@ -44,7 +44,7 @@ LAMMPS_PROVIDER = Provider(
     version="1",
     capabilities={
         CapabilityKind.EXECUTOR: {
-            method: LammpsExecutorFactory(method) for method in ("min", "md")
+            method: LammpsExecutorFactory(method) for method in ("spc", "min", "md")
         }
     },
 )

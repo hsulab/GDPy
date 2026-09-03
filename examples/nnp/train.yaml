@@ -1,40 +1,41 @@
 trainer:
-  name: nnp
-  config:
-    n_epochs: 500
-    learning_rate:
-      start: 0.003
-      stop: 1.0e-6
-    loss:
-      start_pref_e: 0.02
-      limit_pref_e: 1.0
-      start_pref_f: 1000.0
-      limit_pref_f: 1.0
-    batch_size: 8
-    shuffle: true
-    validation_fraction: 0.2
-    early_stopping_patience: 200
-    max_grad_norm: 1.0
-    verbose: 100
-  calculator_params:
-    elements: ["Cu", "Au"]
-    g2_params:
-      - [0.05, 0.0]
-      - [0.2,  0.0]
-      - [0.5,  1.5]
-      - [0.5,  2.5]
-      - [0.5,  3.5]
-      - [0.5,  4.5]
-      - [0.5,  5.5]
-    g4_params:
-      - [0.005, 1.0,  1.0]
-      - [0.005, 1.0, -1.0]
-      - [0.01,  2.0,  1.0]
-      - [0.01,  2.0, -1.0]
-      - [0.02,  4.0,  1.0]
-      - [0.02,  4.0, -1.0]
-    r_cut: 6.0
-    hidden_sizes: [64, 64]
+  provider: nnp
+  parameters:
+    config:
+      n_epochs: 500
+      learning_rate:
+        start: 0.003
+        stop: 1.0e-6
+      loss:
+        start_pref_e: 0.02
+        limit_pref_e: 1.0
+        start_pref_f: 1000.0
+        limit_pref_f: 1.0
+      batch_size: 8
+      shuffle: true
+      validation_fraction: 0.2
+      early_stopping_patience: 200
+      max_grad_norm: 1.0
+      verbose: 100
+    calculator_params:
+      elements: ["Cu", "Au"]
+      g2_params:
+        - [0.05, 0.0]
+        - [0.2,  0.0]
+        - [0.5,  1.5]
+        - [0.5,  2.5]
+        - [0.5,  3.5]
+        - [0.5,  4.5]
+        - [0.5,  5.5]
+      g4_params:
+        - [0.005, 1.0,  1.0]
+        - [0.005, 1.0, -1.0]
+        - [0.01,  2.0,  1.0]
+        - [0.01,  2.0, -1.0]
+        - [0.02,  4.0,  1.0]
+        - [0.02,  4.0, -1.0]
+      r_cut: 6.0
+      hidden_sizes: [64, 64]
 
 dataset:
   name: single_xyz

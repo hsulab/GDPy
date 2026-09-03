@@ -1,6 +1,10 @@
-potter:
-  name: reax
-  params:
-    backend: lammps
+schema_version: 2
+potential:
+  provider: reax
+  parameters:
     command: lmp_mpi -in ./in.lammps 2>&1 > lmp.out
     model: ./assets/ffield.PdO
+executor:
+  provider: lammps
+  method: spc
+  parameters: {}

@@ -568,7 +568,7 @@ class BaseDriver(BaseComponent):
         for a in traj_frames:
             if a.info["step"] % self.setting.dump_period == 0:
                 frames.append(a)
-        if traj_frames[-1].info["step"] % self.setting.dump_period != 0:
+        if traj_frames and traj_frames[-1].info["step"] % self.setting.dump_period != 0:
             frames.append(traj_frames[-1])
 
         return frames

@@ -15,13 +15,12 @@ from gdpx.execution.factory import create_worker, create_workers
 def emt_config():
     """"""
     params = dict(
+        schema_version=2,
         potential=dict(
-            name="emt",
-            # params = dict(
-            #    backend = "emt"
-            # )
+            provider="emt",
+            parameters={},
         ),
-        driver=dict(backend="ase"),
+        executor=dict(provider="ase", method="spc", parameters={}),
     )
 
     return params
@@ -31,18 +30,20 @@ def emt_config():
 def emt_md_config():
     """"""
     params = dict(
+        schema_version=2,
         potential=dict(
-            name="emt",
-            # params = dict(
-            #    backend = "emt"
-            # )
+            provider="emt",
+            parameters={},
         ),
-        driver=dict(
-            backend="ase",
-            ignore_convergence=True,
-            task="md",
-            init=dict(velocity_seed=1112, dump_period=1),
-            run=dict(steps=10),
+        executor=dict(
+            provider="ase",
+            method="md",
+            parameters=dict(
+                ignore_convergence=True,
+                velocity_seed=1112,
+                dump_period=1,
+                steps=10,
+            ),
         ),
     )
 
@@ -51,7 +52,7 @@ def emt_md_config():
 
 def test_empty(emt_config):
     """"""
-    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
+    worker = create_worker(emt_config)
 
     driver = worker.driver
     driver.directory = "./assets/empty_driver"
@@ -63,7 +64,7 @@ def test_empty(emt_config):
 
 def test_broken_spc(emt_config):
     """"""
-    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
+    worker = create_worker(emt_config)
 
     driver = worker.driver
     driver.directory = "./assets/broken_ase_spc"
@@ -81,7 +82,7 @@ def test_broken_spc(emt_config):
 
 def test_finished_spc(emt_config):
     """"""
-    worker = create_worker(dict(potential=emt_config["potential"], driver=emt_config["driver"]))
+    worker = create_worker(emt_config)
 
     driver = worker.driver
     driver.directory = "./assets/finished_ase_spc"
@@ -100,7 +101,7 @@ def test_finished_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # - run 10 steps
         config = copy.deepcopy(emt_md_config)
-        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
+        worker = create_worker(config)
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -122,7 +123,7 @@ def test_restart_md(emt_md_config):
     with tempfile.TemporaryDirectory() as tmpdir:
         # tmpdir = "./xxx"
         config = copy.deepcopy(emt_md_config)
-        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
+        worker = create_worker(config)
 
         driver = worker.driver
         driver.directory = tmpdir
@@ -137,10 +138,10 @@ def test_restart_md(emt_md_config):
 
         # - run extra 10 steps within the same dir
         config = copy.deepcopy(emt_md_config)
-        config["driver"]["run"]["steps"] = 20
+        config["executor"]["parameters"]["steps"] = 20
         print("new: ", config)
 
-        worker = create_worker(dict(potential=config["potential"], driver=config["driver"]))
+        worker = create_worker(config)
 
         driver = worker.driver
         driver.directory = tmpdir

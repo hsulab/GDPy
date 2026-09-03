@@ -61,7 +61,7 @@ To use GA, the related commands are
     # - explore configuration space defined by `config.yaml` 
     #   results will be written to the `results` folder
     #   a log file will be written to `results/gdp.out` as well
-    $ gdp -d exp -p worker.yaml explore ./config.yaml
+    $ gdp -d exp -r runtime.yaml explore ./config.yaml
 
     # - after GA is converged i.e. reaches the maximum generation,
     #   all found minima will be saved to `./resuslts/results/all_candidates.xyz`

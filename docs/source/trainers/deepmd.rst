@@ -29,11 +29,13 @@ See DEEPMD_ doc for more info about configuration parameters. Example Configurat
       batchsize: 16
       random_seed: 1112
     trainer:
-      name: deepmd
-      config: ./dpconfig.json
-      type_list: ["H", "O"]
-      train_epochs: 10
-      random_seed: 1112
+      provider: deepmd
+      method: default
+      parameters:
+        config: ./dpconfig.json
+        type_list: ["H", "O"]
+        train_epochs: 10
+        random_seed: 1112
     init_model: ../model.ckpt
 
 .. note::

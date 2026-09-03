@@ -17,10 +17,10 @@ from gdpx.execution.factory import create_worker, create_workers
 def espresso_spc_config():
     """"""
     params = dict(
-        potter = dict(
-            name = "espresso",
-            params = dict(
-                backend = "espresso",
+        schema_version = 2,
+        potential = dict(
+            provider = "espresso",
+            parameters = dict(
                 command = "mpirun -n 2 pw.x -in PREFIX.pwi > PREFIX.pwo",
                 pp_path = "/mnt/scratch2/chemistry-apps/dkb01416/espresso/pseudo/oncv_upf",
                 pp_name = "_ONCV_PBE-1.2.upf",
@@ -28,8 +28,10 @@ def espresso_spc_config():
                 kspacing = 0.04,
             )
         ),
-        driver = dict(
-            backend = "ase"
+        executor = dict(
+            provider = "ase",
+            method = "spc",
+            parameters = {},
         )
     )
 

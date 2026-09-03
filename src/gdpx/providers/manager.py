@@ -80,7 +80,11 @@ class ProviderManager:
             else entry_points.get(self.entry_point_group, ())
         )
         for entry_point in selected:
-            self.register_lazy(entry_point.name, entry_point.load)
+            def load_provider(entry=entry_point):
+                exported = entry.load()
+                return exported() if callable(exported) else exported
+
+            self.register_lazy(entry_point.name, load_provider)
         self._discovered = True
 
     def get(self, name: str) -> Provider:
@@ -165,10 +169,11 @@ class ProviderManager:
 
     def create_training(self, config):
         from .configuration import ComponentConfig
+        from .specs import thaw
 
         component = config if isinstance(config, ComponentConfig) else ComponentConfig(**config)
         factory = self.require(component.provider, CapabilityKind.TRAINER, component.method or "default")
-        return factory.create(component.parameters)
+        return factory.create(thaw(component.parameters))
 
     def __contains__(self, name: object) -> bool:
         return name in self._providers
