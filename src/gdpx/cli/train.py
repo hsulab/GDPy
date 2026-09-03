@@ -1,8 +1,8 @@
 from ase.io import read
 
 from gdpx import config
-from gdpx.factory.components import create_trainer
-from gdpx.factory.dataloader import create_dataloader
+from gdpx.workflow.factory import create_trainer
+from gdpx.data.loaders.factory import create_dataloader
 from gdpx.utils.parser import parse_input_file
 
 

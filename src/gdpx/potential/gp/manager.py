@@ -1,23 +1,3 @@
-import copy
+r"""Deprecated forwarding module for :mod:\`gdpx.providers.gp.manager\`."""
 
-from gdpx.potential.manager import BasePotentialManager
-
-from .calculator import GPCalculator
-from .serialization import load_model
-
-
-class GaussianProcessManager(BasePotentialManager[GPCalculator]):
-
-    name = "gp"
-    implemented_backends = ("ase",)
-    valid_combinations = (("ase", "ase"),)
-
-    def register_calculator(self, calc_params: dict, **kwargs):
-        super().register_calculator(calc_params, **kwargs)
-
-        params = copy.deepcopy(calc_params)
-        model_paths = params.pop("model", [])
-
-        gp_model = load_model(model_paths[0])
-
-        self.calc = GPCalculator(gp_model=gp_model)
+from gdpx.providers.gp.manager import *  # noqa: F401,F403

@@ -1,6 +1,6 @@
-"""Persisted computation lifecycle compatibility exports."""
+"""Public lifecycle API for ordinary ``gdp compute`` jobs."""
 
-from gdpx.compute import (
+from .service import (
     BatchResult,
     ComputePlan,
     ComputeResult,
@@ -17,8 +17,17 @@ from gdpx.compute import (
 )
 
 __all__ = [
-    "BatchResult", "ComputePlan", "ComputeResult", "ComputeStatus", "PlanConflictError", "collect_compute",
-    "inspect_compute", "load_compute_plan", "orchestrate_compute", "prepare_compute", "resubmit_compute",
-    "run_compute_batch", "submit_compute",
+    "BatchResult",
+    "ComputePlan",
+    "ComputeResult",
+    "ComputeStatus",
+    "PlanConflictError",
+    "collect_compute",
+    "inspect_compute",
+    "load_compute_plan",
+    "orchestrate_compute",
+    "prepare_compute",
+    "resubmit_compute",
+    "run_compute_batch",
+    "submit_compute",
 ]
-

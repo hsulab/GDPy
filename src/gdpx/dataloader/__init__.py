@@ -1,32 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated compatibility namespace for :mod:`gdpx.data.loaders`."""
 
+import warnings
 
-from gdpx.core.register import BaseRegister
+warnings.warn(
+    "gdpx.dataloader is deprecated; import from gdpx.data.loaders.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-REGISTER = BaseRegister("dataloader")
-
-from .singlexyz import SingleXyzDataloader
-
-REGISTER.register("single_xyz")(SingleXyzDataloader)
-REGISTER.register(SingleXyzDataloader)
-
-from .dataset import XyzDataloader
-
-REGISTER.register(XyzDataloader)
-
-from .deepmd import DeepmdDataloader
-
-REGISTER.register(DeepmdDataloader)
-
-from .mace import MaceDataloader
-
-REGISTER.register(MaceDataloader)
-
-from .reann import ReannDataloader
-
-REGISTER.register(ReannDataloader)
-
-
-if __name__ == "__main__":
-    ...
+from gdpx.data.loaders import *  # noqa: E402,F401,F403

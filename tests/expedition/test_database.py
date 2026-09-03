@@ -1,7 +1,7 @@
 import pytest
 from ase import Atoms
 
-from gdpx.expedition.persist.database import GlobalOptimisationDatabase
+from gdpx.exploration.persist.database import GlobalOptimisationDatabase
 
 
 def test_add_unrelaxed_candidate_updates_in_memory_metadata(tmp_path):

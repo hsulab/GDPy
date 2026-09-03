@@ -12,14 +12,14 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.compute.runtime import create_computer
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.factory.computer import create_workers
-from gdpx.factory.scheduler import canonicalise_scheduler
-from gdpx.reactor.reactor import BaseReactor
+from gdpx.execution.lifecycle.runtime import create_computer
+from gdpx.structures.builders.factory import canonicalise_builder
+from gdpx.execution.factory import create_workers
+from gdpx.execution.schedulers.factory import canonicalise_scheduler
+from gdpx.execution.reactor import BaseReactor
 from gdpx.utils.parser import parse_input_file
-from gdpx.worker.drive import DriverBasedWorker
-from gdpx.worker.grid import GridDriverBasedWorker
+from gdpx.execution.workers.drive import DriverBasedWorker
+from gdpx.execution.workers.grid import GridDriverBasedWorker
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
 
@@ -27,7 +27,7 @@ DEFAULT_MAIN_DIRNAME = "MyWorker"
 def __getattr__(name):
     """Lazy compatibility exports for callers that still use workflow Variables."""
     if name in {"ComputerVariable", "ComputerChainVariable"}:
-        from gdpx.nodes import computer as computer_nodes
+        from gdpx.workflow.nodes import computer as computer_nodes
 
         return getattr(computer_nodes, name)
     raise AttributeError(name)
@@ -263,7 +263,7 @@ def run_computation(
     action = structure[0] if structure and structure[0] in lifecycle_actions else None
 
     if action is not None:
-        from gdpx.compute import (
+        from gdpx.execution.lifecycle import (
             collect_compute,
             inspect_compute,
             prepare_compute,
@@ -307,7 +307,7 @@ def run_computation(
 
         parsed = parse_input_file(computer) if isinstance(computer, (str, pathlib.Path)) else computer
         if isinstance(parsed, dict):
-            from gdpx.compute import orchestrate_compute, prepare_compute
+            from gdpx.execution.lifecycle import orchestrate_compute, prepare_compute
 
             compute_plan = prepare_compute(parsed, structure, directory)
             result = orchestrate_compute(compute_plan, archive=archive)

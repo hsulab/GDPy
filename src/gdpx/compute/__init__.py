@@ -1,33 +1,11 @@
-"""Public lifecycle API for ordinary ``gdp compute`` jobs."""
+"""Deprecated compatibility namespace for :mod:`gdpx.execution.lifecycle`."""
 
-from .service import (
-    BatchResult,
-    ComputePlan,
-    ComputeResult,
-    ComputeStatus,
-    PlanConflictError,
-    collect_compute,
-    inspect_compute,
-    load_compute_plan,
-    orchestrate_compute,
-    prepare_compute,
-    resubmit_compute,
-    run_compute_batch,
-    submit_compute,
+import warnings
+
+warnings.warn(
+    "gdpx.compute is deprecated; import from gdpx.execution.lifecycle.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
-__all__ = [
-    "BatchResult",
-    "ComputePlan",
-    "ComputeResult",
-    "ComputeStatus",
-    "PlanConflictError",
-    "collect_compute",
-    "inspect_compute",
-    "load_compute_plan",
-    "orchestrate_compute",
-    "prepare_compute",
-    "resubmit_compute",
-    "run_compute_batch",
-    "submit_compute",
-]
+from gdpx.execution.lifecycle import *  # noqa: E402,F401,F403

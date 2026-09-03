@@ -1,23 +1,54 @@
-"""Compatibility exports for execution schedulers."""
-
-from importlib import import_module
-
-__all__ = ["BaseScheduler", "LocalScheduler", "LsfScheduler", "PbsScheduler", "SlurmScheduler"]
-
-_EXPORTS = {
-    "BaseScheduler": ("gdpx.scheduler.scheduler", "BaseScheduler"),
-    "LocalScheduler": ("gdpx.scheduler.local", "LocalScheduler"),
-    "LsfScheduler": ("gdpx.scheduler.lsf", "LsfScheduler"),
-    "PbsScheduler": ("gdpx.scheduler.pbs", "PbsScheduler"),
-    "SlurmScheduler": ("gdpx.scheduler.slurm", "SlurmScheduler"),
-}
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*
 
 
-def __getattr__(name):
-    if name not in _EXPORTS:
-        raise AttributeError(name)
-    module_name, attribute = _EXPORTS[name]
-    value = getattr(import_module(module_name), attribute)
-    globals()[name] = value
-    return value
+"""Create scheduler based on parameters
 
+This module includes several schedulers.
+
+Example:
+
+    .. code-block:: python
+
+        >>> from gdpx.scheduler.local import LocalScheduler
+        >>> params = dict()
+        >>> scheduler = LocalScheduler(**params)
+
+"""
+
+from gdpx import config
+from gdpx.core.register import BaseRegister
+
+REGISTER = BaseRegister("scheduler")
+
+from .scheduler import BaseScheduler
+
+from .local import LocalScheduler
+
+REGISTER.register(LocalScheduler)
+
+from .lsf import LsfScheduler
+
+REGISTER.register(LsfScheduler)
+
+from .pbs import PbsScheduler
+
+REGISTER.register(PbsScheduler)
+
+from .slurm import SlurmScheduler
+
+REGISTER.register(SlurmScheduler)
+
+try:
+    from .remote import RemoteSlurmScheduler
+
+    REGISTER.register(RemoteSlurmScheduler)
+except ImportError as e:
+    config._print(f"  {'Scheduler':<16s} {'`remote`':<16s} -> require `{e.name}`.")
+
+
+__all__ = ["REGISTER", "BaseScheduler", "LocalScheduler", "LsfScheduler", "PbsScheduler", "SlurmScheduler"]
+
+from .factory import canonicalise_scheduler
+
+__all__.append("canonicalise_scheduler")

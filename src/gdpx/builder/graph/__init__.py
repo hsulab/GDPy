@@ -1,13 +1,1 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-from .insert import GraphInsertModifier
-from .remove import GraphRemoveModifier
-from .swap import GraphSwapModifier
-
-__all__ = ["GraphInsertModifier", "GraphRemoveModifier", "GraphSwapModifier"]
-
-
-if __name__ == "__main__":
-    ...
+from gdpx.structures.builders.graph.__init__ import *  # noqa: F401,F403

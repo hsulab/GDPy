@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated forwarding module for :mod:`gdpx.providers.ase.backend`."""
 
-
-from .dummy import DummyCalculator
-from .mixer import CommitteeCalculator, EnhancedCalculator
-
-__all__ = ["DummyCalculator", "CommitteeCalculator", "EnhancedCalculator"]
-
-if __name__ == "__main__":
-    ...
+from gdpx.providers.ase.backend import *  # noqa: F401,F403

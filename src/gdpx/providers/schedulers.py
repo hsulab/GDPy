@@ -21,10 +21,10 @@ class SchedulerFactory:
 
 def scheduler_providers():
     definitions = {
-        "local": ("gdpx.scheduler.local", "LocalScheduler"),
-        "lsf": ("gdpx.scheduler.lsf", "LsfScheduler"),
-        "pbs": ("gdpx.scheduler.pbs", "PbsScheduler"),
-        "slurm": ("gdpx.scheduler.slurm", "SlurmScheduler"),
+        "local": ("gdpx.execution.schedulers.local", "LocalScheduler"),
+        "lsf": ("gdpx.execution.schedulers.lsf", "LsfScheduler"),
+        "pbs": ("gdpx.execution.schedulers.pbs", "PbsScheduler"),
+        "slurm": ("gdpx.execution.schedulers.slurm", "SlurmScheduler"),
     }
     return tuple(
         Provider(
@@ -36,4 +36,3 @@ def scheduler_providers():
         )
         for name, (module, class_name) in definitions.items()
     )
-

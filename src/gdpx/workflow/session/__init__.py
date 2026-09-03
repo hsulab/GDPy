@@ -1,6 +1,5 @@
-"""Session compatibility exports under gdpx.workflow."""
+"""Workflow session implementations."""
 
-from gdpx.session.session import BaseSession, SessionState
+from .session import BaseSession, SessionState
 
 __all__ = ["BaseSession", "SessionState"]
-

@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated forwarding module for :mod:`gdpx.providers.lammps.backend`."""
 
-
-from .deviation import add_model_deviation_to_atoms_info, parse_model_deviation_data
-from .parser import parse_thermo_data, parse_thermo_data_by_pattern
-
-__all__ = [
-    "parse_thermo_data",
-    "parse_thermo_data_by_pattern",
-    "parse_model_deviation_data",
-    "add_model_deviation_to_atoms_info",
-]
-
-
-if __name__ == "__main__":
-    ...
+from gdpx.providers.lammps.backend import *  # noqa: F401,F403

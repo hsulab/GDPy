@@ -3,12 +3,12 @@ import pytest
 from ase import Atoms
 from omegaconf import OmegaConf
 
-from gdpx.builder.random_structure import RandomStructureImprovedModifier
-from gdpx.describer.connectivity import ConnectivityDescriber
-from gdpx.expedition.persist.thanos import dispatch_thanos
-from gdpx.geometry.insert import insert_fragments_by_step
-from gdpx.geometry.restraints import evaluate_restraints, parse_restraints
-from gdpx.geometry.spatial import get_bond_distance_dict
+from gdpx.analysis.descriptors.connectivity import ConnectivityDescriber
+from gdpx.exploration.persist.thanos import dispatch_thanos
+from gdpx.structures.builders.random_structure import RandomStructureImprovedModifier
+from gdpx.structures.geometry.insert import insert_fragments_by_step
+from gdpx.structures.geometry.restraints import evaluate_restraints, parse_restraints
+from gdpx.structures.geometry.spatial import get_bond_distance_dict
 
 
 def make_atoms(symbols, positions, tags=None, pbc=False):

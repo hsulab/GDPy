@@ -1,16 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated compatibility namespace for :mod:`gdpx.modifiers.collective_variables`."""
 
+import warnings
 
-from gdpx.core.register import BaseRegister
+warnings.warn(
+    "gdpx.colvar is deprecated; import from gdpx.modifiers.collective_variables.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-REGISTER = BaseRegister("colvar")
-
-REGISTER.register_lazy("DistanceColvar", "gdpx.colvar.distance", "DistanceColvar")
-REGISTER.register_lazy("RmsdColvar", "gdpx.colvar.rmsd", "RmsdColvar")
-REGISTER.register_lazy("FingerprintColvar", "gdpx.colvar.fingerprint", "FingerprintColvar")
-REGISTER.register_lazy("position", "gdpx.colvar.position", "position")
-
-
-if __name__ == "__main__":
-    ...
+from gdpx.modifiers.collective_variables import *  # noqa: E402,F401,F403

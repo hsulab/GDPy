@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Deprecated forwarding module for :mod:`gdpx.providers.deepmd`."""
 
-
-from .deepmd import DeepmdManager
-from .deepmd_jax import DeepmdJaxManager
-from .deepmd_jax_x import DeepmdJaxXManager
-
-__all__ = [
-    "DeepmdManager",
-    "DeepmdJaxManager",
-    "DeepmdJaxXManager",
-]
-
-
-if __name__ == "__main__":
-    ...
+from gdpx.providers.deepmd import *  # noqa: F401,F403

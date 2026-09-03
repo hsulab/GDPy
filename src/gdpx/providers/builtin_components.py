@@ -21,7 +21,7 @@ class RegistryComponentFactory:
 
 
 MODIFIERS = {
-    name: RegistryComponentFactory("gdpx.bias", name)
+    name: RegistryComponentFactory("gdpx.modifiers.bias", name)
     for name in (
         "afir",
         "bondboost",
@@ -36,10 +36,10 @@ MODIFIERS = {
 }
 
 COLLECTIVE_VARIABLES = {
-    "distance": RegistryComponentFactory("gdpx.colvar", "DistanceColvar"),
-    "rmsd": RegistryComponentFactory("gdpx.colvar", "RmsdColvar"),
-    "fingerprint": RegistryComponentFactory("gdpx.colvar", "FingerprintColvar"),
-    "position": RegistryComponentFactory("gdpx.colvar", "position"),
+    "distance": RegistryComponentFactory("gdpx.modifiers.collective_variables", "DistanceColvar"),
+    "rmsd": RegistryComponentFactory("gdpx.modifiers.collective_variables", "RmsdColvar"),
+    "fingerprint": RegistryComponentFactory("gdpx.modifiers.collective_variables", "FingerprintColvar"),
+    "position": RegistryComponentFactory("gdpx.modifiers.collective_variables", "position"),
 }
 
 BUILTIN_PROVIDER = Provider(
@@ -50,4 +50,3 @@ BUILTIN_PROVIDER = Provider(
         CapabilityKind.COLLECTIVE_VARIABLE: COLLECTIVE_VARIABLES,
     },
 )
-

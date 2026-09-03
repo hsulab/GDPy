@@ -1,2 +1,5 @@
-"""Topology namespace; graph implementations remain import-compatible in gdpx.graph."""
+"""Graph and topology operations for atomistic structures."""
 
+from .base import AtomicGraph
+
+__all__ = ["AtomicGraph"]

@@ -7,9 +7,9 @@ from typing import Union
 
 from ase.io import read, write
 
-from gdpx.factory.builder import canonicalise_builder
+from gdpx.structures.builders.factory import canonicalise_builder
 
-from ..builder.builder import StructureBuilder
+from gdpx.structures.builders.builder import StructureBuilder
 
 
 def build_structures(

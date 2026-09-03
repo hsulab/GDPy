@@ -59,10 +59,10 @@ def bootstrap_registries(custom_module_paths=None, *, disable_import_info: bool 
             setattr(registers, registry_name, Register(registry_name))
             errors.append((module_name, error))
 
-    from gdpx.worker.registry import WORKER_REGISTRY
+    from gdpx.execution.workers.registry import WORKER_REGISTRY
 
     registers.worker = WORKER_REGISTRY
-    modules = [f"gdpx.nodes.{name}" for name in WORKFLOW_MODULES]
+    modules = [f"gdpx.workflow.nodes.{name}" for name in WORKFLOW_MODULES]
     if custom_module_paths:
         modules.extend(custom_module_paths)
     for module_name in modules:
