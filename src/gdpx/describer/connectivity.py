@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from ase.data import atomic_numbers
 
+from gdpx.geometry.restraints import evaluate_restraints, parse_restraints
 from gdpx.geometry.spatial import check_atomic_distances, get_bond_distance_dict
 
 from .describer import BaseDescriber
@@ -11,22 +12,17 @@ from .describer import BaseDescriber
 class ConnectivityDescriber(BaseDescriber):
     name: str = "connectivity"
 
-    def __init__(self, covalent_ratio=[0.8, 2.0], forbidden_pairs: Optional[list] = None, *args, **kwargs):
+    def __init__(
+        self,
+        covalent_ratio=[0.8, 2.0],
+        restraints: Optional[list[dict[str, Any]]] = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.covalent_ratio = covalent_ratio
-
-        if forbidden_pairs is not None:
-            forbidden_pairs_ = []
-            for s_i, s_j in forbidden_pairs:
-                i, j = atomic_numbers[s_i], atomic_numbers[s_j]
-                if i == j:
-                    forbidden_pairs_.extend([(i, j)])
-                else:
-                    forbidden_pairs_.extend([(i, j), (j, i)])
-            self.forbidden_pairs = forbidden_pairs_
-        else:
-            self.forbidden_pairs = []
+        self.restraints = parse_restraints(restraints, covalent_ratio=covalent_ratio)
 
         return
 
@@ -43,13 +39,15 @@ class ConnectivityDescriber(BaseDescriber):
 
         connectivity_states = []
         for atoms in structures:
-            is_connected = check_atomic_distances(
-                atoms,
-                covalent_ratio=self.covalent_ratio,
-                bond_distance_dict=bond_distance_dict,
-                forbidden_pairs=self.forbidden_pairs,
-                allow_isolated=False,
-            )
+            is_connected = evaluate_restraints(atoms, self.restraints)
+            if is_connected:
+                is_connected = check_atomic_distances(
+                    atoms,
+                    covalent_ratio=self.covalent_ratio,
+                    bond_distance_dict=bond_distance_dict,
+                    restraints=self.restraints,
+                    allow_isolated=False,
+                )
             connectivity_states.append(is_connected)
 
         return np.array(connectivity_states, dtype=np.int32)

@@ -30,6 +30,42 @@ The builder parameters:
 
     Random seed for the random generator. Use the same seed to reproduce results.
 
+Geometric restraints
+--------------------
+
+``random_structure_improved`` accepts the same typed ``restraints`` used by the
+connectivity describer and the Thanos ``restraints`` callback.  A contact uses a
+minimum/maximum distance window; omitted bounds are computed from
+``covalent_ratio`` and the ASE covalent radii.  The default scope is
+``inter_particle``, for which atoms with the same ASE tag are not compared.
+
+Forbid all C--O contacts between different tagged particles:
+
+.. code-block:: yaml
+
+    restraints:
+      - type: contact_count
+        pair: [C, O]
+        max: 0
+
+Require every C atom to have one or two O neighbours, using a custom distance
+window in Angstrom:
+
+.. code-block:: yaml
+
+    restraints:
+      - type: coordination
+        center: C
+        neighbor: O
+        distance: {min: 1.0, max: 2.0}
+        coordination: {min: 1, max: 2}
+        matching_centers: all
+
+Set ``scope: all_atoms`` to include contacts within tagged molecules and within
+the substrate.  ``inter_particle`` restraints require an explicit ASE ``tags``
+array; GDPx assigns tag 0 to the substrate and a unique positive tag to each
+inserted atom or molecular fragment.
+
 .. note:: 
 
     Sometimes the builder will fail to generate new structures due to geometric 

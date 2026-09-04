@@ -6,6 +6,8 @@ from ase import Atoms
 from ase.data import covalent_radii
 from ase.neighborlist import NeighborList, neighbor_list
 
+from .restraints import ParsedRestraint, minimum_distance_for_pair, validate_restraint_tags
+
 
 def get_bond_distance_dict(unique_atomic_numbers, ratio: float = 1.0) -> dict[tuple[int, int], float]:
     """"""
@@ -29,16 +31,30 @@ def check_pair_distances(
     covalent_ratio: tuple[float, float],
     bond_distance_dict,
     excluded_pairs,
+    restraints: Optional[list[ParsedRestraint]] = None,
+    tags: Optional[np.ndarray] = None,
 ):
     """"""
     cov_min, _ = covalent_ratio
 
     is_valid = False
+    restraints = restraints or []
+    chemical_numbers = np.asarray(chemical_numbers)
+    if restraints and any(restraint.scope == "inter_particle" for restraint in restraints) and tags is None:
+        raise ValueError("`tags` are required when checking `inter_particle` restraints.")
     for p, d in zip(pairs, distances):
         i, j = p
         atomic_pair = (chemical_numbers[i], chemical_numbers[j])
         if (i, j) not in excluded_pairs:
-            if d < bond_distance_dict[atomic_pair] * cov_min:
+            dmin = minimum_distance_for_pair(
+                int(i),
+                int(j),
+                chemical_numbers,
+                tags,
+                restraints,
+                bond_distance_dict[atomic_pair] * cov_min,
+            )
+            if d < dmin:
                 is_valid = False
                 break
     else:
@@ -54,15 +70,14 @@ def check_atomic_distances(
     bond_distance_dict: dict,
     atomic_indices: Optional[list[int]] = None,
     excluded_pairs: list = [],
-    forbidden_pairs: list = [],
+    restraints: Optional[list[ParsedRestraint]] = None,
     allow_isolated: bool = False,
 ) -> bool:
     """Check if inter-atomic distances are valid based on some criteria.
 
     Note:
         The `bond_distance_dict` should be like {(1,8): 0.90, (8,1): 0.90},
-        the `excluded_pairs` has the atomic indices like [(1,2), (2,1)], and
-        `forbidden_pairs` has the atomic-number pairs like [(8,8)].
+        the `excluded_pairs` has the atomic indices like [(1,2), (2,1)].
 
     Args:
         atoms: The input structure.
@@ -70,7 +85,7 @@ def check_atomic_distances(
         bond_distance_dict: A dict with the normal covalent bond distance.
         atomic_indices: The indices of atomic centres to check.
         excluded_pairs: The atomic pairs (should be symmetric) not considered in too_close and forbidden.
-        forbidden_pairs: The forbidden atomic pairs.
+        restraints: Parsed geometric restraints with optional pair-specific minima.
         allow_isolated: Whether allow atoms without neighbours to exist.
 
     Returns:
@@ -80,8 +95,12 @@ def check_atomic_distances(
     is_valid = False
 
     cov_min, cov_max = covalent_ratio
+    restraints = restraints or []
+    if restraints:
+        validate_restraint_tags(atoms, restraints)
 
     chemical_numbers = atoms.get_atomic_numbers()
+    tags = atoms.get_tags() if atoms.has("tags") else None
     cutoff = np.array([covalent_radii[c] for c in chemical_numbers]) * cov_max
 
     first_indices, second_indices, distances = neighbor_list("ijd", atoms, cutoff, self_interaction=False)
@@ -107,23 +126,28 @@ def check_atomic_distances(
     for c_i, v in itertools.groupby(zip(first_indices, second_indices, distances), key=lambda p: p[0]):
         if c_i not in atomic_indices:
             continue
-        found_isolated, found_too_close, found_forbidden = True, False, False
+        found_isolated, found_too_close = True, False
         for i, j, d in v:
             atomic_pair = (chemical_numbers[i], chemical_numbers[j])
-            dmin = bond_distance_dict[atomic_pair] * cov_min
+            dmin = minimum_distance_for_pair(
+                int(i),
+                int(j),
+                chemical_numbers,
+                tags,
+                restraints,
+                bond_distance_dict[atomic_pair] * cov_min,
+            )
             dmax = bond_distance_dict[atomic_pair] * cov_max
-            # We only check too_close and forbidden for pairs not excluded.
+            # We only check too_close for pairs not excluded.
             # The excluded pairs are used to determine isolation.
             if d <= dmax:
                 found_isolated = False
                 if (i, j) not in excluded_pairs:
-                    if d <= dmin:
+                    if d < dmin:
                         found_too_close = True
                         break
                     else:  # dmin < d <= dmax
-                        if atomic_pair in forbidden_pairs:
-                            found_forbidden = True
-                            break
+                        ...
             else:
                 ...
         else:
@@ -135,8 +159,6 @@ def check_atomic_distances(
                 # move to check next atom
                 ...
         if found_too_close:
-            break
-        if found_forbidden:
             break
     else:
         is_valid = True

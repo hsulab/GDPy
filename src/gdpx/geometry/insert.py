@@ -11,6 +11,7 @@ from ase import Atoms
 from ase.geometry import find_mic
 
 from .particle import translate_then_rotate
+from .restraints import ParsedRestraint, evaluate_restraints
 from .spatial import check_atomic_distances, check_pair_distances
 
 
@@ -22,6 +23,7 @@ def insert_fragments_by_step(
     covalent_ratio,
     bond_distance_dict,
     random_state,
+    restraints: Optional[list[ParsedRestraint]] = None,
     test_dist_to_substrate: bool=True,
     max_attempts: int = 5,
 ) -> Optional[Atoms]:
@@ -89,6 +91,7 @@ def insert_fragments_by_step(
                 ):
                     # PERF: We resue distances from the find_mic
                     #       instead of getting neighbour list.
+                    trial = candidate + frag
                     if check_pair_distances(
                         pairs,
                         mic_dis,
@@ -96,8 +99,10 @@ def insert_fragments_by_step(
                         covalent_ratio,
                         bond_distance_dict,
                         excluded_pairs=excluded_pairs,
-                    ):
-                        candidate += frag
+                        restraints=restraints,
+                        tags=trial.get_tags() if trial.has("tags") else None,
+                    ) and evaluate_restraints(trial, restraints or [], complete=False):
+                        candidate = trial
                         break
                 else:
                     continue
@@ -112,6 +117,9 @@ def insert_fragments_by_step(
     if candidate is not None and not test_dist_to_substrate:
         candidate = atoms + candidate
 
+    if candidate is not None and not evaluate_restraints(candidate, restraints or [], complete=True):
+        candidate = None
+
     return candidate
 
 
@@ -123,6 +131,7 @@ def insert_fragments_at_once(
     covalent_ratio,
     bond_distance_dict,
     random_state,
+    restraints: Optional[list[ParsedRestraint]] = None,
     max_attempts: int = 5,
 ) -> Optional[Atoms]:
     """"""
@@ -186,15 +195,20 @@ def insert_fragments_at_once(
                 a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
                 tag += 1
                 a.set_tags(tag)
+                candidate += a
 
             if check_atomic_distances(
                 candidate,
                 covalent_ratio=covalent_ratio,
                 bond_distance_dict=bond_distance_dict,
                 excluded_pairs=excluded_pairs,
+                restraints=restraints,
                 allow_isolated=True,
             ):
                 candidate = atoms + candidate
+                if not evaluate_restraints(candidate, restraints or [], complete=True):
+                    candidate = None
+                    continue
                 break
             else:
                 candidate = None
@@ -215,6 +229,7 @@ def batch_insert_fragments_at_once(
     covalent_ratio,
     bond_distance_dict,
     random_states: List[int],
+    restraints: Optional[list[ParsedRestraint]] = None,
 ):
     """"""
     frames = []
@@ -227,6 +242,7 @@ def batch_insert_fragments_at_once(
             covalent_ratio,
             bond_distance_dict,
             random_state=random_state,
+            restraints=restraints,
         )
         frames.append(new_atoms)
 

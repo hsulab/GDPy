@@ -9,6 +9,7 @@ from ase.data import atomic_numbers
 
 from gdpx.geometry.composition import CompositionSpace
 from gdpx.geometry.insert import insert_fragments_by_step
+from gdpx.geometry.restraints import ParsedRestraint, parse_restraints
 from gdpx.geometry.spatial import get_bond_distance_dict
 from gdpx.nodes.region import RegionVariable
 from gdpx.region import LatticeRegion
@@ -29,6 +30,7 @@ def stratified_random_structures(
     molecular_distances,
     covalent_ratio,
     bond_distance_dict,
+    restraints: list[ParsedRestraint],
     outer_max_attempts: int,
     inner_max_attempts: int,
     n_jobs: int,
@@ -50,6 +52,7 @@ def stratified_random_structures(
             molecular_distances=molecular_distances,
             covalent_ratio=covalent_ratio,
             bond_distance_dict=bond_distance_dict,
+            restraints=restraints,
             random_state=random_state,
             max_attempts=inner_max_attempts,
         )
@@ -73,6 +76,7 @@ class RandomStructureImprovedModifier(StructureModifier):
         use_tags: bool = True,
         covalent_ratio=[0.8, 2.0],
         molecular_distances=[None, None],
+        restraints: Optional[list[dict[str, Any]]] = None,
         max_times_size: int = 10,
         sort_by_tags: bool = True,
         sort_by_natoms_per_type: bool = True,
@@ -91,6 +95,7 @@ class RandomStructureImprovedModifier(StructureModifier):
             pbc=pbc,
             covalent_ratio=covalent_ratio,
             molecular_distances=molecular_distances,
+            restraints=restraints,
             max_times_size=max_times_size,
             sort_by_tags=sort_by_tags,
             sort_by_natoms_per_type=sort_by_natoms_per_type,
@@ -147,6 +152,7 @@ class RandomStructureImprovedModifier(StructureModifier):
 
         # Spatial tolerance
         self.covalent_ratio = covalent_ratio
+        self.restraints = parse_restraints(restraints, covalent_ratio=covalent_ratio)
 
         if molecular_distances[0] is None:
             molecular_distances[0] = -np.inf
@@ -234,6 +240,7 @@ class RandomStructureImprovedModifier(StructureModifier):
                     molecular_distances=self.molecular_distances,
                     covalent_ratio=self.covalent_ratio,
                     bond_distance_dict=bond_distance_dict,
+                    restraints=self.restraints,
                     outer_max_attempts=max_attempts,
                     inner_max_attempts=100,
                     n_jobs=self.njobs,
