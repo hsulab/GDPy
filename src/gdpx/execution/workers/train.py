@@ -200,9 +200,10 @@ class TrainerBasedWorker(BaseWorker):
                 wdir_names = doc_data["wdir_names"]
 
                 self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory / "train.script"
+                self.scheduler.script = self.directory / wdir_names[0] / "train.script"
 
                 if self.scheduler.is_finished():  # NOTE: scheduler only checks job_name
+                    self.scheduler.sync(wdir_names)
                     # -- check if the job finished properly
                     is_finished = False
                     for x in wdir_names:

@@ -446,6 +446,7 @@ class ReactorBasedWorker(BaseWorker):
                 if self.scheduler.is_finished():
                     is_finished = False
                     wdir_names = doc_data["wdir_names"]
+                    self.scheduler.sync(wdir_names)
                     # first a quick check if all wdirs exist
                     wdir_existence = [(self.directory / x).exists() for x in wdir_names]
                     nwdir_exists = sum(1 for x in wdir_existence if x)

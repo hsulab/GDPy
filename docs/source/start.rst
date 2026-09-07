@@ -102,6 +102,27 @@ The example below shows how to define a **scheduler** in a **yaml** file:
             time: "0:10:00"
             environs: "conda activate py37\n"
 
+The scheduler above submits with ``sbatch`` on the current machine. To stage
+the calculation and submit over SSH, wrap any queue scheduler with the remote
+provider (install the optional dependency with ``pip install gdpx[remote]``):
+
+.. code-block:: yaml
+
+    scheduler:
+        provider: remote
+        parameters:
+            hostname: cluster.example
+            remote_wdir: /scratch/user/gdpx
+            scheduler:
+                provider: slurm
+                parameters:
+                    partition: compute
+                    time: "1:00:00"
+
+The nested scheduler may be ``slurm``, ``lsf``, ``pbs``, or a third-party
+queue scheduler that implements GDPy's transport-independent status hooks.
+The local scheduler cannot be wrapped for remote execution.
+
 Runtime
 -------
 

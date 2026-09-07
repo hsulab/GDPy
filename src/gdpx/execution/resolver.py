@@ -73,7 +73,7 @@ class RuntimeResolver:
             scheduler_factory = self.providers.require(
                 scheduler_provider, CapabilityKind.SCHEDULER, scheduler_method
             )
-            scheduler = scheduler_factory.create(scheduler_parameters)
+            scheduler = scheduler_factory.create(scheduler_parameters, providers=self.providers)
         return Runtime(
             potential=config.potential_spec(),
             materialization=materialization,

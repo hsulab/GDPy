@@ -137,6 +137,7 @@ class BaseWorker(abc.ABC):
         for job in self.job_store.get_running():
             self._prepare_scheduler_for_job(job)
             if self.scheduler.is_finished():
+                self.scheduler.sync(job.wdir_names)
                 if self._check_job_convergence(job):
                     self._print(f"{job.gdir} is finished...")
                     self.job_store.mark_finished(job.gdir)

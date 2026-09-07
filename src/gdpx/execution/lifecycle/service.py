@@ -436,6 +436,7 @@ def resubmit_compute(
             worker._prepare_scheduler_for_job(job)
             if not worker.scheduler.is_finished():
                 raise ComputeLifecycleError(f"Batch {job.group_number} is still running and cannot be resubmitted.")
+            worker.scheduler.sync(job.wdir_names)
             if worker._check_job_convergence(job):
                 worker.job_store.mark_finished(job.gdir)
                 continue
