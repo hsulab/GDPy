@@ -2,6 +2,7 @@ import copy
 import dataclasses
 import functools
 import json
+import os
 import pathlib
 import shlex
 import shutil
@@ -563,10 +564,14 @@ class DriverBasedWorker(BaseWorker):
         compute_plan_path = getattr(self, "compute_plan_path", None)
         if compute_plan_path is not None:
             worker_index = getattr(self, "compute_worker_index", 0)
-            compute_root = pathlib.Path(compute_plan_path).parent.parent
+            compute_plan_path = pathlib.Path(compute_plan_path).resolve()
+            compute_root = compute_plan_path.parent.parent
+            self.scheduler.local_root = compute_root
+            remote_root_arg = os.path.relpath(compute_root, self.directory.resolve())
+            remote_plan_arg = os.path.relpath(compute_plan_path, self.directory.resolve())
             self.scheduler.user_commands = (
-                f"gdp -d {shlex.quote(str(compute_root))} compute run "
-                f"--plan {shlex.quote(str(compute_plan_path))} "
+                f"gdp -d {shlex.quote(remote_root_arg)} compute run "
+                f"--plan {shlex.quote(remote_plan_arg)} "
                 f"--worker {worker_index} --batch {batch_number}\n"
             )
         else:

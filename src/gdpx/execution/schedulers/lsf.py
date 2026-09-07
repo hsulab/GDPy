@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*
 
 
+import re
 import subprocess
 
 from .scheduler import BaseScheduler
@@ -68,6 +69,13 @@ class LsfScheduler(BaseScheduler):
         self.set(**{"J": self._job_name})
         return
 
+    def parse_submit_output(self, output: str) -> str:
+        """Extract the identifier from ``Job <123> is submitted ...``."""
+        match = re.search(r"Job\s+<(\d+)>", output)
+        if match is None:
+            raise RuntimeError(f"Cannot parse LSF submission output: {output.strip()!r}")
+        return match.group(1)
+
     def is_finished(self) -> bool:
         """Check if the job were finished.
 
@@ -97,22 +105,15 @@ class LsfScheduler(BaseScheduler):
         JOBID   USER    STAT  QUEUE      FROM_HOST   EXEC_HOST   JOB_NAME   SUBMIT_TIME
         120727  jxu     PEND  normal     manage01                *ee.script Mar  1 21:55
         """
-        finished = False
-        for line in lines[1:]:  # skipe first info line
-            data = line.strip().split()
-            jobid, name, status = data[0], data[6], data[2]
-            # if name.startswith(self.prefix) and status in self.running_status:
-            #    indices = re.match(self.prefix+"*", name).span()
-            #    if indices is not None:
-            #        confid = int(name[indices[1]:])
-            #    confids.append(int(confid))
-            if name == self.job_name:
-                finished = False
-                break
-        else:
-            finished = True
+        return self.is_finished_from_output("".join(lines))
 
-        return finished
+    def is_finished_from_output(self, output: str) -> bool:
+        """Return whether this job name is absent from ``bjobs -w`` output."""
+        for line in output.splitlines()[1:]:
+            fields = line.split()
+            if len(fields) >= 7 and fields[6] == self.job_name:
+                return False
+        return True
 
 
 if __name__ == "__main__":

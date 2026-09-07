@@ -12,7 +12,11 @@ from gdpx import config
 
 
 def submit_job_script(
-    script_fpath: pathlib.Path, submit_command: str, submit_timeout: float, is_dry_run: bool = False
+    script_fpath: pathlib.Path,
+    submit_command: str,
+    submit_timeout: float,
+    is_dry_run: bool = False,
+    parse_output: Optional[Callable[[str], str]] = None,
 ) -> str:
     """Submit job script."""
     command = f"{submit_command} {script_fpath.name}"
@@ -30,7 +34,9 @@ def submit_job_script(
             raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
 
         output = "".join(proc.stdout.readlines())  # type: ignore
-        job_id = output.strip().split()[-1]
+        if not output.strip():
+            raise RuntimeError(f"Scheduler returned no job id for {str(script_fpath)}")
+        job_id = (parse_output or (lambda value: value.strip().split()[-1]))(output)
     else:
         job_id = f"Attempt to submit the job script `{script_fpath.name}` with command `{command}`."
 
@@ -53,9 +59,6 @@ class BaseScheduler(abc.ABC):
 
     #: Standard debug function.
     _debug: Callable = config._debug
-
-    #: Host name.
-    hostname: str = "local"
 
     #: A string starts at each option line.
     PREFIX: str = ""
@@ -111,9 +114,6 @@ class BaseScheduler(abc.ABC):
         self.environs = kwargs.pop("environs", "")
         self.machine_prefix = kwargs.pop("machine_prefix", "")
         self.user_commands = kwargs.pop("user_commands", "")
-
-        self.hostname = kwargs.pop("hostname", "local")
-        self.remote_wdir = kwargs.pop("remote_wdir", "./")
 
         # make default params
         self.parameters = self._get_default_parameters()
@@ -197,6 +197,31 @@ class BaseScheduler(abc.ABC):
 
         return
 
+    def build_submit_command(self, script_name: str) -> str:
+        """Build the shell command that submits *script_name*."""
+        return f"{self.SUBMIT_COMMAND} {script_name}"
+
+    def parse_submit_output(self, output: str) -> str:
+        """Extract a scheduler job identifier from submission output."""
+        if not output.strip():
+            raise RuntimeError(f"{self.name} returned empty submission output.")
+        return output.strip().split()[-1]
+
+    def is_finished_from_output(self, output: str) -> bool:
+        """Interpret queue enquiry output produced on any host.
+
+        Queue schedulers that can be wrapped by ``RemoteScheduler`` implement
+        this hook. It is deliberately non-abstract so existing third-party
+        schedulers remain usable locally.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support transport-independent status parsing."
+        )
+
+    def sync(self, wdir_names: Iterable[str] = ()) -> None:
+        """Synchronize completed job data; local schedulers have nothing to do."""
+        return
+
     def submit(self, func_to_execute: Optional[Callable] = None) -> str:
         """Submit job using specific scheduler command and return job id."""
         if func_to_execute is None:  # compatible mode
@@ -210,6 +235,7 @@ class BaseScheduler(abc.ABC):
                 submit_command=self.SUBMIT_COMMAND,
                 submit_timeout=self.submit_timeout,
                 is_dry_run=self.is_dry_run,
+                parse_output=self.parse_submit_output,
             )
         else:
             job_id = "local"
@@ -226,6 +252,7 @@ class BaseScheduler(abc.ABC):
                     submit_command=self.SUBMIT_COMMAND,
                     submit_timeout=self.submit_timeout,
                     is_dry_run=self.is_dry_run,
+                    parse_output=self.parse_submit_output,
                 )
 
         return job_id

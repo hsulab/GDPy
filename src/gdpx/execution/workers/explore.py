@@ -191,15 +191,15 @@ class ExpeditionBasedWorker(BaseWorker):
 
                 # Update scheduler with job information
                 self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory / f"{self._script_name}-{uid}"
-
                 # Get expedition indices
                 wdir_names = doc_data["wdir_names"]
+                self.scheduler.script = self.directory / wdir_names[0] / f"{self._script_name}-{uid}"
 
                 # We only support one expedition per job for now
                 assert len(wdir_names) == 1, f"More than one working directory found for {job_name}."
 
                 if self.scheduler.is_finished():
+                    self.scheduler.sync(wdir_names)
                     # Check if the job finished properly
                     is_finished = False
                     wdir_existence = [(self.directory / x).exists() for x in wdir_names]

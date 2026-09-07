@@ -65,6 +65,10 @@ Schedulers and batching
 If ``scheduler`` is omitted, GDPy uses the local scheduler. Queue schedulers
 are provider components with their submission settings in ``parameters``.
 ``options.batch_size`` controls how many structures are assigned to a task.
+Use the ``remote`` scheduler provider with a nested scheduler component when
+the queue commands must be executed through SSH; the ordinary ``slurm``,
+``lsf``, and ``pbs`` providers continue to execute their commands on the
+current machine.
 
 For multiple independent calculations, provide an explicit list of complete
 runtimes. For sequential calculations, provide an explicit nested runtime

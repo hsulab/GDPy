@@ -16,7 +16,6 @@ Example:
 
 """
 
-from gdpx import config
 from gdpx.core.registry import Registry
 
 REGISTER = Registry("scheduler")
@@ -39,16 +38,24 @@ from .slurm import SlurmScheduler
 
 REGISTER.register(SlurmScheduler)
 
-try:
-    from .remote import RemoteSlurmScheduler
-
-    REGISTER.register(RemoteSlurmScheduler)
-except ImportError as e:
-    config._print(f"  {'Scheduler':<16s} {'`remote`':<16s} -> require `{e.name}`.")
-
-
-__all__ = ["REGISTER", "BaseScheduler", "LocalScheduler", "LsfScheduler", "PbsScheduler", "SlurmScheduler"]
+__all__ = [
+    "REGISTER",
+    "BaseScheduler",
+    "LocalScheduler",
+    "LsfScheduler",
+    "PbsScheduler",
+    "RemoteScheduler",
+    "SlurmScheduler",
+]
 
 from .factory import canonicalise_scheduler
 
 __all__.append("canonicalise_scheduler")
+
+
+def __getattr__(name):
+    if name == "RemoteScheduler":
+        from .remote import RemoteScheduler
+
+        return RemoteScheduler
+    raise AttributeError(name)

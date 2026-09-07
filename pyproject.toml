@@ -35,6 +35,9 @@ Issues = "https://github.com/hsulab/GDPy/issues"
 [project.scripts]
 gdp = "gdpx.main:main"
 
+[project.optional-dependencies]
+remote = ["paramiko>=2.11"]
+
 [tool.pyright]
 include = [
   "src"
