@@ -13,6 +13,9 @@ dist/
 build
 _build
 
+# temporary files
+tmp/
+
 # simulation results
 cand*
 
