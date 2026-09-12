@@ -303,9 +303,8 @@ class PopulationManager:
                 curr_rows = [x for x in curr_rows if x.formula]
                 # get latest atoms, if pairing+mutation, the latest atoms should be the mutated one
                 curr_atoms = database.connection.get_atoms(curr_rows[-1].id, add_additional_information=True)
-                # NOTE: candidates should not have description info...
-                #       otherwise, queued row also has them and failed in
-                #       database.c.get_participation_in_pairing()
+                # Keep only candidate state needed after reloading; database
+                # event-classification fields belong to the stored rows.
                 kvp = {k: v for k, v in curr_atoms.info["key_value_pairs"].items() if k in RETAINED_KEYS}
                 data = curr_atoms.info.get("data", {})  # not every cand has data that stores parents
                 curr_atoms.info = {

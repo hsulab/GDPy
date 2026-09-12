@@ -237,7 +237,6 @@ class GlobalOptimisationDatabase:
     def mark_as_queued(self, candidate: Atoms) -> None:
         """"""
         confid = candidate.info["confid"]
-        key_value_pairs = candidate.info.get("key_value_pairs", {})
 
         rows = list(self.connection.select(f"confid={confid},queued=1"))
         already_queued = len(rows) > 0
@@ -247,7 +246,6 @@ class GlobalOptimisationDatabase:
                 None,
                 confid=confid,
                 queued=1,
-                key_value_pairs=key_value_pairs,
             )
 
         return
