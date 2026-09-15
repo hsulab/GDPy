@@ -1,0 +1,52 @@
+method: genetic_algorithm
+random_seed: 7
+
+builder:
+  method: random_structure_improved
+  composition:
+    Cu: 13
+  box: [10.0, 10.0, 10.0]
+  region:
+    method: sphere
+    origin: [5.0, 5.0, 5.0]
+    radius: 3.0
+  pbc: false
+  covalent_ratio: [0.6, 2.0]
+
+params:
+  database: cu13.db
+  population:
+    init:
+      size: 4
+    gen:
+      size: 2
+      reprod: 2
+    pmut: 0.5
+  operators:
+    comparator:
+      method: interatomic_distance
+    crossover:
+      method: cut_and_splice_cluster
+    mutation:
+      method: rattle
+      prob: 1.0
+  property:
+    target: energy
+  convergence:
+    generation: 1
+
+runtime:
+  schema_version: 2
+  potential:
+    provider: emt
+    parameters: {}
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      fmax: 0.05
+      steps: 100
+
+scheduler:
+  provider: local
+  parameters: {}

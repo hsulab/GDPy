@@ -8,9 +8,10 @@ systematic enumeration and structural features from good candidates can be
 recombined to discover better ones.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 operations
+examples/index
 ```
 
 ## Search cycle
