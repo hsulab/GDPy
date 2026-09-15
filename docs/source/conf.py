@@ -12,7 +12,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath("../../src/gdpx"))
+
+sys.path.insert(0, os.path.abspath("../../src"))
 
 
 # -- Project information -----------------------------------------------------
@@ -22,7 +23,7 @@ copyright = '2020-2023, Jiayan Xu'
 author = 'Jiayan Xu'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.2'
+release = '0.1.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,6 +32,7 @@ release = '0.0.2'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.doctest",
@@ -38,6 +40,16 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     "sphinx.ext.mathjax",
+]
+
+source_suffix = {
+    ".md": "markdown",
+}
+
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "dollarmath",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
