@@ -16,7 +16,7 @@ if ! command -v conda >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! conda run -n catorch3 python -c "import myst_parser, sphinx" >/dev/null 2>&1; then
+if ! conda run -n catorch3 python -c "import myst_parser, sphinx, sphinx_autobuild" >/dev/null 2>&1; then
     echo "The catorch3 environment is missing the documentation dependencies." >&2
     echo "Install them once with:" >&2
     echo "  conda run -n catorch3 python -m pip install -r $docs_dir/requirements.txt" >&2
@@ -24,8 +24,12 @@ if ! conda run -n catorch3 python -c "import myst_parser, sphinx" >/dev/null 2>&
 fi
 
 conda run --no-capture-output -n catorch3 \
-    make -C "$docs_dir" clean html SPHINXOPTS="-W --keep-going"
+    make -C "$docs_dir" clean
 
-echo "Serving GDPy documentation at http://127.0.0.1:$port"
+echo "Serving GDPy documentation with live reload at http://127.0.0.1:$port"
 exec conda run --no-capture-output -n catorch3 \
-    python -m http.server "$port" --bind 127.0.0.1 --directory "$docs_dir/build/html"
+    sphinx-autobuild \
+    --host 127.0.0.1 \
+    --port "$port" \
+    -W --keep-going \
+    "$docs_dir/source" "$docs_dir/build/html"
