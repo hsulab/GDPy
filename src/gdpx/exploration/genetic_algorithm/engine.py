@@ -69,17 +69,33 @@ def reduce_cell_by_bounds(atoms: Atoms, cell_bounds: CellBounds) -> Atoms:
 class GeneticAlgorithmBroadcaster:
     """Broadcast genetic_algorithm_engine by parameters."""
 
-    def __init__(self, builder, params, random_seed=None):
+    def __init__(
+        self,
+        builder,
+        population: dict,
+        convergence: dict,
+        database: str = "mydb.db",
+        operators: Optional[dict] = None,
+        property: Optional[dict] = None,
+        use_archive: bool = True,
+        random_seed=None,
+    ):
         """"""
-        new_params_list = self._broadcast_parameters(params)
+        recipe = dict(
+            builder=builder,
+            database=database,
+            population=population,
+            operators=operators,
+            property=dict(target="energy") if property is None else property,
+            convergence=convergence,
+            use_archive=use_archive,
+        )
+        new_params_list = self._broadcast_parameters(recipe)
 
         input_params_list = []
         for new_params in new_params_list:
-            input_params = dict(
-                builder=copy.deepcopy(builder),
-                params=new_params,
-                random_seed=copy.deepcopy(random_seed),
-            )
+            input_params = copy.deepcopy(new_params)
+            input_params["random_seed"] = copy.deepcopy(random_seed)
             input_params_list.append(input_params)
         self.input_params_list = input_params_list
 
@@ -144,7 +160,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def __init__(
         self,
         builder: dict,
-        params: dict,
+        population: dict,
+        convergence: dict,
+        database: str = "mydb.db",
+        operators: Optional[dict] = None,
+        property: Optional[dict] = None,
+        use_archive: bool = True,
         *args,
         **kwargs,
     ):
@@ -156,8 +177,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """
         super().__init__(*args, **kwargs)
 
-        # For compatibility
-        ga_dict = params
+        ga_dict = dict(
+            database=database,
+            population=population,
+            operators=operators,
+            property=dict(target="energy") if property is None else property,
+            convergence=convergence,
+            use_archive=use_archive,
+        )
 
         # Database
         self.db_name = ga_dict.get("database", "mydb.db")
@@ -852,13 +879,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        engine_params = {}
-        engine_params["random_seed"] = self.random_seed
-        engine_params["method"] = "genetic_algorithm"
-        engine_params["builder"] = self.generator.as_dict()
-        engine_params["worker"] = self.worker.as_dict()
-        engine_params["params"] = self.ga_dict
-
-        engine_params = copy.deepcopy(engine_params)
-
-        return engine_params
+        recipe = dict(
+            random_seed=self.random_seed,
+            builder=self.generator.as_dict(),
+            **copy.deepcopy(self.ga_dict),
+        )
+        engine_params = {
+            "method": "genetic_algorithm",
+            "recipe": recipe,
+            "runtime": self.worker.as_dict(),
+        }
+        return copy.deepcopy(engine_params)

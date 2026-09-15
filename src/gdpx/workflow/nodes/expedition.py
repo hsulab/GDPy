@@ -4,6 +4,7 @@
 
 import copy
 import pathlib
+from collections.abc import Mapping
 from typing import Union
 
 import omegaconf
@@ -23,6 +24,10 @@ class ExpeditionVariable(Variable):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
+        recipe = kwargs.get("recipe")
+        if isinstance(recipe, Mapping) and isinstance(recipe.get("builder"), Variable):
+            kwargs["recipe"] = copy.deepcopy(dict(recipe))
+            kwargs["recipe"]["builder"] = recipe["builder"].value
         if isinstance(kwargs.get("builder"), Variable):
             kwargs["builder"] = kwargs["builder"].value
         expedition = create_expedition(kwargs)

@@ -455,6 +455,7 @@ class ConcurrentHopping(BaseExpedition):
                 builder=builder,
                 convergence=convergence,
                 property=property,
+                use_archive=use_archive,
             )
         )
 
@@ -824,13 +825,17 @@ class ConcurrentHopping(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        params = copy.deepcopy(self._init_params)
-        params["method"] = "concurrent_hopping"
+        recipe = copy.deepcopy(self._init_params)
+        builder = recipe.get("builder")
+        if hasattr(builder, "as_dict"):
+            recipe["builder"] = builder.as_dict()
+        recipe = dict(random_seed=self.random_seed, **recipe)
         assert self.worker is not None
-        params["worker"] = self.worker.as_dict()  # type: ignore
-        params["random_seed"] = self.random_seed
-
-        return params
+        return {
+            "method": "concurrent_hopping",
+            "recipe": recipe,
+            "runtime": self.worker.as_dict(),  # type: ignore
+        }
 
 
 if __name__ == "__main__":

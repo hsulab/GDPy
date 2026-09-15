@@ -61,11 +61,15 @@ $ gdp -d exp -r runtime.yaml explore ./config.yaml
 #   all found minima will be saved to `./resuslts/results/all_candidates.xyz`
 ```
 
-The GA input file `./config.yaml` contains several sections:
+The GA input file `./config.yaml` uses the common global-optimisation layout:
 
 - method: This must be `genetic_algorithm`.
 
-- builder:
+- recipe:
+
+  > Contains the random seed, builder, and all GA-specific settings.
+
+- recipe.builder:
 
   > Define the builder that generates random structures. This is used to generate
   > an initial population of structures. See {ref}`random-builders` for more details.
@@ -74,7 +78,7 @@ The GA input file `./config.yaml` contains several sections:
   > can be found in {ref}`region-definitions`. More specific, Cu atoms will have
   > arbitrary x- and y-coordiantes but z-coordinate within the range [7,7+6].
 
-In the `params` section,
+The remaining entries below are in the `recipe` section:
 
 - database: All explored structures are stored in this file with suffix `.db`.
 
@@ -87,7 +91,7 @@ In the `params` section,
   > - init:
   >
   >   > Number of structures (`size`) in the initial generation. These structures will be
-  >   > created by the method defined in the `builder` section.
+  >   > created by the method defined in the `recipe.builder` section.
   >
   > - gen:
   >
@@ -116,18 +120,18 @@ In the `params` section,
 
 ```yaml
 method: genetic_algorithm
-builder:
-  method: random_surface
-  composition:
-    Cu: 4
-  region:
-    method: lattice
-    origin: [0., 0., 7.]
-    cell: [11.174, 0., 0., 0., 8.413, 0., 0., 0., 6.]
-  substrates: ./sub.xyz
-  covalent_ratio: [0.8, 2.0]
+recipe:
   random_seed: 127
-params:
+  builder:
+    method: random_surface
+    composition:
+      Cu: 4
+    region:
+      method: lattice
+      origin: [0., 0., 7.]
+      cell: [11.174, 0., 0., 0., 8.413, 0., 0., 0., 6.]
+    substrates: ./sub.xyz
+    covalent_ratio: [0.8, 2.0]
   database: mydb.db
   population:
     init:

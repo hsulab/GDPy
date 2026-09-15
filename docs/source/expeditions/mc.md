@@ -20,7 +20,7 @@ $ gdp -d exp -r runtime.yaml explore ./config.yaml
 #   the MC trajectory is stored at `results/mc.xyz`
 ```
 
-In the `operators` section,
+In the `recipe.operators` section,
 
 Every MC operator has parameters of `temperature`, `pressure`, and `region`. In general,
 these three parameters should be consistent among different operators used in the simulation.
@@ -51,7 +51,7 @@ In general, operators should have the same region. Otherwise, the simulation is
 not converged to an equilibrium.
 :::
 
-In the `convergence` section,
+In the `recipe.convergence` section,
 
 - steps: Number of MC steps.
 
@@ -64,35 +64,36 @@ only apply to atoms in the surface region including Cu and O.
 
 ```yaml
 method: monte_carlo
-random_seed: 1112
-builder:
-  method: reader
-  fname: ./fcc-s111p44.xyz
-operators:
-  - method: exchange
-    region:
-      method: lattice
-      origin: [0, 0, 8.0]
-      cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
-    covalent_ratio: [0.8, 2.0]
-    reservoir:
-      mu: -5.75
-      species: O
-    temperature: 800
-    prob: 0.5
-  - method: move
-    particles: [Cu, O]
-    region:
-      method: lattice
-      origin: [0, 0, 8.0]
-      cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
-    covalent_ratio: [0.8, 2.0]
-    max_disp: 2.0
-    temperature: 800
-    prob: 0.5
-convergence:
-  steps: 5
-dump_period: 1
+recipe:
+  random_seed: 1112
+  builder:
+    method: reader
+    fname: ./fcc-s111p44.xyz
+  operators:
+    - method: exchange
+      region:
+        method: lattice
+        origin: [0, 0, 8.0]
+        cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
+      covalent_ratio: [0.8, 2.0]
+      reservoir:
+        mu: -5.75
+        species: O
+      temperature: 800
+      prob: 0.5
+    - method: move
+      particles: [Cu, O]
+      region:
+        method: lattice
+        origin: [0, 0, 8.0]
+        cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
+      covalent_ratio: [0.8, 2.0]
+      max_disp: 2.0
+      temperature: 800
+      prob: 0.5
+  convergence:
+    steps: 5
+  dump_period: 1
 ```
 
 Use a single-worker runtime for sequential Monte Carlo moves:

@@ -1,19 +1,17 @@
 method: genetic_algorithm
-random_seed: 7
-
-builder:
-  method: random_structure_improved
-  composition:
-    Cu: 13
-  box: [10.0, 10.0, 10.0]
-  region:
-    method: sphere
-    origin: [5.0, 5.0, 5.0]
-    radius: 3.0
-  pbc: false
-  covalent_ratio: [0.6, 2.0]
-
-params:
+recipe:
+  random_seed: 7
+  builder:
+    method: random_structure_improved
+    composition:
+      Cu: 13
+    box: [10.0, 10.0, 10.0]
+    region:
+      method: sphere
+      origin: [5.0, 5.0, 5.0]
+      radius: 3.0
+    pbc: false
+    covalent_ratio: [0.6, 2.0]
   database: cu13.db
   population:
     init:

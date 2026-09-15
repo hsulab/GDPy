@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import pathlib
 import time
 from typing import Union
@@ -162,6 +163,20 @@ class SimulatedAnnealing(BaseExpedition):
             workers.append(curr_worker)
 
         return workers
+
+    def as_dict(self) -> dict:
+        """Serialize using the common global-optimization input shape."""
+        return copy.deepcopy(
+            {
+                "method": "simulated_annealing",
+                "recipe": {
+                    "random_seed": self.random_seed,
+                    "builder": self.builder.as_dict(),
+                    "temperatures": self.temperatures,
+                },
+                "runtime": self.worker.as_dict(),
+            }
+        )
 
 
 if __name__ == "__main__":

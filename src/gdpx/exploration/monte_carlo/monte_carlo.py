@@ -615,21 +615,26 @@ class MonteCarlo(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        engine_params = {}
-        engine_params["method"] = "monte_carlo"
-        engine_params["builder"] = self.builder.as_dict()
-        engine_params["worker"] = self.worker.as_dict()
         potential = self.worker.runtime.provider_potential
         if hasattr(potential, "remove_loaded_models"):
             potential.remove_loaded_models()
-        engine_params["operators"] = []
+        operators = []
         for op in self.operators:
-            engine_params["operators"].append(op.as_dict())
-        engine_params["dump_period"] = self.dump_period
-        engine_params["ckpt_period"] = self.ckpt_period
-        engine_params["convergence"] = self.convergence
-        engine_params["random_seed"] = self.random_seed
-
-        engine_params = copy.deepcopy(engine_params)
-
-        return engine_params
+            operators.append(op.as_dict())
+        recipe = {
+            "random_seed": self.random_seed,
+            "builder": self.builder.as_dict(),
+            "operators": operators,
+            "convergence": self.convergence,
+            "dump_period": self.dump_period,
+            "ckpt_period": self.ckpt_period,
+            "ignore_atoms_tags": self.ignore_atoms_tags,
+            "should_retry": self.should_retry,
+            "restart": self.restart,
+        }
+        engine_params = {
+            "method": "monte_carlo",
+            "recipe": recipe,
+            "runtime": self.worker.as_dict(),
+        }
+        return copy.deepcopy(engine_params)
