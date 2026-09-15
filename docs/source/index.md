@@ -57,6 +57,13 @@ workflows/index
 ```
 
 ```{toctree}
+:caption: 'Global Optimisation:'
+:maxdepth: 2
+
+global_optimisation/genetic-algorithm
+```
+
+```{toctree}
 :caption: 'Developer Guides:'
 :maxdepth: 2
 
