@@ -67,7 +67,7 @@ produce a valid structure.
 | `cluster_rattle` | GDPy | Finds connected clusters using the atomic graph and translates selected clusters as rigid units in random directions. |
 | `cluster_rotation` | GDPy | Finds graph-connected clusters and rotates selected clusters as rigid units about a fixed or random axis. |
 | `exchange` | GDPy | Inserts or removes atoms or molecular fragments. It supports composition bounds, spatial regions, and predefined adsorption sites. |
-| `rattle_buffer` | GDPy | Selects atoms from a group expression and randomly displaces either a fixed number or a fraction of them, rejecting overlaps. |
+| `group_rattle` | GDPy | Selects atoms from a group expression and randomly displaces either a fixed number or a fraction of them, rejecting overlaps. |
 | `swap` | GDPy | Exchanges the positions of different tagged particle types while preserving the internal geometry of molecular fragments. |
 
 ### Geometry-aware mutations

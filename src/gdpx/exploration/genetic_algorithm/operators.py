@@ -10,13 +10,15 @@ from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
 from .mutation.cluster_rotation import ClusterRotationMutation
 from .mutation.exchange import ExchangeMutation
+from .mutation.group_rattle import GroupRattleMutation
 from .mutation.mirror import MirrorMutation
-from .mutation.rattle import RattleBufferMutation
+from .mutation.rattle import RattleMutation
+from .mutation.soft import SoftMutation
+from .mutation.strain import StrainMutation
 from .mutation.swap import SwapMutation
-from .mutation.standard import RattleMutation, SoftMutation, StrainMutation
 
 COMPARATORS: dict[str, Any] = dict(
-    # ASE built-in comparators
+    # GDPy implementations of ASE-GA-compatible comparators
     ofp=OFPComparator,
     nnmat=NNMatComparator,
     # Custom comparators
@@ -24,13 +26,13 @@ COMPARATORS: dict[str, Any] = dict(
 )
 
 CROSSOVERS: dict[str, Any] = dict(
-    # ASE built-in crossovers
+    # GDPy implementations of ASE-GA-compatible crossovers
     cut_and_splice=CutAndSplicePairing,
     cut_and_splice_cluster=CutSpliceCrossover,
 )
 
 MUTATIONS: dict[str, Any] = dict(
-    # ASE built-in mutations
+    # GDPy implementations of ASE-GA-compatible mutations
     mirror=MirrorMutation,
     rattle=RattleMutation,
     soft=SoftMutation,
@@ -40,7 +42,7 @@ MUTATIONS: dict[str, Any] = dict(
     cluster_rattle=ClusterRattleMutation,
     cluster_rotation=ClusterRotationMutation,
     exchange=ExchangeMutation,
-    rattle_buffer=RattleBufferMutation,
+    group_rattle=GroupRattleMutation,
     swap=SwapMutation,
 )
 
@@ -72,6 +74,8 @@ def instantiate_a_genetic_operator(
     if "rng" in op_params:
         raise ValueError("Operator RNGs are managed by the GA engine; remove the 'rng' option.")
     method = op_params.pop("method", None)
+    if category == "mutation" and method == "rattle_buffer":
+        raise ValueError("Mutation 'rattle_buffer' was renamed to 'group_rattle'.")
     if method is None:
         raise Exception(f"There is no operator {method}.")
 

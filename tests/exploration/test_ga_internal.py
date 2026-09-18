@@ -2,7 +2,9 @@ import numpy as np
 from ase import Atoms
 
 from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
-from gdpx.exploration.genetic_algorithm.mutation.standard import RattleMutation
+from gdpx.exploration.genetic_algorithm.mutation.group_rattle import GroupRattleMutation
+from gdpx.exploration.genetic_algorithm.mutation.rattle import RattleMutation
+from gdpx.exploration.genetic_algorithm.operators import MUTATIONS
 from gdpx.structures.geometry.ga import atoms_too_close, closest_distances_generator
 
 
@@ -42,3 +44,9 @@ def test_rattle_uses_generator_and_preserves_valid_geometry():
     assert description == "mutation: rattle"
     assert not atoms_too_close(child, minimum_distances)
     assert not np.allclose(child.positions, parent.positions)
+
+
+def test_rattle_names_are_unambiguous():
+    assert MUTATIONS["rattle"] is RattleMutation
+    assert MUTATIONS["group_rattle"] is GroupRattleMutation
+    assert "rattle_buffer" not in MUTATIONS
