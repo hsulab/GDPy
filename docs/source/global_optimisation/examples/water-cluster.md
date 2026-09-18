@@ -6,7 +6,8 @@ This example searches for low-energy structures of a four-water cluster. The
 builder inserts four intact H2O molecules in a spherical region at the centre
 of a large periodic vacuum box and assigns one tag to each molecule. Structures
 are relaxed with the 1-million-parameter MatterSim checkpoint, the fastest
-pretrained MatterSim model.
+pretrained MatterSim model. See the {ref}`potential-mattersim` guide for
+installation, model selection, and runtime settings.
 
 ## Input
 
@@ -24,22 +25,19 @@ because the model evaluates and relaxes all atoms.
 
 ## Run
 
-Install MatterSim in the GDPy environment, then run from the repository root:
+After installing MatterSim as described in the {ref}`potential-mattersim`
+guide, run from the repository root:
 
 ```shell
-python -m pip install mattersim
 gdp -d ./run-water4-mattersim explore \
     ./examples/global_optimisation/water4_mattersim.yaml
 ```
 
-On its first use, MatterSim downloads the `MatterSim-v1.0.0-1M` checkpoint. The
-search is stored under `run-water4-mattersim/expedition-0`. The small population
-and single generation keep this example quick; increase both for a production
-search.
+The search is stored under `run-water4-mattersim/expedition-0`. The small
+population and single generation keep this example quick; increase both for a
+production search.
 
 :::{note}
-MatterSim is substantially more suitable for demonstrating H/O relaxation than
-ASE EMT, whose H and O parameters are intended only for testing. This compact
-example still demonstrates the workflow rather than providing a converged or
-validated water-cluster study.
+This compact example demonstrates the workflow rather than providing a
+converged or validated water-cluster study.
 :::

@@ -64,6 +64,10 @@ require their corresponding optional scientific package. External provider
 distributions can add capabilities through the `gdpx.providers` entry-point
 group; see {doc}`../extensions/index`.
 
+## Provider guides
+
+- {doc}`MatterSim <mattersim>`
+
 ## Training
 
 Trainer capabilities are owned by the same provider as the potential they

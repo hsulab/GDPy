@@ -19,7 +19,7 @@ at Queen's University Belfast.
 
 ## Supported **Potentials**
 
-`eann`, `deepmd`, `lasp`, `nequip` / `allegro`
+`deepmd`, `eann`, `lasp`, `MatterSim`, `nequip` / `allegro`
 
 ## Supported **Expeditions**
 
@@ -39,13 +39,20 @@ installation.md
 :maxdepth: 2
 
 start
-potentials/index
 trainers/index
 computations/index
 builders/index
 selections/index
 expeditions/index
 tutorials/index
+```
+
+```{toctree}
+:caption: 'Potentials:'
+:maxdepth: 1
+
+Overview <potentials/index>
+MatterSim <potentials/mattersim>
 ```
 
 ```{toctree}
