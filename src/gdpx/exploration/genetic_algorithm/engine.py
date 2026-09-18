@@ -179,12 +179,19 @@ class GeneticAlgorithmEngine(BaseExpedition):
         if "random_generator" in population:
             raise ValueError("Legacy GA population key 'random_generator' is not supported; use 'builders'.")
         builders_config = population.pop("builders", None)
-        reference_builder = population.pop("reference_builder", None)
+        reference_builder = population.pop("reference_builder", "random")
         if not isinstance(builders_config, Mapping) or not builders_config:
             raise ValueError("GA population configuration requires a non-empty 'builders' mapping.")
         if not all(isinstance(name, str) and name for name in builders_config):
             raise ValueError("GA population builder names must be non-empty strings.")
-        if not isinstance(reference_builder, str) or reference_builder not in builders_config:
+        if not isinstance(reference_builder, str):
+            raise ValueError("GA population.reference_builder must name one of population.builders.")
+        if reference_builder not in builders_config:
+            if reference_builder == "random":
+                raise ValueError(
+                    "GA population defaults reference_builder to 'random', but population.builders "
+                    "does not define 'random'; set reference_builder to another builder name."
+                )
             raise ValueError("GA population.reference_builder must name one of population.builders.")
 
         ga_dict = dict(
@@ -900,11 +907,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def as_dict(self) -> dict:
         """"""
         population = copy.deepcopy(self.ga_dict["population"])
-        population = dict(
-            builders={name: builder.as_dict() for name, builder in self.builders.items()},
-            reference_builder=self.reference_builder_name,
-            **population,
-        )
+        population_prefix: dict[str, Any] = {
+            "builders": {name: builder.as_dict() for name, builder in self.builders.items()}
+        }
+        if self.reference_builder_name != "random":
+            population_prefix["reference_builder"] = self.reference_builder_name
+        population = dict(**population_prefix, **population)
         ga_dict = copy.deepcopy(self.ga_dict)
         ga_dict["population"] = population
         recipe = dict(

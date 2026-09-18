@@ -44,8 +44,7 @@ recipe:
   random_seed: 7
   population:
     builders:
-      primary: {}
-    reference_builder: primary
+      random: {}
   # remaining method-specific settings
 runtime: {}
 scheduler: {}

@@ -4,7 +4,7 @@ recipe:
   database: cu13.db
   population:
     builders:
-      compact:
+      random:
         method: random_structure_improved
         composition:
           Cu: 13
@@ -15,11 +15,10 @@ recipe:
           radius: 3.0
         pbc: false
         covalent_ratio: [0.6, 2.0]
-    reference_builder: compact
     initial:
       total_size: 4
       builder_allocations:
-        - builder: compact
+        - builder: random
           size: 4
     generation:
       total_size: 2
@@ -30,7 +29,7 @@ recipe:
         size: 0
       completion:
         builder_proportions:
-          - builder: compact
+          - builder: random
             proportion: 1.0
   operators:
     comparator:

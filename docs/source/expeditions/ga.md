@@ -91,8 +91,9 @@ The remaining entries below are in the `recipe` section:
   > - builders and reference_builder:
   >
   >   > `builders` is a mapping of reusable, named structure builders.
-  >   > `reference_builder` supplies substrate, tags, cell bounds, and bond-distance
-  >   > metadata to the genetic operators.
+  >   > The `random` builder supplies substrate, tags, cell bounds, and bond-distance
+  >   > metadata to the genetic operators by default. Set `reference_builder` only
+  >   > when another named builder should supply this metadata.
   >
   > - initial:
   >

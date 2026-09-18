@@ -25,6 +25,13 @@ class Serializable:
         return self.value
 
 
+class SerializableBuilder(Serializable):
+    use_tags = False
+
+    def set_rng(self, seed):
+        self.random_seed = seed
+
+
 @pytest.mark.parametrize(
     "method",
     [
@@ -90,14 +97,13 @@ def test_factory_rejects_legacy_global_optimisation_shapes(config, message):
 def test_ga_broadcaster_uses_named_recipe_fields():
     broadcaster = GeneticAlgorithmBroadcaster(
         population={
-            "builders": {"primary": {"method": "unused"}},
-            "reference_builder": "primary",
-            "initial": {"total_size": 1, "builder_allocations": [{"builder": "primary", "size": 1}]},
+            "builders": {"random": {"method": "unused"}},
+            "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
             "generation": {
                 "total_size": 1,
                 "reproduction": {"size": 1},
                 "mutation": {"size": 0},
-                "completion": {"builder_proportions": [{"builder": "primary", "proportion": 1.0}]},
+                "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.0}]},
             },
         },
         convergence={"generation": 1},
@@ -114,6 +120,54 @@ def test_ga_broadcaster_uses_named_recipe_fields():
     assert all("params" not in item for item in broadcaster.input_params_list)
 
 
+def _minimal_ga_population(builder_name, reference_builder=None):
+    population = {
+        "builders": {builder_name: SerializableBuilder({"method": builder_name})},
+        "initial": {
+            "total_size": 1,
+            "builder_allocations": [{"builder": builder_name, "size": 1}],
+        },
+        "generation": {
+            "total_size": 1,
+            "reproduction": {"size": 0},
+            "mutation": {"size": 0},
+            "completion": {
+                "builder_proportions": [{"builder": builder_name, "proportion": 1.0}]
+            },
+        },
+    }
+    if reference_builder is not None:
+        population["reference_builder"] = reference_builder
+    return population
+
+
+def test_ga_defaults_reference_builder_to_random():
+    engine = GeneticAlgorithmEngine(
+        population=_minimal_ga_population("random"),
+        convergence={"generation": 1},
+        random_seed=7,
+    )
+
+    assert engine.reference_builder_name == "random"
+    assert engine.generator is engine.builders["random"]
+
+
+def test_ga_requires_reference_when_random_builder_is_absent():
+    with pytest.raises(ValueError, match="defaults reference_builder to 'random'"):
+        GeneticAlgorithmEngine(
+            population=_minimal_ga_population("alternative"),
+            convergence={"generation": 1},
+            random_seed=7,
+        )
+
+    engine = GeneticAlgorithmEngine(
+        population=_minimal_ga_population("alternative", reference_builder="alternative"),
+        convergence={"generation": 1},
+        random_seed=7,
+    )
+    assert engine.reference_builder_name == "alternative"
+
+
 def test_ga_population_uses_expanded_keys():
     population = PopulationManager(
         {
@@ -121,7 +175,7 @@ def test_ga_population_uses_expanded_keys():
                 "total_size": 4,
                 "builder_allocations": [
                     {"builder": "imported", "size": 1},
-                    {"builder": "compact", "size": 3},
+                    {"builder": "random", "size": 3},
                 ],
             },
             "generation": {
@@ -135,7 +189,7 @@ def test_ga_population_uses_expanded_keys():
                 "mutation": {"size": 1, "maximum_attempts": 12},
                 "completion": {
                     "builder_proportions": [
-                        {"builder": "compact", "proportion": 0.75},
+                        {"builder": "random", "proportion": 0.75},
                         {"builder": "alternative", "proportion": 0.25},
                     ]
                 },
@@ -153,7 +207,7 @@ def test_ga_population_uses_expanded_keys():
     assert population.pmut_custom == 0.75
     assert population.substrate_dtol == 0.1
     assert population.allocate_completion_sizes(6) == [
-        {"builder": "compact", "size": 5, "maximum_attempts": 50},
+        {"builder": "random", "size": 5, "maximum_attempts": 50},
         {"builder": "alternative", "size": 1, "maximum_attempts": 10},
     ]
 
@@ -196,15 +250,15 @@ def test_ga_serialization_uses_recipe_and_runtime():
     engine = object.__new__(GeneticAlgorithmEngine)
     engine.random_seed = 7
     engine.builders = {
-        "compact": Serializable({"method": "random_structure_improved"}),
+        "random": Serializable({"method": "random_structure_improved"}),
         "imported": Serializable({"method": "direct"}),
     }
-    engine.reference_builder_name = "compact"
+    engine.reference_builder_name = "random"
     engine.worker = Serializable({"schema_version": 2})
     engine.ga_dict = {
         "database": "search.db",
         "population": {
-            "initial": {"total_size": 1, "builder_allocations": [{"builder": "compact", "size": 1}]},
+            "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
             "generation": {"total_size": 1},
         },
         "operators": {},
@@ -218,12 +272,15 @@ def test_ga_serialization_uses_recipe_and_runtime():
     assert list(config) == ["method", "recipe", "runtime"]
     assert config["recipe"]["random_seed"] == 7
     assert config["recipe"]["population"]["builders"] == {
-        "compact": {"method": "random_structure_improved"},
+        "random": {"method": "random_structure_improved"},
         "imported": {"method": "direct"},
     }
-    assert config["recipe"]["population"]["reference_builder"] == "compact"
+    assert "reference_builder" not in config["recipe"]["population"]
     assert "params" not in config
     assert "worker" not in config
+
+    engine.reference_builder_name = "imported"
+    assert engine.as_dict()["recipe"]["population"]["reference_builder"] == "imported"
 
 
 class FixedBuilder:
@@ -264,7 +321,7 @@ def test_generation_plan_round_trip(tmp_path):
         Atoms("H"),
         data={"population_size": 2, "initial_population_size": 2, "num_atoms_substrate": 1},
     )
-    plan = {"stage": "completion", "completion_sizes": [{"builder": "compact", "size": 2}]}
+    plan = {"stage": "completion", "completion_sizes": [{"builder": "random", "size": 2}]}
 
     database.set_generation_plan(1, plan)
 

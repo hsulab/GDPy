@@ -138,13 +138,12 @@ class PopulationManager:
         $ cat ga.yaml
         population:
             builders:
-                compact:
+                random:
                     method: random_structure_improved
-            reference_builder: compact
             initial:
                 total_size: 50
                 builder_allocations:
-                  - builder: compact
+                  - builder: random
                     size: 50
             generation:
                 total_size: 20
@@ -155,7 +154,7 @@ class PopulationManager:
                     size: 2
                 completion:
                     builder_proportions:
-                      - builder: compact
+                      - builder: random
                         proportion: 1.0
 
     """
