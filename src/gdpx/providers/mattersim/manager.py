@@ -10,6 +10,23 @@ from ..manager_base import BasePotentialManager
 from ..potential_utils import canonicalise_input_models
 
 
+_PRETRAINED_MODELS = {
+    "mattersim-v1.0.0-1m",
+    "mattersim-v1.0.0-1m.pth",
+    "mattersim-v1.0.0-5m",
+    "mattersim-v1.0.0-5m.pth",
+}
+
+
+def canonicalise_mattersim_model(model: str) -> str:
+    """Preserve MatterSim model aliases and resolve local checkpoint paths."""
+    if not isinstance(model, str) or not model:
+        raise ValueError("MatterSim model must be a non-empty name or checkpoint path.")
+    if model.lower() in _PRETRAINED_MODELS:
+        return model
+    return canonicalise_input_models(model)[0]
+
+
 class MatterSimManager(BasePotentialManager):
 
     name = "mattersim"
@@ -32,8 +49,10 @@ class MatterSimManager(BasePotentialManager):
 
         # Check if all models exist and update the self.calc_params
         # as the potential may be used in other directories if submitted by a scheduler.
-        models = canonicalise_input_models(calc_params.pop("model", []))
-        self.calc_params.update(model=models)
+        model = canonicalise_mattersim_model(
+            calc_params.pop("model", "MatterSim-v1.0.0-1M")
+        )
+        self.calc_params.update(model=[model])
 
         # Whether compute stress
         compute_stress = calc_params.pop("compute_stress", True)
@@ -51,7 +70,7 @@ class MatterSimManager(BasePotentialManager):
             except:
                 raise ModuleNotFoundError("Please install mattersim and torch to use the ase interface.")
             calc = MatterSimCalculator.from_checkpoint(
-                load_path=models[0], compute_stress=compute_stress, device=device
+                load_path=model, compute_stress=compute_stress, device=device
             )
         elif self.calc_backend == "graph_pes":
             try:
@@ -63,7 +82,7 @@ class MatterSimManager(BasePotentialManager):
             except:
                 raise ModuleNotFoundError("Please install mattersim and graph_pes to use the graph_pes interface.")
 
-            calc = GraphPESCalculator(mattersim(load_path=models[0]), device=device, skin=1.0)
+            calc = GraphPESCalculator(mattersim(load_path=model), device=device, skin=1.0)
         else:
             ...  # Backend has already been checked.
 
