@@ -3,24 +3,35 @@ recipe:
   random_seed: 7
   database: cu13.db
   population:
-    random_generator:
-      method: random_structure_improved
-      composition:
-        Cu: 13
-      box: [10.0, 10.0, 10.0]
-      region:
-        method: sphere
-        origin: [5.0, 5.0, 5.0]
-        radius: 3.0
-      pbc: false
-      covalent_ratio: [0.6, 2.0]
+    builders:
+      compact:
+        method: random_structure_improved
+        composition:
+          Cu: 13
+        box: [10.0, 10.0, 10.0]
+        region:
+          method: sphere
+          origin: [5.0, 5.0, 5.0]
+          radius: 3.0
+        pbc: false
+        covalent_ratio: [0.6, 2.0]
+    reference_builder: compact
     initial:
-      size: 4
+      total_size: 4
+      builder_allocations:
+        - builder: compact
+          size: 4
     generation:
-      size: 2
-      reproduction: 2
-    reproduction:
-      mutation_probability: 0.5
+      total_size: 2
+      reproduction:
+        size: 2
+        mutation_probability: 0.5
+      mutation:
+        size: 0
+      completion:
+        builder_proportions:
+          - builder: compact
+            proportion: 1.0
   operators:
     comparator:
       method: interatomic_distance

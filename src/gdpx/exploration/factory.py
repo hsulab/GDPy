@@ -28,8 +28,8 @@ def _recipe_parameters(method: str, parameters: dict) -> dict:
     if "recipe" not in parameters:
         legacy_keys = ", ".join(sorted(parameters)) or "none"
         migration = (
-            "Move random_seed and method-specific settings under 'recipe', and move the GA builder "
-            "to 'recipe.population.random_generator'."
+            "Move random_seed and method-specific settings under 'recipe', and define named GA builders "
+            "under 'recipe.population.builders'."
             if method == "genetic_algorithm"
             else "Move random_seed, builder, and all method-specific settings under 'recipe'."
         )

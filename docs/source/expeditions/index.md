@@ -43,7 +43,9 @@ method: genetic_algorithm
 recipe:
   random_seed: 7
   population:
-    random_generator: {}
+    builders:
+      primary: {}
+    reference_builder: primary
   # remaining method-specific settings
 runtime: {}
 scheduler: {}

@@ -1,11 +1,9 @@
 import copy
-import pathlib
-from typing import Callable, Mapping, Optional, Union
+from typing import Callable, Mapping, Optional
 
 import numpy as np
 from ase import Atoms
 from ase.geometry import find_mic
-from ase.io import read
 
 from gdpx.exploration.persist.database import GlobalOptimisationDatabase as GODB
 from gdpx.exploration.persist.thanos import dispatch_thanos
@@ -139,18 +137,26 @@ class PopulationManager:
 
         $ cat ga.yaml
         population:
-            random_generator:
-                method: random_structure_improved
-            initial: # for the initial population
-                size: 50 # not necessarily equal to size if set
-                seed_file: ./seed.xyz # seed structures for the initial population
-            generation: # for the following generations
-                size: 20 # number of structures in each generation
-                reproduction: 20 # crossover + mutate
-                random: 0
-                mutation: 0
-            reproduction:
-                mutation_probability: 0.5
+            builders:
+                compact:
+                    method: random_structure_improved
+            reference_builder: compact
+            initial:
+                total_size: 50
+                builder_allocations:
+                  - builder: compact
+                    size: 50
+            generation:
+                total_size: 20
+                reproduction:
+                    size: 16
+                    mutation_probability: 0.5
+                mutation:
+                    size: 2
+                completion:
+                    builder_proportions:
+                      - builder: compact
+                        proportion: 1.0
 
     """
 
@@ -165,13 +171,17 @@ class PopulationManager:
         """"""
         self.rng = rng
 
-        legacy_keys = {"init", "gen", "pmut", "pmut_custom"}.intersection(params)
+        legacy_keys = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"}.intersection(
+            params
+        )
         if legacy_keys:
             replacements = {
                 "init": "initial",
                 "gen": "generation",
-                "pmut": "reproduction.mutation_probability",
-                "pmut_custom": "reproduction.custom_mutation_probability",
+                "pmut": "generation.reproduction.mutation_probability",
+                "pmut_custom": "generation.reproduction.custom_mutation_probability",
+                "random_generator": "builders",
+                "reproduction": "generation.reproduction",
             }
             migration = ", ".join(f"{key} -> {replacements[key]}" for key in sorted(legacy_keys))
             raise ValueError(f"Legacy GA population keys are not supported: {migration}.")
@@ -182,19 +192,16 @@ class PopulationManager:
             raise Exception("Population name must be `constant` or `variable`.")
         self.name = name
 
-        # Get structure origins for the initial generation
-        # TODO: Support mutations for seed structures?
-        init_params = params.get("initial", dict(size=20, seed_file=None))
-        self.init_size = init_params.get("size", None)
-        self.init_seed_file: Optional[Union[str, pathlib.Path, list[Atoms]]] = init_params.get("seed_file", None)
-
-        # Get number of structures from different origins in one generation
-        gen_params = params.get("generation", dict(size=20))
+        gen_params = params.get("generation", {})
+        if not isinstance(gen_params, Mapping):
+            raise ValueError("population.generation must be a mapping.")
         legacy_generation_keys = {
             "reprod": "reproduction",
             "mutate": "mutation",
-            "max_random_try": "maximum_random_attempts",
-            "max_reprod_try": "maximum_reproduction_attempts",
+            "max_random_try": "reproduction.maximum_attempts",
+            "max_reprod_try": "reproduction.maximum_attempts",
+            "size": "total_size",
+            "random": "completion.builder_proportions",
         }
         found_legacy_generation_keys = legacy_generation_keys.keys() & gen_params.keys()
         if found_legacy_generation_keys:
@@ -202,40 +209,41 @@ class PopulationManager:
                 f"{key} -> {legacy_generation_keys[key]}" for key in sorted(found_legacy_generation_keys)
             )
             raise ValueError(f"Legacy GA generation keys are not supported: {migration}.")
-        self.gen_size = gen_params.get("size", None)
-        if not isinstance(self.gen_size, int):
-            raise Exception(f"The generation size needs to be an integer instead of `{self.gen_size}`.")
 
-        self.gen_ran_size = gen_params.get("random", 0)
-        self.gen_ran_max_try = gen_params.get(
-            "maximum_random_attempts",
-            self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER,
-        )
-
-        self.gen_mut_size = gen_params.get("mutation", 0)
-
-        self.gen_rep_size = gen_params.get("reproduction", self.gen_size - self.gen_ran_size - self.gen_mut_size)
-        self.gen_rep_max_try = gen_params.get(
-            "maximum_reproduction_attempts",
-            self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER,
+        init_params = params.get("initial", {})
+        if not isinstance(init_params, Mapping):
+            raise ValueError("population.initial must be a mapping.")
+        rejected_initial = {"size", "seed_file", "sources", "fallback_builder"}.intersection(init_params)
+        if rejected_initial:
+            raise ValueError(
+                "Legacy GA initial keys are not supported: " + ", ".join(sorted(rejected_initial)) + "."
+            )
+        self.init_size = self._positive_integer(init_params.get("total_size"), "initial.total_size")
+        self.initial_builder_allocations = self._parse_builder_allocations(
+            init_params.get("builder_allocations"), self.init_size
         )
 
-        # Check all numbers are valid
-        assert (self.gen_rep_size + self.gen_ran_size + self.gen_mut_size) == self.gen_size, (
-            "In each generation, the sum of each component does not equal the total size."
-        )
-        assert self.gen_ran_size <= self.gen_size, (
-            "In each generation, the random size should not be larger than the total size."
-        )
-        assert self.gen_rep_size <= self.gen_size, (
-            "In each generation, the reproduction size should not be larger than the total size."
-        )
-        assert self.gen_mut_size <= self.gen_size, (
-            "In each generation, the mutation size should not be larger than the total size."
+        # Get number of structures from different origins in one generation
+        self.gen_size = self._positive_integer(gen_params.get("total_size"), "generation.total_size")
+        reproduction_params = gen_params.get("reproduction", {})
+        mutation_params = gen_params.get("mutation", {})
+        completion_params = gen_params.get("completion", {})
+        generation_sections = (reproduction_params, mutation_params, completion_params)
+        if not all(isinstance(section, Mapping) for section in generation_sections):
+            raise ValueError(
+                "generation.reproduction, generation.mutation, and generation.completion must be mappings."
+            )
+        self.gen_rep_size = self._nonnegative_integer(reproduction_params.get("size", 0), "reproduction.size")
+        self.gen_mut_size = self._nonnegative_integer(mutation_params.get("size", 0), "mutation.size")
+        if self.gen_rep_size + self.gen_mut_size > self.gen_size:
+            raise ValueError("generation reproduction and mutation sizes exceed generation.total_size.")
+        self.gen_rep_max_try = self._attempts(reproduction_params, self.gen_rep_size, "reproduction")
+        self.gen_mut_max_try = self._attempts(mutation_params, self.gen_mut_size, "mutation")
+        self.completion_builder_proportions = self._parse_builder_proportions(
+            completion_params.get("builder_proportions")
         )
 
-        # Mutation probabilities
-        reproduction_params = params.get("reproduction", {})
+        # Mutation probabilities for offspring produced by reproduction.
         self.pmut = reproduction_params.get("mutation_probability", 0.5)
         self.pmut_custom = reproduction_params.get("custom_mutation_probability", 0.5)
 
@@ -264,6 +272,96 @@ class PopulationManager:
         self.population = None
 
         return
+
+    @staticmethod
+    def _positive_integer(value, path: str) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f"{path} must be a positive integer; got {value!r}.")
+        return value
+
+    @staticmethod
+    def _nonnegative_integer(value, path: str) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"{path} must be a non-negative integer; got {value!r}.")
+        return value
+
+    def _attempts(self, params: Mapping, size: int, section: str) -> int:
+        attempts = params.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
+        return self._nonnegative_integer(attempts, f"generation.{section}.maximum_attempts")
+
+    def _parse_builder_allocations(self, allocations, total_size: int) -> list[dict]:
+        if not isinstance(allocations, list) or not allocations:
+            raise ValueError("initial.builder_allocations must be a non-empty list.")
+        parsed = []
+        names = set()
+        for index, allocation in enumerate(allocations):
+            if (
+                not isinstance(allocation, Mapping)
+                or not isinstance(allocation.get("builder"), str)
+                or not allocation["builder"]
+            ):
+                raise ValueError(f"initial.builder_allocations[{index}] requires a builder name.")
+            size = self._nonnegative_integer(allocation.get("size"), f"initial.builder_allocations[{index}].size")
+            maximum_attempts = allocation.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
+            maximum_attempts = self._nonnegative_integer(
+                maximum_attempts, f"initial.builder_allocations[{index}].maximum_attempts"
+            )
+            name = allocation["builder"]
+            if name in names:
+                raise ValueError(f"initial.builder_allocations repeats builder {name!r}.")
+            names.add(name)
+            parsed.append(dict(builder=name, size=size, maximum_attempts=maximum_attempts))
+        if sum(x["size"] for x in parsed) != total_size:
+            raise ValueError("initial builder allocation sizes must sum to initial.total_size.")
+        return parsed
+
+    def _parse_builder_proportions(self, proportions) -> list[dict]:
+        if not isinstance(proportions, list) or not proportions:
+            raise ValueError("generation.completion.builder_proportions must be a non-empty list.")
+        parsed = []
+        names = set()
+        for index, item in enumerate(proportions):
+            if not isinstance(item, Mapping) or not isinstance(item.get("builder"), str) or not item["builder"]:
+                raise ValueError(f"generation.completion.builder_proportions[{index}] requires a builder name.")
+            proportion = item.get("proportion")
+            if not isinstance(proportion, (int, float)) or isinstance(proportion, bool) or proportion <= 0:
+                raise ValueError(f"generation completion proportion at index {index} must be positive.")
+            name = item["builder"]
+            if name in names:
+                raise ValueError(f"generation completion proportions repeat builder {name!r}.")
+            names.add(name)
+            maximum_attempts = item.get("maximum_attempts")
+            if maximum_attempts is not None:
+                maximum_attempts = self._nonnegative_integer(
+                    maximum_attempts,
+                    f"generation.completion.builder_proportions[{index}].maximum_attempts",
+                )
+            parsed.append(
+                dict(builder=name, proportion=float(proportion), maximum_attempts=maximum_attempts)
+            )
+        if not np.isclose(sum(x["proportion"] for x in parsed), 1.0):
+            raise ValueError("generation completion builder proportions must sum to 1.0.")
+        return parsed
+
+    def allocate_completion_sizes(self, size: int) -> list[dict]:
+        """Allocate a deficit using largest remainder and declaration-order ties."""
+        raw = [size * item["proportion"] for item in self.completion_builder_proportions]
+        allocated = [int(np.floor(value)) for value in raw]
+        order = sorted(range(len(raw)), key=lambda i: (-(raw[i] - allocated[i]), i))
+        for index in order[: size - sum(allocated)]:
+            allocated[index] += 1
+        return [
+            dict(
+                builder=item["builder"],
+                size=item_size,
+                maximum_attempts=(
+                    item["maximum_attempts"]
+                    if item["maximum_attempts"] is not None
+                    else item_size * self.MAX_ATTEMPTS_MULTIPLIER
+                ),
+            )
+            for item, item_size in zip(self.completion_builder_proportions, allocated)
+        ]
 
     def update_population(self, database: GODB, comparing) -> None:
         """Update population.
@@ -325,7 +423,7 @@ class PopulationManager:
             curr_gen: The current generation number.
 
         """
-        candidate_groups = {"paired": [], "random": [], "mutated": [], "seed": []}
+        candidate_groups = {"paired": [], "mutated": [], "completion": [], "initial": []}
 
         with CustomTimer(name="getting canidates in the current generation", func=self._print):
             unrelaxed_candidate_rows = list(database.connection.select(f"relaxed=0,generation={curr_gen}"))
@@ -355,87 +453,68 @@ class PopulationManager:
                     candidate_groups["paired"].append(curr_atoms)
                 elif "Mutation" in origin:
                     candidate_groups["mutated"].append(curr_atoms)
-                elif "Random" in origin:
-                    candidate_groups["random"].append(curr_atoms)
-                elif "Seed" in origin:
-                    candidate_groups["seed"].append(curr_atoms)
+                elif origin.startswith("CompletionBuilder:"):
+                    candidate_groups["completion"].append(curr_atoms)
+                elif origin.startswith("InitialBuilder:"):
+                    candidate_groups["initial"].append(curr_atoms)
                 else:
                     ...
 
         return candidate_groups
 
-    def _prepare_initial_population(self, generator) -> list[Atoms]:
-        """"""
-        starting_population = []
-
-        # Try to read seed structures and them into database.
-        # The seed structures would be re-optimised by the worker.
-        self._print("----- try to add seed structures -----")
-        seed_frames = []
-        if self.init_seed_file is not None:
-            self._print(str(self.init_seed_file))
-            if isinstance(self.init_seed_file, str):
-                seed_frames = read(self.init_seed_file, ":")
-            elif isinstance(self.init_seed_file, pathlib.Path):
-                seed_frames = read(self.init_seed_file, ":")
-            elif isinstance(self.init_seed_file, list):  # list[Atoms]
-                seed_frames = self.init_seed_file
-            else:
-                raise RuntimeError(f"Init_seed_file {self.init_seed_file} formst is unsuppoted.")
-            if isinstance(seed_frames, Atoms):
-                seed_frames = [seed_frames]
-            assert all(isinstance(atoms, Atoms) for atoms in seed_frames), "Some seed structures are invalid."
-            seed_frames = clean_seed_structures(seed_frames)
-            seed_size = len(seed_frames)
-            self._print(f"number of seed frames: {seed_size}")
-            assert seed_size > 0 and seed_size <= self.init_size, "The number of seed structures is invalid."
-        else:
-            seed_size = 0
-
-        # TODO: check substrate consistency if any
-        # TODO: check atomic permutation by tags
-        # TODO: check geometric convergence if energy and forces are provided
-        for i, atoms in enumerate(seed_frames):
-            atoms.info["data"] = {}
-            atoms.info["key_value_pairs"] = dict(
-                origin=f"StartingSeed_{i:>04d}",
-                extinct=0,
-                # raw_score=-atoms.get_potential_energy(),
-            )
-        self._print(f"number of seed structures: {len(seed_frames)}")
-        starting_population.extend(seed_frames)
-
-        # Generate random structures
-        self._print("----- try to generate random structures -----")
-        random_frames = generator.run(size=self.init_size - seed_size)
-        self._print(f"number of random structures: {len(random_frames)}")
-        for atoms in random_frames:
-            atoms.info["data"] = {}
-            atoms.info["key_value_pairs"] = dict(
-                origin="StartingRandom",
-                extinct=0,
-            )
-        starting_population.extend(random_frames)
-
-        if len(starting_population) != self.init_size:
+    def _generate_from_builder(self, name: str, builder, size: int, maximum_attempts: int) -> list[Atoms]:
+        frames: list[Atoms] = []
+        for _ in range(maximum_attempts):
+            if len(frames) == size:
+                break
+            generated = builder.run(size=size - len(frames))
+            if isinstance(generated, Atoms):
+                generated = [generated]
+            if generated is None:
+                generated = []
+            if not isinstance(generated, list) or not all(isinstance(atoms, Atoms) for atoms in generated):
+                raise RuntimeError(f"Builder {name!r} returned invalid structures.")
+            if len(generated) > size - len(frames):
+                raise RuntimeError(f"Builder {name!r} returned more structures than requested.")
+            frames.extend(generated)
+        if len(frames) != size:
             raise RuntimeError(
-                "It fails to generate the initial population. Check the seed file and the system setting."
+                f"Builder {name!r} generated {len(frames)} of {size} requested structures "
+                f"after {maximum_attempts} attempts."
             )
+        return frames
 
-        self._print(f"finished creating initial population...")
+    @staticmethod
+    def _require_builders(builders: Mapping, names) -> None:
+        missing = sorted(set(names) - set(builders))
+        if missing:
+            raise ValueError(f"Unknown population builders: {', '.join(missing)}.")
 
+    def _prepare_initial_population(self, builders: Mapping) -> list[Atoms]:
+        """Build the initial population from explicit, strictly sized allocations."""
+        self._require_builders(builders, (x["builder"] for x in self.initial_builder_allocations))
+        starting_population = []
+        for allocation in self.initial_builder_allocations:
+            name = allocation["builder"]
+            frames = self._generate_from_builder(
+                name, builders[name], allocation["size"], allocation["maximum_attempts"]
+            )
+            frames = clean_seed_structures(frames)
+            for atoms in frames:
+                atoms.info["data"] = {"builder": name}
+                atoms.info["key_value_pairs"] = dict(origin=f"InitialBuilder:{name}", extinct=0)
+            starting_population.extend(frames)
+        if len(starting_population) != self.init_size:
+            raise RuntimeError("Failed to generate the configured initial population.")
         return starting_population
 
     def _prepare_current_population(
         self,
         database: GODB,
         curr_gen: int,
-        generator,
+        builders: Mapping,
         operators: dict,
-        candidate_groups: dict = {},
-        num_paired: int = 0,
-        num_mutated: int = 0,
-        num_random: int = 0,
+        candidate_groups: Optional[dict] = None,
     ) -> list[Atoms]:
         """Prepare current population.
 
@@ -445,14 +524,10 @@ class PopulationManager:
         Args:
             database: database
             curr_gen: current generation
-            generator: generator
+            builders: named structure builders
             pairing: pairing
             mutations: mutations
             candidate_groups: candidate groups
-            num_paired: number of paired
-            num_mutated: number of mutated
-            num_random: number of random
-
         Returns:
             A list of Atoms.
 
@@ -460,19 +535,24 @@ class PopulationManager:
         assert self.population is not None
         population = self.population
 
-        current_candidates = []
+        candidate_groups = candidate_groups or {}
+        paired_structures = list(candidate_groups.get("paired", []))
+        mutated_structures = list(candidate_groups.get("mutated", []))
+        completion_structures = list(candidate_groups.get("completion", []))
 
         # We need adjust n_top for the variable composition search.
         num_atoms_substrate = database.get_param("num_atoms_substrate")
         assert isinstance(num_atoms_substrate, int)
 
-        # Produce structures by reproduction plus mutation
-        rest_rep_size = self.gen_rep_size - num_paired
-        paired_structures = []
-        paired_structures.extend(candidate_groups.get("paired", []))
-        if rest_rep_size > 0 and num_random == 0:
-            # pair finished but not enough, random already starts...
+        plan = database.get_generation_plan(curr_gen)
+        if plan is None:
+            plan = {"stage": "reproduction"}
+            database.set_generation_plan(curr_gen, plan)
+
+        if plan["stage"] == "reproduction":
             for i in range(self.gen_rep_max_try):
+                if len(paired_structures) >= self.gen_rep_size:
+                    break
                 self._print(f"Reproduction attempt {i} ->")
                 atoms = self._reproduce(
                     database,
@@ -489,98 +569,59 @@ class PopulationManager:
                     )
                 else:
                     self._print(f"  reproduction failed")
-                if len(paired_structures) == self.gen_rep_size:
+            plan = {"stage": "mutation"}
+            database.set_generation_plan(curr_gen, plan)
+
+        if plan["stage"] == "mutation":
+            for i in range(self.gen_mut_max_try):
+                if len(mutated_structures) >= self.gen_mut_size:
                     break
-            else:
-                self._print(f"There is not enough paired structures after {self.gen_rep_max_try} attempts.")
-        else:
-            ...
-        current_candidates.extend(paired_structures)
+                self._print(f"Mutation attempt {i} ->")
+                parent = population.get_one_candidate(with_history=True)
+                assert isinstance(parent, Atoms)
+                atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
+                if atoms is not None:
+                    database.add_unrelaxed_candidate(
+                        atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
+                    )
+                    mutated_structures.append(atoms)
+            deficit = self.gen_size - len(paired_structures) - len(mutated_structures)
+            if deficit < 0:
+                raise RuntimeError("Reproduction and mutation exceeded generation.total_size.")
+            plan = {"stage": "completion", "completion_sizes": self.allocate_completion_sizes(deficit)}
+            database.set_generation_plan(curr_gen, plan)
 
-        # Produce random structures
-        if len(paired_structures) < self.gen_rep_size:
-            self._print("There is not enough reproduced (paired) structures.")
-            self._print(f"Only {len(paired_structures)} are reproduced. The rest would be generated randomly.")
-            curr_ran_size = self.gen_size - len(paired_structures) - self.gen_mut_size
-        else:
-            curr_ran_size = self.gen_ran_size
-
-        rest_ran_size = curr_ran_size - num_random
-        gen_ran_max_try = rest_ran_size * self.MAX_ATTEMPTS_MULTIPLIER
-
-        random_structures = []
-        random_structures.extend(candidate_groups.get("random", []))
-        if rest_ran_size > 0 and num_mutated == 0:
-            # random finished but not enough, mutation already starts...
-            for i in range(gen_ran_max_try):
-                self._print(f"Random attempt {i} ->")
-                frames = generator.run(size=1)
-                if frames:
-                    atoms = frames[0]
+        if plan["stage"] == "completion":
+            self._require_builders(builders, (x["builder"] for x in plan["completion_sizes"]))
+            existing = {}
+            for atoms in completion_structures:
+                name = atoms.info.get("data", {}).get("builder")
+                existing[name] = existing.get(name, 0) + 1
+            for allocation in plan["completion_sizes"]:
+                name, target = allocation["builder"], allocation["size"]
+                remaining = target - existing.get(name, 0)
+                if remaining < 0:
+                    raise RuntimeError(f"Too many persisted completion structures for builder {name!r}.")
+                frames = self._generate_from_builder(
+                    name, builders[name], remaining, allocation["maximum_attempts"]
+                )
+                for atoms in frames:
+                    atoms.info.setdefault("data", {})["builder"] = name
                     database.add_unrelaxed_candidate(
                         atoms,
-                        description="random: OffspringGenerator",
-                        origin="RandomCandidateUnrelaxed",
+                        description=f"builder: {name}",
+                        origin=f"CompletionBuilder:{name}",
                         generation=curr_gen,
                     )
-                    random_structures.append(atoms)
-                    self._print(
-                        f"  confid={atoms.info['confid']:>6d} parents={'none':<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
-                    )
-                else:
-                    ...  # Random failed.
-                if len(random_structures) == curr_ran_size:
-                    break
-            else:
-                if self.gen_ran_size > 0:  # NOTE: no break when random size is 0
-                    self._print(f"There is not enough random structures after {self.gen_ran_max_try} attempts.")
-        else:
-            ...
-        current_candidates.extend(random_structures)
+                    completion_structures.append(atoms)
+            plan = dict(plan, stage="complete")
+            database.set_generation_plan(curr_gen, plan)
 
-        # Produce mutated structures
-        if len(current_candidates) < (self.gen_rep_size + self.gen_ran_size):
-            self._print("There is not enough reproduced+random structures.")
-            self._print(f"Only {len(current_candidates)} are generated. The rest would be generated by mutations.")
-            curr_mut_size = self.gen_size - len(current_candidates)
-        else:
-            curr_mut_size = self.gen_mut_size
-
-        rest_mut_size = curr_mut_size - num_mutated
-        gen_mut_max_try = rest_mut_size * self.MAX_ATTEMPTS_MULTIPLIER
-
-        mutated_structures = []
-        mutated_structures.extend(candidate_groups.get("mutated", []))
-        for i in range(gen_mut_max_try):
-            self._print(f"Mutation attempt {i} ->")
-            parent = population.get_one_candidate(with_history=True)
-            assert isinstance(parent, Atoms)
-            atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
-            if atoms is not None:
-                database.add_unrelaxed_candidate(
-                    atoms,
-                    description=desc,
-                    origin="MutationCandidateUnrelaxed",
-                    generation=curr_gen,
-                )
-                mutated_structures.append(atoms)
-                parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
-                self._print(
-                    f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
-                )
-            else:
-                ...  # mutation failed...
-            if len(mutated_structures) == curr_mut_size:
-                break
-        else:
-            if self.gen_mut_size > 0:  # NOTE: no break when random size is 0
-                self._print(f"There is not enough mutated structures after {gen_mut_max_try} attempts.")
-        current_candidates.extend(mutated_structures)
-
+        current_candidates = paired_structures + mutated_structures + completion_structures
         if len(current_candidates) != self.gen_size:
-            self._print("Not enough candidates for the next generation.")
-            raise RuntimeError("Not enough candidates for the next generation.")
-
+            raise RuntimeError(
+                f"Generation {curr_gen} contains {len(current_candidates)} candidates; expected {self.gen_size}."
+            )
         return current_candidates
 
     def _update_generation_settings(self, mutations, pairing):

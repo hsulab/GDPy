@@ -29,11 +29,14 @@ class ExpeditionVariable(Variable):
             kwargs["recipe"] = copy.deepcopy(dict(recipe))
             kwargs["recipe"]["builder"] = recipe["builder"].value
         elif isinstance(recipe, Mapping) and isinstance(recipe.get("population"), Mapping):
-            random_generator = recipe["population"].get("random_generator")
-            if isinstance(random_generator, Variable):
+            builders = recipe["population"].get("builders")
+            if isinstance(builders, Mapping) and any(isinstance(builder, Variable) for builder in builders.values()):
                 kwargs["recipe"] = copy.deepcopy(dict(recipe))
                 kwargs["recipe"]["population"] = copy.deepcopy(dict(recipe["population"]))
-                kwargs["recipe"]["population"]["random_generator"] = random_generator.value
+                kwargs["recipe"]["population"]["builders"] = {
+                    name: builder.value if isinstance(builder, Variable) else builder
+                    for name, builder in builders.items()
+                }
         if isinstance(kwargs.get("builder"), Variable):
             kwargs["builder"] = kwargs["builder"].value
         expedition = create_expedition(kwargs)

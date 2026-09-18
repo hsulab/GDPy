@@ -1,4 +1,5 @@
 import collections
+import copy
 import dataclasses
 import enum
 import pathlib
@@ -86,6 +87,21 @@ class GlobalOptimisationDatabase:
             param = self.connection.get(1).data.get(parameter, None)
 
         return param
+
+    def get_generation_plan(self, generation: int) -> Optional[dict]:
+        """Return persisted candidate-construction state for a generation."""
+        data = self.connection.get(1).data or {}
+        plan = data.get("generation_plans", {}).get(str(generation))
+        return copy.deepcopy(plan)
+
+    def set_generation_plan(self, generation: int, plan: dict) -> None:
+        """Persist candidate-construction state for restart-safe generation."""
+        row = self.connection.get(1)
+        data = dict(row.data or {})
+        plans = copy.deepcopy(data.get("generation_plans", {}))
+        plans[str(generation)] = copy.deepcopy(plan)
+        data["generation_plans"] = plans
+        self.connection.update(1, data=data)
 
     def get_substrate(self):
         """Get the substrate."""

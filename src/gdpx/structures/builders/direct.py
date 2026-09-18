@@ -185,6 +185,7 @@ class DirectBuilder(StructureBuilder):
         self,
         frames: Union[str, pathlib.Path, list[Atoms]],
         indices: Optional[Union[str, list[int]]] = None,
+        ornaments: Optional[int] = None,
         *args,
         **kwargs,
     ):
@@ -198,23 +199,27 @@ class DirectBuilder(StructureBuilder):
         super().__init__(*args, **kwargs)
 
         if isinstance(frames, (str, pathlib.Path)):
-            fdata = frames.strip().split("::")
+            frames_text = str(frames)
+            fdata = frames_text.strip().split("::")
             if len(fdata) == 1:
-                fpath, ornaments = frames, 0
+                fpath, path_ornaments = frames_text, 0
             elif len(fdata) == 2:
-                fpath, ornaments = fdata
+                fpath, path_ornaments = fdata
             else:
                 raise RuntimeError()
             self._fpath = pathlib.Path(fpath).resolve()
             assert self._fpath.exists(), f"{str(self._fpath)} does not exist."
             try:
-                self.ornaments = int(ornaments)
+                self.ornaments = int(path_ornaments)
             except:
                 self.ornaments = 0
         else:
             assert all(isinstance(x, Atoms) for x in frames), "Input should be a list of atoms."
             self._frames = frames
             self.ornaments = 0
+
+        if ornaments is not None:
+            self.ornaments = int(ornaments)
 
         self._indices = indices
 
@@ -281,9 +286,10 @@ class DirectBuilder(StructureBuilder):
 
     def as_dict(self) -> dict:
         """Return generator parameters"""
+        frames = str(self._fpath.resolve()) if self._fpath is not None else self._frames
         params = dict(
             method="direct",
-            frames=str(self._fpath.resolve()),  # TODO: if not exists, and only have _frames
+            frames=frames,
             indices=self.indices,
             ornaments=self.ornaments,
         )

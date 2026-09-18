@@ -1,6 +1,7 @@
 import copy
 import itertools
 import pathlib
+from collections.abc import Mapping
 from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
@@ -175,10 +176,16 @@ class GeneticAlgorithmEngine(BaseExpedition):
         super().__init__(*args, **kwargs)
 
         population = copy.deepcopy(population)
-        try:
-            random_generator = population.pop("random_generator")
-        except KeyError as error:
-            raise ValueError("GA population configuration requires a 'random_generator'.") from error
+        if "random_generator" in population:
+            raise ValueError("Legacy GA population key 'random_generator' is not supported; use 'builders'.")
+        builders_config = population.pop("builders", None)
+        reference_builder = population.pop("reference_builder", None)
+        if not isinstance(builders_config, Mapping) or not builders_config:
+            raise ValueError("GA population configuration requires a non-empty 'builders' mapping.")
+        if not all(isinstance(name, str) and name for name in builders_config):
+            raise ValueError("GA population builder names must be non-empty strings.")
+        if not isinstance(reference_builder, str) or reference_builder not in builders_config:
+            raise ValueError("GA population.reference_builder must name one of population.builders.")
 
         ga_dict = dict(
             database=database,
@@ -195,45 +202,33 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Store initial parameters
         self.ga_dict = copy.deepcopy(ga_dict)
 
-        population_params = self.ga_dict.get("population", None)
-        if population_params is not None:
-            if "initial" in population_params:
-                seed_file = population_params["initial"].get("seed_file", None)
-                if seed_file is not None:
-                    self.ga_dict["population"]["initial"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
-
-        # Check random consistency, generator and population
+        # Check random consistency, builders and population
         self._print(f"GA RANDOM SEED {self.random_seed}")
-
-        # Check builder for random structure generation
-        if isinstance(random_generator, dict):
-            builder_params = copy.deepcopy(random_generator)
-        else:  # assume it is a StructureBuilder
-            builder_params = random_generator.as_dict()
-
-        # The builder has its own rng but it is initialised from the engine's random_seed.
-        # If random_bulk is used, due to its deprecated np.random,
-        # the results may not be reproducible.
-        prev_seed = builder_params.get("random_seed", None)
-        builder_params.update(random_seed=self.random_seed)
-        self.generator = canonicalise_builder(builder_params)
-
-        self._print(f"OVERWRITE BUILDER SEED FROM {prev_seed} TO {self.random_seed}")
-
-        # The ase built-in cut_and_splice reinits tags from 0 if use_tags is false,
-        # Here, no matter what type of system is explored, we enforce the builder's use_tags
-        # to be true as it retains the tags information.
-        assert self.generator is not None, "Builder is not properly initialised."
-        if hasattr(self.generator, "use_tags"):
-            if self.generator.use_tags:
-                ...
+        self.builders = {}
+        child_seeds = {
+            name: int(self.rng.integers(0, np.iinfo(np.int32).max)) for name in sorted(builders_config)
+        }
+        for name, builder_config in builders_config.items():
+            child_seed = child_seeds[name]
+            if isinstance(builder_config, Mapping):
+                params = copy.deepcopy(dict(builder_config))
+                params["random_seed"] = child_seed
+                builder = canonicalise_builder(params)
             else:
-                self.generator.use_tags = True
-                self._print(
-                    f"Builder `{self.generator.name}` changes `use_tags` to true for formation energy computation."
-                )
-        else:
-            raise RuntimeError(f"Builder `{self.generator.name}` does not have true `use_tags`.")
+                builder = builder_config
+                if not hasattr(builder, "set_rng"):
+                    raise TypeError(f"Population builder {name!r} must be a builder configuration or instance.")
+                builder.set_rng(child_seed)
+            if builder is None:
+                raise ValueError(f"Population builder {name!r} could not be initialised.")
+            if hasattr(builder, "use_tags"):
+                builder.use_tags = True
+            self.builders[name] = builder
+            self._print(f"SET BUILDER {name!r} SEED TO {child_seed}")
+
+        self.reference_builder_name = reference_builder
+        # Keep this alias for operator/system metadata that comes from one reference builder.
+        self.generator = self.builders[reference_builder]
 
         # Worker will be lazily checked in run
         self.worker = None
@@ -256,6 +251,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # Population and check target-population consistency
         self.pop_manager = PopulationManager(ga_dict["population"], rng=self.rng)
+        configured_builder_names = [
+            allocation["builder"] for allocation in self.pop_manager.initial_builder_allocations
+        ] + [item["builder"] for item in self.pop_manager.completion_builder_proportions]
+        self.pop_manager._require_builders(self.builders, configured_builder_names)
         if self.pop_manager.name == "variable":
             if self.target not in ("cohesive_energy", "formation_energy"):
                 raise RuntimeError(
@@ -324,12 +323,30 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def update_active_params(self, prev_wdir: pathlib.Path) -> None:
         """"""
-        candidates = read(prev_wdir / "results" / "all_candidates.xyz", ":")
+        candidates_path = (prev_wdir / "results" / "all_candidates.xyz").resolve()
+        candidates = read(candidates_path, ":")
         selected_candidates = candidates[: self.pop_manager.init_size]
         assert isinstance(selected_candidates, list)
         assert all(isinstance(c, Atoms) for c in selected_candidates)
-
-        self.pop_manager.init_seed_file = selected_candidates
+        if len(selected_candidates) != self.pop_manager.init_size:
+            raise RuntimeError(
+                f"Active population contains {len(selected_candidates)} structures; "
+                f"initial.total_size requires {self.pop_manager.init_size}."
+            )
+        name = "active_population"
+        self.builders[name] = canonicalise_builder(
+            dict(method="direct", frames=str(candidates_path), indices=list(range(self.pop_manager.init_size)))
+        )
+        self.pop_manager.initial_builder_allocations = [
+            dict(
+                builder=name,
+                size=self.pop_manager.init_size,
+                maximum_attempts=self.pop_manager.init_size * self.pop_manager.MAX_ATTEMPTS_MULTIPLIER,
+            )
+        ]
+        self.ga_dict["population"]["initial"]["builder_allocations"] = [
+            dict(builder=name, size=self.pop_manager.init_size)
+        ]
 
         return
 
@@ -348,10 +365,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.pop_manager._print = self._print
         self.pop_manager._debug = self._debug
 
-        # Check random structure builder (generator)
-        self._print("===== register builder =====")
-        for l in str(self.generator).split("\n"):
-            self._print(l)
+        self._print("===== register builders =====")
+        for name, builder in self.builders.items():
+            self._print(f"--- {name} ---")
+            for line in str(builder).split("\n"):
+                self._print(line)
         assert self.generator is not None, "GA has not set its builder properly."
         self._print(f"random_state: {self.generator.random_seed}")
 
@@ -509,7 +527,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         assert gen_num == 0, "This function is only for the first generation."
 
         # Generate structures for the initial population
-        starting_population = self.pop_manager._prepare_initial_population(generator=self.generator)
+        starting_population = self.pop_manager._prepare_initial_population(builders=self.builders)
         for a in starting_population:
             self.da.add_unrelaxed_candidate(a, generation=gen_num)
 
@@ -543,10 +561,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         )
 
         # Generate candidates for the current generation
-        num_paired = len(candidate_groups.get("paired", []))
-        num_mutated = len(candidate_groups.get("mutated", []))
-        num_random = len(candidate_groups.get("random", []))
-        is_prodcution_complete = (num_paired + num_mutated + num_random) >= self.pop_manager.gen_size
+        num_candidates = sum(len(group) for group in candidate_groups.values())
+        is_prodcution_complete = num_candidates >= self.pop_manager.gen_size
         if not is_prodcution_complete:
             self._print("Current generation has not finished...")
         # The current candidates have not been created completely.
@@ -554,12 +570,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         current_candidates = self.pop_manager._prepare_current_population(
             database=self.da,
             curr_gen=gen_num,
-            generator=self.generator,
+            builders=self.builders,
             operators=self.operators,
             candidate_groups=candidate_groups,
-            num_paired=num_paired,
-            num_mutated=num_mutated,
-            num_random=num_random,
         )
 
         # Validate candidate origins for the current generation
@@ -775,11 +788,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
     ):
         self._print("===== Population Info =====")
         content = "For generation > 0,\n"
-        content += "{:>8s}  {:>8s}  {:>8s}  {:>8s}\n".format("Reprod", "Random", "Mutate", "Total")
-        content += "{:>8d}  {:>8d}  {:>8d}  {:>8d}\n".format(
+        content += "{:>12s}  {:>12s}  {:>12s}  {:>8s}\n".format(
+            "Reproduction", "Mutation", "Completion", "Total"
+        )
+        content += "{:>12d}  {:>12d}  {:>12d}  {:>8d}\n".format(
             self.pop_manager.gen_rep_size,
-            self.pop_manager.gen_ran_size,
             self.pop_manager.gen_mut_size,
+            self.pop_manager.gen_size - self.pop_manager.gen_rep_size - self.pop_manager.gen_mut_size,
             self.pop_manager.gen_size,
         )
         content += "Note: Reproduced structures mutate according to mutation_probability.\n"
@@ -885,7 +900,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def as_dict(self) -> dict:
         """"""
         population = copy.deepcopy(self.ga_dict["population"])
-        population = dict(random_generator=self.generator.as_dict(), **population)
+        population = dict(
+            builders={name: builder.as_dict() for name, builder in self.builders.items()},
+            reference_builder=self.reference_builder_name,
+            **population,
+        )
         ga_dict = copy.deepcopy(self.ga_dict)
         ga_dict["population"] = population
         recipe = dict(

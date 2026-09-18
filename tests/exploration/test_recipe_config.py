@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from ase import Atoms
 
 from gdpx.exploration import REGISTER
 from gdpx.exploration.factory import create_expedition
@@ -9,6 +10,7 @@ from gdpx.exploration.genetic_algorithm.engine import (
     GeneticAlgorithmEngine,
 )
 from gdpx.exploration.genetic_algorithm.population.manager import PopulationManager
+from gdpx.exploration.persist.database import GlobalOptimisationDatabase
 from gdpx.exploration.monte_carlo.concurrent_hopping import ConcurrentHopping
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
 from gdpx.exploration.monte_carlo.utils import parse_operators
@@ -88,9 +90,15 @@ def test_factory_rejects_legacy_global_optimisation_shapes(config, message):
 def test_ga_broadcaster_uses_named_recipe_fields():
     broadcaster = GeneticAlgorithmBroadcaster(
         population={
-            "random_generator": {"method": "unused"},
-            "initial": {"size": 1},
-            "generation": {"size": 1},
+            "builders": {"primary": {"method": "unused"}},
+            "reference_builder": "primary",
+            "initial": {"total_size": 1, "builder_allocations": [{"builder": "primary", "size": 1}]},
+            "generation": {
+                "total_size": 1,
+                "reproduction": {"size": 1},
+                "mutation": {"size": 0},
+                "completion": {"builder_proportions": [{"builder": "primary", "proportion": 1.0}]},
+            },
         },
         convergence={"generation": 1},
         property={
@@ -109,18 +117,28 @@ def test_ga_broadcaster_uses_named_recipe_fields():
 def test_ga_population_uses_expanded_keys():
     population = PopulationManager(
         {
-            "initial": {"size": 4},
-            "generation": {
-                "size": 4,
-                "reproduction": 2,
-                "random": 1,
-                "mutation": 1,
-                "maximum_random_attempts": 12,
-                "maximum_reproduction_attempts": 24,
+            "initial": {
+                "total_size": 4,
+                "builder_allocations": [
+                    {"builder": "imported", "size": 1},
+                    {"builder": "compact", "size": 3},
+                ],
             },
-            "reproduction": {
-                "mutation_probability": 0.25,
-                "custom_mutation_probability": 0.75,
+            "generation": {
+                "total_size": 4,
+                "reproduction": {
+                    "size": 2,
+                    "maximum_attempts": 24,
+                    "mutation_probability": 0.25,
+                    "custom_mutation_probability": 0.75,
+                },
+                "mutation": {"size": 1, "maximum_attempts": 12},
+                "completion": {
+                    "builder_proportions": [
+                        {"builder": "compact", "proportion": 0.75},
+                        {"builder": "alternative", "proportion": 0.25},
+                    ]
+                },
             },
             "substrate": {"distance_tolerance": 0.1},
         }
@@ -128,13 +146,16 @@ def test_ga_population_uses_expanded_keys():
 
     assert population.init_size == 4
     assert population.gen_rep_size == 2
-    assert population.gen_ran_size == 1
     assert population.gen_mut_size == 1
-    assert population.gen_ran_max_try == 12
+    assert population.gen_mut_max_try == 12
     assert population.gen_rep_max_try == 24
     assert population.pmut == 0.25
     assert population.pmut_custom == 0.75
     assert population.substrate_dtol == 0.1
+    assert population.allocate_completion_sizes(6) == [
+        {"builder": "compact", "size": 5, "maximum_attempts": 50},
+        {"builder": "alternative", "size": 1, "maximum_attempts": 10},
+    ]
 
 
 @pytest.mark.parametrize(
@@ -142,7 +163,14 @@ def test_ga_population_uses_expanded_keys():
     [
         {"init": {"size": 4}},
         {"generation": {"size": 4, "reprod": 4}},
-        {"substrate": {"dtol": 0.1}},
+        {
+            "initial": {"total_size": 1, "builder_allocations": [{"builder": "a", "size": 1}]},
+            "generation": {
+                "total_size": 1,
+                "completion": {"builder_proportions": [{"builder": "a", "proportion": 1.0}]},
+            },
+            "substrate": {"dtol": 0.1},
+        },
     ],
 )
 def test_ga_population_rejects_abbreviated_keys(population):
@@ -167,13 +195,17 @@ def test_monte_carlo_operator_probability_is_expanded():
 def test_ga_serialization_uses_recipe_and_runtime():
     engine = object.__new__(GeneticAlgorithmEngine)
     engine.random_seed = 7
-    engine.generator = Serializable({"method": "random_generator"})
+    engine.builders = {
+        "compact": Serializable({"method": "random_structure_improved"}),
+        "imported": Serializable({"method": "direct"}),
+    }
+    engine.reference_builder_name = "compact"
     engine.worker = Serializable({"schema_version": 2})
     engine.ga_dict = {
         "database": "search.db",
         "population": {
-            "initial": {"size": 1},
-            "generation": {"size": 1},
+            "initial": {"total_size": 1, "builder_allocations": [{"builder": "compact", "size": 1}]},
+            "generation": {"total_size": 1},
         },
         "operators": {},
         "property": {"target": "energy"},
@@ -185,9 +217,103 @@ def test_ga_serialization_uses_recipe_and_runtime():
 
     assert list(config) == ["method", "recipe", "runtime"]
     assert config["recipe"]["random_seed"] == 7
-    assert config["recipe"]["population"]["random_generator"] == {"method": "random_generator"}
+    assert config["recipe"]["population"]["builders"] == {
+        "compact": {"method": "random_structure_improved"},
+        "imported": {"method": "direct"},
+    }
+    assert config["recipe"]["population"]["reference_builder"] == "compact"
     assert "params" not in config
     assert "worker" not in config
+
+
+class FixedBuilder:
+    def __init__(self, symbol):
+        self.symbol = symbol
+
+    def run(self, size):
+        return [Atoms(self.symbol) for _ in range(size)]
+
+
+def test_initial_population_uses_ordered_builder_allocations():
+    population = PopulationManager(
+        {
+            "initial": {
+                "total_size": 3,
+                "builder_allocations": [
+                    {"builder": "first", "size": 2},
+                    {"builder": "second", "size": 1},
+                ],
+            },
+            "generation": {
+                "total_size": 3,
+                "completion": {"builder_proportions": [{"builder": "first", "proportion": 1.0}]},
+            },
+        }
+    )
+    frames = population._prepare_initial_population(
+        {"first": FixedBuilder("H"), "second": FixedBuilder("He")}
+    )
+
+    assert [atoms.get_chemical_formula() for atoms in frames] == ["H", "H", "He"]
+    assert [atoms.info["data"]["builder"] for atoms in frames] == ["first", "first", "second"]
+
+
+def test_generation_plan_round_trip(tmp_path):
+    database = GlobalOptimisationDatabase(tmp_path / "ga.db")
+    database.init_task(
+        Atoms("H"),
+        data={"population_size": 2, "initial_population_size": 2, "num_atoms_substrate": 1},
+    )
+    plan = {"stage": "completion", "completion_sizes": [{"builder": "compact", "size": 2}]}
+
+    database.set_generation_plan(1, plan)
+
+    assert database.get_generation_plan(1) == plan
+
+
+def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, monkeypatch):
+    population = PopulationManager(
+        {
+            "initial": {
+                "total_size": 1,
+                "builder_allocations": [{"builder": "first", "size": 1}],
+            },
+            "generation": {
+                "total_size": 4,
+                "reproduction": {"size": 2, "maximum_attempts": 1},
+                "mutation": {"size": 1, "maximum_attempts": 1},
+                "completion": {
+                    "builder_proportions": [
+                        {"builder": "first", "proportion": 0.5},
+                        {"builder": "second", "proportion": 0.5},
+                    ]
+                },
+            },
+        }
+    )
+    population.population = SimpleNamespace(get_one_candidate=lambda **kwargs: Atoms("H"))
+    monkeypatch.setattr(population, "_reproduce", lambda *args, **kwargs: None)
+
+    class Mutation:
+        def get_new_individual(self, parents):
+            return Atoms("Li"), "mutation: direct"
+
+    database = GlobalOptimisationDatabase(tmp_path / "stages.db")
+    database.init_task(
+        Atoms("H"),
+        data={"population_size": 4, "initial_population_size": 1, "num_atoms_substrate": 1},
+    )
+    builders = {"first": FixedBuilder("He"), "second": FixedBuilder("Ne")}
+    operators = {"mobile": {"mutations": Mutation()}}
+
+    candidates = population._prepare_current_population(database, 1, builders, operators)
+
+    assert [atoms.get_chemical_formula() for atoms in candidates] == ["Li", "He", "He", "Ne"]
+    assert database.get_generation_plan(1)["stage"] == "complete"
+    reloaded = population._get_current_candidates(database, 1)
+    assert len(reloaded["mutated"]) == 1
+    assert len(reloaded["completion"]) == 3
+    assert len(population._prepare_current_population(database, 1, builders, operators, reloaded)) == 4
 
 
 def test_monte_carlo_serialization_uses_recipe_and_runtime():
