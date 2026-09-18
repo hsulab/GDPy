@@ -5,7 +5,8 @@ from typing import Any
 from .comparator.basic import NNMatComparator
 from .comparator.ofp import OFPComparator
 from .comparator.interatomic_distance import InteratomicDistanceComparator
-from .crossover import CutAndSplicePairing, CutSpliceCrossover
+from .crossover import CutSpliceCrossover
+from .pairing import CutAndSplicePairing
 from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
 from .mutation.cluster_rotation import ClusterRotationMutation
