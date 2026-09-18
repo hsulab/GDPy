@@ -4,12 +4,12 @@
 
 Must:
 
-- Python 3.9
+- Python 3.10 or newer
 - matplotlib 3.5.0
 - numpy 1.21.2
 - scipy 1.7.3
 - scikit-learn 1.0.1
-- [ase] 3.22.1
+- [ase] 3.27 or newer
 - dscribe 1.2.1
 - joblib 1.1.0
 - [tinydb] 4.7.0

@@ -9,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 from ase import Atoms
 from ase.data import atomic_numbers
-from ase.ga.utilities import closest_distances_generator
+from gdpx.structures.geometry.ga import closest_distances_generator
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.core.registry import Registry

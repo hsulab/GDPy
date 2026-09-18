@@ -11,7 +11,7 @@ import ase
 from ase import Atoms
 from ase.io import read, write
 from ase.geometry import find_mic
-from ase.ga.utilities import closest_distances_generator, atoms_too_close
+from gdpx.structures.geometry.ga import atoms_too_close, closest_distances_generator
 
 from .builder import StructureModifier
 

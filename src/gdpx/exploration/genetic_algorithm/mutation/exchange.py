@@ -4,7 +4,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 from ase import Atoms
-from ase.ga.offspring_creator import OffspringCreator
+from ..core import OffspringCreator
 
 from gdpx.structures.geometry.composition import convert_string_to_adsorbate, convert_string_to_atoms
 from gdpx.structures.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
@@ -29,7 +29,7 @@ class ExchangeMutation(OffspringCreator):
         num_muts: int = 1,
         use_tags: bool = True,
         max_attempts: int = 1000,
-        rng: np.random.Generator = np.random.default_rng(),
+        rng: Optional[np.random.Generator] = None,
     ):
         """Initialise the exchange mutation.
 
@@ -47,7 +47,7 @@ class ExchangeMutation(OffspringCreator):
             rng: The random number generator.
 
         """
-        super().__init__(num_muts=num_muts)
+        super().__init__(num_muts=num_muts, rng=rng)
         self.descriptor = "ExMutation"
         self.min_inputs = 1
 
@@ -60,8 +60,6 @@ class ExchangeMutation(OffspringCreator):
         self.bond_distance_dict = bond_distance_dict
 
         self.covalent_ratio = covalent_ratio
-
-        self.rng = rng
 
         self.nsel = nsel
 

@@ -7,7 +7,7 @@ import itertools
 
 import numpy as np
 from ase import Atoms
-from ase.ga.offspring_creator import OffspringCreator
+from ..core import OffspringCreator
 
 from gdpx.structures.geometry.swap import swap_particles_by_step
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -23,10 +23,10 @@ class SwapMutation(OffspringCreator):
         covalent_ratio=[0.8, 2.0],
         num_muts=1,
         use_tags=True,
-        rng=np.random.default_rng(),
+        rng=None,
     ):
         """"""
-        super().__init__(num_muts=num_muts)
+        super().__init__(num_muts=num_muts, rng=rng)
         self.descriptor = "SwMutation"
         self.min_inputs = 1
 
@@ -53,8 +53,6 @@ class SwapMutation(OffspringCreator):
         self.use_tags = use_tags
         if not self.use_tags:
             raise Exception("SwapMutation supports only structure generator with tags.")
-
-        self.rng = rng
 
         return
 

@@ -9,7 +9,7 @@ import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
-from ase.ga.offspring_creator import CombinationMutation, OffspringCreator
+from ..core import CombinationMutation, OffspringCreator
 
 # from ..group import create_a_group
 # from ..utils import check_overlap_neighbour
@@ -23,7 +23,7 @@ class RattleBufferMutation(OffspringCreator):
     #: Maximum number of attempts to rattle atoms.
     MAX_ATTEMPTS: int = 1000
 
-    def __init__(self, group, nsel, strength=1.0, maxdisp=2.0, covalent_ratio=[0.8, 2.0],num_muts=1, rng=np.random, *args, **kwargs):
+    def __init__(self, group, nsel, strength=1.0, maxdisp=2.0, covalent_ratio=[0.8, 2.0],num_muts=1, rng=None, *args, **kwargs):
         """Initialize the RattleBufferMutation class.
 
         Args:

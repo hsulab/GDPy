@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 from ase import Atoms
-from ase.ga.offspring_creator import OffspringCreator
+from ..core import OffspringCreator
 
 from gdpx.structures.geometry.bounce import get_a_random_direction
 from gdpx.structures.geometry.spatial import check_atomic_distances
@@ -25,10 +25,10 @@ class ClusterRattleMutation(OffspringCreator):
         max_attempts: int = 100,
         num_muts: int = 1,
         use_tags: bool = True,
-        rng: np.random.Generator = np.random.default_rng(),
+        rng: Optional[np.random.Generator] = None,
     ):
         """"""
-        super().__init__(num_muts=num_muts)
+        super().__init__(num_muts=num_muts, rng=rng)
         self.descriptor = "ClusRatMutation"
         self.min_inputs = 1
 
@@ -43,8 +43,6 @@ class ClusterRattleMutation(OffspringCreator):
         self.max_attempts = max_attempts
 
         self.use_tags = use_tags
-
-        self.rng = rng
 
         return
 

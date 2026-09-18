@@ -6,10 +6,9 @@ import ase
 import ase.data
 import numpy as np
 from ase import Atoms
-from ase.ga.startgenerator import StartGenerator
-from ase.ga.utilities import CellBounds
 
 from gdpx.structures.geometry.composition import CompositionSpace
+from gdpx.structures.geometry.ga import CellBounds, atoms_too_close, atoms_too_close_two_sets
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import sort_structures_by_natoms_per_type, sort_structures_by_tags
 
@@ -74,6 +73,82 @@ def get_random_cell_params(box_params: dict):
     )
 
 
+class RandomBulkCandidateGenerator:
+    """Place atoms in a periodic cell without relying on ``ase.ga``."""
+
+    def __init__(
+        self,
+        composition,
+        minimum_distances,
+        number_of_variable_cell_vectors,
+        box_to_place_in,
+        cell_bounds,
+        cell_volume,
+        test_too_far,
+        rng,
+    ):
+        self.numbers = [
+            ase.data.atomic_numbers[symbol]
+            for symbol, amount in composition
+            for _ in range(amount)
+        ]
+        self.minimum_distances = minimum_distances
+        self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
+        self.box_to_place_in = box_to_place_in
+        self.cell_bounds = cell_bounds
+        self.cell_volume = cell_volume
+        self.test_too_far = test_too_far
+        self.rng = rng
+
+    def _make_cell(self):
+        if self.number_of_variable_cell_vectors == 0:
+            return np.asarray(self.box_to_place_in[1], dtype=float).copy()
+        target_length = self.cell_volume ** (1.0 / 3.0)
+        fixed = np.asarray(self.box_to_place_in[1], dtype=float)
+        for _ in range(1000):
+            lengths = target_length * np.exp(self.rng.normal(0.0, 0.15, size=3))
+            lengths *= (self.cell_volume / np.prod(lengths)) ** (1.0 / 3.0)
+            shear = self.rng.uniform(-0.15, 0.15, size=3)
+            cell = np.array(
+                [[lengths[0], 0.0, 0.0], [shear[0] * lengths[1], lengths[1], 0.0],
+                 [shear[1] * lengths[2], shear[2] * lengths[2], lengths[2]]]
+            )
+            nvar = self.number_of_variable_cell_vectors
+            if nvar < 3:
+                cell[nvar:] = fixed[nvar:]
+            determinant = abs(np.linalg.det(cell))
+            if determinant > 1e-12 and self.cell_bounds.is_within_bounds(cell):
+                return cell
+        return None
+
+    def get_new_candidate(self, maxiter=100):
+        for _ in range(maxiter):
+            cell = self._make_cell()
+            if cell is None:
+                continue
+            scaled = self.rng.random((len(self.numbers), 3))
+            atoms = Atoms(numbers=self.numbers, scaled_positions=scaled, cell=cell, pbc=True)
+            atoms.set_tags(np.arange(len(atoms), dtype=int))
+            if atoms_too_close(atoms, self.minimum_distances):
+                continue
+            if self.test_too_far and len(atoms) > 1:
+                maximum_distances = {
+                    pair: 2.0 * distance for pair, distance in self.minimum_distances.items()
+                }
+                disconnected = any(
+                    not atoms_too_close_two_sets(
+                        atoms[[index]],
+                        atoms[np.arange(len(atoms)) != index],
+                        maximum_distances,
+                    )
+                    for index in range(len(atoms))
+                )
+                if disconnected:
+                    continue
+            return atoms
+        return None
+
+
 def get_a_bulk_generator(
     composition: tuple[tuple[str, int]],
     min_bond_distance_dict,
@@ -84,14 +159,13 @@ def get_a_bulk_generator(
     cell_volume: Optional[float] = None,
     atomic_radius_ratio: float = 1.0,
     test_too_far: bool = True,
-    rng=np.random,
-) -> StartGenerator:
+    rng=None,
+) -> RandomBulkCandidateGenerator:
     """"""
     composition_chemical_numbers = [
         ase.data.atomic_numbers[s] for s in itertools.chain(*[[s] * n for s, n in composition])
     ]
 
-    substrate = Atoms("", cell=box_to_place_in[1], pbc=True)
     if number_of_variable_cell_vectors == 0:
         # Get the substrate and get random structures in a fixed box
         # similar to the ranomd_structure_improved
@@ -108,18 +182,15 @@ def get_a_bulk_generator(
         else:
             ...  # Give a warning if the volume is too small?
 
-    generator = StartGenerator(
-        substrate,
-        blocks=composition,
-        blmin=min_bond_distance_dict,
+    generator = RandomBulkCandidateGenerator(
+        composition=composition,
+        minimum_distances=min_bond_distance_dict,
         number_of_variable_cell_vectors=number_of_variable_cell_vectors,
         box_to_place_in=box_to_place_in,
-        box_volume=cell_volume,
-        splits=cell_splits,
-        cellbounds=cell_bounds,
-        test_dist_to_slab=False,
+        cell_bounds=cell_bounds or CellBounds(),
+        cell_volume=cell_volume,
         test_too_far=test_too_far,
-        rng=rng,
+        rng=np.random.default_rng() if rng is None else rng,
     )
 
     return generator
@@ -171,14 +242,6 @@ class RandomBulkBuilder(StructureModifier):
             **kwargs,
         )
         self._init_params = copy.deepcopy(_init_params)
-
-        # Set random seed for generators due to compatibility
-        if isinstance(self.random_seed, int):
-            np.random.seed(self.random_seed)
-        elif isinstance(self.random_seed, dict):
-            np.random.set_state(self.random_seed)
-        else:
-            raise Exception(f"Invalid random seed `{self.random_seed}`.")
 
         # Overwrite substrates if it is a file path
         if self._input_substrates is not None:
@@ -299,7 +362,7 @@ class RandomBulkBuilder(StructureModifier):
                 cell_volume=self.cell_volume,
                 atomic_radius_ratio=self.covalent_max,
                 test_too_far=self.test_too_far,
-                rng=np.random,
+                rng=self.rng,
             )
             bulk_generators.append(generator)
         num_generators = len(bulk_generators)

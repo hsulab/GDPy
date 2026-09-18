@@ -127,7 +127,7 @@ class ConcurrentPopulation:
 
         # Comparator adds history information for atoms in the population
         if comparator is None:
-            from ase.ga.standard_comparators import AtomsComparator
+            from gdpx.exploration.genetic_algorithm.comparator.basic import AtomsComparator
 
             self.comparator = AtomsComparator()
         else:

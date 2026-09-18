@@ -55,7 +55,7 @@ class Population:
         population_size: int,
         comparator=None,
         use_extinct: bool = False,
-        rng=np.random.default_rng(),
+        rng=None,
         print_func=print,
         debug_func=print,
     ):
@@ -66,12 +66,12 @@ class Population:
         self.dc = data_connection
         self.pop_size = population_size
         if comparator is None:
-            from ase.ga.standard_comparators import AtomsComparator
+            from ..comparator.basic import AtomsComparator
 
             comparator = AtomsComparator()
         self.comparator = comparator
         self.use_extinct = use_extinct
-        self.rng = rng
+        self.rng = np.random.default_rng() if rng is None else rng
 
         self.pop = []
         self.pairs: Optional[list[tuple[int, int]]] = None

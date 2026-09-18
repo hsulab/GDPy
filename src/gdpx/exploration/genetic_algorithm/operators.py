@@ -2,14 +2,10 @@ import copy
 import inspect
 from typing import Any
 
-from ase.ga.cutandsplicepairing import CutAndSplicePairing
-from ase.ga.ofp_comparator import OFPComparator
-from ase.ga.particle_comparator import NNMatComparator
-from ase.ga.particle_crossovers import CutSpliceCrossover
-from ase.ga.soft_mutation import SoftMutation
-from ase.ga.standardmutations import RattleMutation, StrainMutation
-
+from .comparator.basic import NNMatComparator
+from .comparator.ofp import OFPComparator
 from .comparator.interatomic_distance import InteratomicDistanceComparator
+from .crossover import CutAndSplicePairing, CutSpliceCrossover
 from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
 from .mutation.cluster_rotation import ClusterRotationMutation
@@ -17,6 +13,7 @@ from .mutation.exchange import ExchangeMutation
 from .mutation.mirror import MirrorMutation
 from .mutation.rattle import RattleBufferMutation
 from .mutation.swap import SwapMutation
+from .mutation.standard import RattleMutation, SoftMutation, StrainMutation
 
 COMPARATORS: dict[str, Any] = dict(
     # ASE built-in comparators
@@ -72,6 +69,8 @@ def instantiate_a_genetic_operator(
     assert category in GENETIC_OPERATORS, f"Genetic operator category {category} is not found."
 
     op_params = copy.deepcopy(op_params)
+    if "rng" in op_params:
+        raise ValueError("Operator RNGs are managed by the GA engine; remove the 'rng' option.")
     method = op_params.pop("method", None)
     if method is None:
         raise Exception(f"There is no operator {method}.")

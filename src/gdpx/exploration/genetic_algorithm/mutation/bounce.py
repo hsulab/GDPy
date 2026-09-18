@@ -7,7 +7,7 @@ import functools
 
 import numpy as np
 from ase import Atoms
-from ase.ga.offspring_creator import OffspringCreator
+from ..core import OffspringCreator
 from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.structures.geometry.bounce import bounce_one_atom
@@ -30,10 +30,10 @@ class BounceMutation(OffspringCreator):
         apply_on_buffer=False,
         num_muts=1,
         use_tags=True,
-        rng=np.random.default_rng(),
+        rng=None,
     ):
         """"""
-        super().__init__(num_muts=num_muts)
+        super().__init__(num_muts=num_muts, rng=rng)
         self.descriptor = "BnMutation"
         self.min_inputs = 1
 
@@ -66,8 +66,6 @@ class BounceMutation(OffspringCreator):
         self.use_tags = use_tags
         if not self.use_tags:
             raise Exception("BounceMutation supports only structure generator with tags.")
-
-        self.rng = rng
 
         return
 

@@ -32,8 +32,8 @@ This prevents duplicate structures from dominating the population.
 | Method | Implementation | Description |
 | --- | --- | --- |
 | `interatomic_distance` | GDPy | Compares energy and sorted interatomic-distance fingerprints. `pair_cor_cum_diff` and `pair_cor_max` control the cumulative and maximum fingerprint differences; `dE` controls the energy tolerance. |
-| `ofp` | ASE | Uses Oganov fingerprints and an energy threshold. It is useful when radial environments provide a better similarity measure than direct distance-list comparison. |
-| `nnmat` | ASE | Compares nearest-neighbour matrices to detect differences in atomic distribution and structure. |
+| `ofp` | GDPy | Uses Oganov fingerprints and an energy threshold. It is useful when radial environments provide a better similarity measure than direct distance-list comparison. |
+| `nnmat` | GDPy | Compares nearest-neighbour matrices to detect differences in atomic distribution and structure. |
 
 `interatomic_distance` supports the minimum-image convention with `mic` and
 parallel fingerprint generation with `n_jobs`. Its default thresholds are
@@ -45,8 +45,8 @@ Crossovers create an offspring from two selected parents.
 
 | Method | Implementation | Description |
 | --- | --- | --- |
-| `cut_and_splice` | ASE | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
-| `cut_and_splice_cluster` | ASE | Applies cut-and-splice crossover to isolated particles or clusters. It preserves composition by default and separates halves when atoms would otherwise be too close. |
+| `cut_and_splice` | GDPy | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
+| `cut_and_splice_cluster` | GDPy | Applies cut-and-splice crossover to isolated particles or clusters. It preserves composition by default and separates halves when atoms would otherwise be too close. |
 
 Use `cut_and_splice` for supported structures and periodic systems. Use
 `cut_and_splice_cluster` for free clusters where there is no substrate.
@@ -60,9 +60,9 @@ produce a valid structure.
 | Method | Implementation | Description |
 | --- | --- | --- |
 | `mirror` | GDPy | Keeps one side of a randomly oriented cutting plane and mirrors it to replace the other side. This currently supports atomic structures only; set `use_tags: false`. |
-| `rattle` | ASE | Randomly displaces a fraction of the optimised atoms or tagged fragments while enforcing minimum distances. `rattle_prop` selects the fraction and `rattle_strength` controls displacement. |
-| `soft` | ASE | Displaces the structure along a low-frequency vibrational mode. Successive calls can move through different unused modes. |
-| `strain` | ASE | Applies a random strain to the cell. It is intended for variable-cell searches and respects configured cell bounds. |
+| `rattle` | GDPy | Randomly displaces a fraction of the optimised atoms or tagged fragments while enforcing minimum distances. `rattle_prop` selects the fraction and `rattle_strength` controls displacement. |
+| `soft` | GDPy | Displaces the structure along a smooth low-frequency mode generated from its local geometry. |
+| `strain` | GDPy | Applies a random strain to the cell. It is intended for variable-cell searches and respects configured cell bounds. |
 | `bounce` | GDPy | Selects a tagged atom and moves it using neighbour repulsion. The move can be directionally biased and can target either mobile particles or a selected buffer group. |
 | `cluster_rattle` | GDPy | Finds connected clusters using the atomic graph and translates selected clusters as rigid units in random directions. |
 | `cluster_rotation` | GDPy | Finds graph-connected clusters and rotates selected clusters as rigid units about a fixed or random axis. |
@@ -98,3 +98,8 @@ The following restrictions apply:
 selects what may be inserted or removed, and `num_min_max` bounds the number of
 each species. Insertions can be sampled inside a configured region or placed
 at graph-derived adsorption sites using `anchors`.
+
+The standard GA operation interfaces are GDPy-owned implementations inspired
+by the algorithms and configuration surface in ASE-GA 1.0.3. They use explicit
+NumPy `Generator` streams; GDPy does not import the legacy `ase.ga` package at
+runtime.

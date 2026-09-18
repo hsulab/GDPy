@@ -9,11 +9,10 @@ import numpy as np
 from ase import Atoms
 from ase.build import niggli_reduce
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.ga.offspring_creator import OperationSelector
-from ase.ga.utilities import CellBounds
 from ase.io import read, write
 
 from gdpx.structures.builders.factory import canonicalise_builder
+from gdpx.structures.geometry.ga import CellBounds
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
@@ -21,6 +20,7 @@ from ..expedition import BaseExpedition
 from ..persist.database import GenerationInfo, GenerationState
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
+from .core import OperationSelector, RandomStreamRegistry
 from .population.manager import PopulationManager
 
 
@@ -174,6 +174,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         """
         super().__init__(*args, **kwargs)
+        self.random_streams = RandomStreamRegistry(self.random_seed)
+        self.rng = self.random_streams.get("engine")
 
         population = copy.deepcopy(population)
         if "random_generator" in population:
@@ -212,11 +214,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Check random consistency, builders and population
         self._print(f"GA RANDOM SEED {self.random_seed}")
         self.builders = {}
-        child_seeds = {
-            name: int(self.rng.integers(0, np.iinfo(np.int32).max)) for name in sorted(builders_config)
-        }
         for name, builder_config in builders_config.items():
-            child_seed = child_seeds[name]
+            child_seed = self.random_streams.seed(f"builder/{name}")
             if isinstance(builder_config, Mapping):
                 params = copy.deepcopy(dict(builder_config))
                 params["random_seed"] = child_seed
@@ -230,6 +229,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 raise ValueError(f"Population builder {name!r} could not be initialised.")
             if hasattr(builder, "use_tags"):
                 builder.use_tags = True
+            builder.rng = self.random_streams.get(f"builder/{name}")
             self.builders[name] = builder
             self._print(f"SET BUILDER {name!r} SEED TO {child_seed}")
 
@@ -257,7 +257,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.target = target
 
         # Population and check target-population consistency
-        self.pop_manager = PopulationManager(ga_dict["population"], rng=self.rng)
+        self.pop_manager = PopulationManager(
+            ga_dict["population"], rng=self.random_streams.get("population")
+        )
         configured_builder_names = [
             allocation["builder"] for allocation in self.pop_manager.initial_builder_allocations
         ] + [item["builder"] for item in self.pop_manager.completion_builder_proportions]
@@ -533,10 +535,44 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """The main procedure for the first generation."""
         assert gen_num == 0, "This function is only for the first generation."
 
-        # Generate structures for the initial population
-        starting_population = self.pop_manager._prepare_initial_population(builders=self.builders)
-        for a in starting_population:
-            self.da.add_unrelaxed_candidate(a, generation=gen_num)
+        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
+        starting_population = list(candidate_groups["initial"])
+        plan = self.da.get_generation_plan(gen_num)
+        if plan is None:
+            plan = {"stage": "initial", "random_states": self.random_streams.snapshot()}
+            self.da.set_generation_plan(gen_num, plan)
+        elif "random_states" in plan:
+            self.random_streams.restore(plan["random_states"])
+
+        existing_by_builder: dict[str, int] = {}
+        for atoms in starting_population:
+            builder_name = atoms.info.get("data", {}).get("builder")
+            if not isinstance(builder_name, str):
+                raise RuntimeError("Persisted initial structure does not identify its builder.")
+            existing_by_builder[builder_name] = existing_by_builder.get(builder_name, 0) + 1
+
+        for allocation in self.pop_manager.initial_builder_allocations:
+            name = allocation["builder"]
+            remaining = allocation["size"] - existing_by_builder.get(name, 0)
+            if remaining < 0:
+                raise RuntimeError(f"Too many persisted initial structures for builder {name!r}.")
+            frames = self.pop_manager._generate_from_builder(
+                name, self.builders[name], remaining, allocation["maximum_attempts"]
+            )
+            for atoms in self.pop_manager.clean_initial_structures(frames, name):
+                self.da.add_unrelaxed_candidate(atoms, generation=gen_num)
+                starting_population.append(atoms)
+                plan["random_states"] = self.random_streams.snapshot()
+                self.da.set_generation_plan(gen_num, plan)
+
+        if len(starting_population) != self.pop_manager.init_size:
+            raise RuntimeError(
+                f"Initial generation contains {len(starting_population)} candidates; "
+                f"expected {self.pop_manager.init_size}."
+            )
+        plan["stage"] = "complete"
+        plan["random_states"] = self.random_streams.snapshot()
+        self.da.set_generation_plan(gen_num, plan)
 
         # Validate candidate origins for the current generation
         candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
@@ -580,6 +616,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
             builders=self.builders,
             operators=self.operators,
             candidate_groups=candidate_groups,
+            random_state_getter=self.random_streams.snapshot,
+            random_state_restorer=self.random_streams.restore,
         )
 
         # Validate candidate origins for the current generation
@@ -648,7 +686,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
             used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
-            # rng = self.rng # TODO: ase operators need np.random
         )
 
         # For compatibility,
@@ -667,9 +704,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # We may not overwrite operators' covalent_ratio setting.
         # specific_params.update(covalent_ratio=self.generator.covalent_ratio)
 
-        # The operators from ase (should be deprecated) use blmin and can only
-        # check too_close since cov_max is not given while
-        # the newly implemented operators by us use bond_distance_dict and
+        # Standard operators use blmin and check minimum distances, while
+        # the geometry-aware operators use bond_distance_dict and
         # can check too_close and too_far based on covalent_ratio.
         # Also, the new random structure generator (random_surface_improved) uses
         # bond_distance_dict and covalent_ratio.
@@ -706,14 +742,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
             g_op_dict = op_dict.get(g, None)
             if g_op_dict is not None:
                 self._print(f"operators for group {g} ->")
-                group_operators = self._parse_group_operators(g_op_dict, specific_params)
+                group_operators = self._parse_group_operators(g, g_op_dict, specific_params)
                 self.operators[g] = group_operators
             else:
                 ...
 
         return
 
-    def _parse_group_operators(self, op_dict: dict, specific_params: dict):
+    def _parse_group_operators(self, group: str, op_dict: dict, specific_params: dict):
         """Parse operators for a given group.
 
         Returns:
@@ -723,7 +759,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # --- comparator
         comp_params = op_dict.get("comparator", None)
         if comp_params is not None:
-            comparing = instantiate_a_genetic_operator("comparator", comp_params, specific_params)
+            comp_specific = dict(
+                specific_params,
+                rng=self.random_streams.get(f"operator/{group}/comparator"),
+            )
+            comparing = instantiate_a_genetic_operator("comparator", comp_params, comp_specific)
 
             self._print("  --- comparator ---")
             self._print(f"  Use comparator {comparing.__class__.__name__}.")
@@ -733,10 +773,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
         if crossover_params is not None:
+            crossover_specific = dict(
+                specific_params,
+                rng=self.random_streams.get(f"operator/{group}/crossover"),
+            )
             pairing = instantiate_a_genetic_operator(
                 "crossover",
                 crossover_params,
-                specific_params,
+                crossover_specific,
             )
             # For some ase-builtin operators, we manually set allow_variable_composition to False
             # by default. For others, we can set it through the input file.
@@ -757,13 +801,17 @@ class GeneticAlgorithmEngine(BaseExpedition):
             mutations, probs = [], []
             if not isinstance(mutation_list, list):
                 mutation_list = [mutation_list]
-            for mut_params in mutation_list:
+            for mutation_index, mut_params in enumerate(mutation_list):
+                mut_params = copy.deepcopy(mut_params)
                 if "prob" in mut_params:
                     raise ValueError("Legacy mutation key 'prob' is not supported; use 'probability'.")
                 prob = mut_params.pop("probability", 1.0)
                 probs.append(prob)
                 mut_use_tags = mut_params.get("use_tags", True)
                 specific_params_ = copy.deepcopy(specific_params)
+                specific_params_["rng"] = self.random_streams.get(
+                    f"operator/{group}/mutation/{mutation_index}"
+                )
                 sys_use_tags = specific_params_.pop("use_tags", True)
                 mut_params["use_tags"] = sys_use_tags and mut_use_tags
                 mut = instantiate_a_genetic_operator("mutation", mut_params, specific_params_)
@@ -784,9 +832,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
             # self._print(f"mutation probability: {self.pmut}")
             for mut, prob in zip(mutations, probs):
                 self._print(f"  Use mutation {mut.descriptor} with prob {prob}.")
-            mutations = OperationSelector(probs, mutations, rng=np.random)
+            mutations = OperationSelector(
+                probs,
+                mutations,
+                rng=self.random_streams.get(f"operator/{group}/mutation_selector"),
+            )
         else:
-            mutations = OperationSelector([], [], rng=np.random)
+            mutations = OperationSelector(
+                [], [], rng=self.random_streams.get(f"operator/{group}/mutation_selector")
+            )
 
         return dict(comparing=comparing, pairing=pairing, mutations=mutations)
 

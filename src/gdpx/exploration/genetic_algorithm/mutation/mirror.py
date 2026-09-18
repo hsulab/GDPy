@@ -6,8 +6,9 @@ from typing import Optional
 
 import numpy as np
 from ase import Atoms
-from ase.ga.offspring_creator import OffspringCreator
-from ase.ga.utilities import atoms_too_close, atoms_too_close_two_sets
+from gdpx.structures.geometry.ga import atoms_too_close, atoms_too_close_two_sets
+
+from ..core import OffspringCreator
 
 
 class MirrorMutation(OffspringCreator):
@@ -24,7 +25,7 @@ class MirrorMutation(OffspringCreator):
         n_top,
         reflect=False,
         use_tags=True,
-        rng=np.random.default_rng(),
+        rng=None,
         verbose=False,
     ):
         """Initialise the mutation.
@@ -43,7 +44,7 @@ class MirrorMutation(OffspringCreator):
             rng: The random number generator.
 
         """
-        super().__init__(verbose=verbose)
+        super().__init__(verbose=verbose, rng=rng)
         self.descriptor = "MirrorMutation"
         self.min_inputs = 1
 
@@ -56,8 +57,6 @@ class MirrorMutation(OffspringCreator):
             raise NotImplementedError(
                 "MirrorMutataion does not support molecules."
             )
-
-        self.rng = rng
 
         return
 

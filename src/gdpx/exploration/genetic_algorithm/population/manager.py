@@ -166,9 +166,9 @@ class PopulationManager:
     #: Maximum attempts to generate new structures.
     MAX_ATTEMPTS_MULTIPLIER: int = 10
 
-    def __init__(self, params: dict, rng=np.random.default_rng()) -> None:
+    def __init__(self, params: dict, rng=None) -> None:
         """"""
-        self.rng = rng
+        self.rng = np.random.default_rng() if rng is None else rng
 
         legacy_keys = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"}.intersection(
             params
@@ -498,14 +498,21 @@ class PopulationManager:
             frames = self._generate_from_builder(
                 name, builders[name], allocation["size"], allocation["maximum_attempts"]
             )
-            frames = clean_seed_structures(frames)
-            for atoms in frames:
-                atoms.info["data"] = {"builder": name}
-                atoms.info["key_value_pairs"] = dict(origin=f"InitialBuilder:{name}", extinct=0)
-            starting_population.extend(frames)
+            starting_population.extend(self.clean_initial_structures(frames, name))
         if len(starting_population) != self.init_size:
             raise RuntimeError("Failed to generate the configured initial population.")
         return starting_population
+
+    @staticmethod
+    def clean_initial_structures(frames: list[Atoms], builder_name: str) -> list[Atoms]:
+        """Remove calculators and attach persisted initial-builder metadata."""
+        cleaned = clean_seed_structures(frames)
+        for atoms in cleaned:
+            atoms.info["data"] = {"builder": builder_name}
+            atoms.info["key_value_pairs"] = dict(
+                origin=f"InitialBuilder:{builder_name}", extinct=0
+            )
+        return cleaned
 
     def _prepare_current_population(
         self,
@@ -514,6 +521,8 @@ class PopulationManager:
         builders: Mapping,
         operators: dict,
         candidate_groups: Optional[dict] = None,
+        random_state_getter=None,
+        random_state_restorer=None,
     ) -> list[Atoms]:
         """Prepare current population.
 
@@ -545,11 +554,25 @@ class PopulationManager:
 
         plan = database.get_generation_plan(curr_gen)
         if plan is None:
-            plan = {"stage": "reproduction"}
+            plan = {
+                "stage": "reproduction",
+                "reproduction_attempts": 0,
+                "mutation_attempts": 0,
+            }
+            if random_state_getter is not None:
+                plan["random_states"] = random_state_getter()
+            database.set_generation_plan(curr_gen, plan)
+        elif random_state_restorer is not None and "random_states" in plan:
+            random_state_restorer(plan["random_states"])
+
+        def checkpoint():
+            if random_state_getter is not None:
+                plan["random_states"] = random_state_getter()
             database.set_generation_plan(curr_gen, plan)
 
         if plan["stage"] == "reproduction":
-            for i in range(self.gen_rep_max_try):
+            first_attempt = int(plan.get("reproduction_attempts", 0))
+            for i in range(first_attempt, self.gen_rep_max_try):
                 if len(paired_structures) >= self.gen_rep_size:
                     break
                 self._print(f"Reproduction attempt {i} ->")
@@ -568,11 +591,14 @@ class PopulationManager:
                     )
                 else:
                     self._print(f"  reproduction failed")
-            plan = {"stage": "mutation"}
-            database.set_generation_plan(curr_gen, plan)
+                plan["reproduction_attempts"] = i + 1
+                checkpoint()
+            plan["stage"] = "mutation"
+            checkpoint()
 
         if plan["stage"] == "mutation":
-            for i in range(self.gen_mut_max_try):
+            first_attempt = int(plan.get("mutation_attempts", 0))
+            for i in range(first_attempt, self.gen_mut_max_try):
                 if len(mutated_structures) >= self.gen_mut_size:
                     break
                 self._print(f"Mutation attempt {i} ->")
@@ -584,11 +610,14 @@ class PopulationManager:
                         atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
                     )
                     mutated_structures.append(atoms)
+                plan["mutation_attempts"] = i + 1
+                checkpoint()
             deficit = self.gen_size - len(paired_structures) - len(mutated_structures)
             if deficit < 0:
                 raise RuntimeError("Reproduction and mutation exceeded generation.total_size.")
-            plan = {"stage": "completion", "completion_sizes": self.allocate_completion_sizes(deficit)}
-            database.set_generation_plan(curr_gen, plan)
+            plan["stage"] = "completion"
+            plan["completion_sizes"] = self.allocate_completion_sizes(deficit)
+            checkpoint()
 
         if plan["stage"] == "completion":
             self._require_builders(builders, (x["builder"] for x in plan["completion_sizes"]))
@@ -613,8 +642,9 @@ class PopulationManager:
                         generation=curr_gen,
                     )
                     completion_structures.append(atoms)
-            plan = dict(plan, stage="complete")
-            database.set_generation_plan(curr_gen, plan)
+                    checkpoint()
+            plan["stage"] = "complete"
+            checkpoint()
 
         current_candidates = paired_structures + mutated_structures + completion_structures
         if len(current_candidates) != self.gen_size:

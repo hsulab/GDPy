@@ -16,8 +16,11 @@ import ase.units
 from ase import Atoms
 from ase.io import read, write
 from ase.units import kB
-from ase.ga.utilities import (closest_distances_generator, atoms_too_close,
-                              atoms_too_close_two_sets)
+from gdpx.structures.geometry.ga import (
+    atoms_too_close,
+    atoms_too_close_two_sets,
+    closest_distances_generator,
+)
 
 # calculator
 from ase.calculators.gaussian import Gaussian, GaussianOptimizer, GaussianIRC

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "gdpx"
 version = "0.1.0"
 dependencies = [
-  "ase>=3.24,<3.27",
+  "ase>=3.27",
   "h5py>=3.7.0",
   "joblib>=1.1.0",
   "networkx>=2.6.3",
@@ -15,7 +15,7 @@ dependencies = [
   "tinydb>=4.7.0",
   "zstandard>=0.23.0",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
   { name="Jiayan Xu", email="ahcigar@foxmail.com" },
 ]
