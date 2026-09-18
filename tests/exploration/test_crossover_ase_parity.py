@@ -8,8 +8,8 @@ from gdpx.exploration.genetic_algorithm.crossover import CutSpliceCrossover
 from gdpx.exploration.genetic_algorithm.pairing import CutAndSplicePairing
 from gdpx.structures.geometry.ga import closest_distances_generator
 
-ase_crossovers = pytest.importorskip("ase.ga.particle_crossovers")
-ase_pairing = pytest.importorskip("ase.ga.cutandsplicepairing")
+ase_crossovers = pytest.importorskip("ase_ga.particle_crossovers")
+ase_pairing = pytest.importorskip("ase_ga.cutandsplicepairing")
 
 
 class GeneratorAdapter:

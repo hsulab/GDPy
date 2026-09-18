@@ -13,7 +13,7 @@ from gdpx.structures.geometry.ga import (
     get_nnmat,
 )
 
-ase_utilities = pytest.importorskip("ase.ga.utilities")
+ase_utilities = pytest.importorskip("ase_ga.utilities")
 
 
 def test_distance_helpers_match_ase_ga():

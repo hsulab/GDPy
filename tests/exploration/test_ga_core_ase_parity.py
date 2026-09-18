@@ -6,7 +6,7 @@ from ase import Atoms
 
 from gdpx.exploration.genetic_algorithm.core import OffspringCreator, OperationSelector
 
-ase_offspring = pytest.importorskip("ase.ga.offspring_creator")
+ase_offspring = pytest.importorskip("ase_ga.offspring_creator")
 
 
 def test_operation_selector_matches_ase_ga():

@@ -7,7 +7,7 @@ from ase import Atoms
 from gdpx.exploration.genetic_algorithm.mutation.mirror import MirrorMutation
 from gdpx.structures.geometry.ga import closest_distances_generator
 
-ase_standard_mutations = pytest.importorskip("ase.ga.standardmutations")
+ase_standard_mutations = pytest.importorskip("ase_ga.standardmutations")
 ASEMirrorMutation = ase_standard_mutations.MirrorMutation
 
 

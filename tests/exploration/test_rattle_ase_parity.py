@@ -7,7 +7,7 @@ from ase import Atoms
 from gdpx.exploration.genetic_algorithm.mutation.rattle import RattleMutation
 from gdpx.structures.geometry.ga import closest_distances_generator
 
-ase_standard_mutations = pytest.importorskip("ase.ga.standardmutations")
+ase_standard_mutations = pytest.importorskip("ase_ga.standardmutations")
 ASERattleMutation = ase_standard_mutations.RattleMutation
 
 

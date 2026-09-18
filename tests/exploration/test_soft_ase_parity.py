@@ -7,7 +7,7 @@ from ase import Atoms
 from gdpx.exploration.genetic_algorithm.mutation.soft import SoftMutation
 from gdpx.structures.geometry.ga import closest_distances_generator
 
-ase_soft_mutation = pytest.importorskip("ase.ga.soft_mutation")
+ase_soft_mutation = pytest.importorskip("ase_ga.soft_mutation")
 ASESoftMutation = ase_soft_mutation.SoftMutation
 
 

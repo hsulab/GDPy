@@ -7,8 +7,8 @@ from ase import Atoms
 from gdpx.exploration.genetic_algorithm.mutation.strain import StrainMutation
 from gdpx.structures.geometry.ga import CellBounds, closest_distances_generator
 
-ase_standard_mutations = pytest.importorskip("ase.ga.standardmutations")
-ase_utilities = pytest.importorskip("ase.ga.utilities")
+ase_standard_mutations = pytest.importorskip("ase_ga.standardmutations")
+ase_utilities = pytest.importorskip("ase_ga.utilities")
 ASEStrainMutation = ase_standard_mutations.StrainMutation
 
 

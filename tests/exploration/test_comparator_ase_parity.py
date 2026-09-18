@@ -7,8 +7,8 @@ from ase import Atoms
 from gdpx.exploration.genetic_algorithm.comparator.basic import NNMatComparator
 from gdpx.exploration.genetic_algorithm.comparator.ofp import OFPComparator
 
-ase_ofp = pytest.importorskip("ase.ga.ofp_comparator")
-ase_particle = pytest.importorskip("ase.ga.particle_comparator")
+ase_ofp = pytest.importorskip("ase_ga.ofp_comparator")
+ase_particle = pytest.importorskip("ase_ga.particle_comparator")
 
 
 def test_nnmat_matches_ase_ga():
