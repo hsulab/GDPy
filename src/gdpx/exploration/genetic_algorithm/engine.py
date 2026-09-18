@@ -671,7 +671,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             op_dict = {
                 "mobile": {
                     "comparator": {"name": "InteratomicDistanceComparator"},
-                    "crossover": {"name": "CutAndSplicePairing"},
+                    "crossover": {"method": "periodic_cut_and_splice"},
                 }
             }
         else:

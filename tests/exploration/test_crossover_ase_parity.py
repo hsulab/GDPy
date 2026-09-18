@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from gdpx.exploration.genetic_algorithm.crossover import CutSpliceCrossover
-from gdpx.exploration.genetic_algorithm.pairing import CutAndSplicePairing
+from gdpx.exploration.genetic_algorithm.crossover import (
+    ClusterCutAndSpliceCrossover,
+    PeriodicCutAndSpliceCrossover,
+)
 from gdpx.structures.geometry.ga import closest_distances_generator
 
 ase_crossovers = pytest.importorskip("ase_ga.particle_crossovers")
@@ -43,7 +45,7 @@ def _cluster_parents():
 def test_cluster_cut_splice_matches_ase_ga(keep_composition):
     first, second = _cluster_parents()
     minimum_distances = closest_distances_generator(first.numbers, 0.5)
-    gdpx = CutSpliceCrossover(
+    gdpx = ClusterCutAndSpliceCrossover(
         minimum_distances,
         keep_composition=keep_composition,
         rng=np.random.default_rng(42),
@@ -57,7 +59,9 @@ def test_cluster_cut_splice_matches_ase_ga(keep_composition):
     gdpx_child, gdpx_description = gdpx.get_new_individual([first.copy(), second.copy()])
     ase_child, ase_description = ase.get_new_individual([first.copy(), second.copy()])
 
-    assert gdpx_description == ase_description
+    assert gdpx_description == ase_description.replace(
+        "CutSpliceCrossover", "ClusterCutAndSpliceCrossover"
+    )
     np.testing.assert_array_equal(gdpx_child.numbers, ase_child.numbers)
     np.testing.assert_array_equal(gdpx_child.get_tags(), ase_child.get_tags())
     np.testing.assert_allclose(gdpx_child.positions, ase_child.positions, atol=0.0, rtol=0.0)
@@ -85,7 +89,7 @@ def test_periodic_cut_splice_matches_ase_ga(use_tags, seed):
     )
     minimum_distances = closest_distances_generator(first.numbers, 0.5)
     parameters = dict(slab=slab, n_top=4, blmin=minimum_distances, use_tags=use_tags)
-    gdpx = CutAndSplicePairing(**parameters, rng=GeneratorAdapter(seed))
+    gdpx = PeriodicCutAndSpliceCrossover(**parameters, rng=GeneratorAdapter(seed))
     ase = ase_pairing.CutAndSplicePairing(**parameters, rng=GeneratorAdapter(seed))
 
     gdpx_child, gdpx_description = gdpx.get_new_individual([first.copy(), second.copy()])

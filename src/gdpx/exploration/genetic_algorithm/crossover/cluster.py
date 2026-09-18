@@ -1,4 +1,4 @@
-"""GDPy-owned implementations of ASE-GA 1.0.3-style crossovers."""
+"""Cut-and-splice crossover for isolated clusters."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ from itertools import chain
 import numpy as np
 from ase import Atoms
 
-from .core import OffspringCreator
+from ..core import OffspringCreator
 
 
-class CutSpliceCrossover(OffspringCreator):
+class ClusterCutAndSpliceCrossover(OffspringCreator):
     """Cut-and-splice crossover for unsupported clusters."""
 
-    descriptor = "CutSpliceCrossover"
+    descriptor = "ClusterCutAndSpliceCrossover"
     min_inputs = 2
 
     def __init__(self, blmin, keep_composition=True, rng=None):

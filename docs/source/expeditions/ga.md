@@ -27,7 +27,7 @@ The steps are
 
    > - **Selection**: Choose the best-*N* structures to form a new population.
    >
-   > - **Crossover**: Use CutAndSplicePairing method to generate a new structure from two structures.
+   > - **Crossover**: Use the periodic cut-and-splice method to generate a new structure from two structures.
    >   This is critical to the success of GA. See the schema below. (Phys. Rev. Lett. 2012, 108, 126101.)
    >
   >   > ```{image} ../../images/CutAndSplice.png
@@ -160,7 +160,7 @@ recipe:
       dE: 0.015
       method: interatomic_distance
     crossover:
-      method: cut_and_splice
+      method: periodic_cut_and_splice
     mutation:
     - method: rattle
       probability: 1.0

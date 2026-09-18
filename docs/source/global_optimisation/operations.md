@@ -11,7 +11,7 @@ operators:
   comparator:
     method: interatomic_distance
   crossover:
-    method: cut_and_splice
+    method: periodic_cut_and_splice
   mutation:
     - method: rattle
       probability: 1.0
@@ -45,11 +45,11 @@ Crossovers create an offspring from two selected parents.
 
 | Method | Implementation | Description |
 | --- | --- | --- |
-| `cut_and_splice` | GDPy | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
-| `cut_and_splice_cluster` | GDPy | Applies cut-and-splice crossover to isolated particles or clusters. It preserves composition by default and separates halves when atoms would otherwise be too close. |
+| `periodic_cut_and_splice` | GDPy | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
+| `cluster_cut_and_splice` | GDPy | Applies cut-and-splice crossover to isolated particles or clusters. It preserves composition by default and separates halves when atoms would otherwise be too close. |
 
-Use `cut_and_splice` for supported structures and periodic systems. Use
-`cut_and_splice_cluster` for free clusters where there is no substrate.
+Use `periodic_cut_and_splice` for supported structures and periodic systems. Use
+`cluster_cut_and_splice` for free clusters where there is no substrate.
 
 ## Mutations
 

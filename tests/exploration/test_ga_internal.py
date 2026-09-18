@@ -1,10 +1,19 @@
 import numpy as np
+import pytest
 from ase import Atoms
 
 from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
+from gdpx.exploration.genetic_algorithm.crossover import (
+    ClusterCutAndSpliceCrossover,
+    PeriodicCutAndSpliceCrossover,
+)
 from gdpx.exploration.genetic_algorithm.mutation.group_rattle import GroupRattleMutation
 from gdpx.exploration.genetic_algorithm.mutation.rattle import RattleMutation
-from gdpx.exploration.genetic_algorithm.operators import MUTATIONS
+from gdpx.exploration.genetic_algorithm.operators import (
+    CROSSOVERS,
+    MUTATIONS,
+    instantiate_a_genetic_operator,
+)
 from gdpx.structures.geometry.ga import atoms_too_close, closest_distances_generator
 
 
@@ -50,3 +59,22 @@ def test_rattle_names_are_unambiguous():
     assert MUTATIONS["rattle"] is RattleMutation
     assert MUTATIONS["group_rattle"] is GroupRattleMutation
     assert "rattle_buffer" not in MUTATIONS
+
+
+def test_crossover_names_are_explicit():
+    assert CROSSOVERS["cluster_cut_and_splice"] is ClusterCutAndSpliceCrossover
+    assert CROSSOVERS["periodic_cut_and_splice"] is PeriodicCutAndSpliceCrossover
+    assert "cut_and_splice" not in CROSSOVERS
+    assert "cut_and_splice_cluster" not in CROSSOVERS
+
+
+@pytest.mark.parametrize(
+    ("old_name", "new_name"),
+    [
+        ("cut_and_splice", "periodic_cut_and_splice"),
+        ("cut_and_splice_cluster", "cluster_cut_and_splice"),
+    ],
+)
+def test_renamed_crossovers_report_the_replacement(old_name, new_name):
+    with pytest.raises(ValueError, match=new_name):
+        instantiate_a_genetic_operator("crossover", {"method": old_name}, {})

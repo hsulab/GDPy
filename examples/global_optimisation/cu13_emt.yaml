@@ -35,7 +35,7 @@ recipe:
     comparator:
       method: interatomic_distance
     crossover:
-      method: cut_and_splice_cluster
+      method: cluster_cut_and_splice
     mutation:
       method: rattle
       probability: 1.0

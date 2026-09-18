@@ -1,10 +1,10 @@
 # fmt: off
 
-"""Implementation of the cut-and-splice paring operator."""
+"""Cut-and-splice crossover for periodic and supported structures."""
 import numpy as np
 
 from ase import Atoms
-from .core import OffspringCreator
+from ..core import OffspringCreator
 from gdpx.structures.geometry.ga import (
     atoms_too_close,
     atoms_too_close_two_sets,
@@ -47,7 +47,7 @@ class Positions:
             return False
 
 
-class CutAndSplicePairing(OffspringCreator):
+class PeriodicCutAndSpliceCrossover(OffspringCreator):
     """The Cut and Splice operator by Deaven and Ho.
 
     Creates offspring from two parent structures using
@@ -163,7 +163,7 @@ class CutAndSplicePairing(OffspringCreator):
         self.use_tags = use_tags
 
         self.scaling_volume = None
-        self.descriptor = 'CutAndSplicePairing'
+        self.descriptor = 'PeriodicCutAndSpliceCrossover'
         self.min_inputs = 2
 
     def update_scaling_volume(self, population, w_adapt=0.5, n_adapt=0):

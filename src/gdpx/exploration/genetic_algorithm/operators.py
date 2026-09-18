@@ -5,8 +5,7 @@ from typing import Any
 from .comparator.basic import NNMatComparator
 from .comparator.ofp import OFPComparator
 from .comparator.interatomic_distance import InteratomicDistanceComparator
-from .crossover import CutSpliceCrossover
-from .pairing import CutAndSplicePairing
+from .crossover import ClusterCutAndSpliceCrossover, PeriodicCutAndSpliceCrossover
 from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
 from .mutation.cluster_rotation import ClusterRotationMutation
@@ -28,8 +27,8 @@ COMPARATORS: dict[str, Any] = dict(
 
 CROSSOVERS: dict[str, Any] = dict(
     # GDPy implementations of ASE-GA-compatible crossovers
-    cut_and_splice=CutAndSplicePairing,
-    cut_and_splice_cluster=CutSpliceCrossover,
+    periodic_cut_and_splice=PeriodicCutAndSpliceCrossover,
+    cluster_cut_and_splice=ClusterCutAndSpliceCrossover,
 )
 
 MUTATIONS: dict[str, Any] = dict(
@@ -77,6 +76,15 @@ def instantiate_a_genetic_operator(
     method = op_params.pop("method", None)
     if category == "mutation" and method == "rattle_buffer":
         raise ValueError("Mutation 'rattle_buffer' was renamed to 'group_rattle'.")
+    if category == "crossover" and method == "cut_and_splice":
+        raise ValueError(
+            "Crossover 'cut_and_splice' was renamed to 'periodic_cut_and_splice'."
+        )
+    if category == "crossover" and method == "cut_and_splice_cluster":
+        raise ValueError(
+            "Crossover 'cut_and_splice_cluster' was renamed to "
+            "'cluster_cut_and_splice'."
+        )
     if method is None:
         raise Exception(f"There is no operator {method}.")
 
