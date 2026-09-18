@@ -14,12 +14,12 @@ operators:
     method: cut_and_splice
   mutation:
     - method: rattle
-      prob: 1.0
+      probability: 1.0
     - method: cluster_rotation
-      prob: 0.5
+      probability: 0.5
 ```
 
-When several mutations are configured, `prob` gives their relative selection
+When several mutations are configured, `probability` gives their relative selection
 weights. Builder-derived values such as minimum bond distances, the substrate,
 and the number of optimised atoms are supplied to compatible operations
 automatically.

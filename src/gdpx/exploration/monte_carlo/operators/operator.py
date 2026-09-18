@@ -32,7 +32,7 @@ class BaseMCOperator(abc.ABC):
         skip_distance_check: bool = False,
         use_rotation=True,
         max_random_attempts: int = 1000,
-        prob: float = 1.0,
+        probability: float = 1.0,
     ) -> None:
         """Initialise the modification operator.
 
@@ -45,7 +45,7 @@ class BaseMCOperator(abc.ABC):
         super().__init__()
 
         # Propability to be selected
-        self.prob = prob
+        self.probability = probability
 
         # Check region
         region_params = copy.deepcopy(region)
@@ -262,7 +262,7 @@ class BaseMCOperator(abc.ABC):
         params["covalent_ratio"] = [self.covalent_min, self.covalent_max]
         params["allow_isolated"] = self.allow_isolated
         params["skip_distance_check"] = self.skip_distance_check
-        params["prob"] = self.prob
+        params["probability"] = self.probability
 
         params = copy.deepcopy(params)
 

@@ -27,9 +27,15 @@ def _recipe_parameters(method: str, parameters: dict) -> dict:
 
     if "recipe" not in parameters:
         legacy_keys = ", ".join(sorted(parameters)) or "none"
+        migration = (
+            "Move random_seed and method-specific settings under 'recipe', and move the GA builder "
+            "to 'recipe.population.random_generator'."
+            if method == "genetic_algorithm"
+            else "Move random_seed, builder, and all method-specific settings under 'recipe'."
+        )
         raise ValueError(
             f"Exploration method {method!r} requires a 'recipe' mapping. "
-            f"Move random_seed, builder, and all method-specific settings under 'recipe' "
+            f"{migration} "
             f"(legacy top-level keys: {legacy_keys})."
         )
     if len(parameters) != 1:

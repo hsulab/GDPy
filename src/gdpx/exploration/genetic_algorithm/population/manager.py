@@ -139,14 +139,18 @@ class PopulationManager:
 
         $ cat ga.yaml
         population:
-            init: # for the initial population
+            random_generator:
+                method: random_structure_improved
+            initial: # for the initial population
                 size: 50 # not necessarily equal to size if set
                 seed_file: ./seed.xyz # seed structures for the initial population
-            gen: # for the following generations
+            generation: # for the following generations
                 size: 20 # number of structures in each generation
-                reprod: 20 # crossover + mutate
+                reproduction: 20 # crossover + mutate
                 random: 0
-                mutate: 0
+                mutation: 0
+            reproduction:
+                mutation_probability: 0.5
 
     """
 
@@ -161,6 +165,17 @@ class PopulationManager:
         """"""
         self.rng = rng
 
+        legacy_keys = {"init", "gen", "pmut", "pmut_custom"}.intersection(params)
+        if legacy_keys:
+            replacements = {
+                "init": "initial",
+                "gen": "generation",
+                "pmut": "reproduction.mutation_probability",
+                "pmut_custom": "reproduction.custom_mutation_probability",
+            }
+            migration = ", ".join(f"{key} -> {replacements[key]}" for key in sorted(legacy_keys))
+            raise ValueError(f"Legacy GA population keys are not supported: {migration}.")
+
         # Get population name
         name = params.get("name", "constant")
         if name not in ["constant", "variable"]:
@@ -169,23 +184,41 @@ class PopulationManager:
 
         # Get structure origins for the initial generation
         # TODO: Support mutations for seed structures?
-        init_params = params.get("init", dict(size=20, seed_file=None))
+        init_params = params.get("initial", dict(size=20, seed_file=None))
         self.init_size = init_params.get("size", None)
         self.init_seed_file: Optional[Union[str, pathlib.Path, list[Atoms]]] = init_params.get("seed_file", None)
 
         # Get number of structures from different origins in one generation
-        gen_params = params.get("gen", dict(size=20))
+        gen_params = params.get("generation", dict(size=20))
+        legacy_generation_keys = {
+            "reprod": "reproduction",
+            "mutate": "mutation",
+            "max_random_try": "maximum_random_attempts",
+            "max_reprod_try": "maximum_reproduction_attempts",
+        }
+        found_legacy_generation_keys = legacy_generation_keys.keys() & gen_params.keys()
+        if found_legacy_generation_keys:
+            migration = ", ".join(
+                f"{key} -> {legacy_generation_keys[key]}" for key in sorted(found_legacy_generation_keys)
+            )
+            raise ValueError(f"Legacy GA generation keys are not supported: {migration}.")
         self.gen_size = gen_params.get("size", None)
         if not isinstance(self.gen_size, int):
-            raise Exception(f"The generaton size needs to be an integer instead of `{self.gen_size}`.")
+            raise Exception(f"The generation size needs to be an integer instead of `{self.gen_size}`.")
 
         self.gen_ran_size = gen_params.get("random", 0)
-        self.gen_ran_max_try = gen_params.get("max_random_try", self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER)
+        self.gen_ran_max_try = gen_params.get(
+            "maximum_random_attempts",
+            self.gen_ran_size * self.MAX_ATTEMPTS_MULTIPLIER,
+        )
 
-        self.gen_mut_size = gen_params.get("mutate", 0)
+        self.gen_mut_size = gen_params.get("mutation", 0)
 
-        self.gen_rep_size = gen_params.get("reprod", self.gen_size - self.gen_ran_size - self.gen_mut_size)
-        self.gen_rep_max_try = gen_params.get("max_reprod_try", self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER)
+        self.gen_rep_size = gen_params.get("reproduction", self.gen_size - self.gen_ran_size - self.gen_mut_size)
+        self.gen_rep_max_try = gen_params.get(
+            "maximum_reproduction_attempts",
+            self.gen_rep_size * self.MAX_ATTEMPTS_MULTIPLIER,
+        )
 
         # Check all numbers are valid
         assert (self.gen_rep_size + self.gen_ran_size + self.gen_mut_size) == self.gen_size, (
@@ -195,19 +228,22 @@ class PopulationManager:
             "In each generation, the random size should not be larger than the total size."
         )
         assert self.gen_rep_size <= self.gen_size, (
-            "In each generation, the reprod size should not be larger than the total size."
+            "In each generation, the reproduction size should not be larger than the total size."
         )
         assert self.gen_mut_size <= self.gen_size, (
-            "In each generation, the mutate size should not be larger than the total size."
+            "In each generation, the mutation size should not be larger than the total size."
         )
 
         # Mutation probabilities
-        self.pmut = params.get("pmut", 0.5)
-        self.pmut_custom = params.get("pmut_custom", 0.5)
+        reproduction_params = params.get("reproduction", {})
+        self.pmut = reproduction_params.get("mutation_probability", 0.5)
+        self.pmut_custom = reproduction_params.get("custom_mutation_probability", 0.5)
 
         # Get the tolerance for comparing two atoms by substrates
-        substrate_params = params.get("substrate", dict(dtol=-1.0))
-        self.substrate_dtol = substrate_params.get("dtol", -1.0)  # Ang
+        substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
+        if "dtol" in substrate_params:
+            raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
+        self.substrate_dtol = substrate_params.get("distance_tolerance", -1.0)  # Ang
 
         # Thanos (observer/describer) extincts structures in the population
         thanos = params.get("thanos", None)

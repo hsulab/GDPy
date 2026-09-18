@@ -80,7 +80,7 @@ recipe:
         mu: -5.75
         species: O
       temperature: 800
-      prob: 0.5
+      probability: 0.5
     - method: move
       particles: [Cu, O]
       region:
@@ -90,7 +90,7 @@ recipe:
       covalent_ratio: [0.8, 2.0]
       max_disp: 2.0
       temperature: 800
-      prob: 0.5
+      probability: 0.5
   convergence:
     steps: 5
   dump_period: 1

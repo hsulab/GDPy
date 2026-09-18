@@ -71,7 +71,6 @@ class GeneticAlgorithmBroadcaster:
 
     def __init__(
         self,
-        builder,
         population: dict,
         convergence: dict,
         database: str = "mydb.db",
@@ -82,7 +81,6 @@ class GeneticAlgorithmBroadcaster:
     ):
         """"""
         recipe = dict(
-            builder=builder,
             database=database,
             population=population,
             operators=operators,
@@ -159,7 +157,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def __init__(
         self,
-        builder: dict,
         population: dict,
         convergence: dict,
         database: str = "mydb.db",
@@ -172,10 +169,16 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """Initialise engine.
 
         Args:
-            builder: Define the system to explore.
+            population: Define population creation and evolution.
 
         """
         super().__init__(*args, **kwargs)
+
+        population = copy.deepcopy(population)
+        try:
+            random_generator = population.pop("random_generator")
+        except KeyError as error:
+            raise ValueError("GA population configuration requires a 'random_generator'.") from error
 
         ga_dict = dict(
             database=database,
@@ -194,19 +197,19 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         population_params = self.ga_dict.get("population", None)
         if population_params is not None:
-            if "init" in population_params:
-                seed_file = population_params["init"].get("seed_file", None)
+            if "initial" in population_params:
+                seed_file = population_params["initial"].get("seed_file", None)
                 if seed_file is not None:
-                    self.ga_dict["population"]["init"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
+                    self.ga_dict["population"]["initial"]["seed_file"] = str(pathlib.Path(seed_file).resolve())
 
         # Check random consistency, generator and population
         self._print(f"GA RANDOM SEED {self.random_seed}")
 
         # Check builder for random structure generation
-        if isinstance(builder, dict):
-            builder_params = copy.deepcopy(builder)
+        if isinstance(random_generator, dict):
+            builder_params = copy.deepcopy(random_generator)
         else:  # assume it is a StructureBuilder
-            builder_params = builder.as_dict()
+            builder_params = random_generator.as_dict()
 
         # The builder has its own rng but it is initialised from the engine's random_seed.
         # If random_bulk is used, due to its deprecated np.random,
@@ -735,7 +738,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
             if not isinstance(mutation_list, list):
                 mutation_list = [mutation_list]
             for mut_params in mutation_list:
-                prob = mut_params.pop("prob", 1.0)
+                if "prob" in mut_params:
+                    raise ValueError("Legacy mutation key 'prob' is not supported; use 'probability'.")
+                prob = mut_params.pop("probability", 1.0)
                 probs.append(prob)
                 mut_use_tags = mut_params.get("use_tags", True)
                 specific_params_ = copy.deepcopy(specific_params)
@@ -777,7 +782,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             self.pop_manager.gen_mut_size,
             self.pop_manager.gen_size,
         )
-        content += "Note: Reproduced structure has a chance (pmut) to mutate.\n"
+        content += "Note: Reproduced structures mutate according to mutation_probability.\n"
         content += f"use_extinct: {self.pop_manager.use_extinct}\n"
         content += f"thanos: {self.pop_manager.extinct_callbacks}\n"
         for l in content.split("\n"):
@@ -879,10 +884,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
+        population = copy.deepcopy(self.ga_dict["population"])
+        population = dict(random_generator=self.generator.as_dict(), **population)
+        ga_dict = copy.deepcopy(self.ga_dict)
+        ga_dict["population"] = population
         recipe = dict(
             random_seed=self.random_seed,
-            builder=self.generator.as_dict(),
-            **copy.deepcopy(self.ga_dict),
+            **ga_dict,
         )
         engine_params = {
             "method": "genetic_algorithm",

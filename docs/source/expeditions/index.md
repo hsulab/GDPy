@@ -35,15 +35,16 @@ execution layer owns materialization, job submission, restart, and result
 collection.
 
 Global-optimisation inputs use a common top-level architecture. The `recipe`
-contains the random seed, builder, and settings specific to the selected
-method; runtime and scheduler configuration remain separate execution concerns.
+contains the random seed and settings specific to the selected method; runtime
+and scheduler configuration remain separate execution concerns.
 
 ```yaml
 method: genetic_algorithm
 recipe:
   random_seed: 7
-  builder: {}
-  # method-specific settings
+  population:
+    random_generator: {}
+  # remaining method-specific settings
 runtime: {}
 scheduler: {}
 ```

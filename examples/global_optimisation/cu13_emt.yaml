@@ -1,25 +1,26 @@
 method: genetic_algorithm
 recipe:
   random_seed: 7
-  builder:
-    method: random_structure_improved
-    composition:
-      Cu: 13
-    box: [10.0, 10.0, 10.0]
-    region:
-      method: sphere
-      origin: [5.0, 5.0, 5.0]
-      radius: 3.0
-    pbc: false
-    covalent_ratio: [0.6, 2.0]
   database: cu13.db
   population:
-    init:
+    random_generator:
+      method: random_structure_improved
+      composition:
+        Cu: 13
+      box: [10.0, 10.0, 10.0]
+      region:
+        method: sphere
+        origin: [5.0, 5.0, 5.0]
+        radius: 3.0
+      pbc: false
+      covalent_ratio: [0.6, 2.0]
+    initial:
       size: 4
-    gen:
+    generation:
       size: 2
-      reprod: 2
-    pmut: 0.5
+      reproduction: 2
+    reproduction:
+      mutation_probability: 0.5
   operators:
     comparator:
       method: interatomic_distance
@@ -27,7 +28,7 @@ recipe:
       method: cut_and_splice_cluster
     mutation:
       method: rattle
-      prob: 1.0
+      probability: 1.0
   property:
     target: energy
   convergence:
