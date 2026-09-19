@@ -137,6 +137,8 @@ class PopulationManager:
 
         $ cat ga.yaml
         population:
+            periodic: true
+            preserve_fragments: false
             builders:
                 random:
                     method: random_structure_improved
@@ -217,6 +219,11 @@ class PopulationManager:
             raise ValueError(
                 "Legacy GA initial keys are not supported: " + ", ".join(sorted(rejected_initial)) + "."
             )
+        substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
+        if "dtol" in substrate_params:
+            raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
+        self.periodic = self._required_boolean(params, "periodic")
+        self.preserve_fragments = self._required_boolean(params, "preserve_fragments")
         self.init_size = self._positive_integer(init_params.get("total_size"), "initial.total_size")
         self.initial_builder_allocations = self._parse_builder_allocations(
             init_params.get("builder_allocations"), self.init_size
@@ -247,9 +254,6 @@ class PopulationManager:
         self.pmut_custom = reproduction_params.get("custom_mutation_probability", 0.5)
 
         # Get the tolerance for comparing two atoms by substrates
-        substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
-        if "dtol" in substrate_params:
-            raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
         self.substrate_dtol = substrate_params.get("distance_tolerance", -1.0)  # Ang
 
         # Thanos (observer/describer) extincts structures in the population
@@ -271,6 +275,15 @@ class PopulationManager:
         self.population = None
 
         return
+
+    @staticmethod
+    def _required_boolean(params: Mapping, key: str) -> bool:
+        if key not in params:
+            raise ValueError(f"population.{key} is required and must be a boolean.")
+        value = params[key]
+        if not isinstance(value, bool):
+            raise ValueError(f"population.{key} must be a boolean; got {value!r}.")
+        return value
 
     @staticmethod
     def _positive_integer(value, path: str) -> int:
@@ -475,6 +488,8 @@ class PopulationManager:
                 raise RuntimeError(f"Builder {name!r} returned invalid structures.")
             if len(generated) > size - len(frames):
                 raise RuntimeError(f"Builder {name!r} returned more structures than requested.")
+            for offset, atoms in enumerate(generated):
+                self.validate_candidate(atoms, f"builder {name!r}", len(frames) + offset)
             frames.extend(generated)
         if len(frames) != size:
             raise RuntimeError(
@@ -482,6 +497,27 @@ class PopulationManager:
                 f"after {maximum_attempts} attempts."
             )
         return frames
+
+    def validate_candidate(self, atoms: Atoms, source: str, index: Optional[int] = None) -> None:
+        """Validate population-wide system invariants for a candidate."""
+        location = source if index is None else f"{source} candidate {index}"
+        expected_pbc = np.full(3, self.periodic, dtype=bool)
+        if not np.array_equal(atoms.get_pbc(), expected_pbc):
+            raise ValueError(
+                f"{location} has periodic boundary conditions {atoms.get_pbc().tolist()}, "
+                f"but population.periodic is {self.periodic}."
+            )
+        if self.preserve_fragments and not atoms.has("tags"):
+            raise ValueError(
+                f"{location} has no explicit ASE tags, but population.preserve_fragments is true."
+            )
+        if self.preserve_fragments:
+            tags = atoms.get_tags()
+            if np.any(tags < 0) or not np.any(tags > 0):
+                raise ValueError(
+                    f"{location} must use tag 0 only for substrate atoms and positive tags "
+                    "for mobile fragments when population.preserve_fragments is true."
+                )
 
     @staticmethod
     def _require_builders(builders: Mapping, names) -> None:
@@ -584,6 +620,7 @@ class PopulationManager:
                     num_atoms_substrate,
                 )
                 if atoms is not None:
+                    self.validate_candidate(atoms, "reproduction")
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
                     self._print(
@@ -606,6 +643,7 @@ class PopulationManager:
                 assert isinstance(parent, Atoms)
                 atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
                 if atoms is not None:
+                    self.validate_candidate(atoms, "mutation")
                     database.add_unrelaxed_candidate(
                         atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
                     )
@@ -798,6 +836,7 @@ class PopulationManager:
         # Perform mutations.
         num_mutations = len(mutations.oplist)
         if a3 is not None and num_mutations > 0:
+            self.validate_candidate(a3, "crossover")
             # Add the paired or mutated structure to the database
             a3.info["key_value_pairs"]["generation"] = curr_gen
             database.add_unrelaxed_candidate(
@@ -812,6 +851,7 @@ class PopulationManager:
             if curr_prob < self.pmut or is_parthenogenesis:
                 a3_mut, mut_desc = mutations.get_new_individual([a3])
                 if a3_mut is not None:
+                    self.validate_candidate(a3_mut, "reproduction mutation")
                     database.add_unrelaxed_step(a3_mut, mut_desc)
                     a3 = a3_mut
                     self._print(f"  mobile: {desc}  {mut_desc}")
@@ -829,6 +869,7 @@ class PopulationManager:
                 if curr_prob < self.pmut_custom:
                     a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
                     if a3_bmut is not None:
+                        self.validate_candidate(a3_bmut, "custom mutation")
                         database.add_unrelaxed_step(a3_bmut, bmut_desc)
                         a3 = a3_bmut
                         self._print(f"  custom: {bmut_desc}")

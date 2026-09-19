@@ -17,6 +17,8 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 class ExchangeMutation(OffspringCreator):
     """The exchange mutation inserts or removes particles from the given structure."""
 
+    supports_fragment_preservation = True
+
     def __init__(
         self,
         species: Union[str, list[str]],

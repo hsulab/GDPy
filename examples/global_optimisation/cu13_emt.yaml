@@ -3,6 +3,8 @@ recipe:
   random_seed: 7
   database: cu13.db
   population:
+    periodic: false
+    preserve_fragments: false
     builders:
       random:
         method: random_structure_improved
@@ -13,7 +15,6 @@ recipe:
           method: sphere
           origin: [5.0, 5.0, 5.0]
           radius: 3.0
-        pbc: false
         covalent_ratio: [0.6, 2.0]
     initial:
       total_size: 4

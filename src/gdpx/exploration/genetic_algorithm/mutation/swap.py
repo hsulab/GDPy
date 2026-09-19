@@ -15,6 +15,8 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 
 class SwapMutation(OffspringCreator):
 
+    supports_fragment_preservation = True
+
     def __init__(
         self,
         bond_distance_dict,

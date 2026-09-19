@@ -43,6 +43,8 @@ method: genetic_algorithm
 recipe:
   random_seed: 7
   population:
+    periodic: false
+    preserve_fragments: false
     builders:
       random: {}
   # remaining method-specific settings

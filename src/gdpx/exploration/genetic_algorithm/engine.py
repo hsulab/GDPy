@@ -1,4 +1,5 @@
 import copy
+import inspect
 import itertools
 import pathlib
 from collections.abc import Mapping
@@ -11,6 +12,7 @@ from ase.build import niggli_reduce
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
+from gdpx.structures.builders import REGISTER as BUILDER_REGISTER
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.structures.geometry.ga import CellBounds
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -196,6 +198,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 )
             raise ValueError("GA population.reference_builder must name one of population.builders.")
 
+        self.pop_manager = PopulationManager(
+            population, rng=self.random_streams.get("population")
+        )
+        self.periodic = self.pop_manager.periodic
+        self.preserve_fragments = self.pop_manager.preserve_fragments
+
         ga_dict = dict(
             database=database,
             population=population,
@@ -218,6 +226,22 @@ class GeneticAlgorithmEngine(BaseExpedition):
             child_seed = self.random_streams.seed(f"builder/{name}")
             if isinstance(builder_config, Mapping):
                 params = copy.deepcopy(dict(builder_config))
+                population_owned = {"pbc", "use_tags"}.intersection(params)
+                if population_owned:
+                    migrations = {
+                        "pbc": "population.periodic",
+                        "use_tags": "population.preserve_fragments",
+                    }
+                    details = ", ".join(
+                        f"{key} -> {migrations[key]}" for key in sorted(population_owned)
+                    )
+                    raise ValueError(
+                        f"GA population builder {name!r} contains population-owned keys: {details}."
+                    )
+                method = params.get("method", "direct")
+                builder_class = BUILDER_REGISTER[method]
+                if "pbc" in inspect.signature(builder_class.__init__).parameters:
+                    params["pbc"] = self.periodic
                 params["random_seed"] = child_seed
                 builder = canonicalise_builder(params)
             else:
@@ -257,9 +281,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.target = target
 
         # Population and check target-population consistency
-        self.pop_manager = PopulationManager(
-            ga_dict["population"], rng=self.random_streams.get("population")
-        )
         configured_builder_names = [
             allocation["builder"] for allocation in self.pop_manager.initial_builder_allocations
         ] + [item["builder"] for item in self.pop_manager.completion_builder_proportions]
@@ -511,6 +532,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     cand.info["identity_stats"] = identity_stats
                 else:
                     ...
+                self.pop_manager.validate_candidate(cand, "relaxed", ia)
                 # evaluate raw score
                 self.evaluate_candidate(cand)
                 self.pop_manager._extinct_candidate(cand)
@@ -686,6 +708,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
             # n_top=len(self.da.get_atom_numbers_to_optimize()),
             n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
             used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
+            pbc=self.periodic,
+            mic=self.periodic,
         )
 
         # For compatibility,
@@ -694,7 +718,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
             "number_of_variable_cell_vectors",
             "cell_bounds",
             "test_dist_to_slab",
-            "use_tags",
         ]:
             if hasattr(self.generator, attr):
                 specific_params.update(**{attr: getattr(self.generator, attr)})
@@ -759,6 +782,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # --- comparator
         comp_params = op_dict.get("comparator", None)
         if comp_params is not None:
+            self._reject_population_owned_operator_keys(comp_params, f"operators.{group}.comparator")
             comp_specific = dict(
                 specific_params,
                 rng=self.random_streams.get(f"operator/{group}/comparator"),
@@ -773,6 +797,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
         if crossover_params is not None:
+            self._reject_population_owned_operator_keys(crossover_params, f"operators.{group}.crossover")
             crossover_specific = dict(
                 specific_params,
                 rng=self.random_streams.get(f"operator/{group}/crossover"),
@@ -782,6 +807,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 crossover_params,
                 crossover_specific,
             )
+            self._configure_fragment_policy(pairing, f"operators.{group}.crossover")
             # For some ase-builtin operators, we manually set allow_variable_composition to False
             # by default. For others, we can set it through the input file.
             if hasattr(pairing, "allow_variable_composition"):
@@ -803,28 +829,21 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 mutation_list = [mutation_list]
             for mutation_index, mut_params in enumerate(mutation_list):
                 mut_params = copy.deepcopy(mut_params)
+                self._reject_population_owned_operator_keys(
+                    mut_params, f"operators.{group}.mutation[{mutation_index}]"
+                )
                 if "prob" in mut_params:
                     raise ValueError("Legacy mutation key 'prob' is not supported; use 'probability'.")
                 prob = mut_params.pop("probability", 1.0)
                 probs.append(prob)
-                mut_use_tags = mut_params.get("use_tags", True)
                 specific_params_ = copy.deepcopy(specific_params)
                 specific_params_["rng"] = self.random_streams.get(
                     f"operator/{group}/mutation/{mutation_index}"
                 )
-                sys_use_tags = specific_params_.pop("use_tags", True)
-                mut_params["use_tags"] = sys_use_tags and mut_use_tags
                 mut = instantiate_a_genetic_operator("mutation", mut_params, specific_params_)
-                # Check whether mutation accepts molecules
-                if hasattr(mut, "use_tags"):
-                    if mut_use_tags:
-                        assert mut.use_tags, f"use_tags `{mut.use_tags}` in mutation `{mut}` must be true."
-                    else:
-                        # HACK: We may disbale the use_tags in the mutation if all our fragments
-                        # are just atoms, and the mutation does not mess up with tags.
-                        ...
-                else:
-                    raise RuntimeError(f"Mutation `{mut}` cannot be used in a search with tags.")
+                self._configure_fragment_policy(
+                    mut, f"operators.{group}.mutation[{mutation_index}]"
+                )
                 assert "Mutation" in mut.descriptor, f"{mut} must have `Mutation` in its descriptor."
                 mutations.append(mut)
 
@@ -843,6 +862,29 @@ class GeneticAlgorithmEngine(BaseExpedition):
             )
 
         return dict(comparing=comparing, pairing=pairing, mutations=mutations)
+
+    @staticmethod
+    def _reject_population_owned_operator_keys(params: Mapping, path: str) -> None:
+        population_owned = {"pbc", "use_tags"}.intersection(params)
+        if population_owned:
+            migrations = {
+                "pbc": "population.periodic",
+                "use_tags": "population.preserve_fragments",
+            }
+            details = ", ".join(
+                f"{key} -> {migrations[key]}" for key in sorted(population_owned)
+            )
+            raise ValueError(f"{path} contains population-owned keys: {details}.")
+
+    def _configure_fragment_policy(self, operator, path: str) -> None:
+        supports_fragments = getattr(operator, "supports_fragment_preservation", False)
+        if self.preserve_fragments and not supports_fragments:
+            raise ValueError(
+                f"{path} uses {operator.__class__.__name__}, which cannot guarantee "
+                "population.preserve_fragments=true."
+            )
+        if getattr(operator, "fragment_mode_configurable", False):
+            operator.use_tags = self.preserve_fragments
 
     def _register_database(
         self,
@@ -961,8 +1003,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def as_dict(self) -> dict:
         """"""
         population = copy.deepcopy(self.ga_dict["population"])
+        builders = {}
+        for name, builder in self.builders.items():
+            builder_config = copy.deepcopy(builder.as_dict())
+            builder_config.pop("pbc", None)
+            builder_config.pop("use_tags", None)
+            builders[name] = builder_config
         population_prefix: dict[str, Any] = {
-            "builders": {name: builder.as_dict() for name, builder in self.builders.items()}
+            "builders": builders
         }
         if self.reference_builder_name != "random":
             population_prefix["reference_builder"] = self.reference_builder_name

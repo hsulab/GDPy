@@ -150,6 +150,8 @@ class SoftMutation(OffspringCreator):
 
     descriptor = "SoftMutation"
     min_inputs = 1
+    supports_fragment_preservation = True
+    fragment_mode_configurable = True
 
     def __init__(
         self,

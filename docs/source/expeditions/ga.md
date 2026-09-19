@@ -88,6 +88,13 @@ The remaining entries below are in the `recipe` section:
 
 - population: Define how to create and organise a population.
 
+  > - periodic and preserve_fragments:
+  >
+  >   > Both booleans are required. `periodic: true` makes the searched system
+  >   > periodic in all three directions; `false` makes it non-periodic.
+  >   > `preserve_fragments: true` requires compatible operations to keep atoms
+  >   > sharing an ASE tag together as one fragment.
+  >
   > - builders and reference_builder:
   >
   >   > `builders` is a mapping of reusable, named structure builders.
@@ -127,6 +134,8 @@ recipe:
   random_seed: 127
   database: mydb.db
   population:
+    periodic: false
+    preserve_fragments: false
     builders:
       surface:
         method: random_surface

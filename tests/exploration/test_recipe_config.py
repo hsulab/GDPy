@@ -97,6 +97,8 @@ def test_factory_rejects_legacy_global_optimisation_shapes(config, message):
 def test_ga_broadcaster_uses_named_recipe_fields():
     broadcaster = GeneticAlgorithmBroadcaster(
         population={
+            "periodic": False,
+            "preserve_fragments": False,
             "builders": {"random": {"method": "unused"}},
             "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
             "generation": {
@@ -122,6 +124,8 @@ def test_ga_broadcaster_uses_named_recipe_fields():
 
 def _minimal_ga_population(builder_name, reference_builder=None):
     population = {
+        "periodic": False,
+        "preserve_fragments": False,
         "builders": {builder_name: SerializableBuilder({"method": builder_name})},
         "initial": {
             "total_size": 1,
@@ -171,6 +175,8 @@ def test_ga_requires_reference_when_random_builder_is_absent():
 def test_ga_population_uses_expanded_keys():
     population = PopulationManager(
         {
+            "periodic": False,
+            "preserve_fragments": False,
             "initial": {
                 "total_size": 4,
                 "builder_allocations": [
@@ -212,6 +218,130 @@ def test_ga_population_uses_expanded_keys():
     ]
 
 
+def test_ga_population_requires_boolean_system_description():
+    base = {
+        "periodic": False,
+        "preserve_fragments": False,
+        "initial": {
+            "total_size": 1,
+            "builder_allocations": [{"builder": "random", "size": 1}],
+        },
+        "generation": {
+            "total_size": 1,
+            "completion": {
+                "builder_proportions": [{"builder": "random", "proportion": 1.0}]
+            },
+        },
+    }
+
+    missing_periodic = dict(base)
+    missing_periodic.pop("periodic")
+    with pytest.raises(ValueError, match="population.periodic is required"):
+        PopulationManager(missing_periodic)
+
+    mixed_periodic = dict(base, periodic=[True, True, False])
+    with pytest.raises(ValueError, match="population.periodic must be a boolean"):
+        PopulationManager(mixed_periodic)
+
+    missing_fragments = dict(base)
+    missing_fragments.pop("preserve_fragments")
+    with pytest.raises(ValueError, match="population.preserve_fragments is required"):
+        PopulationManager(missing_fragments)
+
+
+def test_population_candidate_validation_uses_system_description():
+    config = {
+        "periodic": True,
+        "preserve_fragments": True,
+        "initial": {
+            "total_size": 1,
+            "builder_allocations": [{"builder": "random", "size": 1}],
+        },
+        "generation": {
+            "total_size": 1,
+            "completion": {
+                "builder_proportions": [{"builder": "random", "proportion": 1.0}]
+            },
+        },
+    }
+    population = PopulationManager(config)
+
+    tagged = Atoms("H", pbc=True)
+    tagged.set_tags([1])
+    population.validate_candidate(tagged, "test")
+
+    with pytest.raises(ValueError, match="periodic boundary conditions"):
+        population.validate_candidate(Atoms("H", pbc=False), "test")
+    with pytest.raises(ValueError, match="no explicit ASE tags"):
+        population.validate_candidate(Atoms("H", pbc=True), "test")
+    substrate_only_tags = Atoms("H", pbc=True)
+    substrate_only_tags.set_tags([0])
+    with pytest.raises(ValueError, match="positive tags"):
+        population.validate_candidate(substrate_only_tags, "test")
+
+
+@pytest.mark.parametrize(
+    ("key", "replacement"),
+    [("pbc", "population.periodic"), ("use_tags", "population.preserve_fragments")],
+)
+def test_ga_rejects_population_owned_builder_keys(key, replacement):
+    population = _minimal_ga_population("random")
+    population["builders"]["random"] = {"method": "direct", key: False}
+
+    with pytest.raises(ValueError, match=replacement):
+        GeneticAlgorithmEngine(
+            population=population,
+            convergence={"generation": 1},
+            random_seed=7,
+        )
+
+
+def test_ga_injects_population_periodicity_into_compatible_builders():
+    population = _minimal_ga_population("random")
+    population["builders"]["random"] = {
+        "method": "random_structure_improved",
+        "composition": {"Cu": 1},
+        "box": [5.0, 5.0, 5.0],
+    }
+
+    engine = GeneticAlgorithmEngine(
+        population=population,
+        convergence={"generation": 1},
+        random_seed=7,
+    )
+
+    assert engine.builders["random"].pbc is False
+    assert engine.builders["random"].use_tags is True
+
+
+def test_ga_fragment_policy_configures_and_rejects_operators():
+    engine = object.__new__(GeneticAlgorithmEngine)
+    engine.preserve_fragments = True
+    compatible = SimpleNamespace(
+        supports_fragment_preservation=True,
+        fragment_mode_configurable=True,
+        use_tags=False,
+    )
+    engine._configure_fragment_policy(compatible, "operators.mobile.mutation[0]")
+    assert compatible.use_tags is True
+
+    incompatible = SimpleNamespace(
+        supports_fragment_preservation=False,
+        fragment_mode_configurable=False,
+    )
+    with pytest.raises(ValueError, match="cannot guarantee"):
+        engine._configure_fragment_policy(incompatible, "operators.mobile.mutation[1]")
+
+    for key, value, replacement in (
+        ("use_tags", True, "population.preserve_fragments"),
+        ("pbc", True, "population.periodic"),
+    ):
+        with pytest.raises(ValueError, match=replacement):
+            engine._reject_population_owned_operator_keys(
+                {"method": "rattle", key: value}, "operators.mobile.mutation[0]"
+            )
+
+
 @pytest.mark.parametrize(
     "population",
     [
@@ -250,14 +380,18 @@ def test_ga_serialization_uses_recipe_and_runtime():
     engine = object.__new__(GeneticAlgorithmEngine)
     engine.random_seed = 7
     engine.builders = {
-        "random": Serializable({"method": "random_structure_improved"}),
-        "imported": Serializable({"method": "direct"}),
+        "random": Serializable(
+            {"method": "random_structure_improved", "pbc": False, "use_tags": True}
+        ),
+        "imported": Serializable({"method": "direct", "use_tags": True}),
     }
     engine.reference_builder_name = "random"
     engine.worker = Serializable({"schema_version": 2})
     engine.ga_dict = {
         "database": "search.db",
         "population": {
+            "periodic": False,
+            "preserve_fragments": False,
             "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
             "generation": {"total_size": 1},
         },
@@ -294,6 +428,8 @@ class FixedBuilder:
 def test_initial_population_uses_ordered_builder_allocations():
     population = PopulationManager(
         {
+            "periodic": False,
+            "preserve_fragments": False,
             "initial": {
                 "total_size": 3,
                 "builder_allocations": [
@@ -331,6 +467,8 @@ def test_generation_plan_round_trip(tmp_path):
 def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, monkeypatch):
     population = PopulationManager(
         {
+            "periodic": False,
+            "preserve_fragments": False,
             "initial": {
                 "total_size": 1,
                 "builder_allocations": [{"builder": "first", "size": 1}],

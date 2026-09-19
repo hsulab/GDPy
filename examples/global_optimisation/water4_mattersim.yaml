@@ -3,6 +3,8 @@ recipe:
   random_seed: 17
   database: water4.db
   population:
+    periodic: true
+    preserve_fragments: true
     builders:
       random:
         method: random_structure_improved
@@ -13,7 +15,6 @@ recipe:
           method: sphere
           origin: [10.0, 10.0, 10.0]
           radius: 3.0
-        pbc: true
         molecular_distances: [1.5, 5.0]
         covalent_ratio: [0.7, 2.0]
     initial:

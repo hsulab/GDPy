@@ -144,6 +144,9 @@ class PeriodicCutAndSpliceCrossover(OffspringCreator):
         By default numpy.random.
     """
 
+    supports_fragment_preservation = True
+    fragment_mode_configurable = True
+
     def __init__(self, slab, n_top, blmin, number_of_variable_cell_vectors=0,
                  p1=1, p2=0.05, minfrac=None, cellbounds=None,
                  test_dist_to_slab=True, use_tags=False, rng=None,

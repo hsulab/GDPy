@@ -50,6 +50,8 @@ class OffspringCreator:
 
     descriptor = "OffspringCreator"
     min_inputs = 0
+    supports_fragment_preservation = False
+    fragment_mode_configurable = False
 
     def __init__(self, verbose: bool = False, num_muts: int = 1, rng=None):
         self.verbose = verbose
