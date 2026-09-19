@@ -3,8 +3,6 @@ recipe:
   random_seed: 29
   database: cu4-bulk.db
   population:
-    periodic: true
-    preserve_fragments: false
     builders:
       random:
         method: random_bulk

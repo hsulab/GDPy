@@ -46,11 +46,11 @@ The complete search configuration is available at
 :language: yaml
 ```
 
-The search uses periodic cut-and-splice crossover and rattle mutation. Fragment
-preservation is disabled because each Cu atom is independently movable.
-MatterSim is used because the potential must describe Cu, Al, O, and their
-interfaces; see the {ref}`potential-mattersim` guide for installation and model
-details.
+The search uses periodic cut-and-splice crossover and rattle mutation. Each Cu
+atom has its own tag, so default fragment preservation keeps the atoms
+independently movable. MatterSim is used because the potential must describe
+Cu, Al, O, and their interfaces; see the {ref}`potential-mattersim` guide for
+installation and model details.
 
 ## Run
 

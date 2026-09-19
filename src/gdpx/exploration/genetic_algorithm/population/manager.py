@@ -137,8 +137,6 @@ class PopulationManager:
 
         $ cat ga.yaml
         population:
-            periodic: true
-            preserve_fragments: false
             builders:
                 random:
                     method: random_structure_improved
@@ -222,8 +220,10 @@ class PopulationManager:
         substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
         if "dtol" in substrate_params:
             raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
-        self.periodic = self._required_boolean(params, "periodic")
-        self.preserve_fragments = self._required_boolean(params, "preserve_fragments")
+        self.periodic = self._boolean_setting(params, "periodic", default=True)
+        self.preserve_fragments = self._boolean_setting(
+            params, "preserve_fragments", default=True
+        )
         self.init_size = self._positive_integer(init_params.get("total_size"), "initial.total_size")
         self.initial_builder_allocations = self._parse_builder_allocations(
             init_params.get("builder_allocations"), self.init_size
@@ -277,10 +277,8 @@ class PopulationManager:
         return
 
     @staticmethod
-    def _required_boolean(params: Mapping, key: str) -> bool:
-        if key not in params:
-            raise ValueError(f"population.{key} is required and must be a boolean.")
-        value = params[key]
+    def _boolean_setting(params: Mapping, key: str, default: bool) -> bool:
+        value = params.get(key, default)
         if not isinstance(value, bool):
             raise ValueError(f"population.{key} must be a boolean; got {value!r}.")
         return value

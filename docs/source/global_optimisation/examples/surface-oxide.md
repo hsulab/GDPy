@@ -23,7 +23,7 @@ fixed substrate from the searchable overlayer.
 
 The insertion region spans the complete right-angled periodic surface cell from
 z = 4.60 to 9.10 Å, leaving about 12.9 Å of clear vacuum above it.
-`population.periodic: true` applies periodic boundary conditions in all three
+The default periodic setting applies periodic boundary conditions in all three
 directions. During relaxation,
 `constraint: lowest 4` fixes the lower Cu layer while allowing the upper layer
 and the Cu–O overlayer to relax.
@@ -37,11 +37,11 @@ The complete search configuration is available at
 :language: yaml
 ```
 
-The search uses periodic cut-and-splice crossover and rattle mutation. Fragment
-preservation is disabled because every added Cu and O atom is an independent
-particle. MatterSim is used instead of EMT because this example requires a
-potential that describes both Cu and O; see the {ref}`potential-mattersim`
-guide for installation and model details.
+The search uses periodic cut-and-splice crossover and rattle mutation. Every
+added Cu and O atom has its own tag, so default fragment preservation treats
+them as independent particles. MatterSim is used instead of EMT because this
+example requires a potential that describes both Cu and O; see the
+{ref}`potential-mattersim` guide for installation and model details.
 
 ## Run
 

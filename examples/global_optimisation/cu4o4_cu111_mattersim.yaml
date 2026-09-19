@@ -3,8 +3,6 @@ recipe:
   random_seed: 41
   database: cu4o4-cu111.db
   population:
-    periodic: true
-    preserve_fragments: false
     builders:
       random:
         method: random_structure_improved

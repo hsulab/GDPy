@@ -3,8 +3,6 @@ recipe:
   random_seed: 53
   database: cu4-alumina111.db
   population:
-    periodic: true
-    preserve_fragments: false
     builders:
       random:
         method: random_structure_improved

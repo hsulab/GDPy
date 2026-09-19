@@ -41,9 +41,9 @@ The complete configuration is available at
 
 The only named builder is `adsorbate`, so `reference_builder: adsorbate`
 identifies it as the source of substrate and bond-distance metadata. The CO
-atoms share one positive tag, and `population.preserve_fragments: true` makes
-periodic cut-and-splice crossover and rattle mutation treat CO as one particle.
-The bottom Al–O–Al slab unit is fixed with `constraint: lowest 60`.
+atoms share one positive tag, so default fragment preservation makes periodic
+cut-and-splice crossover and rattle mutation treat CO as one particle. The
+bottom Al–O–Al slab unit is fixed with `constraint: lowest 60`.
 
 MatterSim is used because the potential must describe Cu, C, O, Al, and their
 interfaces. See the {ref}`potential-mattersim` guide for installation and model

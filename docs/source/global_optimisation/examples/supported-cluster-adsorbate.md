@@ -24,8 +24,8 @@ different cluster–support geometries.
 :::{note}
 All support atoms have ASE tag 0. Each Cu atom receives its own positive tag,
 while C and O share one positive tag identifying CO as a molecular fragment.
-`population.preserve_fragments: true` therefore makes crossover and mutation
-move CO as one particle instead of separating its atoms.
+Default fragment preservation therefore makes crossover and mutation move CO
+as one particle instead of separating its atoms.
 :::
 
 ## Input

@@ -23,7 +23,9 @@ When several mutations are configured, `probability` gives their relative select
 weights. Builder-derived values such as minimum bond distances, the substrate,
 and the number of optimised atoms are supplied to compatible operations
 automatically. Periodicity and fragment preservation are configured once as
-`population.periodic` and `population.preserve_fragments`.
+`population.periodic` and `population.preserve_fragments`. Both default to
+`true`; set either value explicitly to `false` when the searched system or its
+operations require it.
 
 ## Comparators
 
@@ -83,10 +85,11 @@ they can reject candidates that are either overlapping or disconnected.
 
 GDPy uses ASE tags internally to distinguish the substrate and individual
 particles. A substrate has tag 0; generated atoms or molecular fragments have
-positive tags. With `population.preserve_fragments: true`, atoms sharing a
+positive tags. Fragment preservation is enabled by default, so atoms sharing a
 positive tag must be treated as one particle and their internal geometry must
 be preserved. GDPy rejects an incompatible crossover or mutation while loading
-the configuration.
+the configuration. Set `population.preserve_fragments: false` for an atom-wise
+search that uses an incompatible operation.
 
 The following restrictions apply:
 

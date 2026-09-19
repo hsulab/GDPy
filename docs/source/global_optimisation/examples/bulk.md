@@ -17,11 +17,12 @@ The complete example is available at
 :language: yaml
 ```
 
-`population.periodic: true` applies periodic boundary conditions in all three
+The default periodic setting applies periodic boundary conditions in all three
 directions. The builder fixes the cell volume at 48 Å³ while sampling cell
 lengths and angles within the declared bounds. Periodic cut-and-splice combines
 parent structures, while rattle and strain mutations vary atomic positions and
-cell shape. Since Cu is treated atomically, fragment preservation is disabled.
+cell shape. Each Cu atom has its own tag, so default fragment preservation still
+treats the atoms as independently movable particles.
 
 ## Run
 

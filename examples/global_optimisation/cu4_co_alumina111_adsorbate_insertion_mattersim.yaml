@@ -3,8 +3,6 @@ recipe:
   random_seed: 79
   database: cu4-co-alumina111-adsorbate-insertion.db
   population:
-    periodic: true
-    preserve_fragments: true
     builders:
       adsorbate:
         method: adsorbate_insertion

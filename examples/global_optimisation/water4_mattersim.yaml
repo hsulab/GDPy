@@ -3,8 +3,6 @@ recipe:
   random_seed: 17
   database: water4.db
   population:
-    periodic: true
-    preserve_fragments: true
     builders:
       random:
         method: random_structure_improved

@@ -218,10 +218,8 @@ def test_ga_population_uses_expanded_keys():
     ]
 
 
-def test_ga_population_requires_boolean_system_description():
+def test_ga_population_defaults_system_description_to_true():
     base = {
-        "periodic": False,
-        "preserve_fragments": False,
         "initial": {
             "total_size": 1,
             "builder_allocations": [{"builder": "random", "size": 1}],
@@ -234,19 +232,23 @@ def test_ga_population_requires_boolean_system_description():
         },
     }
 
-    missing_periodic = dict(base)
-    missing_periodic.pop("periodic")
-    with pytest.raises(ValueError, match="population.periodic is required"):
-        PopulationManager(missing_periodic)
+    population = PopulationManager(base)
+    assert population.periodic is True
+    assert population.preserve_fragments is True
+
+    disabled = PopulationManager(
+        dict(base, periodic=False, preserve_fragments=False)
+    )
+    assert disabled.periodic is False
+    assert disabled.preserve_fragments is False
 
     mixed_periodic = dict(base, periodic=[True, True, False])
     with pytest.raises(ValueError, match="population.periodic must be a boolean"):
         PopulationManager(mixed_periodic)
 
-    missing_fragments = dict(base)
-    missing_fragments.pop("preserve_fragments")
-    with pytest.raises(ValueError, match="population.preserve_fragments is required"):
-        PopulationManager(missing_fragments)
+    invalid_fragments = dict(base, preserve_fragments="yes")
+    with pytest.raises(ValueError, match="population.preserve_fragments must be a boolean"):
+        PopulationManager(invalid_fragments)
 
 
 def test_population_candidate_validation_uses_system_description():
@@ -296,8 +298,10 @@ def test_ga_rejects_population_owned_builder_keys(key, replacement):
         )
 
 
-def test_ga_injects_population_periodicity_into_compatible_builders():
+def test_ga_injects_default_system_settings_into_compatible_builders():
     population = _minimal_ga_population("random")
+    population.pop("periodic")
+    population.pop("preserve_fragments")
     population["builders"]["random"] = {
         "method": "random_structure_improved",
         "composition": {"Cu": 1},
@@ -310,8 +314,15 @@ def test_ga_injects_population_periodicity_into_compatible_builders():
         random_seed=7,
     )
 
-    assert engine.builders["random"].pbc is False
+    assert engine.periodic is True
+    assert engine.preserve_fragments is True
+    assert engine.builders["random"].pbc is True
     assert engine.builders["random"].use_tags is True
+
+    engine.worker = Serializable({"schema_version": 2})
+    serialised_population = engine.as_dict()["recipe"]["population"]
+    assert "periodic" not in serialised_population
+    assert "preserve_fragments" not in serialised_population
 
 
 def test_ga_fragment_policy_configures_and_rejects_operators():

@@ -90,10 +90,10 @@ The remaining entries below are in the `recipe` section:
 
   > - periodic and preserve_fragments:
   >
-  >   > Both booleans are required. `periodic: true` makes the searched system
-  >   > periodic in all three directions; `false` makes it non-periodic.
-  >   > `preserve_fragments: true` requires compatible operations to keep atoms
-  >   > sharing an ASE tag together as one fragment.
+  >   > Both booleans default to `true`. The default makes the searched system
+  >   > periodic in all three directions and requires compatible operations to
+  >   > keep atoms sharing an ASE tag together as one fragment. Set either value
+  >   > explicitly to `false` for a nonperiodic or atom-wise search.
   >
   > - builders and reference_builder:
   >
@@ -134,7 +134,6 @@ recipe:
   random_seed: 127
   database: mydb.db
   population:
-    periodic: false
     preserve_fragments: false
     builders:
       surface:
