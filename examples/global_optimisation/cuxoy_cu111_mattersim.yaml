@@ -1,0 +1,84 @@
+method: genetic_algorithm
+recipe:
+  random_seed: 67
+  database: cuxoy-cu111.db
+  population:
+    name: variable
+    builders:
+      random:
+        method: random_structure_improved
+        substrates: ./examples/global_optimisation/assets/cu111_p2x2_2layer.xyz
+        composition:
+          Cu: "1:4"
+          O: "1:4"
+        region:
+          method: lattice
+          origin: [0.0, 0.0, 4.6]
+          cell:
+            - [5.11238203, 0.0, 0.0]
+            - [0.0, 4.42745271, 0.0]
+            - [0.0, 0.0, 4.5]
+        covalent_ratio: [0.6, 2.0]
+    initial:
+      total_size: 8
+      builder_allocations:
+        - builder: random
+          size: 8
+    generation:
+      total_size: 4
+      reproduction:
+        size: 0
+      mutation:
+        size: 4
+      completion:
+        builder_proportions:
+          - builder: random
+            proportion: 1.0
+  operators:
+    comparator:
+      method: interatomic_distance
+    mutation:
+      - method: exchange
+        probability: 0.7
+        species: [Cu, O]
+        num_min_max:
+          - [1.0, 4.0]
+          - [1.0, 4.0]
+        region:
+          method: lattice
+          origin: [0.0, 0.0, 4.6]
+          cell:
+            - [5.11238203, 0.0, 0.0]
+            - [0.0, 4.42745271, 0.0]
+            - [0.0, 0.0, 4.5]
+        covalent_ratio: [0.6, 2.0]
+      - method: rattle
+        probability: 0.3
+        rattle_strength: 0.5
+        rattle_prop: 0.4
+  property:
+    target: cohesive_energy
+    chempot:
+      Cu: -3.50
+      O: -4.95
+  convergence:
+    generation: 1
+
+runtime:
+  schema_version: 2
+  potential:
+    provider: mattersim
+    parameters:
+      model: MatterSim-v1.0.0-1M
+      compute_stress: false
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      fmax: 0.05
+      steps: 100
+      constraint: lowest 4
+
+scheduler:
+  provider: local
+  parameters: {}

@@ -160,16 +160,10 @@ class ExchangeMutation(OffspringCreator):
 
         if num_species_to_exchange <= num_min_max[0]:
             op = "insert"
-        elif num_min_max[0] < num_species_to_exchange <= num_min_max[1]:
-            op = self.rng.choice(["insert", "remove"], 1, replace=False)[0]
-        else:
+        elif num_species_to_exchange >= num_min_max[1]:
             op = "remove"
-
-        # We should only remove species existing in the system
-        if op == "remove":
-            species_to_exchange = str(self.rng.choice(list(valid_identities.keys()), replace=False))
         else:
-            ...
+            op = self.rng.choice(["insert", "remove"], 1, replace=False)[0]
 
         # Run the exchange
         extra_info = ""
