@@ -13,5 +13,6 @@ for production searches.
 
 cluster
 bulk
+surface-oxide
 water-cluster
 ```
