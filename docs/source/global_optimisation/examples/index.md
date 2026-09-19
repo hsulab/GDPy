@@ -14,5 +14,6 @@ for production searches.
 cluster
 bulk
 surface-oxide
+supported-nanoparticle
 water-cluster
 ```
