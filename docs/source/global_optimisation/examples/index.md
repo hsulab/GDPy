@@ -15,5 +15,7 @@ cluster
 bulk
 surface-oxide
 supported-nanoparticle
+supported-cluster-adsorbate
+adsorbate-insertion
 water-cluster
 ```

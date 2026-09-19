@@ -1,0 +1,68 @@
+method: genetic_algorithm
+recipe:
+  random_seed: 67
+  database: cu4-co-alumina111.db
+  population:
+    periodic: true
+    preserve_fragments: true
+    builders:
+      random:
+        method: random_structure_improved
+        substrates: ./examples/global_optimisation/assets/alpha_alumina111_ortho.xyz
+        composition:
+          Cu: 4
+          CO: 1
+        region:
+          method: sphere
+          origin: [7.1385, 8.2428, 10.2]
+          radius: 2.4
+        covalent_ratio: [0.6, 2.0]
+    initial:
+      total_size: 4
+      builder_allocations:
+        - builder: random
+          size: 4
+    generation:
+      total_size: 2
+      reproduction:
+        size: 2
+        mutation_probability: 0.5
+      mutation:
+        size: 0
+      completion:
+        builder_proportions:
+          - builder: random
+            proportion: 1.0
+  operators:
+    comparator:
+      method: interatomic_distance
+    crossover:
+      method: periodic_cut_and_splice
+    mutation:
+      method: rattle
+      probability: 1.0
+      rattle_strength: 0.5
+      rattle_prop: 0.4
+  property:
+    target: energy
+  convergence:
+    generation: 1
+
+runtime:
+  schema_version: 2
+  potential:
+    provider: mattersim
+    parameters:
+      model: MatterSim-v1.0.0-1M
+      compute_stress: false
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      fmax: 0.05
+      steps: 100
+      constraint: lowest 60
+
+scheduler:
+  provider: local
+  parameters: {}
