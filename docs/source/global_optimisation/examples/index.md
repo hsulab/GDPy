@@ -12,5 +12,6 @@ for production searches.
 :maxdepth: 1
 
 cluster
+bulk
 water-cluster
 ```

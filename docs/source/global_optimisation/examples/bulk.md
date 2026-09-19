@@ -1,0 +1,44 @@
+(ga-bulk-example)=
+
+# Bulk crystal
+
+This minimal example searches for low-energy periodic cells containing four Cu
+atoms. The `random_bulk` builder samples both atomic positions and cell shapes,
+and ASE's Effective Medium Theory (EMT) calculator relaxes each candidate. The
+small population and single generation make this a workflow demonstration, not
+a converged Cu crystal-structure prediction.
+
+## Input
+
+The complete example is available at
+`examples/global_optimisation/cu4_bulk_emt.yaml`:
+
+```{literalinclude} ../../../../examples/global_optimisation/cu4_bulk_emt.yaml
+:language: yaml
+```
+
+`population.periodic: true` applies periodic boundary conditions in all three
+directions. The builder fixes the cell volume at 48 Å³ while sampling cell
+lengths and angles within the declared bounds. Periodic cut-and-splice combines
+parent structures, while rattle and strain mutations vary atomic positions and
+cell shape. Since Cu is treated atomically, fragment preservation is disabled.
+
+## Run
+
+From the repository root, run:
+
+```shell
+gdp -d ./run-cu4-bulk-emt explore \
+    ./examples/global_optimisation/cu4_bulk_emt.yaml
+```
+
+The search is stored under `run-cu4-bulk-emt/expedition-0`. When it completes,
+`results/all_candidates.xyz` contains the relaxed candidates ordered by their
+GA score, and `results/pop.png` summarises the energies by generation. This
+configuration produces four initial structures and two offspring.
+
+:::{note}
+EMT and the compact search settings keep the example inexpensive. Increase the
+population, number of generations, and structural diversity before using this
+workflow for a scientific bulk-structure search.
+:::
