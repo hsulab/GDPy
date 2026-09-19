@@ -54,8 +54,6 @@ recipe:
         covalent_ratio: [0.6, 2.0]
       - method: rattle
         probability: 0.3
-        rattle_strength: 0.5
-        rattle_prop: 0.4
   property:
     target: cohesive_energy
     chempot:

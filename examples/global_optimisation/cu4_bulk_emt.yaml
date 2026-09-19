@@ -42,8 +42,6 @@ recipe:
     mutation:
       - method: rattle
         probability: 1.0
-        rattle_strength: 0.35
-        rattle_prop: 0.5
       - method: strain
         probability: 0.5
         stddev: 0.15

@@ -41,9 +41,6 @@ recipe:
       method: periodic_cut_and_splice
     mutation:
       method: rattle
-      probability: 1.0
-      rattle_strength: 0.5
-      rattle_prop: 0.4
   property:
     target: energy
   convergence:

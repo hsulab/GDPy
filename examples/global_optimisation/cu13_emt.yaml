@@ -39,7 +39,6 @@ recipe:
       method: cluster_cut_and_splice
     mutation:
       method: rattle
-      probability: 1.0
   property:
     target: energy
   convergence:
