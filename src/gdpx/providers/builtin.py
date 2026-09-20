@@ -45,7 +45,7 @@ def register_builtin_providers(manager) -> None:
     )
     for provider in providers:
         manager.register(provider, replace=True)
-    from .schedulers import scheduler_providers
+    from .schedulers import scheduler_providers, transport_providers
 
-    for provider in scheduler_providers():
+    for provider in (*scheduler_providers(), *transport_providers()):
         manager.register(provider, replace=True)

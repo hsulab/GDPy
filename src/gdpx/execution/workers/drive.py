@@ -402,11 +402,11 @@ class DriverBasedWorker(BaseWorker):
         assert len(set(wdirs)) == num_tasks, f"Found duplicated wdirs {len(set(wdirs))} vs. {num_tasks}."
 
         overwrite_batchsize = False
-        if self._share_wdir or self.scheduler.name == "local":
+        if self._share_wdir or self.scheduler.is_direct:
             overwrite_batchsize = True
 
         if overwrite_batchsize:
-            self._print(f"Overwrites batchsize to {num_tasks=} as it uses share_wdir or local scheduler.")
+            self._print(f"Overwrites batchsize to {num_tasks=} as it uses share_wdir or direct execution.")
             batchsize_val = num_tasks
         else:
             batchsize_val = self.batchsize
@@ -575,9 +575,9 @@ class DriverBasedWorker(BaseWorker):
                 f"--worker {worker_index} --batch {batch_number}\n"
             )
         else:
-            self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
-                worker_input_fpath,
-                dataset_path,
+            self.scheduler.user_commands = "gdp -r {} compute {} --batch {} --spawn\n".format(
+                shlex.quote(worker_input_fpath),
+                shlex.quote(dataset_path),
                 batch_number,
             )
 

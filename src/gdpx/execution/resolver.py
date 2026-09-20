@@ -63,9 +63,9 @@ class RuntimeResolver:
             )
         scheduler_config = config.scheduler
         if scheduler_config is None:
-            from gdpx.execution.schedulers.local import LocalScheduler
+            from gdpx.execution.schedulers.direct import DirectScheduler
 
-            scheduler = LocalScheduler()
+            scheduler = DirectScheduler()
         else:
             scheduler_provider = scheduler_config.provider
             scheduler_method = scheduler_config.method or "default"
@@ -74,6 +74,18 @@ class RuntimeResolver:
                 scheduler_provider, CapabilityKind.SCHEDULER, scheduler_method
             )
             scheduler = scheduler_factory.create(scheduler_parameters, providers=self.providers)
+        transport_config = None if scheduler_config is None else scheduler_config.transport
+        if transport_config is not None:
+            transport_factory = self.providers.require(
+                transport_config.provider,
+                CapabilityKind.TRANSPORT,
+                transport_config.method or "default",
+            )
+            scheduler = transport_factory.create(
+                thaw(transport_config.parameters),
+                providers=self.providers,
+                scheduler=scheduler,
+            )
         return Runtime(
             potential=config.potential_spec(),
             materialization=materialization,

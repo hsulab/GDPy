@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import re
 import subprocess
 
@@ -114,7 +110,3 @@ class LsfScheduler(BaseScheduler):
             if len(fields) >= 7 and fields[6] == self.job_name:
                 return False
         return True
-
-
-if __name__ == "__main__":
-    ...

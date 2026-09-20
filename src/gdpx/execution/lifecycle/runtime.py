@@ -22,7 +22,7 @@ class CompState(enum.Enum):
 
 
 def create_runtime_workers(config):
-    """Create workers or worker chains from explicit schema-v2 runtimes."""
+    """Create workers or worker chains from explicit schema-v3 runtimes."""
     if isinstance(config, (str, pathlib.Path)):
         config = parse_input_file(input_fpath=config)
     config = copy.deepcopy(config)

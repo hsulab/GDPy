@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from gdpx.execution import Runtime, resolve_runtime
-from gdpx.providers import ComponentConfig, RuntimeConfig
+from gdpx.providers import ComponentConfig, RuntimeConfig, SCHEMA_VERSION
+from gdpx.providers.configuration import scheduler_component
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import Variable
 
@@ -49,13 +50,15 @@ class RuntimeVariable(Variable):
         modifiers=(),
         scheduler=None,
         options=None,
-        schema_version=2,
+        schema_version=SCHEMA_VERSION,
         directory="./",
     ):
         potential_config = _component(potential, "potential")
         executor_config = _component(executor, "executor")
         modifier_configs = tuple(_component(item, "modifier") for item in modifiers)
-        scheduler_config = None if scheduler is None else _component(scheduler, "scheduler")
+        if isinstance(scheduler, Variable):
+            scheduler = scheduler.value
+        scheduler_config = None if scheduler is None else scheduler_component(scheduler)
         self.config = RuntimeConfig(
             potential=potential_config,
             executor=executor_config,

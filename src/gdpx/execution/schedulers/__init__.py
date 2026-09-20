@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 """Create scheduler based on parameters
 
 This module includes several schedulers.
@@ -10,9 +6,9 @@ Example:
 
     .. code-block:: python
 
-        >>> from gdpx.execution.schedulers.local import LocalScheduler
+        >>> from gdpx.execution.schedulers.direct import DirectScheduler
         >>> params = dict()
-        >>> scheduler = LocalScheduler(**params)
+        >>> scheduler = DirectScheduler(**params)
 
 """
 
@@ -22,9 +18,9 @@ REGISTER = Registry("scheduler")
 
 from .scheduler import BaseScheduler
 
-from .local import LocalScheduler
+from .direct import DirectScheduler
 
-REGISTER.register(LocalScheduler)
+REGISTER.register(DirectScheduler)
 
 from .lsf import LsfScheduler
 
@@ -41,10 +37,10 @@ REGISTER.register(SlurmScheduler)
 __all__ = [
     "REGISTER",
     "BaseScheduler",
-    "LocalScheduler",
+    "DirectScheduler",
     "LsfScheduler",
     "PbsScheduler",
-    "RemoteScheduler",
+    "SshTransport",
     "SlurmScheduler",
 ]
 
@@ -54,8 +50,8 @@ __all__.append("canonicalise_scheduler")
 
 
 def __getattr__(name):
-    if name == "RemoteScheduler":
-        from .remote import RemoteScheduler
+    if name == "SshTransport":
+        from .remote import SshTransport
 
-        return RemoteScheduler
+        return SshTransport
     raise AttributeError(name)

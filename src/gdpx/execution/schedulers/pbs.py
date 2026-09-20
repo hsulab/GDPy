@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import subprocess
 
 from .scheduler import BaseScheduler
@@ -76,7 +72,3 @@ class PbsScheduler(BaseScheduler):
             if self.job_name in fields:
                 return False
         return True
-
-
-if __name__ == "__main__":
-    ...

@@ -15,6 +15,7 @@ class CapabilityKind(str, enum.Enum):
     MODIFIER = "modifier"
     COLLECTIVE_VARIABLE = "collective_variable"
     SCHEDULER = "scheduler"
+    TRANSPORT = "transport"
     EXPLORATION = "exploration"
 
 
@@ -28,4 +29,3 @@ class Factory(Protocol):
 class Materializer(Protocol):
     def materialize(self, potential: Any, target: type, **context: Any) -> Any:
         """Translate a neutral potential to a target representation."""
-

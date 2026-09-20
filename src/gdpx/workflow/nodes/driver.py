@@ -363,7 +363,7 @@ class compute(Operation):
                 worker.batchsize = self.batchsize
             else:
                 worker.batchsize = num_frames
-            # if self.share_wdir and worker.scheduler.name == "local":
+            # if self.share_wdir and worker.scheduler.is_direct:
             if self.share_wdir:
                 worker._share_wdir = True
             if self.retain_info:

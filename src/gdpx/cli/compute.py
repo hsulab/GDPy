@@ -1,4 +1,4 @@
-"""Command-line interface for schema-v2 execution lifecycles."""
+"""Command-line interface for schema-v3 execution lifecycles."""
 
 from __future__ import annotations
 
@@ -39,9 +39,23 @@ def run_computation(
     plan: Optional[Union[str, pathlib.Path]] = None,
     worker_index: int = 0,
 ):
-    """Prepare or advance one explicit schema-v2 compute lifecycle."""
+    """Prepare or advance one explicit schema-v3 compute lifecycle."""
     action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
     plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
+
+    if spawn and action is None:
+        if runtime is None or batch is None:
+            raise RuntimeError("Spawned computations require --runtime and --batch.")
+        from gdpx.execution.factory import create_worker
+        from gdpx.structures.builders.factory import canonicalise_builder
+
+        worker = create_worker(load_runtime_input(runtime), directory=directory)
+        worker.is_spawned = True
+        frames = []
+        for source in structures:
+            frames.extend(canonicalise_builder(source).run())
+        worker.run(frames, batch=batch)
+        return
 
     if action == "prepare":
         if runtime is None:

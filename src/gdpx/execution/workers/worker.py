@@ -5,7 +5,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 
 from gdpx import config
-from gdpx.execution.schedulers import LocalScheduler
+from gdpx.execution.schedulers import DirectScheduler
 from gdpx.execution.schedulers.scheduler import BaseScheduler
 
 from .store import JobRecord, JobStore
@@ -31,7 +31,7 @@ class BaseWorker(abc.ABC):
 
     batchsize: int = 1
 
-    _scheduler: BaseScheduler = LocalScheduler()
+    _scheduler: BaseScheduler = DirectScheduler()
     _database = None
 
     _submit = True
@@ -153,6 +153,9 @@ class BaseWorker(abc.ABC):
         """Set scheduler attributes from a *JobRecord*."""
         self.scheduler.job_name = job.gdir
         self.scheduler.script = self.directory / f"run-{job.uid}.script"
+        compute_plan_path = getattr(self, "compute_plan_path", None)
+        if compute_plan_path is not None and self.scheduler.transport_name == "ssh":
+            self.scheduler.local_root = pathlib.Path(compute_plan_path).resolve().parent.parent
 
     def _check_job_convergence(self, job: JobRecord) -> bool:
         """Override to define domain-specific convergence logic.

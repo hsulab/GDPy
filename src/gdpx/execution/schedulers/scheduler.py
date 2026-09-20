@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-
-
 import abc
 import copy
 import pathlib
@@ -53,6 +49,12 @@ class BaseScheduler(abc.ABC):
 
     #: The name of the scheduler.
     name: str = "abstract"
+
+    #: Whether jobs execute without a queue manager.
+    is_direct: bool = False
+
+    #: Transport used to reach the execution host.
+    transport_name: str = "local"
 
     #: Standard print function.
     _print: Callable = config._print
@@ -210,7 +212,7 @@ class BaseScheduler(abc.ABC):
     def is_finished_from_output(self, output: str) -> bool:
         """Interpret queue enquiry output produced on any host.
 
-        Queue schedulers that can be wrapped by ``RemoteScheduler`` implement
+        Queue schedulers that can be wrapped by an SSH transport implement
         this hook. It is deliberately non-abstract so existing third-party
         schedulers remain usable locally.
         """
@@ -219,7 +221,7 @@ class BaseScheduler(abc.ABC):
         )
 
     def sync(self, wdir_names: Iterable[str] = ()) -> None:
-        """Synchronize completed job data; local schedulers have nothing to do."""
+        """Synchronize completed job data; local transports have nothing to do."""
         return
 
     def submit(self, func_to_execute: Optional[Callable] = None) -> str:
@@ -238,8 +240,8 @@ class BaseScheduler(abc.ABC):
                 parse_output=self.parse_submit_output,
             )
         else:
-            job_id = "local"
-            if self.name == "local":
+            job_id = "direct"
+            if self.is_direct:
                 func_to_execute()
             else:
                 assert isinstance(self.script, pathlib.Path)
@@ -272,12 +274,10 @@ class BaseScheduler(abc.ABC):
         sch_params = {}
         sch_params = {k: v for k, v in self.parameters.items() if v is not None}
         sch_params["environs"] = self.environs
-        sch_params["backend"] = self.name
-
-        sch_params = copy.deepcopy(sch_params)
-
-        return sch_params
-
-
-if __name__ == "__main__":
-    ...
+        sch_params["machine_prefix"] = self.machine_prefix
+        sch_params["submit_timeout"] = self.submit_timeout
+        sch_params["is_dry_run"] = self.is_dry_run
+        return {
+            "provider": self.name,
+            "parameters": copy.deepcopy(sch_params),
+        }

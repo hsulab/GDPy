@@ -25,7 +25,7 @@ def run_expedition(
         exp_params: Expedition parameters.
         wait: Time to wait between runs. Defaults to None.
         directory: Directory for the expedition. Defaults to "./".
-        runtime: Optional schema-v2 runtime. If omitted, use ``exp_params.runtime``.
+        runtime: Optional schema-v3 runtime. If omitted, use ``exp_params.runtime``.
         spawn: Comma-separated indices of expeditions to run in commandline. Defaults to None.
 
     """

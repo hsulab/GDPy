@@ -25,7 +25,7 @@ from gdpx.execution.factory import create_worker, create_workers
 from gdpx.providers import RuntimeConfig
 from gdpx.execution.workers.drive import DriverBasedWorker
 
-PLAN_SCHEMA_VERSION = 2
+PLAN_SCHEMA_VERSION = 3
 DEFAULT_PLAN_RELPATH = pathlib.Path("_data") / "compute-plan.json"
 
 
@@ -255,6 +255,11 @@ def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePla
         raise ComputeLifecycleError(
             f"Unsupported compute plan schema {plan.schema_version}; expected {PLAN_SCHEMA_VERSION}."
         )
+    # The plan travels with its working tree when staged over SSH.
+    # Resolve its root from the standard plan location, not the originating
+    # machine's absolute directory stored in the JSON artifact.
+    if path.name == DEFAULT_PLAN_RELPATH.name and path.parent.name == DEFAULT_PLAN_RELPATH.parent.name:
+        plan = dataclasses.replace(plan, directory=str(path.resolve().parent.parent))
     return plan
 
 
@@ -338,7 +343,7 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
                 / (f"run-w{worker_plan.index}-b{batch.index}.script")
             )
             script_path.parent.mkdir(parents=True, exist_ok=True)
-            content = f"#!/bin/bash -l\n\n{command}\n" if scheduler.name == "local" else str(scheduler)
+            content = str(scheduler)
             script_path.write_text(content, encoding="utf-8")
 
 

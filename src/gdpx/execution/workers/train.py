@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import functools
 import pathlib
 import uuid
 import warnings
@@ -157,20 +158,21 @@ class TrainerBasedWorker(BaseWorker):
             with open(wdir / "trainer.yaml", "w") as fopen:
                 yaml.dump(trainer_params, fopen)
 
-            if self.scheduler.name == "local":
-                # TODO: async ?
+            scheduler.job_name = job_name
+            scheduler.script = wdir / "train.script"
+            scheduler.user_commands = "gdp train trainer.yaml\n"
+            scheduler.write()
+            trainer.directory = wdir
+            train_func = functools.partial(trainer.train, dataset, init_model=curr_init_model)
+            if scheduler.is_direct and scheduler.transport_name == "local":
                 self._print(f"training model at {wdir.name}...")
-                trainer.directory = wdir
-                trainer.train(dataset, init_model=curr_init_model)
+                self._print(f"{wdir.name}: {scheduler.submit(func_to_execute=train_func)}")
+            elif self._submit:
+                self._print(
+                    f"{wdir.name}: {scheduler.submit(func_to_execute=train_func)}"
+                )
             else:
-                scheduler.job_name = job_name
-                scheduler.script = wdir / "train.script"
-                scheduler.user_commands = "gdp train {}\n".format(str((wdir / "trainer.yaml").resolve()))
-                scheduler.write()
-                if self._submit:
-                    self._print(f"{wdir.name}: {scheduler.submit()}")
-                else:
-                    self._print(f"{wdir.name} waits to submit.")
+                self._print(f"{wdir.name} waits to submit.")
 
             # - update database
             with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
@@ -220,7 +222,10 @@ class TrainerBasedWorker(BaseWorker):
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:
                         if resubmit:
-                            if self.scheduler.name != "local":
+                            if not (
+                                self.scheduler.is_direct
+                                and self.scheduler.transport_name == "local"
+                            ):
                                 self._print(f"RESUBMIT: {str(self.trainer.directory)}")
                                 if self._submit:
                                     self.scheduler.script = self.trainer.directory / "train.script"
@@ -229,7 +234,7 @@ class TrainerBasedWorker(BaseWorker):
                                 else:
                                     self._print(f"{job_name} waits to submit.")
                             else:
-                                # NOTE: If the training runs on local,
+                                # NOTE: If training runs directly on this host,
                                 #       database stores this job only when the training
                                 #       is finished.
                                 #       The codes below will only be performed when

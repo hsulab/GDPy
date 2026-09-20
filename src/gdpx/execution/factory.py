@@ -1,4 +1,4 @@
-"""Create execution workers from resolved schema-v2 runtimes."""
+"""Create execution workers from resolved schema-v3 runtimes."""
 
 from __future__ import annotations
 

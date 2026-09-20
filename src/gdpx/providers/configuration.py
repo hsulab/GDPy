@@ -9,7 +9,7 @@ from typing import Any, Mapping, Optional, Tuple
 from .errors import ProviderConfigurationError
 from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -36,11 +36,39 @@ class ComponentConfig:
 
 
 @dataclass(frozen=True)
+class SchedulerConfig(ComponentConfig):
+    """A dispatch strategy and the transport used to reach its host."""
+
+    transport: Optional[ComponentConfig] = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.provider == "local":
+            raise ProviderConfigurationError(
+                "Scheduler provider `local` was removed in schema 3; use `direct` "
+                "with `transport.provider: local`."
+            )
+        if self.provider == "remote":
+            raise ProviderConfigurationError(
+                "Scheduler provider `remote` was removed in schema 3; select the actual "
+                "scheduler and add `transport.provider: ssh`."
+            )
+        if self.transport is not None and not isinstance(self.transport, ComponentConfig):
+            object.__setattr__(self, "transport", _component(self.transport, "transport"))
+
+    def to_dict(self) -> dict:
+        data = super().to_dict()
+        if self.transport is not None:
+            data["transport"] = self.transport.to_dict()
+        return data
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
     potential: ComponentConfig
     executor: ComponentConfig
     modifiers: Tuple[ComponentConfig, ...] = ()
-    scheduler: Optional[ComponentConfig] = None
+    scheduler: Optional[SchedulerConfig] = None
     options: Mapping[str, Any] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
@@ -51,6 +79,8 @@ class RuntimeConfig:
             )
         object.__setattr__(self, "modifiers", tuple(self.modifiers))
         object.__setattr__(self, "options", freeze(self.options))
+        if self.scheduler is not None:
+            object.__setattr__(self, "scheduler", scheduler_component(self.scheduler))
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "RuntimeConfig":
@@ -68,7 +98,7 @@ class RuntimeConfig:
                 f"Legacy runtime fields are not supported: {', '.join(legacy_fields)}; "
                 "use potential/executor component sections."
             )
-        return _parse_v2(raw)
+        return _parse_v3(raw)
 
     def to_dict(self) -> dict:
         data = {
@@ -111,7 +141,37 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     return ComponentConfig(str(provider or ""), method, parameters)
 
 
-def _parse_v2(raw: dict) -> RuntimeConfig:
+def scheduler_component(value: Any) -> SchedulerConfig:
+    """Parse a scheduler component with its optional nested transport."""
+    if isinstance(value, SchedulerConfig):
+        return value
+    if isinstance(value, ComponentConfig):
+        value = value.to_dict()
+    if not isinstance(value, Mapping):
+        raise ProviderConfigurationError("Scheduler configuration must be a mapping.")
+    data = copy.deepcopy(dict(value))
+    transport_value = data.pop("transport", None)
+    component = _component(data, "scheduler")
+    if component.provider == "local":
+        raise ProviderConfigurationError(
+            "Scheduler provider `local` was removed in schema 3; use `direct` "
+            "and select `transport.provider: local` when it must run on this machine."
+        )
+    if component.provider == "remote":
+        raise ProviderConfigurationError(
+            "Scheduler provider `remote` was removed in schema 3; select the actual "
+            "scheduler and add `transport.provider: ssh`."
+        )
+    transport = None if transport_value is None else _component(transport_value, "transport")
+    return SchedulerConfig(
+        component.provider,
+        component.method,
+        component.parameters,
+        transport,
+    )
+
+
+def _parse_v3(raw: dict) -> RuntimeConfig:
     try:
         potential = _component(raw.pop("potential"), "potential")
         executor = _component(raw.pop("executor"), "executor", require_method=True)
@@ -122,7 +182,7 @@ def _parse_v2(raw: dict) -> RuntimeConfig:
         raise ProviderConfigurationError("Modifiers must be a sequence.")
     modifiers = tuple(_component(item, "modifier", require_method=True) for item in modifiers_value)
     scheduler_value = raw.pop("scheduler", None)
-    scheduler = None if scheduler_value is None else _component(scheduler_value, "scheduler")
+    scheduler = None if scheduler_value is None else scheduler_component(scheduler_value)
     options = raw.pop("options", {})
     if not isinstance(options, Mapping):
         raise ProviderConfigurationError("Runtime options must be a mapping.")

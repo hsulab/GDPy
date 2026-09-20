@@ -7,6 +7,7 @@ import functools
 import itertools
 import json
 import pathlib
+import shlex
 import tempfile
 import time
 import uuid
@@ -224,13 +225,13 @@ class ReactorBasedWorker(BaseWorker):
 
         num_reactions = len(groups)
 
-        # Overwrite batchsize if share_wdir is used or the scheduler is local
+        # Direct execution runs one synchronous batch on either transport.
         overwrite_batchsize = False
-        if self.scheduler.name == "local":
+        if self.scheduler.is_direct:
             overwrite_batchsize = True
 
         if overwrite_batchsize:
-            self._print(f"Overwrites batchsize to {num_reactions=} as it uses local scheduler.")
+            self._print(f"Overwrites batchsize to {num_reactions=} as it uses direct execution.")
             batchsize = num_reactions
         else:
             batchsize = self.batchsize
@@ -394,9 +395,9 @@ class ReactorBasedWorker(BaseWorker):
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.directory / jobscript_fname
 
-        self.scheduler.user_commands = "gdp -p {} compute {} --batch {} --spawn\n".format(
-            worker_input_fpath,
-            dataset_path,
+        self.scheduler.user_commands = "gdp -r {} compute {} --batch {} --spawn\n".format(
+            shlex.quote(worker_input_fpath),
+            shlex.quote(dataset_path),
             batch_number,
         )
 

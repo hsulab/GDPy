@@ -1,4 +1,4 @@
-"""SSH transport wrapper for queue schedulers."""
+"""SSH transport for direct and queue-based schedulers."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ import pathlib
 import shlex
 import shutil
 import stat
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, Optional, Union
 
 import paramiko
 
-from .local import LocalScheduler
 from .scheduler import BaseScheduler
 
 
@@ -76,8 +76,10 @@ def _remove_outdated_recursive(
     return items_removed
 
 
-class RemoteScheduler(BaseScheduler):
-    """Run a queue scheduler through SSH and synchronize its working tree."""
+class SshTransport(BaseScheduler):
+    """Run a scheduler through SSH and synchronize its working tree."""
+
+    transport_name = "ssh"
 
     def __init__(
         self,
@@ -88,11 +90,11 @@ class RemoteScheduler(BaseScheduler):
         ssh_client_factory: Optional[Callable[[], paramiko.SSHClient]] = None,
     ) -> None:
         if not isinstance(scheduler, BaseScheduler):
-            raise TypeError("RemoteScheduler requires a BaseScheduler instance.")
-        if isinstance(scheduler, (LocalScheduler, RemoteScheduler)):
-            raise ValueError("RemoteScheduler requires a non-local, unwrapped queue scheduler.")
+            raise TypeError("SshTransport requires a BaseScheduler instance.")
+        if isinstance(scheduler, SshTransport):
+            raise ValueError("SshTransport cannot wrap another SSH transport.")
         if not hostname:
-            raise ValueError("RemoteScheduler hostname cannot be empty.")
+            raise ValueError("SSH transport hostname cannot be empty.")
         remote_path = pathlib.PurePosixPath(str(remote_wdir))
         if not remote_path.is_absolute():
             raise ValueError("remote_wdir must be an absolute POSIX path.")
@@ -101,6 +103,10 @@ class RemoteScheduler(BaseScheduler):
         self.remote_wdir = remote_path
         self.local_root: Optional[pathlib.Path] = None
         self._ssh_client_factory = ssh_client_factory or paramiko.SSHClient
+
+    @property
+    def is_direct(self) -> bool:
+        return self.scheduler.is_direct
 
     @property
     def name(self) -> str:
@@ -177,12 +183,15 @@ class RemoteScheduler(BaseScheduler):
         return self.scheduler.is_finished_from_output(output)
 
     def as_dict(self) -> dict:
-        return {
-            "backend": "remote",
-            "hostname": self.hostname,
-            "remote_wdir": str(self.remote_wdir),
-            "scheduler": self.scheduler.as_dict(),
+        data = self.scheduler.as_dict()
+        data["transport"] = {
+            "provider": "ssh",
+            "parameters": {
+                "hostname": self.hostname,
+                "remote_wdir": str(self.remote_wdir),
+            },
         }
+        return data
 
     def _client(self):
         client = self._ssh_client_factory()
@@ -229,8 +238,13 @@ class RemoteScheduler(BaseScheduler):
     @staticmethod
     def _command_result(client, command: str) -> tuple[str, str]:
         _, stdout, stderr = client.exec_command(command)
-        output = stdout.read().decode()
-        error = stderr.read().decode()
+        # Drain both streams concurrently: long direct jobs can fill stderr
+        # while stdout is waiting for EOF.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            output_future = pool.submit(stdout.read)
+            error_future = pool.submit(stderr.read)
+            output = output_future.result().decode()
+            error = error_future.result().decode()
         channel = getattr(stdout, "channel", None)
         if channel is not None and channel.recv_exit_status() != 0:
             raise RuntimeError(f"Remote command failed: {error.strip() or command}")
@@ -249,11 +263,16 @@ class RemoteScheduler(BaseScheduler):
             sftp = client.open_sftp()
             self._transfer(sftp, local_root, remote_root)
             remote_cwd = remote_root.joinpath(*script_relative.parent.parts)
-            command = (
-                f"cd {shlex.quote(str(remote_cwd))}; "
-                f"{self.scheduler.build_submit_command(shlex.quote(script_relative.name))}"
-            )
+            if self.scheduler.is_direct:
+                launch_command = f"bash -l {shlex.quote(script_relative.name)}"
+            else:
+                launch_command = self.scheduler.build_submit_command(
+                    shlex.quote(script_relative.name)
+                )
+            command = f"cd {shlex.quote(str(remote_cwd))} && {launch_command}"
             output, error = self._command_result(client, command)
+            if self.scheduler.is_direct:
+                return "direct"
             if not output.strip():
                 raise RuntimeError(f"Remote submission returned no output: {error.strip()}")
             return self.scheduler.parse_submit_output(output)
@@ -263,6 +282,8 @@ class RemoteScheduler(BaseScheduler):
             client.close()
 
     def is_finished(self) -> bool:
+        if self.scheduler.is_direct:
+            return True
         client = self._client()
         try:
             output, _ = self._command_result(client, self.scheduler.ENQUIRE_COMMAND)
@@ -298,4 +319,4 @@ class RemoteScheduler(BaseScheduler):
             client.close()
 
 
-__all__ = ["RemoteScheduler"]
+__all__ = ["SshTransport"]
