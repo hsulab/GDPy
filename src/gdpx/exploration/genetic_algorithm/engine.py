@@ -19,6 +19,7 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
+from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import GenerationInfo, GenerationState
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
@@ -78,19 +79,29 @@ class GeneticAlgorithmBroadcaster:
         convergence: dict,
         database: str = "mydb.db",
         operators: Optional[dict] = None,
-        property: Optional[dict] = None,
+        objective: Optional[dict] = None,
         use_archive: bool = True,
         random_seed=None,
+        **legacy_kwargs,
     ):
         """"""
+        reject_legacy_property(legacy_kwargs)
+        if legacy_kwargs:
+            key = next(iter(legacy_kwargs))
+            raise TypeError(f"Unexpected genetic-algorithm recipe key {key!r}.")
+
+        objective = normalise_objective(
+            objective,
+            {"energy", "cohesive_energy", "formation_energy"},
+        )
         recipe = dict(
             database=database,
             population=population,
             operators=operators,
-            property=dict(target="energy") if property is None else property,
-            convergence=convergence,
-            use_archive=use_archive,
         )
+        if not is_default_objective(objective):
+            recipe["objective"] = objective
+        recipe.update(convergence=convergence, use_archive=use_archive)
         new_params_list = self._broadcast_parameters(recipe)
 
         input_params_list = []
@@ -112,27 +123,31 @@ class GeneticAlgorithmBroadcaster:
         """Broadcast input parameters that can form several engines.
 
         Note:
-            Currently, we only support `chempot` in formation_energy optimisation.
+            List-valued chemical potentials create independent objectives.
 
         """
         new_params_list = []
 
-        property_setting = params.get("property", dict(target="energy"))
-        target = property_setting.get("target", "energy")
+        objective = params.get("objective", dict(target="energy"))
+        target = objective.get("target", "energy")
         if target == "energy":
             new_params = copy.deepcopy(params)
             new_params_list.append(new_params)
         elif target == "cohesive_energy" or target == "formation_energy":
-            chempot = []
-            for k, v in property_setting.get("chempot").items():
+            chemical_potentials = []
+            for k, v in objective["chemical_potentials"].items():
                 if isinstance(v, list):
-                    chempot.append([(k, v_i) for v_i in v])
+                    chemical_potentials.append([(k, v_i) for v_i in v])
                 else:  # This must be a number.
-                    chempot.append([(k, v)])
-            broadcasted_chempots = list(itertools.product(*chempot))
-            for chempot in broadcasted_chempots:
+                    chemical_potentials.append([(k, v)])
+            broadcasted_chemical_potentials = list(
+                itertools.product(*chemical_potentials)
+            )
+            for chemical_potential in broadcasted_chemical_potentials:
                 new_params = copy.deepcopy(params)
-                new_params["property"]["chempot"] = {k: v for k, v in chempot}
+                new_params["objective"]["chemical_potentials"] = {
+                    k: v for k, v in chemical_potential
+                }
                 new_params_list.append(new_params)
         else:
             raise Exception(f"Cannot broadcast unknown target {target}.")
@@ -164,7 +179,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         convergence: dict,
         database: str = "mydb.db",
         operators: Optional[dict] = None,
-        property: Optional[dict] = None,
+        objective: Optional[dict] = None,
         use_archive: bool = True,
         *args,
         **kwargs,
@@ -175,6 +190,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             population: Define population creation and evolution.
 
         """
+        reject_legacy_property(kwargs)
         super().__init__(*args, **kwargs)
         self.random_streams = RandomStreamRegistry(self.random_seed)
         self.rng = self.random_streams.get("engine")
@@ -204,14 +220,18 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.periodic = self.pop_manager.periodic
         self.preserve_fragments = self.pop_manager.preserve_fragments
 
+        objective = normalise_objective(
+            objective,
+            {"energy", "cohesive_energy", "formation_energy"},
+        )
         ga_dict = dict(
             database=database,
             population=population,
             operators=operators,
-            property=dict(target="energy") if property is None else property,
-            convergence=convergence,
-            use_archive=use_archive,
         )
+        if not is_default_objective(objective):
+            ga_dict["objective"] = objective
+        ga_dict.update(convergence=convergence, use_archive=use_archive)
 
         # Database
         self.db_name = ga_dict.get("database", "mydb.db")
@@ -264,21 +284,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Worker will be lazily checked in run
         self.worker = None
 
-        # Sanity check on target property
-        self.prop_dict = ga_dict.get("property", dict(target="energy"))
-        target = self.prop_dict.get("target", None)
-        assert target in (
-            "energy",
-            "cohesive_energy",
-            "formation_energy",
-        ), f"Target `{target}` is not supported yet."
-        if target == "cohesive_energy" or target == "formation_energy":
-            if "chempot" not in self.prop_dict:
-                raise RuntimeError("The `chempot` is not provided in the property section.")
-        else:
-            ...
-
-        self.target = target
+        # Search objective
+        self.objective = objective
+        self.target = objective["target"]
 
         # Population and check target-population consistency
         configured_builder_names = [
@@ -969,16 +977,18 @@ class GeneticAlgorithmEngine(BaseExpedition):
             "candidate already has raw_score before evaluation"
         )
 
-        # evaluate based on target property
+        # Evaluate the configured objective.
         if self.target == "energy":
             energy = atoms.get_potential_energy()
             atoms.info["key_value_pairs"]["raw_score"] = -energy
             atoms.info["key_value_pairs"]["target"] = energy
         elif self.target == "cohesive_energy":
-            chempot_dict = self.prop_dict["chempot"]
+            chemical_potentials = self.objective["chemical_potentials"]
 
             energy = atoms.get_potential_energy()
-            cohesive_energy = energy - np.sum([chempot_dict[s] for s in atoms.get_chemical_symbols()])
+            cohesive_energy = energy - np.sum(
+                [chemical_potentials[s] for s in atoms.get_chemical_symbols()]
+            )
             atoms.info["key_value_pairs"]["raw_score"] = -cohesive_energy
             atoms.info["key_value_pairs"]["target"] = cohesive_energy
         elif self.target == "formation_energy":
@@ -986,11 +996,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
             assert identity_stats is not None, (
                 "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
             )
-            chempot_dict = self.prop_dict["chempot"]
+            chemical_potentials = self.objective["chemical_potentials"]
 
             energy = atoms.get_potential_energy()
 
-            formation_energy = energy - np.sum([chempot_dict[k] * v for k, v in identity_stats.items()])
+            formation_energy = energy - np.sum(
+                [chemical_potentials[k] * v for k, v in identity_stats.items()]
+            )
             atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
             atoms.info["key_value_pairs"]["target"] = formation_energy
         elif self.target == "reaction_energy":

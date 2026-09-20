@@ -82,7 +82,9 @@ The remaining entries below are in the `recipe` section:
 
 - database: All explored structures are stored in this file with suffix `.db`.
 
-- property: Target property to minimise. (Only `energy` for now.)
+- objective: Optional search target. It defaults to `energy`, so the section can
+  be omitted for ordinary energy minimisation. Composition-dependent targets
+  use `chemical_potentials` to rank candidates with different compositions.
 
 - convergence: Convergence criteria, e.g., the maximum number of generation.
 
@@ -174,8 +176,6 @@ recipe:
       probability: 1.0
     - method: mirror
       probability: 1.0
-  property:
-    target: energy
   convergence:
     generation: 2
 ```

@@ -54,9 +54,9 @@ recipe:
         covalent_ratio: [0.6, 2.0]
       - method: rattle
         probability: 0.3
-  property:
+  objective:
     target: cohesive_energy
-    chempot:
+    chemical_potentials:
       Cu: -3.50
       O: -4.95
   convergence:

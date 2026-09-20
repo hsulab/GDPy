@@ -109,17 +109,59 @@ def test_ga_broadcaster_uses_named_recipe_fields():
             },
         },
         convergence={"generation": 1},
-        property={
+        objective={
             "target": "formation_energy",
-            "chempot": {"Cu": [-3.0, -2.0]},
+            "chemical_potentials": {"Cu": [-3.0, -2.0]},
         },
         random_seed=23,
     )
 
     assert len(broadcaster.input_params_list) == 2
-    assert {item["property"]["chempot"]["Cu"] for item in broadcaster.input_params_list} == {-3.0, -2.0}
+    assert {
+        item["objective"]["chemical_potentials"]["Cu"]
+        for item in broadcaster.input_params_list
+    } == {-3.0, -2.0}
     assert all(item["random_seed"] == 23 for item in broadcaster.input_params_list)
     assert all("params" not in item for item in broadcaster.input_params_list)
+
+
+def test_ga_omits_default_energy_objective():
+    broadcaster = GeneticAlgorithmBroadcaster(
+        population=_minimal_ga_population("random"),
+        convergence={"generation": 1},
+        objective={"target": "energy"},
+        random_seed=23,
+    )
+
+    assert "objective" not in broadcaster.input_params_list[0]
+
+
+def test_search_objective_rejects_legacy_keys():
+    population = _minimal_ga_population("random")
+
+    with pytest.raises(ValueError, match="property.*objective"):
+        GeneticAlgorithmBroadcaster(
+            population=population,
+            convergence={"generation": 1},
+            property={"target": "energy"},
+        )
+
+    with pytest.raises(ValueError, match="chempot.*chemical_potentials"):
+        GeneticAlgorithmBroadcaster(
+            population=population,
+            convergence={"generation": 1},
+            objective={"target": "formation_energy", "chempot": {"Cu": -3.0}},
+        )
+
+    with pytest.raises(ValueError, match="property.*objective"):
+        ConcurrentHopping(
+            operators=[],
+            num_mcmoves=1,
+            mcworker={},
+            population={},
+            convergence={},
+            property={"target": "energy"},
+        )
 
 
 def _minimal_ga_population(builder_name, reference_builder=None):
@@ -407,7 +449,6 @@ def test_ga_serialization_uses_recipe_and_runtime():
             "generation": {"total_size": 1},
         },
         "operators": {},
-        "property": {"target": "energy"},
         "convergence": {"generation": 1},
         "use_archive": True,
     }
@@ -423,6 +464,7 @@ def test_ga_serialization_uses_recipe_and_runtime():
     assert "reference_builder" not in config["recipe"]["population"]
     assert "params" not in config
     assert "worker" not in config
+    assert "objective" not in config["recipe"]
 
     engine.reference_builder_name = "imported"
     assert engine.as_dict()["recipe"]["population"]["reference_builder"] == "imported"
@@ -552,6 +594,10 @@ def test_other_global_optimisers_serialize_the_recipe():
     concurrent._init_params = {
         "builder": Serializable({"method": "builder"}),
         "convergence": {"generation": 2},
+        "objective": {
+            "target": "formation_energy",
+            "chemical_potentials": {"O": -4.95},
+        },
         "use_archive": True,
     }
     concurrent_config = concurrent.as_dict()
@@ -565,6 +611,10 @@ def test_other_global_optimisers_serialize_the_recipe():
 
     assert concurrent_config["recipe"]["random_seed"] == 13
     assert concurrent_config["recipe"]["builder"] == {"method": "builder"}
+    assert concurrent_config["recipe"]["objective"] == {
+        "target": "formation_energy",
+        "chemical_potentials": {"O": -4.95},
+    }
     assert annealing_config == {
         "method": "simulated_annealing",
         "recipe": {

@@ -45,8 +45,6 @@ recipe:
       - method: strain
         probability: 0.5
         stddev: 0.15
-  property:
-    target: energy
   convergence:
     generation: 1
 

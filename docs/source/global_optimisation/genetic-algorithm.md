@@ -19,8 +19,8 @@ examples/index
 A typical GA search repeats the following steps:
 
 1. **Initialise** a diverse population of valid structures.
-2. **Evaluate** each candidate by relaxing it and calculating its target
-   property, usually energy.
+2. **Evaluate** each candidate by relaxing it and calculating its objective,
+   usually energy.
 3. **Select** parent structures, favouring strong candidates while retaining
    enough diversity to avoid premature convergence.
 4. **Reproduce** candidates with crossover and mutation operators.

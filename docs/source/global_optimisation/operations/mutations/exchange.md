@@ -31,9 +31,9 @@ operators:
         - [0.0, 4.4, 0.0]
         - [0.0, 0.0, 4.5]
 
-property:
+objective:
   target: cohesive_energy
-  chempot:
+  chemical_potentials:
     Cu: -3.50
     O: -4.95
 ```

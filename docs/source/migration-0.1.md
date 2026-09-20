@@ -55,3 +55,22 @@ Workflow variables are `potential`, `executor`, `runtime`, and
 `runtime_chain`. The save operation is `save_potential`. Use
 `gdp --runtime runtime.yaml compute ...`; the old global potential flag and
 schema-1 compute plans are not accepted.
+
+## Global-optimisation objectives
+
+Genetic algorithms and concurrent hopping configure search scoring with the
+recipe-level `objective` mapping. The former names are not accepted:
+
+- `property` is now `objective`.
+- `chempot` is now `chemical_potentials`.
+
+Energy is the default objective and should be omitted. A composition-dependent
+objective has the following form:
+
+```yaml
+objective:
+  target: formation_energy
+  chemical_potentials:
+    Cu: -3.50
+    O: -4.95
+```

@@ -24,6 +24,7 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
+from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import GlobalOptimisationDatabase
 from ..persist.thanos import dispatch_thanos
 from .utils import parse_operators, select_operator
@@ -303,7 +304,11 @@ def run_monte_carlo_steps(
     return atoms, mcstates
 
 
-def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dict] = None) -> None:
+def evaluate_candidate(
+    atoms: Atoms,
+    objective_target: str,
+    chemical_potentials: Optional[dict] = None,
+) -> None:
     """Evaluate the candidate's fitness.
 
     The fitness is stored in atoms.info['raw_score'].
@@ -327,8 +332,8 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
         "candidate already has raw_score before evaluation"
     )
 
-    # evaluate based on target property
-    target = target_property
+    # Evaluate the configured objective.
+    target = objective_target
     if target == "energy":
         energy = atoms.get_potential_energy()
         forces = atoms.get_forces()  # TODO: Make sure we have forces?
@@ -336,8 +341,9 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
         atoms.info["key_value_pairs"]["target"] = energy
         # TODO: Check bulk structure?
     elif target == "formation_energy":
-        chempot_dict = chempot
-        assert chempot is not None, "`chempot` must not be None for `formation_energy`."
+        assert chemical_potentials is not None, (
+            "chemical_potentials must not be None for formation_energy."
+        )
         identity_stats = atoms.info.get("identity_stats", None)
         assert identity_stats is not None, (
             "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
@@ -345,7 +351,9 @@ def evaluate_candidate(atoms: Atoms, target_property: str, chempot: Optional[dic
 
         energy = atoms.get_potential_energy()
 
-        formation_energy = energy - np.sum([chempot_dict[k] * v for k, v in identity_stats.items()])  # type: ignore
+        formation_energy = energy - np.sum(
+            [chemical_potentials[k] * v for k, v in identity_stats.items()]
+        )
         atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
         atoms.info["key_value_pairs"]["target"] = formation_energy
     elif target == "reaction_energy":
@@ -376,12 +384,13 @@ def canonical_candidates_from_worker_results(
     relaxed_candidates: list[Atoms],
     gen_num: int,
     use_tags: bool = False,
-    property: dict = {},
+    objective: Optional[dict] = None,
     extinct_callbacks: Optional[list[Callable]] = None,
 ) -> list[Atoms]:
     """"""
-    target_property = property.get("target", "energy")
-    chempot = property.get("chempot", None)
+    objective = normalise_objective(objective, {"energy", "formation_energy"})
+    objective_target = objective["target"]
+    chemical_potentials = objective.get("chemical_potentials")
 
     for candidate in relaxed_candidates:
         extra_info = dict(
@@ -413,7 +422,11 @@ def canonical_candidates_from_worker_results(
                 identity_stats[k] = len(v)
             candidate.info["identity_stats"] = identity_stats
         # add raw score
-        evaluate_candidate(candidate, target_property=target_property, chempot=chempot)
+        evaluate_candidate(
+            candidate,
+            objective_target=objective_target,
+            chemical_potentials=chemical_potentials,
+        )
         # extinct if needed
         if extinct_callbacks is not None:
             extinct_candidate(candidate, extinct_callbacks=extinct_callbacks)
@@ -429,7 +442,7 @@ class ConcurrentHopping(BaseExpedition):
         mcworker: dict,
         population: dict,
         convergence: dict,
-        property: dict,
+        objective: Optional[dict] = None,
         builder=None,
         use_archive: bool = True,
         *args,
@@ -443,21 +456,22 @@ class ConcurrentHopping(BaseExpedition):
             population: Population parameters.
 
         """
+        reject_legacy_property(kwargs)
         super().__init__(*args, **kwargs)
 
+        objective = normalise_objective(objective, {"energy", "formation_energy"})
+
         # Store initial parameters
-        self._init_params = copy.deepcopy(
-            dict(
-                num_mcmoves=num_mcmoves,
-                operators=operators,
-                mcworker=mcworker,
-                population=population,
-                builder=builder,
-                convergence=convergence,
-                property=property,
-                use_archive=use_archive,
-            )
+        self._init_params = dict(
+            num_mcmoves=num_mcmoves,
+            operators=operators,
+            mcworker=mcworker,
+            population=population,
+            builder=builder,
         )
+        if not is_default_objective(objective):
+            self._init_params["objective"] = copy.deepcopy(objective)
+        self._init_params.update(convergence=convergence, use_archive=use_archive)
 
         # population
         self.population = ConcurrentPopulation(**population)
@@ -475,8 +489,8 @@ class ConcurrentHopping(BaseExpedition):
         # Some convergence criteria
         self.convergence = convergence
 
-        # The target optimised property
-        self.property = property
+        # The search objective
+        self.objective = objective
 
         # Whether perform extinction after generation
         self.use_extinct = True if self.population.extinct_callbacks is not None else False
@@ -629,7 +643,7 @@ class ConcurrentHopping(BaseExpedition):
                 relaxed_candidates,  # type: ignore
                 gen_num=gen_num,
                 use_tags=True,
-                property=self.property,
+                objective=self.objective,
                 extinct_callbacks=self.population.extinct_callbacks,
             )
             if self.use_extinct:
@@ -772,7 +786,7 @@ class ConcurrentHopping(BaseExpedition):
             else:
                 candidates_by_generations[k] = list(v)
 
-        target = self.property.get("target", "energy")
+        target = self.objective["target"]
         maximum_generation_number = max(candidates_by_generations.keys()) + 1
 
         data = []
