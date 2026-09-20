@@ -1,7 +1,4 @@
-import collections
 import copy
-import dataclasses
-import enum
 import pathlib
 from typing import Optional
 
@@ -10,39 +7,7 @@ from ase import Atoms
 
 CANDIDATES_DATABASE_FILENAME = "candidates.db"
 
-GenerationState = enum.Enum(
-    "GenerationState",
-    (
-        "BEG_OF_GEN",
-        "MID_OF_GEN",
-        "END_OF_GEN",
-        "EXTINCTED",
-        "OPT_UNFINISHED",
-        "OPT_FINISHED",
-    ),
-)
-
-
-@dataclasses.dataclass
-class GenerationInfo:
-    #: The generation number.
-    num: int
-
-    #: The generation state.
-    state: GenerationState
-
-    #: The unrelaxed candidate confids.
-    unrelaxed_confids: list[int]
-
-    #: The relaxed candidate confids.
-    relaxed_confids: list[int]
-
-    def __post_init__(self) -> None:
-        """"""
-        self.num_unrelaxed = len(self.unrelaxed_confids)
-        self.num_relaxed = len(self.relaxed_confids)
-
-        return
+from ..generation import GenerationInfo, GenerationState
 
 
 def split_description(desc: str) -> tuple[str, str]:
@@ -62,7 +27,9 @@ class GlobalOptimisationDatabase:
 
     def __init__(self, database_fpath: pathlib.Path) -> None:
         """"""
+        pathlib.Path(database_fpath).parent.mkdir(parents=True, exist_ok=True)
         self.connection = ase.db.connect(database_fpath)
+        self.connection.count()  # Initialise ASE's metadata cache, including an empty database.
 
         return
 
@@ -89,25 +56,51 @@ class GlobalOptimisationDatabase:
     def get_param(self, parameter: str) -> Optional[int]:
         """Get a parameter saved when creating the database."""
         param = None
-        if self.connection.get(1).get("data"):
+        if self.connection.count() and self.connection.get(1).get("data"):
             param = self.connection.get(1).data.get(parameter, None)
 
         return param
 
+    def configure_generations(self, initial_size, generation_size, use_extinct=False):
+        """Persist sizes without adding a substrate row or changing candidate IDs."""
+        metadata = dict(self.connection.metadata)
+        settings = dict(initial_size=initial_size, generation_size=generation_size, use_extinct=use_extinct)
+        previous = metadata.get("generation_settings")
+        if previous is not None and previous != settings:
+            raise ValueError("Generation sizes or extinction policy changed; resume with the original recipe.")
+        metadata["generation_settings"] = settings
+        self.connection.metadata = metadata
+
     def get_generation_plan(self, generation: int) -> Optional[dict]:
-        """Return persisted candidate-construction state for a generation."""
-        data = self.connection.get(1).data or {}
-        plan = data.get("generation_plans", {}).get(str(generation))
-        return copy.deepcopy(plan)
+        """Read algorithm-specific construction state, including old GA checkpoints."""
+        plans = self.connection.metadata.get("generation_plans", {})
+        if str(generation) in plans:
+            return copy.deepcopy(plans[str(generation)])
+        if self.connection.count():
+            data = self.connection.get(1).data or {}
+            return copy.deepcopy(data.get("generation_plans", {}).get(str(generation)))
+        return None
 
     def set_generation_plan(self, generation: int, plan: dict) -> None:
-        """Persist candidate-construction state for restart-safe generation."""
-        row = self.connection.get(1)
-        data = dict(row.data or {})
-        plans = copy.deepcopy(data.get("generation_plans", {}))
+        """Persist production state separately from committed evaluation results."""
+        metadata = dict(self.connection.metadata)
+        plans = copy.deepcopy(metadata.get("generation_plans", {}))
         plans[str(generation)] = copy.deepcopy(plan)
-        data["generation_plans"] = plans
-        self.connection.update(1, data=data)
+        metadata["generation_plans"] = plans
+        self.connection.metadata = metadata
+
+    def generation_candidates(self, generation: int) -> list[Atoms]:
+        """Reload the original evaluation batch, including queued/committed inputs."""
+        rows = {}
+        for row in self.connection.select(relaxed=0, generation=generation):
+            if row.formula:
+                rows[row.confid] = row
+        candidates = []
+        for confid, row in sorted(rows.items()):
+            atoms = self.connection.get_atoms(row.id, add_additional_information=True)
+            atoms.info["confid"] = confid
+            candidates.append(atoms)
+        return candidates
 
     def get_substrate(self):
         """Get the substrate."""
@@ -170,7 +163,10 @@ class GlobalOptimisationDatabase:
 
         # We may have several entries due to add_unrelaxed_step
         confid = atoms.info["confid"]
-        # rows = list(self.connection.select(confid=confid, relaxed=0))
+        existing = list(self.connection.select(confid=confid, relaxed=1))
+        if existing:
+            atoms.info["relax_id"] = existing[-1].id
+            return
 
         relax_id = self.connection.write(
             atoms,
@@ -273,84 +269,54 @@ class GlobalOptimisationDatabase:
         return
 
     def get_generation_number(self) -> int:
-        """Get the current generation number.
+        """Return the earliest generation whose results are not fully committed."""
+        return self.get_generation_info().num
 
-        The population size of the first generation can be different from the following ones.
+    def get_generation_info(self, generation: Optional[int] = None) -> GenerationInfo:
+        """Use unique candidate IDs, never result-file existence, for progress."""
+        settings = self.connection.metadata.get("generation_settings")
+        if settings is None:
+            settings = dict(
+                initial_size=self.get_param("initial_population_size"),
+                generation_size=self.get_param("generation_size") or self.get_param("population_size"),
+                use_extinct=True,
+            )
+        if not settings["initial_size"] or not settings["generation_size"]:
+            raise ValueError("Generation sizes are missing; configure the population before reading progress.")
+        produced, relaxed = {}, {}
+        survivors = set()
+        for row in self.connection.select():
+            if "generation" not in row or "relaxed" not in row:
+                continue
+            num = row.generation
+            confid = row.get("confid", row.id)
+            (relaxed if row.relaxed else produced).setdefault(num, set()).add(confid)
+            if row.relaxed and row.get("extinct", 0) == 0:
+                survivors.add(confid)
 
-        Returns:
-            int: generation number
+        def info(num):
+            evaluated = relaxed.get(num, set())
+            submitted = produced.get(num, set())
+            target = settings["initial_size"] if num == 0 else settings["generation_size"]
+            if len(evaluated) > target:
+                raise RuntimeError(f"Generation {num} has more evaluated candidates than its configured size.")
+            plan = self.get_generation_plan(num)
+            complete = len(evaluated) == target and (plan is None or plan.get("stage") == "complete")
+            state = GenerationState.END_OF_GEN if complete else (
+                GenerationState.MID_OF_GEN if submitted or evaluated or plan else GenerationState.BEG_OF_GEN
+            )
+            return GenerationInfo(num, state, sorted(submitted - evaluated), sorted(evaluated))
 
-        """
-        init_pop_size = self.get_param("initial_population_size")
-        assert isinstance(init_pop_size, int)
-        pop_size = self.get_param("generation_size")
-        if pop_size is None:  # Databases written before retained_size was introduced.
-            pop_size = self.get_param("population_size")
-        assert isinstance(pop_size, int)
-
-        all_candidates = list(self.connection.select(relaxed=1))
-        counter = collections.Counter([c.generation for c in all_candidates])
-        generations = sorted(list(counter.keys()))
-        num_generations = len(generations)
-        if num_generations == 0:
-            gen_num = 0
-        else:
-            if num_generations == 1:
-                if counter[0] < init_pop_size:
-                    gen_num = 0
-                else:
-                    assert counter[0] == init_pop_size
-                    gen_num = 1
-            else:
-                gen_num = max(generations)
-                if counter[gen_num] < pop_size:
-                    ...
-                else:
-                    assert counter[gen_num] == pop_size
-                    gen_num += 1
-
-        return gen_num
-
-    def get_generation_info(self) -> GenerationInfo:
-        """Get the current generation state.
-
-        Returns:
-            GenerationState: generation state
-
-        """
-        gen_num = self.get_generation_number()
-
-        unrelaxed_candidate_rows = list(self.connection.select(f"relaxed=0,generation={gen_num}"))
-        unrelaxed_confids = {row.confid for row in unrelaxed_candidate_rows}
-        num_unrelaxed = len(unrelaxed_confids)
-
-        relaxed_candidate_rows = list(self.connection.select(f"relaxed=1,generation={gen_num}"))
-        relaxed_confids = {row.confid for row in relaxed_candidate_rows}
-        num_relaxed = len(relaxed_confids)
-
-        if num_relaxed == 0:
-            gen_state = GenerationState.BEG_OF_GEN
-        else:
-            if num_relaxed < num_unrelaxed:
-                gen_state = GenerationState.MID_OF_GEN
-            else:
-                gen_state = GenerationState.END_OF_GEN
-
-        if gen_num > 0:
-            unextincted_relaxed_candidate_rows = list(self.connection.select(f"relaxed=1,extinct=0"))
-            unextincted_relaxed_confids = {row.confid for row in unextincted_relaxed_candidate_rows}
-            num_unextincted_relaxed = len(unextincted_relaxed_confids)
-            if num_unextincted_relaxed == 0:
-                gen_state = GenerationState.EXTINCTED
-
-        gen_info = GenerationInfo(
-            num=gen_num,
-            state=gen_state,
-            unrelaxed_confids=list(unrelaxed_confids),
-            relaxed_confids=list(relaxed_confids),
-        )
-
-        return gen_info
+        if generation is not None:
+            return info(generation)
+        num = 0
+        while info(num).state is GenerationState.END_OF_GEN:
+            num += 1
+        current = info(num)
+        # Extinction is terminal only between generations, never during ingestion.
+        if num > 0 and not produced.get(num) and not relaxed.get(num) and settings["use_extinct"] and not survivors:
+            return GenerationInfo(num, GenerationState.EXTINCTED, [], [])
+        return current
 
     def get_participation_in_pairing(self) -> tuple[dict[int, int], list[tuple[int, int]]]:
         """Get how many times each candidate has participated in pairing.

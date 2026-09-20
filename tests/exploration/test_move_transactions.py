@@ -12,7 +12,7 @@ from gdpx.sampling import MoveProposal, parse_operators
 from gdpx.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.exploration.move_step import run_worker_move
-from gdpx.exploration.basin_hopping.engine import run_hopping_steps
+from gdpx.exploration.basin_hopping.chain import run_hopping_steps
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo, MCStepState
 from gdpx.exploration.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
 from gdpx.execution.workers.single import SingleWorker

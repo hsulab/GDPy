@@ -124,3 +124,26 @@ Selection returns references without copying structures. Each algorithm creates
 an independent mutable copy only when starting an offspring or hopping chain.
 The shared population has no GA-specific subclasses, and algorithm selection
 statistics are kept outside `Atoms.info`.
+
+## Generation progress and restart
+
+Both engines use `gdpx.exploration.generation.GenerationInfo` and
+`GenerationState`. The database determines whether a generation is beginning,
+in progress, complete, or the search is extinct. Completion requires the
+requested number of distinct candidate IDs with committed evaluation results;
+an output directory alone does not establish completion. Worker evaluation
+uses a separate `EvaluationStatus` (`PENDING` or `FINISHED`).
+
+Generation plans persist construction progress and random-stream states.
+Restart with the same recipe and output directory to resume pending evaluations
+or partial result ingestion without creating duplicate candidates. Generation
+sizes and the extinction policy cannot change on restart.
+
+GA retains its reproduction and mutation plan. BH additionally checkpoints each
+completed hop under `tmp_folder/gen*/chains/chain-*/step-*`, including the
+accepted structure and random state. An interrupted hop can reuse its driver
+checkpoint; completed hops are not repeated. These checkpoints are separate
+from the XYZ trajectories used for inspection.
+
+Legacy BH runs with pending inputs that lack generation metadata cannot be
+resumed; start a new run for those inputs.

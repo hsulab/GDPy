@@ -1,0 +1,240 @@
+"""Shared generation progress and restart boundaries for population searches."""
+import copy
+from pathlib import Path
+
+import numpy as np
+import pytest
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io import read, write
+
+from gdpx.exploration.generation import GenerationInfo, GenerationState, EvaluationStatus
+from gdpx.exploration.persist.database import GlobalOptimisationDatabase
+from gdpx.exploration.factory import create_expedition
+from gdpx.execution.factory import create_worker
+from gdpx.exploration.basin_hopping.chain import run_hopping_steps
+from gdpx.sampling import parse_operators
+
+
+def atom(index=0):
+    a = Atoms("Cu2", positions=[[5, 5, 5], [7.4 + index * .1, 5, 5]], tags=[1, 2], cell=[20] * 3)
+    a.calc = SinglePointCalculator(a, energy=0., forces=np.zeros((2, 3)))
+    return a
+
+
+def relaxed(db, candidate, generation=0, extinct=0):
+    candidate.info["key_value_pairs"] = dict(generation=generation, raw_score=0., extinct=extinct)
+    db.add_relaxed_step(candidate)
+
+
+def test_generation_progress_uses_unique_committed_ids(tmp_path):
+    db = GlobalOptimisationDatabase(tmp_path / "candidates.db")
+    db.configure_generations(2, 3)
+    assert db.get_generation_info() == GenerationInfo(0, GenerationState.BEG_OF_GEN, [], [])
+    a, b = atom(), atom(1)
+    db.add_unrelaxed_candidate(a, generation=0)
+    db.add_unrelaxed_candidate(b, generation=0)
+    db.set_generation_plan(0, {"stage": "complete"})
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    relaxed(db, a)
+    relaxed(db, a)  # Retry after a successful commit.
+    assert db.connection.count(relaxed=1) == 1
+    assert db.get_generation_info().unrelaxed_confids == [b.info["confid"]]
+    # Multiple stored relaxed steps for one candidate still count only once.
+    db.connection.write(a, relaxed=1, confid=a.info["confid"], generation=0, extinct=0)
+    assert db.get_generation_number() == 0
+    relaxed(db, b)
+    assert db.get_generation_info(0).state is GenerationState.END_OF_GEN
+    assert db.get_generation_number() == 1
+    assert db.get_generation_info().converged(0)
+    assert not db.get_generation_info().converged(1)
+
+
+def test_extinction_waits_for_complete_generation(tmp_path):
+    db = GlobalOptimisationDatabase(tmp_path / "candidates.db")
+    db.configure_generations(2, 1, use_extinct=True)
+    a, b = atom(), atom(1)
+    for candidate in [a, b]:
+        db.add_unrelaxed_candidate(candidate, generation=0)
+    relaxed(db, a, extinct=1)
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    relaxed(db, b, extinct=1)
+    assert db.get_generation_info().state is GenerationState.EXTINCTED
+    assert db.get_generation_info().converged(50)
+
+
+def bh_config(tmp_path, initial=2, generations=0):
+    source = tmp_path / "seed.xyz"
+    write(source, atom())
+    runtime = {"potential": {"provider": "emt", "parameters": {}},
+               "executor": {"provider": "ase", "method": "spc", "parameters": {}},
+               "options": {"worker": "single"}}
+    config = {"method": "basin_hopping", "recipe": {
+        "population": {"periodic": False, "retained_size": 1,
+                       "initial": {"total_size": initial, "builder_allocations": [{"builder": "random", "size": initial}]},
+                       "generation": {"total_size": 2},
+                       "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
+        "operators": [{"method": "move", "particles": ["Cu"], "max_disp": .05, "skip_distance_check": True}],
+        "num_mcmoves": 2, "mcworker": runtime, "convergence": {"generation": generations},
+        "random_seed": 7, "use_archive": False}}
+    return config, runtime
+
+
+def make_engine(config, runtime, directory):
+    engine = create_expedition(copy.deepcopy(config))
+    if isinstance(engine, list):
+        engine = engine[0]
+    engine.directory = directory
+    engine.register_worker(create_worker(runtime))
+    return engine
+
+
+def test_bh_pending_batch_does_not_regenerate_inputs(tmp_path, monkeypatch):
+    import gdpx.exploration.basin_hopping.engine as module
+    config, runtime = bh_config(tmp_path)
+    engine = make_engine(config, runtime, tmp_path / "run")
+    original_execute = module.execute_workers
+    submitted = []
+    monkeypatch.setattr(module, "execute_workers", lambda candidates, *args, **kwargs:
+                        submitted.extend(a.info["confid"] for a in candidates) or False)
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    assert db.get_generation_number() == 0
+    resumed = make_engine(config, runtime, engine.directory)
+    monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
+    def execute(candidates, *args, **kwargs):
+        assert [a.info["confid"] for a in candidates] == submitted
+        return original_execute(candidates, *args, **kwargs)
+    monkeypatch.setattr(module, "execute_workers", execute)
+    resumed.run()
+    assert db.connection.count(relaxed=0) == 2
+    assert db.connection.count(relaxed=1) == 2
+    assert resumed.read_convergence()
+
+
+@pytest.mark.parametrize("method", ["bh", "ga"])
+def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, method):
+    if method == "bh":
+        config, runtime = bh_config(tmp_path)
+    else:
+        import yaml
+        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/cu13_emt.yaml"
+        config = yaml.safe_load(path.read_text())
+        runtime = config.pop("runtime")
+        config["recipe"].update(convergence={"generation": 0}, use_archive=False)
+    engine = make_engine(config, runtime, tmp_path / "run")
+    original = GlobalOptimisationDatabase.add_relaxed_step
+    calls = []
+    def interrupt(db, candidate):
+        original(db, candidate)
+        calls.append(candidate.info["confid"])
+        if len(calls) == 1:
+            raise RuntimeError("interrupted after first result commit")
+    monkeypatch.setattr(GlobalOptimisationDatabase, "add_relaxed_step", interrupt)
+    with pytest.raises(RuntimeError, match="after first result"):
+        engine.run()
+    path = engine.database_path if method == "bh" else engine.db_path
+    db = GlobalOptimisationDatabase(path)
+    assert db.get_generation_number() == 0
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    resumed = make_engine(config, runtime, engine.directory)
+    monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
+    resumed.run()
+    assert db.connection.count(relaxed=1) == engine.population_config.init_size
+    assert len(calls) == len(set(calls))
+    assert db.get_generation_number() == 1
+    assert resumed.read_convergence()
+    if method == "ga":
+        assert db.connection.count(substrate=True) == 1
+
+
+def test_hop_restart_preserves_rng_and_does_not_repeat_committed_hops(tmp_path):
+    class Driver:
+        def __init__(self, directory, fail_at=None):
+            self.directory = directory
+            self.calls = 0
+            self.fail_at = fail_at
+        def run(self, atoms, **kwargs):
+            self.calls += 1
+            if self.calls == self.fail_at:
+                raise RuntimeError("interrupted hop")
+            self.result = atoms.copy()
+            self.result.calc = SinglePointCalculator(self.result, energy=0., forces=np.zeros((len(atoms), 3)))
+        def read_trajectory(self):
+            return [self.result]
+    def operators():
+        return parse_operators([{"method": "move", "particles": ["Cu"], "max_disp": .05,
+                                 "skip_distance_check": True}])
+    ops, probs = operators()
+    baseline_rng = np.random.default_rng(9)
+    baseline, states = run_hopping_steps(atom(), 0, Driver(tmp_path / "baseline/driver"), ops, probs, 3,
+                                         baseline_rng, tmp_path / "baseline/checkpoints")
+    ops, probs = operators()
+    driver = Driver(tmp_path / "resumed/driver", fail_at=2)
+    with pytest.raises(RuntimeError, match="interrupted hop"):
+        run_hopping_steps(atom(), 0, driver, ops, probs, 3, np.random.default_rng(9), tmp_path / "resumed/checkpoints")
+    resumed_rng = np.random.default_rng(999)
+    driver = Driver(tmp_path / "resumed/driver")
+    ops, probs = operators()
+    resumed, resumed_states = run_hopping_steps(atom(), 0, driver, ops, probs, 3, resumed_rng,
+                                               tmp_path / "resumed/checkpoints")
+    assert driver.calls == 2
+    assert resumed_states == states
+    np.testing.assert_array_equal(resumed.positions, baseline.positions)
+    assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
+    assert len(read(tmp_path / "resumed/mctrajs/mc-0000.xyz", ":")) == 4
+
+
+@pytest.mark.parametrize("method", ["bh", "ga"])
+def test_restart_between_generations_preserves_search_trajectory(tmp_path, monkeypatch, method):
+    if method == "bh":
+        config, runtime = bh_config(tmp_path, generations=2)
+    else:
+        import yaml
+        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/cu13_emt.yaml"
+        config = yaml.safe_load(path.read_text())
+        runtime = config.pop("runtime")
+        config["recipe"].update(convergence={"generation": 2}, use_archive=False)
+    baseline = make_engine(config, runtime, tmp_path / "baseline")
+    baseline.run()
+    interrupted = make_engine(config, runtime, tmp_path / "interrupted")
+    original = interrupted._irun
+    def stop_before_second(*args, **kwargs):
+        info = args[-1]
+        if info.num == 2:
+            raise RuntimeError("between generations")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(interrupted, "_irun", stop_before_second)
+    with pytest.raises(RuntimeError, match="between generations"):
+        interrupted.run()
+    resumed = make_engine(config, runtime, interrupted.directory)
+    resumed.run()
+    expected = read(baseline.directory / "results/all_candidates.xyz", ":")
+    actual = read(resumed.directory / "results/all_candidates.xyz", ":")
+    assert len(expected) == len(actual)
+    for first, second in zip(expected, actual):
+        np.testing.assert_allclose(first.positions, second.positions, atol=1e-10)
+        assert first.get_potential_energy() == pytest.approx(second.get_potential_energy())
+    assert baseline.random_streams.snapshot() == resumed.random_streams.snapshot()
+
+
+def test_initial_batch_and_rng_checkpoint_commit_atomically(tmp_path, monkeypatch):
+    config, runtime = bh_config(tmp_path)
+    engine = make_engine(config, runtime, tmp_path / "run")
+    original = GlobalOptimisationDatabase.add_unrelaxed_candidate
+    calls = []
+    def interrupt(db, candidate, *args, **kwargs):
+        original(db, candidate, *args, **kwargs)
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("during batch transaction")
+    monkeypatch.setattr(GlobalOptimisationDatabase, "add_unrelaxed_candidate", interrupt)
+    with pytest.raises(RuntimeError, match="batch transaction"):
+        engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert db.connection.count(relaxed=0) == 0
+    resumed = make_engine(config, runtime, engine.directory)
+    resumed.run()
+    assert db.connection.count(relaxed=0) == 2
+    assert db.connection.count(relaxed=1) == 2

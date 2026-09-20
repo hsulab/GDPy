@@ -20,10 +20,9 @@ from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import (
     CANDIDATES_DATABASE_FILENAME,
-    GenerationInfo,
-    GenerationState,
 )
 from ..persist.database import GlobalOptimisationDatabase as GODB
+from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
 from .operators import instantiate_a_genetic_operator
 from .core import OperationSelector, RandomStreamRegistry
 from .generation import GeneticGenerationManager
@@ -405,6 +404,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self._print("===== register database =====")
         self._register_database()
         assert self.da is not None, "GA has not set its database properly."
+        self.da.configure_generations(self.population_config.init_size, self.population_config.gen_size,
+                                      self.population_config.use_extinct)
 
         num_atoms_substrate = self.da.get_param("num_atoms_substrate")
         self._print(f"{num_atoms_substrate=}")
@@ -422,13 +423,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 self.report()
                 break
             gen_state = self._irun(gen_info)
-            if gen_state == GenerationState.OPT_UNFINISHED:
+            if gen_state == EvaluationStatus.PENDING:
                 self._print("The optimisation has not finished yet.")
                 break
 
         return
 
-    def _irun(self, gen_info: GenerationInfo) -> GenerationState:
+    def _irun(self, gen_info: GenerationInfo) -> EvaluationStatus:
         """main procedure"""
         # Generation information
         gen_num = gen_info.num
@@ -441,8 +442,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         if gen_info.state == GenerationState.EXTINCTED:
             self._print("All candidates extincted, cannot proceed further.")
-            return GenerationState.EXTINCTED
+            return EvaluationStatus.FINISHED
 
+        restore_generation_random_states(self.da, gen_num, self.random_streams)
         # Get structures for the current generation
         assert self.worker is not None, "GA has not set its worker properly."
         if gen_num == 0:
@@ -462,20 +464,16 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 f"{ia:>4d} confid={a.info['confid']:>6d} parents={parents:<14s} origin={a.info['key_value_pairs']['origin']:<32s} extinct={a.info['key_value_pairs']['extinct']:<4d}"
             )
 
-        # TODO: We need check if optimisation task is already created.
-        if not generation_directory.exists():
+        # Worker submission is idempotent and can recover a partially created
+        # batch. A directory by itself is not evidence that submission finished.
+        if current_candidates:
             for atoms in current_candidates:
-                self.da.mark_as_queued(atoms)  # It only marks when not queued before.
-            if current_candidates:
-                confids = [a.info["confid"] for a in current_candidates]
-                self._print(f"start to run structure {integers_to_string(confids, inp_convention='lmp')}")
-                _ = self.worker.run(current_candidates)  # retrieve later
-        else:
-            self._print(f"calculation directory for generation {gen_num} exists.")
+                self.da.mark_as_queued(atoms)
+            self.worker.run(current_candidates)
 
         # Check if there were finished jobs
         assert self.generator is not None, "GA has not set its builder properly."
-        gen_state = GenerationState.OPT_UNFINISHED
+        gen_state = EvaluationStatus.PENDING
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
             self._print(">>>>> Evaluation >>>>>")
@@ -483,8 +481,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
             whether_reduce_cell = hasattr(self.generator, "cell_bounds")
             if whether_reduce_cell:
                 self._print("The candidates will be reduced by cell bounds.")
-            converged_candidates = [t[-1] for t in self.worker.retrieve(use_archive=self.use_archive)]
+            converged_candidates = [t[-1] for t in self.worker.retrieve(include_retrieved=True, use_archive=self.use_archive)]
+            committed = set(self.da.get_generation_info(gen_num).relaxed_confids)
+            expected = {a.info["confid"] for a in current_candidates}
             for ia, cand in enumerate(converged_candidates):
+                if cand.info["confid"] not in expected:
+                    raise RuntimeError("Worker returned a candidate outside the current generation.")
+                if cand.info["confid"] in committed:
+                    continue
                 # update extra info
                 extra_info = dict(
                     data={},
@@ -525,9 +529,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     cand_stat += identity_info
                 self._print(cand_stat)
                 self.da.add_relaxed_step(cand)
-            num_extincted = sum([cand.info["key_value_pairs"]["extinct"] for cand in converged_candidates])
+            num_extincted = sum(cand.info.get("key_value_pairs", {}).get("extinct", 0)
+                                for cand in converged_candidates)
             self._print(f"extinct {num_extincted} candidates.")
-            gen_state = GenerationState.OPT_FINISHED
+            if self.da.get_generation_info(gen_num).state is GenerationState.END_OF_GEN:
+                gen_state = EvaluationStatus.FINISHED
         else:
             self._print("Worker is unfinished.")
 
@@ -561,11 +567,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
             frames = self.population_config._generate_from_builder(
                 name, self.builders[name], remaining, allocation["maximum_attempts"]
             )
-            for atoms in self.population_config.clean_initial_structures(frames, name):
-                self.da.add_unrelaxed_candidate(atoms, generation=gen_num)
-                starting_population.append(atoms)
-                plan["random_states"] = self.random_streams.snapshot()
-                self.da.set_generation_plan(gen_num, plan)
+            with self.da.connection:
+                for atoms in self.population_config.clean_initial_structures(frames, name):
+                    self.da.add_unrelaxed_candidate(atoms, generation=gen_num)
+                    starting_population.append(atoms)
+                    plan["random_states"] = self.random_streams.snapshot()
+                    self.da.set_generation_plan(gen_num, plan)
 
         if len(starting_population) != self.population_config.init_size:
             raise RuntimeError(
@@ -649,15 +656,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
             da = self.da if hasattr(self, "da") else GODB(self.db_path)
             gen_info = da.get_generation_info()
 
-        is_converged = False
-
-        max_gen = self.conv_dict["generation"]
-        if gen_info.num > max_gen or gen_info.state == GenerationState.EXTINCTED:
-            is_converged = True
-        else:
-            is_converged = False
-
-        return is_converged
+        return gen_info.converged(self.conv_dict["generation"])
 
     @staticmethod
     def _reject_legacy_population_comparators(operators):
@@ -874,6 +873,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
         content += f"thanos: {self.population_config.extinct_callbacks}\n"
         for l in content.split("\n"):
             self._print(l)
+
+        existing = GODB(self.db_path)
+        if existing.connection.count():
+            self.da = existing
+            return
 
         # For all targets, we must have tags to infer num_atoms_substrate.
         # Thus, we can have a crystal substrate and include part of its atoms

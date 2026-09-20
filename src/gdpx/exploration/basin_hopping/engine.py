@@ -1,8 +1,6 @@
 import copy
-import enum
 import itertools
 import pathlib
-import shutil
 from typing import Callable, Optional
 
 import numpy as np
@@ -24,67 +22,10 @@ from gdpx.utils.strconv import integers_to_string
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
-from gdpx.sampling import parse_operators, select_operator
+from gdpx.sampling import parse_operators
+from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
+from .chain import run_hopping_steps
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
-
-GenerationState = enum.Enum(
-    "GenerationState",
-    (
-        "BEG_OF_GEN",
-        "MID_OF_GEN",
-        "END_OF_GEN",
-        "EXTINCTED",
-    ),
-)
-
-
-def run_hopping_steps(atoms, identifier, driver, operators, probabilities, mcsteps, rng):
-    """Generate a hopping chain; the driver owns relaxation and trial evaluation."""
-    numbers = infer_unique_atomic_numbers(operators, substrates=[atoms])
-    for op in operators:
-        prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
-                          getattr(op, "custom_pair_distance_dict", None))
-    mctraj_fpath = driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
-    mctraj_fpath.parent.mkdir(parents=True, exist_ok=True)
-    energy_before = atoms.get_potential_energy()
-    original_atoms = atoms
-    had_mcstep = "mcstep" in atoms.info
-    previous_mcstep = atoms.info.get("mcstep")
-    try:
-        atoms.info["mcstep"] = 0
-        write(mctraj_fpath, atoms)
-        mcstates = []
-        for istep in range(1, mcsteps + 1):
-            op = select_operator(operators, probabilities, rng)
-            proposal = op.propose(atoms, rng)
-            if not proposal.valid:
-                mcstates.append(2)
-                continue
-            with proposal:
-                tags = atoms.get_tags()
-                driver.run(atoms, read_ckpt=True)
-            # The driver captures its input; rollback cannot alter its relaxed result.
-            relaxed = driver.read_trajectory()[-1]
-            relaxed.set_tags(tags)
-            energy_after = relaxed.get_potential_energy()
-            success = op.acceptance.accept(proposal, energy_before, energy_after, rng)
-            if success:
-                atoms = relaxed
-                energy_before = energy_after
-                atoms.info["mcstep"] = istep
-                write(mctraj_fpath, atoms, append=True)
-            mcstates.append(0 if success else 1)
-            if driver.directory.exists():
-                shutil.rmtree(driver.directory)
-        return atoms, mcstates
-    finally:
-        if had_mcstep:
-            original_atoms.info["mcstep"] = previous_mcstep
-        else:
-            original_atoms.info.pop("mcstep", None)
-        if atoms is not original_atoms:
-            atoms.info.pop("mcstep", None)
-
 
 def evaluate_candidate(
     atoms: Atoms,
@@ -314,6 +255,7 @@ class BasinHopping(BaseExpedition):
 
         # Try to connect to a database
         database = GlobalOptimisationDatabase(database_fpath=self.database_path)
+        self._configure_generations(database)
 
         # Update print and debug functions
         self.population_config._print = self._print
@@ -354,212 +296,123 @@ class BasinHopping(BaseExpedition):
 
         # Run generations
         for _ in range(1000):
-            gen_num, gen_state = self.get_generation_info(database=database)
-            converged = self.read_convergence(database=database, gen_num=gen_num, gen_state=gen_state)
-            self._print(f"Generation info: {gen_num=}  {gen_state=}  {converged=}")
+            gen_info = database.get_generation_info()
+            converged = self.read_convergence(gen_info=gen_info)
+            self._print(f"Generation info: {gen_info} converged={converged}")
             if not converged:
-                is_finished = self._irun(database=database, gen_num=gen_num, gen_state=gen_state)
-                if not is_finished:
+                status = self._irun(database, gen_info)
+                if status is EvaluationStatus.PENDING:
                     self._print("Wait generation to finish.")
-                    break  # Wait for the step to finish.
+                    break
             else:
                 self.report(database)
                 break  # The expedition is converged.
 
         return
 
-    def _irun(
-        self,
-        database: GlobalOptimisationDatabase,
-        gen_num: int,
-        gen_state: GenerationState,
-    ):
-        """Run one generation."""
-        # Check whether we should move on to next generation
-        if gen_state == GenerationState.END_OF_GEN:
-            gen_num += 1
-        self._print(f"===== Generation {gen_num:>04d} =====")
+    def _configure_generations(self, database):
+        database.configure_generations(self.population_config.init_size, self.population_config.gen_size,
+                                       self.population_config.use_extinct)
+        # Old BH inputs lacked generation tags. Infer only from committed
+        # results; unresolved legacy inputs cannot safely be assigned/replayed.
+        for row in list(database.connection.select(relaxed=0)):
+            if "generation" not in row and row.formula:
+                relaxed = list(database.connection.select(confid=row.confid, relaxed=1))
+                if not relaxed:
+                    raise ValueError("Legacy BH pending inputs have no generation checkpoint; start a new run.")
+                database.connection.update(row.id, generation=relaxed[-1].generation)
 
-        # We store all computation files in the folder below
+    def _prepare_generation(self, database, gen_num, gen_wdir):
+        restore_generation_random_states(database, gen_num, self.random_streams)
+        plan = database.get_generation_plan(gen_num)
+        candidates = database.generation_candidates(gen_num)
+        target = self.population_config.init_size if gen_num == 0 else self.population_config.gen_size
+        if plan is None:
+            if candidates:
+                if len(candidates) != target:
+                    raise ValueError("Legacy partial BH generation has no production checkpoint; start a new run.")
+                plan = dict(stage="complete", random_states=self.random_streams.snapshot())
+            else:
+                plan = dict(stage="initial" if gen_num == 0 else "hopping")
+                if gen_num > 0:
+                    self.population.refresh(database)
+                    starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
+                    if not starts:
+                        raise RuntimeError("No eligible parents for BH generation.")
+                    plan["parents"] = [a.info["confid"] for a in starts]
+                plan["random_states"] = self.random_streams.snapshot()
+            database.set_generation_plan(gen_num, plan)
+        self.random_streams.restore(plan["random_states"])
+        if plan["stage"] == "initial":
+            for allocation in self.population_config.initial_builder_allocations:
+                name = allocation["builder"]
+                count = sum(a.info["data"].get("builder") == name for a in candidates)
+                frames = self.population_config._generate_from_builder(
+                    name, self.builders[name], allocation["size"] - count, allocation["maximum_attempts"])
+                # Persist one allocation and its post-generation RNG atomically.
+                with database.connection:
+                    for atoms in self.population_config.clean_initial_structures(frames, name):
+                        database.add_unrelaxed_candidate(atoms, generation=gen_num)
+                        candidates.append(atoms)
+                    plan["random_states"] = self.random_streams.snapshot()
+                    database.set_generation_plan(gen_num, plan)
+        elif plan["stage"] == "hopping":
+            for index in range(len(candidates), len(plan["parents"])):
+                parent = database.get_one_candidate_by_confid(plan["parents"][index])
+                atoms = parent.copy()
+                atoms.info = copy.deepcopy(parent.info)
+                atoms.calc = parent.calc
+                self.mcworker.driver.directory = gen_wdir / f"mc_{index}"
+                endpoint, states = run_hopping_steps(
+                    atoms, index, self.mcworker.driver, self.operators, self.op_probs,
+                    self.num_mcmoves, self.rng, checkpoint_directory=gen_wdir / "chains" / f"chain-{index:04d}")
+                endpoint.info["key_value_pairs"] = {}
+                endpoint.info["data"] = {"parents": [plan["parents"][index]], "chain": index}
+                with database.connection:
+                    database.add_unrelaxed_candidate(endpoint, generation=gen_num)
+                    candidates.append(endpoint)
+                    plan["random_states"] = self.random_streams.snapshot()
+                    database.set_generation_plan(gen_num, plan)
+        if len(candidates) != target:
+            raise RuntimeError(f"Generation {gen_num} has {len(candidates)} inputs; expected {target}.")
+        plan["stage"] = "complete"
+        database.set_generation_plan(gen_num, plan)
+        return candidates
+
+    def _irun(self, database: GlobalOptimisationDatabase, gen_info: GenerationInfo) -> EvaluationStatus:
+        gen_num = gen_info.num
         gen_wdir = self.directory / "tmp_folder" / f"gen{gen_num}"
         gen_wdir.mkdir(parents=True, exist_ok=True)
+        candidates = self._prepare_generation(database, gen_num, gen_wdir)
+        # Include queued and already ingested candidates to preserve batch IDs
+        # when the worker resumes. It owns idempotent submission/retrieval.
+        finished = execute_workers(candidates, self.worker, archive=self.use_archive, directory=gen_wdir)
+        if not finished:
+            return EvaluationStatus.PENDING
+        committed = set(database.get_generation_info(gen_num).relaxed_confids)
+        expected = {a.info["confid"] for a in candidates}
+        results = read(gen_wdir / "results" / "end_frames.xyz", ":")
+        for candidate in results:
+            confid = candidate.info["confid"]
+            if confid not in expected:
+                raise RuntimeError("Worker returned a candidate outside the current generation.")
+            if confid in committed:
+                continue
+            canonical_candidates_from_worker_results(
+                [candidate], gen_num=gen_num, use_tags=True, objective=self.objective,
+                extinct_callbacks=self.population_config.extinct_callbacks)
+            database.add_relaxed_step(candidate)
+            committed.add(confid)
+        if database.get_generation_info(gen_num).state is GenerationState.END_OF_GEN:
+            return EvaluationStatus.FINISHED
+        return EvaluationStatus.PENDING
 
-        # Run the initial population
-        if gen_num == 0:
-            # The first generation (gen-0)
-            # TODO: If the initial random is failed?
-            structures = self.population_config._prepare_initial_population(self.population_config.builders)
-            num_structures = len(structures)
-            self._print(f"The initial population {num_structures=}.")
-            for atoms in structures:
-                database.add_unrelaxed_candidate(candidate=atoms)
-        else:
-            # TODO: How about if we are in the middle of a generation?
-            # assert gen_state != GenerationState.MID_OF_GEN, "Cannot handle mid-generation yet."
-
-            # We save all mc trajectories in a centralised folder
-            (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
-            # Try to generate new structures
-            self.population.refresh(database)
-            candidates = sorted(
-                self.start_selector.select(self.population, self.population_config.gen_size),
-                key=lambda a: a.info["confid"],
-            )
-            candidates_confids = [a.info["confid"] for a in candidates]
-            self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
-
-            for icand, candidate in enumerate(candidates):
-                self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
-                self.mcworker.driver.directory = gen_wdir / f"mc_{icand}"
-                atoms = candidate.copy()
-                atoms.info = copy.deepcopy(candidate.info)
-                atoms.calc = candidate.calc  # Borrow cached results until the first proposal.
-                atoms_after_mc, mcstates = run_hopping_steps(
-                    atoms,
-                    identifier=icand,
-                    driver=self.mcworker.driver,
-                    operators=self.operators,
-                    probabilities=self.op_probs,
-                    mcsteps=self.num_mcmoves,
-                    rng=self.rng,
-                )
-                database.add_unrelaxed_candidate(atoms_after_mc)
-                self._print(
-                    f"<<<<< cand{icand} confid {candidate.info['confid']} state {''.join([str(s) for s in mcstates])}"
-                )
-
-        # Run simulations in the generation folder
-        candidates_to_explore = sorted(
-            database.get_all_unrelaxed_candidates(mark_as_queued=True), key=lambda a: a.info["confid"]
-        )
-        candidates_confids = [a.info["confid"] for a in candidates_to_explore]
-        self._print(f"confids {integers_to_string(candidates_confids, inp_convention='lmp')}")
-
-        is_finished = execute_workers(
-            candidates_to_explore, self.worker, archive=self.use_archive, directory=gen_wdir
-        )  # type: ignore
-        if is_finished:
-            relaxed_candidates = read(gen_wdir / "results" / "end_frames.xyz", ":")
-            explored_candidates = canonical_candidates_from_worker_results(
-                relaxed_candidates,  # type: ignore
-                gen_num=gen_num,
-                use_tags=True,
-                objective=self.objective,
-                extinct_callbacks=self.population_config.extinct_callbacks,
-            )
-            if self.use_extinct:
-                num_extincts = sum(
-                    1 for candidate in explored_candidates if candidate.info["key_value_pairs"].get("extinct", 0) == 1
-                )
-                self._print(f"Extincted {num_extincts} candidates in generation {gen_num}.")
-            # Store relaxed candidates
-            for candidate in explored_candidates:
-                database.add_relaxed_step(candidate)
-
-        return is_finished
-
-    def read_convergence(
-        self,
-        database: Optional[GlobalOptimisationDatabase] = None,
-        gen_num: Optional[int] = None,
-        gen_state: Optional[GenerationState] = None,
-    ) -> bool:
-        """"""
-        maximum_generation_number = self.convergence.get("generation", 0)
-
-        # We may check convergence externally, for example, by worker,
-        # thus, the generation need to be determined here.
-        # Otherwise, internally, we can reuse pre-determined info.
-        if gen_num is None:
-            if database is None:
-                database = GlobalOptimisationDatabase(self.database_path)
-            gen_num, gen_state = self.get_generation_info(database=database)
-        else:
-            assert gen_state is not None
-
-        if gen_num == maximum_generation_number and gen_state == GenerationState.END_OF_GEN:
-            converged = True
-        elif gen_num > maximum_generation_number and gen_state == GenerationState.BEG_OF_GEN:
-            assert gen_num == maximum_generation_number + 1, f"{gen_num=}  {gen_state=}"
-            converged = True
-        elif gen_state == GenerationState.EXTINCTED:
-            self._print(":( candidates are extincted...")
-            converged = True
-        else:
-            converged = False
-
-        return converged
-
-    def get_generation_info(self, database: GlobalOptimisationDatabase) -> tuple[int, GenerationState]:
-        """"""
-        ini_size, gen_size = self.population_config.init_size, self.population_config.gen_size
-
-        # def get_generation_state(number_rest, number_target):
-        #     """"""
-        #     if number_rest == 0:
-        #         gen_state = GenerationState.BEG_OF_GEN
-        #     elif number_rest < number_target:
-        #         gen_state = GenerationState.MID_OF_GEN
-        #     elif number_rest == number_target:
-        #         gen_state = GenerationState.END_OF_GEN
-        #     else:
-        #         raise Exception("This should not happen.")
-        #
-        #     return gen_state
-        #
-        # # Determine the stage of the generation by number of relaxed candidates
-        # number_relaxed = database.get_number_of_relaxed_candidates()
-        # if number_relaxed <= ini_size:  # Still in the initial generation
-        #     gen_state = get_generation_state(number_relaxed, ini_size)
-        #     gen_num = 0
-        # else:
-        #     number_finished_generations = int((number_relaxed - ini_size) / gen_size)
-        #     assert number_finished_generations >= 0
-        #     gen_state = get_generation_state(
-        #         number_relaxed - number_finished_generations * gen_size - ini_size,
-        #         gen_size,
-        #     )
-        #     gen_num = number_finished_generations + 1
-
-        # Since we may use extinction, we cannot infer generation by total number of candidates already relaxed.
-        def is_dir_nonempty(p: pathlib.Path) -> bool:
-            """"""
-            is_nonempty = False
-            for f in p.rglob("*"):
-                if f.is_file() and f.stat().st_size > 0:
-                    is_nonempty = True
-                    break
-
-            return is_nonempty
-
-        gen_num, gen_state = 0, GenerationState.BEG_OF_GEN
-        found_state = False
-
-        gen_wdirs = sorted((self.directory / "tmp_folder").glob("gen*"), key=lambda p: int(p.name[3:]), reverse=True)
-        for gen_wdir in gen_wdirs:
-            gen_num = int(gen_wdir.name[3:])
-            if (gen_wdir / "results" / "end_frames.xyz").exists():
-                gen_state = GenerationState.END_OF_GEN
-                found_state = True
-            else:
-                # Have any non-empty cand folder?
-                cand_wdirs = sorted(gen_wdir.glob("cand*"), key=lambda p: int(p.name[4:]))
-                for cand_wdir in cand_wdirs:
-                    if is_dir_nonempty(cand_wdir):
-                        gen_state = GenerationState.MID_OF_GEN
-                        found_state = True
-                        break
-            if found_state:
-                break
-
-        # Check if all structures are extincted at the end of generation
-        if gen_state == GenerationState.END_OF_GEN and self.use_extinct:
-            all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=True)
-            num_survived = len(all_relaxed_candidates)
-            if num_survived == 0:
-                gen_state = GenerationState.EXTINCTED
-
-        return gen_num, gen_state
+    def read_convergence(self, database=None, gen_info=None) -> bool:
+        if gen_info is None:
+            database = database or GlobalOptimisationDatabase(self.database_path)
+            self._configure_generations(database)
+            gen_info = database.get_generation_info()
+        return gen_info.converged(self.convergence.get("generation", 0))
 
     def report(self, database: Optional[GlobalOptimisationDatabase] = None):
         """"""

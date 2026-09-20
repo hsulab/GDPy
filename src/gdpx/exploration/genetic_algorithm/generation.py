@@ -363,24 +363,25 @@ class GeneticGenerationManager:
                 if len(paired_structures) >= self.gen_rep_size:
                     break
                 self._print(f"Reproduction attempt {i} ->")
-                atoms = self._reproduce(
-                    database,
-                    curr_gen,
-                    population,
-                    operators,
-                    num_atoms_substrate,
-                )
-                if atoms is not None:
-                    self.config.validate_candidate(atoms, "reproduction")
-                    paired_structures.append(atoms)
-                    parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
-                    self._print(
-                        f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                with database.connection:
+                    atoms = self._reproduce(
+                        database,
+                        curr_gen,
+                        population,
+                        operators,
+                        num_atoms_substrate,
                     )
-                else:
-                    self._print(f"  reproduction failed")
-                plan["reproduction_attempts"] = i + 1
-                checkpoint()
+                    if atoms is not None:
+                        self.config.validate_candidate(atoms, "reproduction")
+                        paired_structures.append(atoms)
+                        parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
+                        self._print(
+                            f"  confid={atoms.info['confid']:>6d} parents={parents:<14s} origin={atoms.info['key_value_pairs']['origin']:<20s} extinct={atoms.info['key_value_pairs']['extinct']:<4d}"
+                        )
+                    else:
+                        self._print(f"  reproduction failed")
+                    plan["reproduction_attempts"] = i + 1
+                    checkpoint()
             plan["stage"] = "mutation"
             checkpoint()
 
@@ -390,19 +391,20 @@ class GeneticGenerationManager:
                 if len(mutated_structures) >= self.gen_mut_size:
                     break
                 self._print(f"Mutation attempt {i} ->")
-                parent = self.selector.select_one(population, with_history=True)
-                assert isinstance(parent, Atoms)
-                parent = parent.copy()
-                parent.info = copy.deepcopy(parent.info)
-                atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
-                if atoms is not None:
-                    self.config.validate_candidate(atoms, "mutation")
-                    database.add_unrelaxed_candidate(
-                        atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
-                    )
-                    mutated_structures.append(atoms)
-                plan["mutation_attempts"] = i + 1
-                checkpoint()
+                with database.connection:
+                    parent = self.selector.select_one(population, with_history=True)
+                    assert isinstance(parent, Atoms)
+                    parent = parent.copy()
+                    parent.info = copy.deepcopy(parent.info)
+                    atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
+                    if atoms is not None:
+                        self.config.validate_candidate(atoms, "mutation")
+                        database.add_unrelaxed_candidate(
+                            atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
+                        )
+                        mutated_structures.append(atoms)
+                    plan["mutation_attempts"] = i + 1
+                    checkpoint()
             deficit = self.config.gen_size - len(paired_structures) - len(mutated_structures)
             if deficit < 0:
                 raise RuntimeError("Reproduction and mutation exceeded generation.total_size.")
@@ -424,16 +426,17 @@ class GeneticGenerationManager:
                 frames = self.config._generate_from_builder(
                     name, builders[name], remaining, allocation["maximum_attempts"]
                 )
-                for atoms in frames:
-                    atoms.info.setdefault("data", {})["builder"] = name
-                    database.add_unrelaxed_candidate(
-                        atoms,
-                        description=f"builder: {name}",
-                        origin=f"CompletionBuilder:{name}",
-                        generation=curr_gen,
-                    )
-                    completion_structures.append(atoms)
-                    checkpoint()
+                with database.connection:
+                    for atoms in frames:
+                        atoms.info.setdefault("data", {})["builder"] = name
+                        database.add_unrelaxed_candidate(
+                            atoms,
+                            description=f"builder: {name}",
+                            origin=f"CompletionBuilder:{name}",
+                            generation=curr_gen,
+                        )
+                        completion_structures.append(atoms)
+                        checkpoint()
             plan["stage"] = "complete"
             checkpoint()
 
