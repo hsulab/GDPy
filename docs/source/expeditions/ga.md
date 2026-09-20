@@ -88,7 +88,8 @@ below are in the `recipe` section:
 
 - convergence: Convergence criteria, e.g., the maximum number of generation.
 
-- population: Define how to create and organise a population.
+- population: Define how to create and organise a population. See the shared
+  {ref}`global-optimisation-population` reference, including `retained_size`.
 
   > - periodic and preserve_fragments:
   >
@@ -117,11 +118,6 @@ below are in the `recipe` section:
 
 - operators:
 
-  > - comparator:
-  >
-  >   > Explored structures are compared with each other. The probability of a structure
-  >   > to be selected as a parent is inverse of the number of its similiar structures.
-  >
   > - crossover:
   >
   >   > This is the most critical operator in GA.
@@ -135,6 +131,9 @@ method: genetic_algorithm
 recipe:
   random_seed: 127
   population:
+    comparator:
+      dE: 0.015
+      method: interatomic_distance
     preserve_fragments: false
     builders:
       surface:
@@ -165,9 +164,6 @@ recipe:
           - builder: surface
             proportion: 1.0
   operators:
-    comparator:
-      dE: 0.015
-      method: interatomic_distance
     crossover:
       method: periodic_cut_and_splice
     mutation:

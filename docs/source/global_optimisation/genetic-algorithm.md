@@ -33,6 +33,9 @@ A typical GA search repeats the following steps:
 :width: 800
 ```
 
+The shared {ref}`global-optimisation-population` reference defines population
+sizes, builders, and comparison for both GA and BH.
+
 ## Components in GDPy
 
 GDPy separates the search policy from candidate construction and evaluation:

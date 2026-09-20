@@ -2,6 +2,9 @@ method: genetic_algorithm
 recipe:
   random_seed: 53
   population:
+    comparator:
+      method: interatomic_distance
+    retained_size: 2
     builders:
       random:
         method: random_structure_improved
@@ -30,8 +33,6 @@ recipe:
           - builder: random
             proportion: 1.0
   operators:
-    comparator:
-      method: interatomic_distance
     crossover:
       method: periodic_cut_and_splice
     mutation:

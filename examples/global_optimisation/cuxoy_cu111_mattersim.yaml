@@ -2,6 +2,9 @@ method: genetic_algorithm
 recipe:
   random_seed: 67
   population:
+    comparator:
+      method: interatomic_distance
+    retained_size: 4
     name: variable
     builders:
       random:
@@ -34,8 +37,6 @@ recipe:
           - builder: random
             proportion: 1.0
   operators:
-    comparator:
-      method: interatomic_distance
     mutation:
       - method: exchange
         probability: 0.7

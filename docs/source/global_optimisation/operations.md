@@ -3,13 +3,15 @@
 # Operations
 
 GA operations control how GDPy recognises duplicate structures, combines
-parents, and modifies offspring. They are configured in three categories:
-`comparator`, `crossover`, and `mutation`.
+parents, and modifies offspring. Population comparison is configured under
+`population.comparator`; `operators` contains crossover and mutation. See the
+shared {ref}`global-optimisation-population` reference.
 
 ```yaml
-operators:
+population:
   comparator:
     method: interatomic_distance
+operators:
   crossover:
     method: periodic_cut_and_splice
   mutation:

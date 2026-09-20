@@ -11,11 +11,11 @@ objective. It inherits directly from `BaseExpedition`, independently of MC.
 bh/examples/cluster
 ```
 
-The recipe retains these settings:
+See the shared {ref}`global-optimisation-population` reference for population
+configuration. The recipe uses these settings:
 
-- `population`: `initial_size`, `generation_size`, optional `population_size`,
-  and `random_offspring_generator`; comparator and extinction settings remain
-  available.
+- `population`: `retained_size`, named `builders`, `initial` allocations,
+  `generation.total_size`, comparator, and extinction settings.
 - `operators`: weighted move configurations shared with MC.
 - `num_mcmoves`: number of proposals per candidate chain.
 - `mcworker`: complete runtime for evaluating moves in those chains.
@@ -32,12 +32,19 @@ method: basin_hopping
 recipe:
   random_seed: 7
   population:
-    initial_size: 1
-    generation_size: 1
-    population_size: 1
-    random_offspring_generator:
-      method: read_stru
-      fname: ./cu-cluster.xyz
+    retained_size: 1
+    periodic: false
+    builders:
+      random:
+        method: read_stru
+        fname: ./cu-cluster.xyz
+    initial:
+      total_size: 1
+      builder_allocations:
+        - builder: random
+          size: 1
+    generation:
+      total_size: 1
   operators:
     - method: move
       particles: [Cu]

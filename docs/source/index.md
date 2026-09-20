@@ -70,6 +70,7 @@ workflows/index
 
 global_optimisation/genetic-algorithm
 global_optimisation/basin_hopping
+global_optimisation/population
 ```
 
 ```{toctree}

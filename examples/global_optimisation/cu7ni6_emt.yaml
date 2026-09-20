@@ -2,6 +2,9 @@ method: genetic_algorithm
 recipe:
   random_seed: 31
   population:
+    comparator:
+      method: interatomic_distance
+    retained_size: 2
     periodic: false
     builders:
       random:
@@ -31,8 +34,6 @@ recipe:
           - builder: random
             proportion: 1.0
   operators:
-    comparator:
-      method: interatomic_distance
     mutation:
       method: swap
       particles: [Cu, Ni]

@@ -15,13 +15,14 @@ The complete input is `examples/global_optimisation/cu8_bh_emt.yaml`:
 :language: yaml
 ```
 
-`pbc: false` makes the cluster nonperiodic. The 12 Å box supplies a coordinate
+`population.periodic: false` makes the cluster nonperiodic. The 12 Å box supplies a coordinate
 frame for generation and move selection; it does not create periodic images.
 Four initial Cu₈ candidates are generated in a sphere and relaxed. Individual
 atom tags let the move operator select one Cu atom at a time.
 
-Each subsequent generation selects up to two distinct candidates. Each runs a
-chain of three displacement proposals, with a maximum displacement of 0.8 Å.
+Each subsequent generation launches two independent chains from the retained
+pool of up to two distinct candidates. Starts are sampled with replacement,
+so both chains may start from the same candidate. Each chain runs three displacement proposals, with a maximum displacement of 0.8 Å.
 The `mcworker` minimizes each trial before its energy is used for acceptance.
 The operator's 500 K temperature controls uphill acceptance during the search;
 it is not an MD thermostat or a claim of thermal equilibrium sampling.
@@ -48,6 +49,7 @@ Results are written under `run-cu8-bh-emt/expedition-0`:
   hops; rejected trials are not appended.
 
 The small population and short chains keep this example quick to run. Increase
-`initial_size`, `population_size`, `generation_size`, `num_mcmoves`, and
+`population.initial.total_size`, `population.retained_size`,
+`population.generation.total_size`, `num_mcmoves`, and
 `convergence.generation` for a more extensive search. The demonstration does
 not establish the global minimum of Cu₈.
