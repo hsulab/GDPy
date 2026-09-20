@@ -67,6 +67,6 @@ def test_single_worker_and_conversion(mock_sched, fake_driver, fake_structure, t
 def test_runtime_config_is_the_only_serialized_worker_input(mock_sched, fake_driver, tmp_path):
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     serialized = worker.as_dict()
-    assert serialized["schema_version"] == 2
+    assert serialized["schema_version"] == 3
     assert "potter" not in serialized
     assert "driver" not in serialized

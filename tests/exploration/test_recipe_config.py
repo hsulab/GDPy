@@ -399,7 +399,7 @@ def test_ga_injects_default_system_settings_into_compatible_builders():
     assert engine.builders["random"].pbc is True
     assert engine.builders["random"].use_tags is True
 
-    engine.worker = Serializable({"schema_version": 2})
+    engine.worker = Serializable({"schema_version": 3})
     serialised_population = engine.as_dict()["recipe"]["population"]
     assert "periodic" not in serialised_population
     assert "preserve_fragments" not in serialised_population
@@ -477,7 +477,7 @@ def test_ga_serialization_uses_recipe_and_runtime():
         "imported": Serializable({"method": "direct", "use_tags": True}),
     }
     engine.reference_builder_name = "random"
-    engine.worker = Serializable({"schema_version": 2})
+    engine.worker = Serializable({"schema_version": 3})
     engine.ga_dict = {
         "population": {
             "periodic": False,
@@ -606,7 +606,7 @@ def test_monte_carlo_serialization_uses_recipe_and_runtime():
     engine = object.__new__(MonteCarlo)
     engine.random_seed = 11
     engine.builder = Serializable({"method": "builder"})
-    engine.worker = Serializable({"schema_version": 2})
+    engine.worker = Serializable({"schema_version": 3})
     engine.worker.runtime = SimpleNamespace(provider_potential=object())
     engine.operators = [Serializable({"method": "move"})]
     engine.convergence = {"steps": 5}
@@ -624,7 +624,7 @@ def test_monte_carlo_serialization_uses_recipe_and_runtime():
 
 
 def test_other_global_optimisers_serialize_the_recipe():
-    worker = Serializable({"schema_version": 2})
+    worker = Serializable({"schema_version": 3})
 
     concurrent = object.__new__(ConcurrentHopping)
     concurrent.random_seed = 13
@@ -660,5 +660,5 @@ def test_other_global_optimisers_serialize_the_recipe():
             "builder": {"method": "builder"},
             "temperatures": [800.0, 400.0],
         },
-        "runtime": {"schema_version": 2},
+        "runtime": {"schema_version": 3},
     }

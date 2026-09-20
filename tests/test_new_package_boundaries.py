@@ -17,7 +17,7 @@ def test_new_domain_packages_import_without_workflow_implementations():
 
 
 def test_scheduler_public_export_is_lazy_and_resolves():
-    from gdpx.execution.schedulers import LocalScheduler
-    from gdpx.execution.schedulers.local import LocalScheduler as ConcreteLocalScheduler
+    from gdpx.execution.schedulers import DirectScheduler
+    from gdpx.execution.schedulers.direct import DirectScheduler as ConcreteDirectScheduler
 
-    assert LocalScheduler is ConcreteLocalScheduler
+    assert DirectScheduler is ConcreteDirectScheduler

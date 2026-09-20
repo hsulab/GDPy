@@ -10,7 +10,7 @@ from gdpx.execution.factory import create_worker, create_workers
 def cp2k_config():
     """"""
     params = dict(
-        schema_version=2,
+        schema_version=3,
         potential = dict(
             provider = "cp2k",
             parameters = dict(

@@ -1,5 +1,6 @@
 import copy
 import json
+import shutil
 
 from ase import Atoms
 
@@ -10,12 +11,13 @@ from gdpx.execution.lifecycle import (
     load_compute_plan,
     prepare_compute,
     submit_compute,
+    run_compute_batch,
 )
 
 
 def _emt_config():
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "potential": {"provider": "emt", "parameters": {}},
         "executor": {
             "provider": "ase",
@@ -38,9 +40,9 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
 
     assert config == original
     assert plan.config["potential"] == original["potential"]
-    assert plan.schema_version == 2
+    assert plan.schema_version == 3
     assert plan.path.exists()
-    assert not (tmp_path / "_local_jobs.json").exists()
+    assert not (tmp_path / "_direct_jobs.json").exists()
     assert (tmp_path / "_data" / "scripts" / "run-w0-b0.script").exists()
 
     loaded = load_compute_plan(tmp_path)
@@ -76,9 +78,9 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
     assert result.number_of_trajectories == 1
     assert (tmp_path / "results" / "end_frames.xyz").exists()
 
-    records = json.loads((tmp_path / "_local_jobs.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_direct_jobs.json").read_text())["_default"]
     record = next(iter(records.values()))
-    assert record["scheduler_job_id"] == "local"
+    assert record["scheduler_job_id"] == "direct"
     assert record["attempt"] == 1
 
 
@@ -96,3 +98,30 @@ def test_submit_all_dry_run_scheduler_batches(tmp_path):
     records = json.loads((tmp_path / "_slurm_jobs.json").read_text())["_default"]
     assert len(records) == 2
     assert {record["group_number"] for record in records.values()} == {0, 1}
+
+
+def test_staged_plan_runs_in_its_new_working_tree(tmp_path):
+    source = tmp_path / "source"
+    staged = tmp_path / "staged"
+    original = prepare_compute(_emt_config(), [_cu()], source)
+    shutil.copytree(source, staged)
+
+    loaded = load_compute_plan(staged)
+    assert loaded.directory == str(staged.resolve())
+    assert loaded.plan_id == original.plan_id
+    assert run_compute_batch(loaded, batch=0).finished
+    assert (staged / "cand0").exists()
+    assert not (source / "cand0").exists()
+
+
+def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
+    from ase.io import write
+    from gdpx.cli.compute import run_computation
+
+    inputs = tmp_path / "input.xyz"
+    write(inputs, [_cu()])
+    run_computation(
+        [str(inputs)], _emt_config(), batch=0, spawn=True, directory=tmp_path
+    )
+    assert (tmp_path / "cand0").exists()
+    assert not (tmp_path / "_direct_jobs.json").exists()

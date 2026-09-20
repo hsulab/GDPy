@@ -5,7 +5,7 @@ from gdpx.providers.targets import AseCalculatorMaterialization
 def test_ase_potential_and_executor_resolve_without_manager():
     runtime = get_provider_manager().resolve_runtime(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "potential": {"provider": "ase", "parameters": {"method": "lj", "epsilon": 0.5}},
             "executor": {"provider": "ase", "method": "spc", "parameters": {}},
         }

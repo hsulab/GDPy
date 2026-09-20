@@ -15,7 +15,7 @@ from gdpx.execution.factory import create_worker, create_workers
 def emt_config():
     """"""
     params = dict(
-        schema_version=2,
+        schema_version=3,
         potential=dict(
             provider="emt",
             parameters={},
@@ -30,7 +30,7 @@ def emt_config():
 def emt_md_config():
     """"""
     params = dict(
-        schema_version=2,
+        schema_version=3,
         potential=dict(
             provider="emt",
             parameters={},

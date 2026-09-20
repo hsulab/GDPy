@@ -16,7 +16,7 @@ def test_runtime_variable_resolves_declarative_components():
     assert isinstance(potential.value, ComponentConfig)
     assert isinstance(executor.value, ComponentConfig)
     assert isinstance(variable.value, Runtime)
-    assert variable.as_dict()["schema_version"] == 2
+    assert variable.as_dict()["schema_version"] == 3
 
 
 def test_runtime_chain_is_explicit_and_ordered():

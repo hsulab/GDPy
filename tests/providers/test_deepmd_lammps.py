@@ -7,7 +7,7 @@ def test_deepmd_materializes_for_lammps_without_importing_deepmd_runtime(tmp_pat
     model.write_bytes(b"fixture")
     runtime = get_provider_manager().resolve_runtime(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "potential": {
                 "provider": "deepmd",
                 "parameters": {"models": [str(model)], "type_list": ["Cu"]},

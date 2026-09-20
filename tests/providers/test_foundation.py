@@ -125,7 +125,7 @@ def test_provider_manager_introspection_does_not_create_components():
 
 def test_potential_method_round_trips_and_selects_factory():
     source = {
-        "schema_version": 2,
+        "schema_version": 3,
         "potential": {"provider": "models", "method": "small", "parameters": {}},
         "modifiers": [],
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
@@ -145,13 +145,17 @@ def test_ambiguous_capability_requires_an_implementation_name():
         manager.require("demo", CapabilityKind.EXECUTOR)
 
 
-def test_schema_v2_is_immutable_and_round_trips():
+def test_schema_v3_is_immutable_and_round_trips():
     source = {
-        "schema_version": 2,
+        "schema_version": 3,
         "potential": {"provider": "deepmd", "parameters": {"models": ["m.pb"]}},
         "modifiers": [],
         "executor": {"provider": "lammps", "method": "md", "parameters": {"steps": 10}},
-        "scheduler": {"provider": "local", "parameters": {}},
+        "scheduler": {
+            "provider": "direct",
+            "parameters": {},
+            "transport": {"provider": "local", "parameters": {}},
+        },
         "options": {"batch_size": 2},
     }
     original = copy.deepcopy(source)
@@ -161,6 +165,53 @@ def test_schema_v2_is_immutable_and_round_trips():
 
     assert config.potential.parameters["models"] == ("m.pb",)
     assert original == config.to_dict()
+
+
+def test_schema_v3_scheduler_defaults_remain_optional():
+    source = {
+        "schema_version": 3,
+        "potential": {"provider": "models", "parameters": {}},
+        "executor": {"provider": "engine", "method": "md", "parameters": {}},
+    }
+    config = RuntimeConfig.from_mapping(source)
+
+    assert config.scheduler is None
+    assert "scheduler" not in config.to_dict()
+
+    with_scheduler = dict(source)
+    with_scheduler["scheduler"] = {"provider": "direct", "parameters": {}}
+    config = RuntimeConfig.from_mapping(with_scheduler)
+    assert config.scheduler.transport is None
+    assert config.to_dict()["scheduler"] == with_scheduler["scheduler"]
+
+
+def test_schema_v2_is_rejected():
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
+        RuntimeConfig.from_mapping({"schema_version": 2})
+
+
+@pytest.mark.parametrize("transport", ["ssh", {"provider": "ssh", "parameters": []}])
+def test_malformed_transport_is_rejected(transport):
+    from gdpx.providers.configuration import scheduler_component
+
+    with pytest.raises(ProviderConfigurationError, match="must be a mapping"):
+        scheduler_component({"provider": "direct", "transport": transport})
+
+
+@pytest.mark.parametrize(
+    ("provider", "message"),
+    [("local", "use `direct`"), ("remote", "transport.provider: ssh")],
+)
+def test_schema_v3_rejects_old_scheduler_provider_names(provider, message):
+    source = {
+        "schema_version": 3,
+        "potential": {"provider": "models", "parameters": {}},
+        "executor": {"provider": "engine", "method": "md", "parameters": {}},
+        "scheduler": {"provider": provider, "parameters": {}},
+    }
+
+    with pytest.raises(ProviderConfigurationError, match=message):
+        RuntimeConfig.from_mapping(source)
 
 
 def test_legacy_runtime_is_rejected_without_mutating_input():
@@ -179,7 +230,7 @@ def test_legacy_runtime_is_rejected_without_mutating_input():
 
 
 def test_legacy_dimer_controller_is_rejected():
-    with pytest.raises(ProviderConfigurationError, match="schema_version: 2"):
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
         RuntimeConfig.from_mapping(
             {
                 "potential": {"name": "cp2k", "params": {"backend": "cp2k"}},

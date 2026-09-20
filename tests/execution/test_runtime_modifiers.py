@@ -32,7 +32,7 @@ class ExecutorFactory:
 
 def runtime_config(target):
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "potential": {"provider": "model", "parameters": {}},
         "modifiers": [{"provider": "mods", "method": "bias", "parameters": {}}],
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
