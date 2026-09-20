@@ -58,10 +58,10 @@ class Population:
         """Immutable membership containing borrowed, unmodified Atoms references."""
         return self._candidates
 
-    def refresh(self, database):
+    def refresh(self, database, *, history=None):
         """Rebuild membership and statistics from eligible relaxed search history."""
         history = sorted(
-            database.get_all_relaxed_candidates(use_extinct=self.use_extinct),
+            database.get_all_relaxed_candidates(use_extinct=self.use_extinct) if history is None else history,
             key=lambda a: a.info["key_value_pairs"]["raw_score"],
             reverse=True,
         )

@@ -24,7 +24,7 @@ from ..objective import is_default_objective, normalise_objective, reject_legacy
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from gdpx.sampling import parse_operators
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
-from .chain import evaluate_batch, run_hopping_rounds
+from .chain import evaluate_batch, run_hopping_rounds, finalize_checkpoints
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 def evaluate_candidate(
@@ -322,6 +322,11 @@ class BasinHopping(BaseExpedition):
     def _configure_generations(self, database):
         database.configure_generations(self.population_config.init_size, self.population_config.gen_size,
                                        self.population_config.use_extinct)
+        for rounds in (self.directory / "tmp_folder").glob("gen*/rounds"):
+            generation = int(rounds.parent.name[3:])
+            plan = database.get_generation_plan(generation)
+            if plan and plan.get("stage") == "complete" and plan.get("round_version") == 5:
+                finalize_checkpoints(rounds)
         # Old BH inputs lacked generation tags. Infer only from committed
         # results; unresolved legacy inputs cannot safely be assigned/replayed.
         for row in list(database.connection.select(relaxed=0)):
@@ -336,7 +341,7 @@ class BasinHopping(BaseExpedition):
         plan = database.get_generation_plan(gen_num)
         candidates = database.generation_candidates(gen_num)
         if gen_num > 0 and (
-            (plan is not None and plan.get("round_version") != 4)
+            (plan is not None and plan.get("round_version") != 5)
             or (plan is None and (candidates or (gen_wdir / "chains").exists()))
         ):
             raise ValueError("Incompatible serial BH checkpoint or older round checkpoint; start a new run.")
@@ -347,7 +352,7 @@ class BasinHopping(BaseExpedition):
                     raise ValueError("Legacy partial BH generation has no production checkpoint; start a new run.")
                 plan = dict(stage="complete", random_states=self.random_streams.snapshot())
             else:
-                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=4)
+                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=5)
                 if gen_num > 0:
                     self.population.refresh(database)
                     starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
@@ -388,8 +393,11 @@ class BasinHopping(BaseExpedition):
                 database.add_evaluated_candidate(trial, f"bh:{gen_num}:{chain}:{step}")
                 return extinct
 
-            def restart_chains(terminated):
-                self.population.refresh(database)
+            def restart_chains(terminated, step):
+                # Recovery from the previous checkpoint must not see later
+                # round results already ingested before the interruption.
+                self.population.refresh(database, history=database.get_all_relaxed_candidates(
+                    use_extinct=self.population.use_extinct, through=(gen_num, step)))
                 selected = self.start_selector.select(self.population, len(terminated))
                 replacements = []
                 for candidate in selected:
@@ -402,7 +410,8 @@ class BasinHopping(BaseExpedition):
             outcome = run_hopping_rounds(
                 starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
                 self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
-                restart_chains=restart_chains, random_streams=self.random_streams)
+                restart_chains=restart_chains, random_streams=self.random_streams,
+                read_candidate=database.get_one_candidate_by_confid)
             if outcome.status is EvaluationStatus.PENDING:
                 return None
             if outcome.extinct:
@@ -414,6 +423,8 @@ class BasinHopping(BaseExpedition):
             raise RuntimeError(f"Generation {gen_num} has {len(candidates)} inputs; expected {target}.")
         plan["stage"] = "complete"
         database.set_generation_plan(gen_num, plan)
+        if gen_num > 0:
+            finalize_checkpoints(gen_wdir / "rounds")
         return candidates
 
     def _irun(self, database: GlobalOptimisationDatabase, gen_info: GenerationInfo) -> EvaluationStatus:

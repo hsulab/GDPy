@@ -127,6 +127,21 @@ options:
   worker: single
 ```
 
+## Checkpoints and restart
+
+Restart with the same configuration and output directory. MC stores versioned
+JSON metadata and uncompressed NumPy `.npz` arrays, without pickle. Arrays,
+constraints, cached results, operator configuration, and random state are
+preserved without copying the entire structure before serialization.
+
+`ckpt_period` controls ordinary checkpoint frequency. Only the latest and
+previous committed checkpoints are retained; a damaged latest snapshot falls
+back to the previous one. A queued move also retains its pending state until
+its resolution is committed, forcing a checkpoint even between ordinary
+checkpoint steps. Hybrid MC commits this state after its complete procedure.
+Older pickle checkpoints are not loaded; use a new output directory for those
+runs.
+
 ## Application
 
 1. {ref}`ref-acs-catal-2022-xu`

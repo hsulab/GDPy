@@ -212,7 +212,7 @@ class GlobalOptimisationDatabase:
 
         return candidate
 
-    def get_all_relaxed_candidates(self, use_extinct: bool = False):
+    def get_all_relaxed_candidates(self, use_extinct: bool = False, through=None):
         """"""
         if use_extinct:
             rows = self.connection.select("relaxed=1,extinct=0", sort="-raw_score")
@@ -221,6 +221,8 @@ class GlobalOptimisationDatabase:
 
         candidates = []
         for row in rows:
+            if through is not None and (row.get("generation", 0), row.data.get("round", 0)) > through:
+                continue
             candidate = self.connection.get_atoms(id=row.id, add_additional_information=True)
             candidate.info["confid"] = row.confid
             candidates.append(candidate)

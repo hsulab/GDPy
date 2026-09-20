@@ -198,7 +198,7 @@ class Worker:
     def get_number_of_running_jobs(self):
         return int(self.waiting)
 
-    def retrieve(self):
+    def retrieve(self, **kwargs):
         return [[self.result]]
 
 
@@ -239,7 +239,7 @@ def test_pending_worker_resumes_without_redrawing(tmp_path, monkeypatch):
     result = run_worker_move(structure(), 0, [op], [1.0], restarted_rng, worker, path)
     assert result.accepted and worker.calls == 1
     assert restarted_rng.bit_generator.state == expected_rng.bit_generator.state
-    assert not path.exists()
+    assert (path / "proposal.json").exists()  # Kept until the caller commits its accepted state.
 
 
 def test_reaction_undo_and_configuration_roundtrip():
@@ -360,6 +360,61 @@ def test_all_move_settings_roundtrip_without_mutating_input():
         assert parse_operators([op.as_dict()])[0][0].as_dict() == op.as_dict()
 
 
+def test_hybrid_completed_checkpoint_restores_state_and_output(tmp_path):
+    engine = mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
+    engine.num_mcmoves = 2
+    assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.FINISHED
+    engine._save_checkpoint(1)
+    expected = {name: a.copy() for name, a in engine.atoms.arrays.items()}
+    rng_state = copy.deepcopy(engine.rng.bit_generator.state)
+    output = (engine.directory / "mc.xyz").read_bytes()
+    assert engine._irun_metropolis(2, "mc", engine.worker) == MCStepState.FINISHED
+    engine._load_checkpoint()
+    assert engine.start_step == 1
+    assert_arrays(engine.atoms, expected)
+    assert engine.rng.bit_generator.state == rng_state
+    assert (engine.directory / "mc.xyz").read_bytes() == output
+
+
+def test_pending_initial_publication_is_atomic(tmp_path, monkeypatch):
+    import gdpx.exploration.move_step as moves
+    path = tmp_path / "pending-move-1"
+    original = moves.save_data
+    def interrupted(*args, **kwargs):
+        raise OSError("interrupted publication")
+    monkeypatch.setattr(moves, "save_data", interrupted)
+    with pytest.raises(OSError, match="interrupted"):
+        moves._store_pending(path, structure(), {"version": 2})
+    assert not path.exists()
+    monkeypatch.setattr(moves, "save_data", original)
+    moves._store_pending(path, structure(), {"version": 2})
+    assert (path / "proposal.json").exists()
+    assert not path.with_name(f".{path.name}-staging").exists()
+
+
+@pytest.mark.parametrize("cls,name", [(MonteCarlo, "pending-move-1"), (HybridMonteCarlo, "pending-hybrid")])
+def test_committed_pending_cleanup_after_interruption(tmp_path, monkeypatch, cls, name):
+    import gdpx.exploration.monte_carlo.monte_carlo as module
+    from gdpx.exploration.move_step import _store_pending
+    engine = mc_engine(tmp_path / "mc", cls)
+    pending = engine.directory / name
+    _store_pending(pending, engine.atoms, {"version": 2, "context": {"step": 1}})
+    remove = module.shutil.rmtree
+    def interrupted(path, *args, **kwargs):
+        if path == pending:
+            raise OSError("interrupted cleanup")
+        return remove(path, *args, **kwargs)
+    monkeypatch.setattr(module.shutil, "rmtree", interrupted)
+    with pytest.raises(OSError, match="interrupted cleanup"):
+        engine._save_checkpoint(1)
+    assert pending.exists()
+    monkeypatch.setattr(module.shutil, "rmtree", remove)
+    engine._cleanup_committed_pending()
+    assert not pending.exists()
+    engine._load_checkpoint()
+    assert engine.start_step == 1
+
+
 def test_hopping_with_actual_emt_driver(tmp_path):
     from ase.calculators.emt import EMT
     from gdpx.execution.factory import create_worker
@@ -427,3 +482,34 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         np.testing.assert_allclose(start.positions, atoms.positions)
     serialized.pop("runtime")
     assert create_expedition(serialized).population_config.gen_size == 3
+
+
+def test_mc_portable_checkpoint_retention_and_fallback(tmp_path):
+    engine = mc_engine(tmp_path / 'retained')
+    for step in range(1, 5):
+        engine._irun(step)
+        engine._save_checkpoint(step)
+    assert sorted(p.name for p in engine.directory.glob('checkpoint.*')) == ['checkpoint.3', 'checkpoint.4']
+    expected = engine.atoms.positions.copy()
+    rng = copy.deepcopy(engine.rng.bit_generator.state)
+    (engine.directory / 'checkpoint.4/state.json').write_text('broken')
+    engine._load_checkpoint()
+    assert engine.start_step == 3
+    engine._irun(4)
+    np.testing.assert_array_equal(engine.atoms.positions, expected)
+    assert engine.rng.bit_generator.state == rng
+    assert not list(engine.directory.rglob('*.pkl'))
+
+
+def test_pending_mc_resolution_commits_off_period(tmp_path):
+    engine = mc_engine(tmp_path / 'pending')
+    engine.ckpt_period = 100
+    engine.worker.waiting = True
+    assert engine._irun(1) == MCStepState.UNFINISHED
+    engine.worker.waiting = False
+    assert engine._irun(1) == MCStepState.FINISHED
+    assert (engine.directory / 'checkpoint.1/structure.json').exists()
+    assert not (engine.directory / 'pending-move-1').exists()
+    expected = engine.atoms.positions.copy()
+    engine._load_checkpoint()
+    np.testing.assert_array_equal(engine.atoms.positions, expected)

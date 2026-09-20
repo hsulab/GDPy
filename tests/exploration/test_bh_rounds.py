@@ -1,6 +1,6 @@
 """BH evaluation is batch-oriented and independent of driver implementations."""
 import copy
-import pickle
+import json
 
 import numpy as np
 import pytest
@@ -89,8 +89,8 @@ def test_batched_acceptance_and_borrowing(tmp_path, monkeypatch, energy, decisio
     for frame, original in zip(starts, originals):
         np.testing.assert_array_equal(frame.positions, original)
         assert frame.info["confid"] == 42
-    with (tmp_path / "rounds/round-000003/state.pkl").open("rb") as stream:
-        assert pickle.load(stream)["states"] == [[decision, decision]] * 3
+    events = [json.loads(line) for line in (tmp_path / "rounds/events.jsonl").read_text().splitlines()]
+    assert [event["decisions"] for event in events[1:]] == [[decision, decision]] * 3
     if decision == 1:
         assert all(a is b for a, b in zip(outcome.endpoints, starts))
 
@@ -211,7 +211,7 @@ def test_failure_before_submission_replays_round(tmp_path, monkeypatch):
     save = chain._save
     def interrupt(path, value):
         save(path, value)
-        if path.name == "proposal.pkl":
+        if path.name == "proposal.json":
             raise RuntimeError("interrupted proposal persistence")
     monkeypatch.setattr(chain, "_save", interrupt)
     starts = [atoms(), atoms()]
@@ -238,3 +238,60 @@ def test_failed_retrieval_does_not_repropose(tmp_path, monkeypatch):
     op = operators()[0][0]
     monkeypatch.setattr(op, "propose", lambda *a: pytest.fail("reproposed persisted trial"))
     assert run(tmp_path / "rounds", Worker(), steps=1, ops=[op]).status is EvaluationStatus.FINISHED
+
+
+def test_bh_retention_and_recovery_from_damaged_latest_snapshot(tmp_path):
+    baseline_rng = np.random.default_rng(9)
+    expected = run(tmp_path / 'baseline/rounds', Worker(), rng=baseline_rng, steps=8)
+    path = tmp_path / 'restart/rounds'
+    actual_rng = np.random.default_rng(9)
+    run(path, Worker(), rng=actual_rng, steps=8)
+    assert len(list(path.glob('round-*'))) == 2
+    assert not list(path.glob('pending-*'))
+    assert len((path / 'events.jsonl').read_text().splitlines()) == 9
+    (path / 'round-000008/state.json').write_text('{broken')
+    # Uncommitted journal data is discarded when the recovered round commits.
+    with (path / 'events.jsonl').open('ab') as stream:
+        stream.write(b'partial journal tail')
+    worker = Worker()
+    resumed_rng = np.random.default_rng(999)
+    actual = run(path, worker, rng=resumed_rng, steps=8)
+    assert len(worker.batches) == 1
+    for a, b in zip(actual.endpoints, expected.endpoints):
+        np.testing.assert_array_equal(a.positions, b.positions)
+    assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
+    assert len(list(path.glob('round-*'))) == 2
+    assert len((path / 'events.jsonl').read_text().splitlines()) == 9
+    assert len(read(path.parent / 'mctrajs/mc-0000.xyz', ':')) == 9
+
+
+@pytest.mark.parametrize('boundary', ['manifest', 'prune'])
+def test_bh_interrupted_publication_and_pruning(tmp_path, monkeypatch, boundary):
+    import gdpx.exploration.checkpoint as checkpoint
+    baseline_rng = np.random.default_rng(9)
+    baseline = run(tmp_path / 'baseline/rounds', Worker(), rng=baseline_rng)
+    path = tmp_path / 'restart/rounds'
+    with monkeypatch.context() as patch:
+        if boundary == 'manifest':
+            write = checkpoint.write_json
+            def fail(target, data):
+                if target.name == 'current.json' and data['snapshots'][0] == 'round-000002':
+                    raise RuntimeError('interrupted manifest')
+                return write(target, data)
+            patch.setattr(checkpoint, 'write_json', fail)
+        else:
+            remove = checkpoint.shutil.rmtree
+            def fail(target, *args, **kwargs):
+                if target.name == 'round-000000':
+                    raise RuntimeError('interrupted prune')
+                return remove(target, *args, **kwargs)
+            patch.setattr(checkpoint.shutil, 'rmtree', fail)
+        with pytest.raises(RuntimeError, match='interrupted'):
+            run(path, Worker())
+    rng = np.random.default_rng(123)
+    actual = run(path, Worker(), rng=rng)
+    for a, b in zip(actual.endpoints, baseline.endpoints):
+        np.testing.assert_array_equal(a.positions, b.positions)
+    assert rng.bit_generator.state == baseline_rng.bit_generator.state
+    assert len(list(path.glob('round-*'))) == 2
+    assert not list(path.glob('pending-*'))

@@ -14,6 +14,8 @@ from gdpx.execution.workers.single import SingleWorker
 
 from .monte_carlo import MCStepState, MonteCarlo
 from ..move_step import read_pending, run_worker_move
+from ..checkpoint import read_snapshot
+from gdpx.sampling import parse_operators
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
@@ -94,6 +96,7 @@ class HybridMonteCarlo(MonteCarlo):
             # init structure
             step_converged = False
             self._resume_context = None
+            self._cleanup_committed_pending()
             if (self.directory / "pending-hybrid").exists():
                 self.atoms, pending_data = read_pending(self.directory / "pending-hybrid", self.rng)
                 self.energy_stored = pending_data["energy"]
@@ -103,7 +106,6 @@ class HybridMonteCarlo(MonteCarlo):
             elif not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
-                raise Exception("Checkpoint exists but hybrid_monte_carlo does not support restart.")
                 step_converged = True
                 self._load_checkpoint()
 
@@ -149,6 +151,7 @@ class HybridMonteCarlo(MonteCarlo):
                     else:
                         ...
                 else:
+                    self._save_checkpoint(curr_step)
                     curr_step += 1
                 if step_state != MCStepState.FINISHED:
                     break
@@ -156,6 +159,20 @@ class HybridMonteCarlo(MonteCarlo):
             self._print("Monte Carlo is converged.")
 
         return
+
+    def _load_checkpoint(self):
+        """Resume a completed hybrid procedure without rewinding substep workers."""
+        if not (self.directory / "current.json").exists():
+            raise ValueError("Legacy hybrid checkpoint is not supported; start a new run.")
+        _, (state, self.atoms) = read_snapshot(self.directory, self._read_snapshot)
+        self.operators, self.op_probs = parse_operators(state["operators"])
+        self._attach_bond_length_minimum_list()
+        self.rng.bit_generator.state = state["rng"]
+        self.start_step = state["step"]
+        self.energy_stored = self.atoms.get_potential_energy()
+        for name, size in state["output_sizes"].items():
+            with (self.directory / name).open("r+b") as stream:
+                stream.truncate(size)
 
     def _irun_dynamics(self, step: int, name: str, worker: DriverBasedWorker) -> MCStepState:
         """"""

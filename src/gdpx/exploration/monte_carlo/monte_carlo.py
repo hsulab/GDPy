@@ -1,6 +1,5 @@
 import copy
 import enum
-import pickle
 import shutil
 from typing import Union
 
@@ -15,6 +14,7 @@ from gdpx.execution.workers.single import SingleWorker
 from ..expedition import BaseExpedition
 from ..move_step import read_pending, run_worker_move
 from ..accepted_state import load_accepted_state, save_accepted_state
+from ..checkpoint import load_data, save_data, publish_snapshot, read_snapshot, prune_snapshots
 from gdpx.sampling.moves.operator import BaseMCOperator
 from gdpx.sampling import parse_operators
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
@@ -248,6 +248,7 @@ class MonteCarlo(BaseExpedition):
         if not converged:
             # Check if we start from scratch or restart from a checkpoint
             step_converged = False
+            self._cleanup_committed_pending()
             pending = sorted(self.directory.glob("pending-move-*"), key=lambda p: int(p.name.rsplit("-", 1)[1]))
             if pending:
                 self.atoms, pending_data = read_pending(pending[-1], self.rng)
@@ -328,6 +329,8 @@ class MonteCarlo(BaseExpedition):
         if not result.valid and self.should_retry:
             return MCStepState.FAILED
         write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
+        if (self.directory / f"pending-move-{istep}").exists():
+            self._save_checkpoint(istep, force=True)
         return self._check_earlystop(self.atoms)
 
     def _check_earlystop(self, atoms: Atoms) -> MCStepState:
@@ -363,38 +366,52 @@ class MonteCarlo(BaseExpedition):
         return es_state
 
     def _verify_checkpoint(self) -> bool:
-        """Verify checkpoints."""
-        ckpt_wdirs = list(self.directory.glob("checkpoint.*"))
-        nwdirs = len(ckpt_wdirs)
+        return (self.directory / "current.json").exists() or any(self.directory.glob("checkpoint.*"))
 
-        verified = True
-        if nwdirs > 0:
-            # TODO: check the directory is not empty
-            ...
-        else:
-            verified = False
+    def _cleanup_committed_pending(self):
+        """Finish cleanup if publication succeeded before an interruption."""
+        pending = list(self.directory.glob("pending-move-*"))
+        if (self.directory / "pending-hybrid").exists():
+            pending.append(self.directory / "pending-hybrid")
+        if not pending or not (self.directory / "current.json").exists():
+            return
+        _, (state, _) = read_snapshot(self.directory, self._read_snapshot)
+        for path in pending:
+            data = load_data(path / "proposal.json")
+            if data["context"]["step"] <= state["step"]:
+                shutil.rmtree(path)
 
-        return verified
+    def _save_checkpoint(self, step, force=False):
+        pending_paths = list(self.directory.glob("pending-move-*"))
+        if (self.directory / "pending-hybrid").exists():
+            pending_paths.append(self.directory / "pending-hybrid")
+        force = force or bool(pending_paths)
+        if not force and not (self.ckpt_period > 0 and step % self.ckpt_period == 0):
+            return
+        destination = self.directory / f"checkpoint.{step}"
+        if destination.exists() and not pending_paths:
+            self._read_snapshot(destination)
+            return
+        staging = self.directory / f"staging-checkpoint-{step}"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+        save_accepted_state(staging / "structure.json", self.atoms, self.energy_stored)
+        save_data(staging / "state.json", dict(version=2, step=step,
+                  operators=[op.as_dict() for op in self.operators], rng=self.rng.bit_generator.state,
+                  output_sizes={name: (self.directory / name).stat().st_size
+                                for name in (self.TRAJ_NAME, "mc_attempts.xyz", self.INFO_NAME)
+                                if (self.directory / name).exists()}))
+        publish_snapshot(self.directory, staging, destination, "checkpoint.")
+        for pending in pending_paths:
+            shutil.rmtree(pending)
 
-    def _save_checkpoint(self, step):
-        """Save the current Monte Carlo state."""
-        if self.ckpt_period > 0 and (step % self.ckpt_period == 0):
-            self._print("SAVE CHECKPOINT...")
-            ckpt_wdir = self.directory / f"checkpoint.{step}"
-            ckpt_wdir.mkdir(parents=True, exist_ok=True)
-            # - save the structure
-            write(ckpt_wdir / "structure.xyz", self.atoms)
-            save_accepted_state(ckpt_wdir / "structure.pkl", self.atoms, self.energy_stored)
-            # Checkpoints store configuration, never objects with live Atoms references.
-            with (ckpt_wdir / "operators.pkl").open("wb") as stream:
-                pickle.dump({"version": 1, "operators": [op.as_dict() for op in self.operators]}, stream)
-            # - save the random state
-            with open(ckpt_wdir / "rng.ckpt", "wb") as fopen:
-                pickle.dump(self.rng.bit_generator.state, fopen)
-        else:
-            ...
-
-        return
+    @staticmethod
+    def _read_snapshot(path):
+        state = load_data(path / "state.json")
+        if state.get("version") != 2:
+            raise ValueError("Unsupported MC checkpoint version; start a new run.")
+        return state, load_accepted_state(path / "structure.json")
 
     def _load_checkpoint(self):
         """Load the current Monet Carlo checkpoint.
@@ -405,24 +422,12 @@ class MonteCarlo(BaseExpedition):
         Also, the computation folders beyond the checkpoint step will be removed.
 
         """
-        # Find the latest checkpoint
-        ckpt_wdir = sorted(
-            self.directory.glob("checkpoint.*"),
-            key=lambda x: int(str(x.name).split(".")[-1]),
-        )[-1]
-        step = int(ckpt_wdir.name.split(".")[-1])
-        self._print(f"===== LOAD CHECKPOINT STEP {step} =====")
-
-        operator_path = ckpt_wdir / "operators.pkl"
-        if not operator_path.exists():
+        if not (self.directory / "current.json").exists():
             raise ValueError("Legacy MC operator checkpoint is not supported; start a new run.")
-        with operator_path.open("rb") as stream:
-            operator_data = pickle.load(stream)
-        if operator_data.get("version") != 1:
-            raise ValueError("Unsupported MC operator checkpoint version; start a new run.")
-        self.operators, self.op_probs = parse_operators(operator_data["operators"])
-
-        self.atoms = load_accepted_state(ckpt_wdir / "structure.pkl")
+        ckpt_wdir, (state, self.atoms) = read_snapshot(self.directory, self._read_snapshot)
+        prune_snapshots(self.directory, "checkpoint.")
+        step = state["step"]
+        self.operators, self.op_probs = parse_operators(state["operators"])
         self._attach_bond_length_minimum_list()
 
         # Add print functions to operators
@@ -438,9 +443,7 @@ class MonteCarlo(BaseExpedition):
 
         # Load random state
         self._print("Load random state.")
-        with open(ckpt_wdir / "rng.ckpt", "rb") as fopen:
-            rng_state = pickle.load(fopen)
-        self.rng.bit_generator.state = rng_state
+        self.rng.bit_generator.state = state["rng"]
 
         # Load structure
         self._print("Load structure.")

@@ -107,8 +107,17 @@ named RNG streams, including population selection. Restart with the same
 recipe and directory to resume queued work. Results are matched by trial ID,
 and acceptance uses chain order independently of result arrival order.
 
+Checkpoints use versioned JSON metadata and uncompressed NumPy `.npz` arrays,
+loaded without pickle. Only the latest and previous committed rounds and the
+current pending batch are retained. A damaged latest snapshot falls back to the
+previous one. `events.jsonl` records candidate IDs, acceptance decisions, and
+segment changes; structures remain in `candidates.db`, including rejected minima.
+Together they allow trajectories to be reconstructed without storing every full
+round. After generation finalization, full round snapshots are removed; the
+event journal and `final.json` completion metadata remain.
+
 Remove the former `recipe.mcworker` and move its calculation settings into
-`runtime`. Older serial-chain and pre-replacement round checkpoints cannot resume an
+`runtime`. Older pickle, serial-chain, and pre-replacement round checkpoints cannot resume an
 in-progress generation with this implementation. Completed history remains
 readable; minima from older worker outputs are not backfilled automatically. Round ordering also changes trajectories for old
 random seeds; new runs are reproducible across restart boundaries.

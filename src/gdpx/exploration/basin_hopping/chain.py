@@ -1,15 +1,19 @@
 """Restartable BH rounds. Workers own evaluation; BH owns acceptance."""
 import copy
-import pickle
+import json
+import os
+import shutil
 from contextlib import ExitStack
 from dataclasses import dataclass
 
+import ase.db
 from ase import Atoms
 from ase.io import write
 
 from gdpx.sampling import select_operator
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
-from ..accepted_state import load_accepted_state, save_accepted_state
+from ..accepted_state import load_accepted_state, save_accepted_state, load_structure, save_structure
+from ..checkpoint import save_data, load_data, publish_snapshot, read_snapshot, prune_snapshots
 from ..generation import EvaluationStatus
 
 
@@ -41,22 +45,9 @@ def retrieve_batch(identifiers, worker, archive=False):
     return [results[identifier] for identifier in identifiers]
 
 
-def _save(path, value):
-    with path.open("wb") as stream:
-        pickle.dump(value, stream)
-
-
-def _load(path):
-    with path.open("rb") as stream:
-        return pickle.load(stream)
-
-
-def _load_trial(path):
-    values = _load(path)
-    constraints = values.pop("constraints", [])
-    atoms = Atoms.fromdict(values)
-    atoms.set_constraint(constraints)
-    return atoms
+_save = save_data
+_load = load_data
+_load_trial = load_structure
 
 
 @dataclass
@@ -68,30 +59,78 @@ class HoppingResult:
 
 def _commit(directory, step, atoms, states, rng, total_steps, context=None):
     staging = directory / f"staging-{step:06d}"
-    staging.mkdir(parents=True, exist_ok=True)
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
     for index, frame in enumerate(atoms):
-        save_accepted_state(staging / f"accepted-{index:06d}.pkl", frame, frame.get_potential_energy())
-    _save(staging / "state.pkl", dict(version=4, step=step, total_steps=total_steps,
-                                     count=len(atoms), states=states, rng=rng.bit_generator.state, context=context))
-    staging.rename(directory / f"round-{step:06d}")
+        save_accepted_state(staging / f"accepted-{index:06d}.json", frame, frame.get_potential_energy())
+    journal = directory / "events.jsonl"
+    with journal.open("r+b" if journal.exists() else "w+b") as stream:
+        stream.truncate(context.get("journal_offset", 0))
+        stream.seek(0, 2)
+        event = dict(step=step, decisions=states[-1] if step else [0] * len(atoms),
+                     candidates=context["current_ids"], segments=context["segments"],
+                     sources=context["segment_starts"])
+        stream.write((json.dumps(event) + "\n").encode())
+        stream.flush()
+        os.fsync(stream.fileno())
+        offset = stream.tell()
+    saved_context = dict(context, journal_offset=offset)
+    _save(staging / "state.json", dict(version=5, step=step, total_steps=total_steps,
+                                      count=len(atoms), rng=rng.bit_generator.state, context=saved_context))
+    publish_snapshot(directory, staging, directory / f"round-{step:06d}", "round-")
+    context["journal_offset"] = offset
+    for pending in directory.glob("pending-*"):
+        if int(pending.name.split('-')[1]) <= step:
+            shutil.rmtree(pending)
 
 
-def _write_trajectories(directory, states, count):
+def _read_round(path):
+    state = _load(path / "state.json")
+    if state.get("version") != 5:
+        raise ValueError("Unsupported BH checkpoint version; start a new run.")
+    atoms = [load_accepted_state(path / f"accepted-{i:06d}.json") for i in range(state["count"])]
+    journal = path.parent / "events.jsonl"
+    if journal.stat().st_size < state["context"]["journal_offset"]:
+        raise ValueError("Incomplete BH event journal.")
+    return state, atoms
+
+
+def _write_trajectories(directory, count, read_candidate, offset):
     target = directory.parent / "mctrajs"
     target.mkdir(exist_ok=True)
-    for index in range(count):
-        for step in [0] + [i + 1 for i, values in enumerate(states) if values[index] in (0, 4)]:
-            frame = load_accepted_state(directory / f"round-{step:06d}" / f"accepted-{index:06d}.pkl")
-            saved = _load(directory / f"round-{step:06d}" / "state.pkl")
-            context = saved["context"]
-            frame.info.update(mcstep=step, segment=context["segments"][index],
-                              source_confid=context["segment_starts"][index],
-                              event="start" if step == 0 else ("restart" if states[step - 1][index] == 4 else "accepted"))
-            write(target / f"mc-{index:04d}.xyz", frame, append=step != 0)
+    with (directory / "events.jsonl").open('rb') as stream:
+        while stream.tell() < offset:
+            event = json.loads(stream.readline())
+            for index in range(count):
+                decision = event["decisions"][index]
+                if event["step"] and decision not in (0, 4):
+                    continue
+                frame = read_candidate(event["candidates"][index])
+                frame.info.update(mcstep=event["step"], segment=event["segments"][index],
+                                  source_confid=event["sources"][index],
+                                  event="start" if not event["step"] else ("restart" if decision == 4 else "accepted"))
+                write(target / f"mc-{index:04d}.xyz", frame, append=event["step"] != 0)
+
+
+def finalize_checkpoints(directory):
+    """Keep history and small final metadata after database finalization."""
+    if (directory / 'final.json').exists():
+        _load(directory / 'final.json')
+    elif (directory / 'current.json').exists():
+        _, (state, _) = read_snapshot(directory, _read_round)
+        _save(directory / 'final.json', state)
+    else:
+        return
+    for pattern in ('round-*', 'pending-*', 'staging-*', 'proposing-*'):
+        for path in directory.glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path)
+    (directory / 'current.json').unlink(missing_ok=True)
 
 
 def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory,
-                       archive=False, record_trial=None, restart_chains=None, random_streams=None):
+                       archive=False, record_trial=None, restart_chains=None, random_streams=None, read_candidate=None):
     """Advance a generation through round barriers, returning when work is pending.
 
     Pending inputs are durable before submission. Live proposals borrow distinct
@@ -102,29 +141,44 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     when a registry is supplied, including replacement-selection randomness.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    completed = sorted(directory.glob("round-*"))
-    if completed:
-        state = _load(completed[-1] / "state.pkl")
-        if state.get("version") != 4 or state["total_steps"] != mcsteps or state["count"] != len(starts):
+    # Standalone coordinators use an ASE history database; the engine supplies
+    # its existing candidate database, so scientific structures are stored once.
+    history = None
+    if read_candidate is None:
+        history = ase.db.connect(directory / 'history.db')
+        read_candidate = lambda identifier: history.get_atoms(identifier, add_additional_information=True)
+    def history_record(frame, key):
+        rows = list(history.select(event_key=key))
+        return rows[0].id if rows else history.write(frame, event_key=key)
+
+    if (directory / 'current.json').exists():
+        checkpoint, (state, atoms) = read_snapshot(directory, _read_round)
+        if state["total_steps"] != mcsteps or state["count"] != len(starts):
             raise ValueError("Incompatible BH round checkpoint; use the original recipe or start a new run.")
-        atoms = [load_accepted_state(completed[-1] / f"accepted-{i:06d}.pkl") for i in range(len(starts))]
         rng.bit_generator.state = state["rng"]
-        step, states = state["step"], state["states"]
+        step, states = state["step"], []
         context = state["context"]
         if random_streams is not None:
             random_streams.restore(context["random_states"])
     else:
+        if any(directory.glob('round-*')) or any(directory.glob('pending-*')):
+            raise ValueError("Legacy BH checkpoint is not supported; start a new run.")
         atoms = list(starts)
         step, states = 0, []
+        ids = [history_record(a, f'start:{i}') if history is not None else a.info['confid'] for i, a in enumerate(atoms)]
         context = dict(segments=[0] * len(atoms), segment_starts=[a.info.get("confid") for a in atoms],
-                       terminated=[], exhausted=False,
+                       current_ids=ids, journal_offset=0, terminated=[], exhausted=False,
                        random_states=random_streams.snapshot() if random_streams is not None else {})
         _commit(directory, 0, atoms, states, rng, mcsteps, context)
+    prune_snapshots(directory, "round-")
+    for pending in directory.glob("pending-*"):
+        if int(pending.name.split('-')[1]) <= step:
+            shutil.rmtree(pending)
     numbers = infer_unique_atomic_numbers(operators, substrates=atoms)
     for op in operators:
         prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
                           getattr(op, "custom_pair_distance_dict", None))
-    _write_trajectories(directory, states, len(atoms))
+    _write_trajectories(directory, len(atoms), read_candidate, context["journal_offset"])
 
     if context["exhausted"]:
         return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
@@ -132,19 +186,21 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         pending = directory / f"pending-{step:06d}"
         worker.directory = directory.parent / "evaluations" / f"round-{step:06d}"
         if pending.exists():
-            data = _load(pending / "proposal.pkl")
-            if data.get("version") != 4:
+            data = _load(pending / "proposal.json")
+            if data.get("version") != 5:
                 raise ValueError("Unsupported BH pending round checkpoint; start a new run.")
             rng.bit_generator.state = data["rng"]
             if random_streams is not None:
                 random_streams.restore(data["random_states"])
-            trials = [_load_trial(pending / f"trial-{i:06d}.pkl")
+            trials = [_load_trial(pending / f"trial-{i:06d}.json")
                       for i, entry in enumerate(data["entries"]) if entry["valid"]]
             if trials:
                 worker.run(trials)
         else:
             staging = directory / f"proposing-{step:06d}"
-            staging.mkdir(exist_ok=True)
+            if staging.exists():
+                shutil.rmtree(staging)
+            staging.mkdir()
             entries, trials = [], []
             with ExitStack() as stack:
                 for index, accepted in enumerate(atoms):
@@ -159,11 +215,11 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     stack.enter_context(proposal)
                     proposal.set_info("confid", index)
                     entry["tags"] = accepted.get_tags()
-                    _save(staging / f"trial-{index:06d}.pkl", accepted.todict())
+                    save_structure(staging / f"trial-{index:06d}.json", accepted)
                     trials.append(accepted)
-                data = dict(version=4, entries=entries, rng=copy.deepcopy(rng.bit_generator.state),
+                data = dict(version=5, entries=entries, rng=copy.deepcopy(rng.bit_generator.state),
                             random_states=random_streams.snapshot() if random_streams is not None else {})
-                _save(staging / "proposal.pkl", data)
+                _save(staging / "proposal.json", data)
                 staging.rename(pending)
                 if trials:
                     worker.run(trials)
@@ -185,6 +241,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
             if record_trial is not None:
                 extinct = record_trial(step, index, trial, accepted, atoms[index].info["confid"],
                                        context["segments"][index], context["segment_starts"][index])
+            identifier = history_record(trial, f"trial:{step}:{index}") if history is not None else trial.info["confid"]
             if accepted and extinct:
                 decisions.append(3)  # Termination; never propose from this trial.
                 terminated.append(index)
@@ -192,11 +249,12 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                 decisions.append(0 if accepted else 1)
                 if accepted:
                     atoms[index] = trial
+                    context["current_ids"][index] = identifier
         # Refresh only after every result has been recorded so selection sees
         # the same complete round, independent of retrieval or ingestion order.
         context["terminated"] = terminated
         if terminated and step < mcsteps:
-            replacements = restart_chains(terminated) if restart_chains is not None else []
+            replacements = restart_chains(terminated, step) if restart_chains is not None else []
             if not replacements:
                 context["exhausted"] = True
             else:
@@ -204,14 +262,16 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     raise RuntimeError("BH restart must replace every terminated chain.")
                 for index, replacement in zip(terminated, replacements):
                     atoms[index] = replacement
+                    context["current_ids"][index] = (history_record(replacement, f"restart:{step}:{index}") if history is not None
+                                                     else replacement.info["confid"])
                     context["segments"][index] += 1
                     context["segment_starts"][index] = replacement.info["confid"]
                     decisions[index] = 4
                 context["terminated"] = []
-        states.append(decisions)
+        states = [decisions]
         context["random_states"] = random_streams.snapshot() if random_streams is not None else {}
         _commit(directory, step, atoms, states, rng, mcsteps, context)
-        _write_trajectories(directory, states, len(atoms))
+        _write_trajectories(directory, len(atoms), read_candidate, context["journal_offset"])
         if context["exhausted"]:
             return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
     return HoppingResult(EvaluationStatus.FINISHED,

@@ -147,9 +147,12 @@ sizes and the extinction policy cannot change on restart.
 
 GA retains its reproduction and mutation plan. BH additionally checkpoints each
 completed batch round under `tmp_folder/gen*/rounds/round-*`, including all
-accepted structures and random state. Pending rounds persist trials before
-submission and resume through the worker; committed rounds are not repeated. These checkpoints are separate
-from the XYZ trajectories used for inspection.
+accepted structures and random state in JSON and non-pickled NumPy arrays.
+Only two committed snapshots are retained, plus the current pending batch.
+Pending rounds persist trials before submission and resume through the worker.
+A compact event journal references candidate structures in the database; full
+snapshots are removed after generation finalization. These checkpoints are
+separate from the XYZ trajectories used for inspection.
 
 Legacy BH runs with pending inputs that lack generation metadata cannot be
 resumed; start a new run for those inputs.
