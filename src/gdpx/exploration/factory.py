@@ -15,7 +15,6 @@ RECIPE_METHODS = {
     "genetic_algorithm",
     "monte_carlo",
     "basin_hopping",
-    "concurrent_hopping",
     "simulated_annealing",
 }
 
@@ -61,7 +60,12 @@ def create_expedition(config):
         method = parameters.pop("method")
     except KeyError as error:
         raise ValueError("Exploration configuration requires a top-level 'method'.") from error
+    if method == "concurrent_hopping":
+        raise ValueError("concurrent_hopping was renamed to basin_hopping; keep the concurrent-hopping recipe.")
     parameters = _recipe_parameters(method, parameters)
+    if method == "basin_hopping" and "population" not in parameters:
+        raise ValueError("basin_hopping now uses the concurrent-hopping population recipe; "
+                         "for the former MC alias use method: monte_carlo.")
     random_seed = parameters.get("random_seed")
     if random_seed is None:
         random_seed = int(np.random.randint(0, 1_000_000_000_000))

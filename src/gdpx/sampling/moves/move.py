@@ -14,7 +14,7 @@ from gdpx.structures.geometry.bounce import get_a_random_direction
 from gdpx.structures.geometry.particle import translate_then_rotate
 from gdpx.structures.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import BaseMCOperator, metropolis_by_energy_difference
+from .operator import BaseMCOperator
 
 
 class MoveOperator(BaseMCOperator):
@@ -45,10 +45,10 @@ class MoveOperator(BaseMCOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
+    def _propose(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check particles in the region
-        super().run(atoms)
+        super()._propose(atoms, rng)
         self._extra_info = "-"
 
         # We need covalent bond distanes for neighbour check
@@ -93,6 +93,7 @@ class MoveOperator(BaseMCOperator):
         # TODO: Deal with pbc for molecules
         org_cop = np.mean(particle.positions, axis=0)
         org_positions = particle.positions.copy()
+        self._transaction.watch(particle_indices)
 
         self._state = {
             "picked_indices": particle_indices,
@@ -131,37 +132,6 @@ class MoveOperator(BaseMCOperator):
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> Atoms:
-        """Revert the state of atoms."""
-        picked_indices = self._state.get("picked_indices")
-        before_positions = self._state.get("before_positions")
-
-        atoms.positions[picked_indices] = before_positions
-
-        return atoms
-
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """Metropolis criterion for the move operator."""
-        success = metropolis_by_energy_difference(
-            prev_ene=prev_ene,
-            curr_ene=curr_ene,
-            temperature=self.temperature,
-            region=self.region,
-            rng=rng,
-            indent=self.indent,
-            print_func=self._print,
-        )
-
-        if not success:
-            assert self._atoms is not None, "Atoms should not be None when reverting state."
-            self.revert_state(self._atoms)
-        else:
-            ...
-
-        self._state = {}
-        self._atoms = None
-
-        return success
 
     def as_dict(self) -> dict:
         """"""

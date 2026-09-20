@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-import pickle
+import copy
 
 import numpy as np
 
-from .operators import (
+from .moves import (
     AdsorbateExchangeOperator,
     BiasedVolumeExchangeOperator,
     BounceOperator,
@@ -19,23 +15,7 @@ from .operators import (
 )
 
 
-def save_operator(op, p):
-    """"""
-    with open(p, "wb") as fopen:
-        pickle.dump(op, fopen)
-
-    return
-
-
-def load_operator(p):
-    """"""
-    with open(p, "rb") as fopen:
-        op = pickle.load(fopen)
-
-    return op
-
-
-def select_operator(operators: list, probs: list[float], rng: np.random.Generator = np.random.default_rng()):
+def select_operator(operators: list, probs: list[float], rng: np.random.Generator):
     """Select an operator based on the relative probabilities."""
     num_operators = len(operators)
     op_idx = rng.choice(num_operators, 1, p=probs)[0]
@@ -51,7 +31,8 @@ def parse_operators(op_params: list[dict]):
 
     """
     operators, probs = [], []
-    for param in op_params:
+    for raw_param in op_params:
+        param = copy.deepcopy(raw_param)
         if "prob" in param:
             raise ValueError("Legacy operator key 'prob' is not supported; use 'probability'.")
         name = param.pop("method", "move")
@@ -80,7 +61,10 @@ def parse_operators(op_params: list[dict]):
         probs.append(prob)
 
     # - reweight probabilities
-    probs = (np.array(probs) / np.sum(probs)).tolist()
+    if probs:
+        if not np.all(np.isfinite(probs)) or np.any(np.array(probs) < 0) or sum(probs) <= 0:
+            raise ValueError("Operator probabilities must be finite, nonnegative, and have a positive sum.")
+        probs = (np.array(probs) / np.sum(probs)).tolist()
 
     return operators, probs
 

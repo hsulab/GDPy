@@ -122,7 +122,7 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             check_distance_func = None
 
         # Create the find site function
-        site_params = self.anchors.get(particle, self.anchors["_default"])
+        site_params = self.anchors.get(particle, self.anchors.get("_default"))
 
         find_sites_func = functools.partial(
             find_adsorption_sites_by_graph,
@@ -133,7 +133,8 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
         )
 
         # Insert the particle
-        _, info = insert_one_particle_on_site(
+        self._transaction.before_append()
+        inserted, info = insert_one_particle_on_site(
             atoms=new_atoms,
             particle=adpart,
             find_sites_func=find_sites_func,
@@ -147,6 +148,9 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
             rng=rng,
         )
 
+        if inserted is None:
+            self._extra_info = "Insert_Failed"
+            return None
         _, _, state, num_attempts = info.split("_")
         if state == "success":
             self._print(self.indent + f"succeed to insert after {num_attempts} attempts...")
@@ -187,39 +191,19 @@ class AdsorbateExchangeOperator(BasicExchangeOperator):
         self._state["removed_particle"] = removed_particle
 
         # Remove then
-        del new_atoms[atomic_indices]
+        self._transaction.delete(atomic_indices)
 
         # Update info
         self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> None:
-        """"""
-        operation = self._state.get("operation")
-        if operation == "insert":
-            atomic_indices = self._state.get("atomic_indices")
-            del atoms[atomic_indices]
-        elif operation == "remove":
-            # The removed particle will be added to the end of the atoms,
-            # the order of atoms has changed but the tags are preserved.
-            removed_particle = self._state.get("removed_particle")
-            atoms.extend(removed_particle)
-        else:
-            raise ValueError(f"Unknown operation: {operation}")
 
-        return
-
-    def metropolis(
-        self,
-        prev_ene: float,
-        curr_ene: float,
-        rng: np.random.Generator = np.random.default_rng(),
-    ) -> bool:
-        """This uses a naive metropolis criterion that breaks detailed balance."""
-        success = super().metropolis(prev_ene, curr_ene, rng)
-
-        return success
+    def as_dict(self):
+        params = super().as_dict()
+        params["anchors"] = (copy.deepcopy(self.anchors["_default"]) if "_default" in self.anchors
+                             else [copy.deepcopy(self.anchors[p]) for p in self.particles])
+        return params
 
 
 if __name__ == "__main__":

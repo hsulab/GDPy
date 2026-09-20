@@ -6,17 +6,18 @@ from typing import Union
 
 import numpy as np
 from ase import Atoms, data
-from ase.formula import Formula
 from ase.io import read, write
 
-from gdpx.structures.geometry.spatial import get_bond_distance_dict
-from gdpx.utils.strconv import dictionary_to_string, integers_to_string
+from gdpx.utils.strconv import integers_to_string
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
 from ..expedition import BaseExpedition
-from .operators.operator import BaseMCOperator
-from .utils import load_operator, parse_operators, save_operator, select_operator
+from ..move_step import read_pending, run_worker_move
+from ..accepted_state import load_accepted_state, save_accepted_state
+from gdpx.sampling.moves.operator import BaseMCOperator
+from gdpx.sampling import parse_operators
+from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
@@ -180,37 +181,10 @@ class MonteCarlo(BaseExpedition):
 
     def _attach_bond_length_minimum_list(self):
         """Find possible elements in the simulation and build a bond-distance list."""
-        # TODO: we need further unify the interface to get all atomic types in simulation
-        type_list = []
-        for op in self.operators:
-            if hasattr(op, "particles"):
-                for p in op.particles:
-                    type_list.extend(list(Formula(p).count().keys()))
-            elif hasattr(op, "species"):
-                type_list.extend(list(Formula(op.species).count().keys()))
-            else:
-                ...
-
-        type_list = sorted(list(set(type_list + self.atoms.get_chemical_symbols())))
-        self._print(f"possible atomic types in simulation: {' '.join(type_list)}")
-        unique_atomic_numbers = [data.atomic_numbers[a] for a in type_list]
-
-        for op in self.operators:
-            op.blmin = get_bond_distance_dict(
-                unique_atomic_numbers=unique_atomic_numbers,
-                ratio=op.covalent_min,
-            )
-            op.bond_distance_dict = get_bond_distance_dict(
-                unique_atomic_numbers=unique_atomic_numbers,
-                ratio=1.0,
-            )
-
-        # TODO: Do not support custom pair distance yet
-        custom_pair_distance_dict = None
+        numbers = infer_unique_atomic_numbers(self.operators, substrates=[self.atoms])
         if hasattr(self.builder, "get_custom_pair_distance_dict"):
-            raise Exception("Monte Carlo does not supported custom pair distance yet.")
-        for op in self.operators:
-            op.custom_pair_distance_dict = custom_pair_distance_dict
+            raise ValueError("Monte Carlo does not support custom pair distances yet.")
+        prepare_operators(self.operators, numbers)
 
         return
 
@@ -274,7 +248,13 @@ class MonteCarlo(BaseExpedition):
         if not converged:
             # Check if we start from scratch or restart from a checkpoint
             step_converged = False
-            if not self._verify_checkpoint():
+            pending = sorted(self.directory.glob("pending-move-*"), key=lambda p: int(p.name.rsplit("-", 1)[1]))
+            if pending:
+                self.atoms, pending_data = read_pending(pending[-1], self.rng)
+                self.energy_stored = pending_data["energy"]
+                self.start_step = pending_data["context"]["step"] - 1
+                step_converged = True
+            elif not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
                 step_converged = True
@@ -326,80 +306,29 @@ class MonteCarlo(BaseExpedition):
         return
 
     def _irun(self, istep: int) -> MCStepState:
-        """Run a single MC step."""
+        """Run a move without retaining a mutated accepted structure while waiting."""
         self._print(f"===== MC Step {istep} =====")
-        self._print(f"RANDOM_SEED:  {self.random_seed}")
-        for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
-            self._print(l)
-
-        self.worker: SingleWorker
         self.worker.wdir_name = f"{self.WDIR_PREFIX}{istep}"
-
-        # Operate atoms
-        curr_op = select_operator(self.operators, self.op_probs, self.rng)
-        self._print(f"  operator {curr_op.name}")
-        self.atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
-        curr_atoms = curr_op.run(self.atoms, self.rng)
-        if curr_atoms:  # is not None
-            # Add info to atoms and remove step info from driver
-            curr_atoms.info["confid"] = int(f"{istep}")
-            curr_atoms.info["step"] = -1
-            write(self.directory / "mc_attempts.xyz", curr_atoms, append=True)
-        else:
-            success = False
-            self._save_step_info(curr_op, istep, success, prev_ene=self.energy_stored, curr_ene=np.inf)
-            self._print("  FAILED to run operation...")
-
-        # Run postprocess
-        if curr_atoms is not None:
-            # Save tags
-            curr_tags = curr_atoms.get_tags()
-
-            # Run postprocess (spc, min or md)
-            _ = self.worker.run([curr_atoms], read_ckpt=True)
-            self.worker.inspect(resubmit=True)
-            if self.worker.get_number_of_running_jobs() == 0:
-                curr_atoms = self.worker.retrieve()[0][-1]
-                curr_atoms.set_tags(curr_tags)
-
-                self.energy_operated = curr_atoms.get_potential_energy()
-                self._print(f"  ene {self.energy_stored:>18.4f} -> {self.energy_operated:>18.4f}")
-
-                # run metropolis
-                success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-                self._save_step_info(
-                    curr_op, istep, success, prev_ene=self.energy_stored, curr_ene=self.energy_operated
-                )
-
-                if success:
-                    self.energy_stored = self.energy_operated
-                    self.atoms = curr_atoms
-                    self._print("  <<< success")
-                else:
-                    # atoms should be reverted in metropolis
-                    self._print("  <<< revert")
-
-                write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
-
-                # Check earlystopping,
-                # We earlystop the simulation at the end of each step and use
-                # the MC-updated atoms, which may be unaccepted (failure) and
-                # further lead the inconsistency in the final saved structure.
-                # After several tests, it is better to check on accepted structures
-                # so ignore the below comment
-                step_state = self._check_earlystop(self.atoms)
-
-            else:
-                step_state = MCStepState.UNFINISHED
-        else:
-            # Save the previous structure as the current operation gives no structure.
-            if self.should_retry:
-                step_state = MCStepState.FAILED
-            else:
-                write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
-                step_state = MCStepState.FINISHED
-
-        return step_state
+        result = run_worker_move(
+            self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
+            self.worker, self.directory / f"pending-move-{istep}",
+            info={"confid": istep, "step": -1},
+            attempts_path=self.directory / "mc_attempts.xyz",
+            resume_context={"step": istep},
+        )
+        self.atoms = result.atoms
+        if result.accepted is None:
+            self.energy_stored = result.energy
+            return MCStepState.UNFINISHED
+        self.energy_operated = result.energy if result.valid else np.inf
+        self._save_step_info(result.operator, istep, result.accepted,
+                             self.energy_stored, self.energy_operated, result.diagnostic)
+        if result.accepted:
+            self.energy_stored = result.energy
+        if not result.valid and self.should_retry:
+            return MCStepState.FAILED
+        write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
+        return self._check_earlystop(self.atoms)
 
     def _check_earlystop(self, atoms: Atoms) -> MCStepState:
         """Check whether earlystopping should be done to avoid unphysical structures.
@@ -452,12 +381,13 @@ class MonteCarlo(BaseExpedition):
         if self.ckpt_period > 0 and (step % self.ckpt_period == 0):
             self._print("SAVE CHECKPOINT...")
             ckpt_wdir = self.directory / f"checkpoint.{step}"
-            ckpt_wdir.mkdir(parents=True)
+            ckpt_wdir.mkdir(parents=True, exist_ok=True)
             # - save the structure
             write(ckpt_wdir / "structure.xyz", self.atoms)
-            # - save operator state
-            for i, op in enumerate(self.operators):
-                save_operator(op, ckpt_wdir / f"op-{i}.ckpt")
+            save_accepted_state(ckpt_wdir / "structure.pkl", self.atoms, self.energy_stored)
+            # Checkpoints store configuration, never objects with live Atoms references.
+            with (ckpt_wdir / "operators.pkl").open("wb") as stream:
+                pickle.dump({"version": 1, "operators": [op.as_dict() for op in self.operators]}, stream)
             # - save the random state
             with open(ckpt_wdir / "rng.ckpt", "wb") as fopen:
                 pickle.dump(self.rng.bit_generator.state, fopen)
@@ -483,18 +413,16 @@ class MonteCarlo(BaseExpedition):
         step = int(ckpt_wdir.name.split(".")[-1])
         self._print(f"===== LOAD CHECKPOINT STEP {step} =====")
 
-        # Load states of operators
-        op_files = sorted(
-            ckpt_wdir.glob("op-*.ckpt"),
-            key=lambda x: int(str(x.name).split(".")[0][3:]),
-        )
+        operator_path = ckpt_wdir / "operators.pkl"
+        if not operator_path.exists():
+            raise ValueError("Legacy MC operator checkpoint is not supported; start a new run.")
+        with operator_path.open("rb") as stream:
+            operator_data = pickle.load(stream)
+        if operator_data.get("version") != 1:
+            raise ValueError("Unsupported MC operator checkpoint version; start a new run.")
+        self.operators, self.op_probs = parse_operators(operator_data["operators"])
 
-        saved_operators = []
-        for op_file in enumerate(op_files):
-            saved_operator = load_operator(op_file)
-            saved_operators.append(saved_operator)
-        self.operators = saved_operators
-
+        self.atoms = load_accepted_state(ckpt_wdir / "structure.pkl")
         self._attach_bond_length_minimum_list()
 
         # Add print functions to operators
@@ -517,7 +445,6 @@ class MonteCarlo(BaseExpedition):
         # Load structure
         self._print("Load structure.")
         self.start_step = step
-        self.atoms = read(ckpt_wdir / "structure.xyz")
         self.energy_stored = self.atoms.get_potential_energy()
 
         # Reset mctraj
@@ -560,9 +487,8 @@ class MonteCarlo(BaseExpedition):
 
         return
 
-    def _save_step_info(self, curr_op: BaseMCOperator, istep: int, success: bool, prev_ene: float, curr_ene: float):
-        """"""
-        extra_info = getattr(curr_op, "_extra_info", "-")
+    def _save_step_info(self, curr_op: BaseMCOperator, istep: int, success: bool, prev_ene: float, curr_ene: float, extra_info: str = "-"):
+        """Record an attempt without storing transient state on its operator."""
 
         num_atoms = len(self.atoms)
         with open(self.directory / self.INFO_NAME, "a") as fopen:

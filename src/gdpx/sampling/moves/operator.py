@@ -3,7 +3,7 @@ import copy
 from typing import Any, Callable, Optional
 
 import numpy as np
-from ase import Atoms, data, units
+from ase import Atoms, data
 
 from gdpx.structures.regions.factory import create_region
 
@@ -85,6 +85,42 @@ class BaseMCOperator(abc.ABC):
         return
 
     @property
+    def acceptance(self):
+        from ..acceptance import acceptance_for
+        return acceptance_for(self)
+
+    def propose(self, atoms: Atoms, rng: np.random.Generator):
+        """Borrow atoms for one transaction; configuration keeps no trial state."""
+        from ..proposal import MoveProposal
+        proposal = MoveProposal(atoms)
+        try:
+            attempt = copy.copy(self)
+            attempt.region = copy.copy(self.region)
+            attempt._state = {}
+            attempt._atoms = None
+            attempt._transaction = proposal
+            trial = attempt._propose(atoms, rng)
+            proposal.diagnostic = getattr(attempt, "_extra_info", "-")
+            if trial is None:
+                proposal.valid = False
+                proposal.rollback()
+            else:
+                if trial is not atoms:
+                    raise RuntimeError("Moves must return their borrowed Atoms object.")
+                # Only scalar acceptance context escapes the short-lived attempt.
+                keys = ("operation", "num_particles", "volume", "symm_factor", "first_ptype", "second_ptype")
+                proposal.metadata = {key: attempt._state[key] for key in keys if key in attempt._state}
+                if self.name == "react":
+                    proposal.metadata.update(direction=attempt._direction,
+                                             particle_numbers=attempt._curr_particle_numbers,
+                                             volume=attempt._curr_volume)
+        except BaseException:
+            if not proposal.closed:
+                proposal.rollback()
+            raise
+        return proposal
+
+    @property
     def state(self) -> dict:
         """Get the state of the operator."""
         return self._state
@@ -141,8 +177,7 @@ class BaseMCOperator(abc.ABC):
             )
         else:
             picked_tag = None
-            species_indices = None
-            raise RuntimeError(f"{self.__class__.__name__} does not have {particles}.")
+            species_indices = []
 
         return species_indices
 
@@ -232,7 +267,7 @@ class BaseMCOperator(abc.ABC):
         return any([s == "invalid" for s in status_])
 
     @abc.abstractmethod
-    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
+    def _propose(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """Modify the input atoms.
 
         Returns:
@@ -244,11 +279,6 @@ class BaseMCOperator(abc.ABC):
 
         ...
 
-    @abc.abstractmethod
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """Monte Carlo."""
-
-        ...
 
     def as_dict(self) -> dict:
         """"""
@@ -263,44 +293,9 @@ class BaseMCOperator(abc.ABC):
         params["allow_isolated"] = self.allow_isolated
         params["skip_distance_check"] = self.skip_distance_check
         params["probability"] = self.probability
+        params["max_random_attempts"] = self.MAX_RANDOM_ATTEMPTS
 
         params = copy.deepcopy(params)
 
         return params
 
-
-def metropolis_by_energy_difference(
-    prev_ene: float,
-    curr_ene: float,
-    temperature: float,
-    region,
-    rng: np.random.Generator = np.random.default_rng(),
-    indent: str = "",
-    print_func: Callable = print,
-) -> bool:
-    """"""
-    # Temperature parameters
-    kBT_eV = units.kB * temperature
-    beta = 1.0 / kBT_eV  # 1/(kb*T), eV
-
-    # Compute the prefactor
-    prefactor = 1.0
-    region_volume = region.get_volume()
-
-    # Propability of acceptance
-    ene_diff = curr_ene - prev_ene
-    acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_diff))])
-    ran_ratio = rng.uniform()
-
-    # Some log information
-    content = "--> mcstate\n"
-    content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
-    content += f"Prefactor {prefactor:>12.4f}\n"
-    content += f"dE {ene_diff:>12.4f} [eV]\n"
-    content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
-    for s in content.split("\n"):
-        print_func(indent + s)
-
-    # Clear the state information
-
-    return ran_ratio < acc_ratio

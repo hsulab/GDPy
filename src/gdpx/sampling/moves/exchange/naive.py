@@ -85,6 +85,7 @@ class ExchangeOperator(BasicExchangeOperator):
             check_distance_func = None
 
         # Insert the particle
+        self._transaction.before_append()
         _, info = insert_one_particle(
             atoms=new_atoms,
             particle=adpart,
@@ -138,28 +139,12 @@ class ExchangeOperator(BasicExchangeOperator):
         self._state["removed_particle"] = removed_particle
 
         # Remove then
-        del new_atoms[atomic_indices]
+        self._transaction.delete(atomic_indices)
 
         # Update info
         self._extra_info = f"Remove_{particle}_{particle_tag}"  # type: ignore
 
         return new_atoms
-
-    def revert_state(self, atoms: Atoms) -> None:
-        """"""
-        operation = self._state.get("operation")
-        if operation == "insert":
-            atomic_indices = self._state.get("atomic_indices")
-            del atoms[atomic_indices]
-        elif operation == "remove":
-            # The removed particle will be added to the end of the atoms,
-            # the order of atoms has changed but the tags are preserved.
-            removed_particle = self._state.get("removed_particle")
-            atoms.extend(removed_particle)
-        else:
-            raise ValueError(f"Unknown operation: {operation}")
-
-        return
 
 
 class BiasedVolumeExchangeOperator(ExchangeOperator):

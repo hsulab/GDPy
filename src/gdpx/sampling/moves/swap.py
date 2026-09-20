@@ -14,7 +14,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 from gdpx.structures.geometry.particle import translate_then_rotate
 from gdpx.structures.geometry.spatial import check_atomic_distances_by_neighbour_list
 
-from .operator import BaseMCOperator, metropolis_by_energy_difference
+from .operator import BaseMCOperator
 
 
 class SwapOperator(BaseMCOperator):
@@ -53,10 +53,10 @@ class SwapOperator(BaseMCOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
+    def _propose(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check particles in the region
-        super().run(atoms)
+        super()._propose(atoms, rng)
         self._extra_info = "-"
 
         # We need covalent bond distanes for neighbour check
@@ -122,6 +122,7 @@ class SwapOperator(BaseMCOperator):
             particle_two = new_atoms[pick_two]
             assert isinstance(particle_two, Atoms)
             positions_two = particle_two.get_positions()
+            self._transaction.watch([*pick_one, *pick_two])
 
             self._state = {
                 "pick_one": pick_one,
@@ -211,45 +212,13 @@ class SwapOperator(BaseMCOperator):
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> Atoms:
-        """Revert the state of atoms."""
-        pick_one = self._state.get("pick_one")
-        pick_two = self._state.get("pick_two")
-        positions_one = self._state.get("positions_one")
-        positions_two = self._state.get("positions_two")
-
-        atoms.positions[pick_one] = positions_one
-        atoms.positions[pick_two] = positions_two
-
-        return atoms
-
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """Metropolis criterion for the swap operator."""
-        success = metropolis_by_energy_difference(
-            prev_ene=prev_ene,
-            curr_ene=curr_ene,
-            temperature=self.temperature,
-            region=self.region,
-            rng=rng,
-            indent=self.indent,
-            print_func=self._print,
-        )
-
-        if not success:
-            assert self._atoms is not None, "Atoms should not be None when reverting state."
-            self.revert_state(self._atoms)
-        else:
-            ...
-
-        self._state = {}
-        self._atoms = None
-
-        return success
 
     def as_dict(self) -> dict:
         """"""
         params = super().as_dict()
         params["particles"] = self.particles
+        params["swap_mode"] = self.swap_mode
+        params["check_used_pairs"] = self.check_used_pairs
 
         return params
 

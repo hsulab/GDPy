@@ -12,7 +12,7 @@ from ase.neighborlist import NeighborList, natural_cutoffs
 
 from gdpx.structures.geometry.bounce import bounce_one_atom
 
-from .operator import BaseMCOperator, metropolis_by_energy_difference
+from .operator import BaseMCOperator
 
 
 class BounceOperator(BaseMCOperator):
@@ -54,10 +54,10 @@ class BounceOperator(BaseMCOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
+    def _propose(self, atoms: Atoms, rng: np.random.Generator = np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check species in the region
-        super().run(atoms)
+        super()._propose(atoms, rng)
         self._extra_info = "-"
 
         # We need covalent bond distanes for neighbour check
@@ -94,6 +94,7 @@ class BounceOperator(BaseMCOperator):
             covalent_ratio=(self.covalent_min, self.covalent_max),
             bond_distance_dict=self.bond_distance_dict,  # type: ignore
             rng=rng,
+            before_move=self._transaction.watch,
         )
         bounced_vec = bounced[0][2] - bounced[0][1]
         self._print(self.indent + f"bounced atom {atom_index} by " + ("{:>.4f} " * 3).format(*bounced_vec))
@@ -108,36 +109,6 @@ class BounceOperator(BaseMCOperator):
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> Atoms:
-        """Revert the state of atoms."""
-        picked_indices = self._state.get("picked_indices")
-        before_positions = self._state.get("before_positions")
-        atoms.positions[picked_indices] = before_positions
-
-        return atoms
-
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """"""
-        success = metropolis_by_energy_difference(
-            prev_ene=prev_ene,
-            curr_ene=curr_ene,
-            temperature=self.temperature,
-            region=self.region,
-            rng=rng,
-            indent=self.indent,
-            print_func=self._print,
-        )
-
-        if not success:
-            assert self._atoms is not None, "Atoms should not be None when reverting state."
-            self.revert_state(self._atoms)
-        else:
-            ...
-
-        self._state = {}
-        self._atoms = None
-
-        return success
 
     def as_dict(self) -> dict:
         """"""
@@ -145,6 +116,8 @@ class BounceOperator(BaseMCOperator):
         params["particles"] = self.particles
         params["direction"] = self.direction
         params["max_disp"] = self.max_disp
+        params["bias_ratio"] = self.bias_ratio
+        params["repulsion_strength"] = self.repulsion_strength
 
         return params
 

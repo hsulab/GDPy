@@ -11,8 +11,6 @@ from typing import Callable, Mapping, Optional
 
 import numpy as np
 from ase import Atoms
-from ase.data import atomic_numbers
-from ase.formula import Formula
 from ase.io import read, write
 
 from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_workers
@@ -27,7 +25,8 @@ from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from ..persist.thanos import dispatch_thanos
-from .utils import parse_operators, select_operator
+from gdpx.sampling import parse_operators, select_operator
+from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 GenerationState = enum.Enum(
     "GenerationState",
@@ -38,35 +37,6 @@ GenerationState = enum.Enum(
         "EXTINCTED",
     ),
 )
-
-
-def infer_unique_atomic_numbers(
-    operators,
-    custom_atomic_types: Optional[list[str]] = None,
-    substrates: Optional[list[Atoms]] = None,
-) -> list[int]:
-    """Find possible elements in the simulation and build a bond-distance list."""
-    type_list = []
-    for op in operators:
-        # TODO: wee need further unify the names here
-        if hasattr(op, "particles"):
-            for p in op.particles:
-                type_list.extend(list(Formula(p).count().keys()))
-        elif hasattr(op, "species"):
-            type_list.extend(list(Formula(op.species).count().keys()))
-        elif hasattr(op, "reservoir"):
-            type_list.extend(list(Formula(op.reservoir["species"]).count().keys()))
-        else:
-            ...
-    if custom_atomic_types is not None:
-        type_list.extend(custom_atomic_types)
-        type_list = list(set(type_list))
-    if substrates is not None:
-        for atoms in substrates:
-            type_list = list(set(type_list + atoms.get_chemical_symbols()))
-    unique_atomic_numbers = [atomic_numbers[a] for a in type_list]
-
-    return unique_atomic_numbers
 
 
 def compute_population_fitness(structures: list[Atoms], with_history=True) -> list[float]:
@@ -253,59 +223,52 @@ class ConcurrentPopulation:
         return selected_candidates
 
 
-def run_monte_carlo_steps(
-    atoms: Atoms,
-    identifier: int,
-    driver,
-    operators,
-    probabilities,
-    mcsteps: int,
-    rng: np.random.Generator,
-) -> tuple[Atoms, list[int]]:
-    """"""
+def run_hopping_steps(atoms, identifier, driver, operators, probabilities, mcsteps, rng):
+    """Generate a hopping chain; the driver owns relaxation and trial evaluation."""
+    numbers = infer_unique_atomic_numbers(operators, substrates=[atoms])
+    for op in operators:
+        prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
+                          getattr(op, "custom_pair_distance_dict", None))
     mctraj_fpath = driver.directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
+    mctraj_fpath.parent.mkdir(parents=True, exist_ok=True)
     energy_before = atoms.get_potential_energy()
-    atoms.info["mcstep"] = 0
-    write(mctraj_fpath, atoms, append=False)
-
-    mcstates = []
-    for istep in range(1, mcsteps + 1):
-        op = select_operator(operators, probabilities, rng=rng)  # type: ignore
-        op._print(f"  >>> mcmove.{istep:>04d}")
-        atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
-        new_atoms = op.run(atoms, rng=rng)
-        if new_atoms is not None:
-            ...
-        else:
-            ...  # try again?
-
-        if new_atoms is not None:
-            _ = driver.run(new_atoms, read_ckpt=True)
-            relaxed_atoms = driver.read_trajectory()[-1]
-            energy_after = relaxed_atoms.get_potential_energy()
-            op._print(f"  ene {energy_before:>18.4f}  {energy_after:>18.4f}")
-            success = op.metropolis(energy_before, energy_after, rng=rng)
+    original_atoms = atoms
+    had_mcstep = "mcstep" in atoms.info
+    previous_mcstep = atoms.info.get("mcstep")
+    try:
+        atoms.info["mcstep"] = 0
+        write(mctraj_fpath, atoms)
+        mcstates = []
+        for istep in range(1, mcsteps + 1):
+            op = select_operator(operators, probabilities, rng)
+            proposal = op.propose(atoms, rng)
+            if not proposal.valid:
+                mcstates.append(2)
+                continue
+            with proposal:
+                tags = atoms.get_tags()
+                driver.run(atoms, read_ckpt=True)
+            # The driver captures its input; rollback cannot alter its relaxed result.
+            relaxed = driver.read_trajectory()[-1]
+            relaxed.set_tags(tags)
+            energy_after = relaxed.get_potential_energy()
+            success = op.acceptance.accept(proposal, energy_before, energy_after, rng)
             if success:
-                atoms = relaxed_atoms
-                atoms.info["mcstep"] = istep
+                atoms = relaxed
                 energy_before = energy_after
+                atoms.info["mcstep"] = istep
                 write(mctraj_fpath, atoms, append=True)
-                op._print(f"  <<< success")
-                mcstates.append(0)
-            else:
-                # atoms should be reverted in metropolis
-                op._print(f"  <<< revert")
-                mcstates.append(1)
-
-            # Remove the computation results.
-            shutil.rmtree(driver.directory)
+            mcstates.append(0 if success else 1)
+            if driver.directory.exists():
+                shutil.rmtree(driver.directory)
+        return atoms, mcstates
+    finally:
+        if had_mcstep:
+            original_atoms.info["mcstep"] = previous_mcstep
         else:
-            step_state = "MCOPFAILED"
-            mcstates.append(2)
-
-    atoms.info.pop("mcstep")
-
-    return atoms, mcstates
+            original_atoms.info.pop("mcstep", None)
+        if atoms is not original_atoms:
+            atoms.info.pop("mcstep", None)
 
 
 def evaluate_candidate(
@@ -438,7 +401,7 @@ def canonical_candidates_from_worker_results(
     return relaxed_candidates
 
 
-class ConcurrentHopping(BaseExpedition):
+class BasinHopping(BaseExpedition):
     def __init__(
         self,
         operators: list[dict],
@@ -452,7 +415,7 @@ class ConcurrentHopping(BaseExpedition):
         *args,
         **kwargs,
     ) -> None:
-        """Initialise ConcurrentHopping.
+        """Initialise BasinHopping.
 
         Args:
             builder: Builder parameters.
@@ -517,7 +480,7 @@ class ConcurrentHopping(BaseExpedition):
 
     def run(self):
         """"""
-        self._print(f"===== Concurrent Hopping =====")
+        self._print(f"===== Basin Hopping =====")
         # Make sure we have everything for the expedition
         # assert isinstance(self.worker, DriverBasedWorker)
 
@@ -542,9 +505,12 @@ class ConcurrentHopping(BaseExpedition):
         # TODO: Maker a better interface?
         bond_distance_dict = {}
         if hasattr(self.population.random_offspring_generator, "get_bond_distance_dict"):
-            bond_distance_dict.update(
-                self.population.random_offspring_generator.get_bond_distance_dict()  # type: ignore
-            )
+            try:
+                bond_distance_dict.update(self.population.random_offspring_generator.get_bond_distance_dict())
+            except NotImplementedError:
+                # File/direct builders inherit the unsupported base method.
+                # Actual candidate elements are added before each hopping chain.
+                pass
         unique_atomic_numbers = infer_unique_atomic_numbers(
             operators=self.operators, custom_atomic_types=None, substrates=None
         )
@@ -556,9 +522,7 @@ class ConcurrentHopping(BaseExpedition):
                 self.population.random_offspring_generator.get_custom_pair_distance_dict()  # type: ignore
             )
 
-        for op in self.operators:
-            op.bond_distance_dict = bond_distance_dict
-            op.custom_pair_distance_dict = custom_pair_distance_dict
+        prepare_operators(self.operators, unique_atomic_numbers, bond_distance_dict, custom_pair_distance_dict)
 
         # Run generations
         for _ in range(1000):
@@ -620,8 +584,9 @@ class ConcurrentHopping(BaseExpedition):
             for icand, candidate in enumerate(candidates):
                 self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
                 self.mcworker.driver.directory = gen_wdir / f"mc_{icand}"
-                atoms = copy.deepcopy(candidate)
-                atoms_after_mc, mcstates = run_monte_carlo_steps(
+                atoms = candidate.copy()
+                atoms.calc = candidate.calc  # Borrow cached results until the first proposal.
+                atoms_after_mc, mcstates = run_hopping_steps(
                     atoms,
                     identifier=icand,
                     driver=self.mcworker.driver,
@@ -837,9 +802,16 @@ class ConcurrentHopping(BaseExpedition):
 
         workers = []
         for gen_wdir in gen_wdirs:
-            gen_worker = copy.deepcopy(self.worker)
-            gen_worker.directory = gen_wdir
-            workers.append(gen_worker)
+            prototypes = self.worker if isinstance(self.worker, list) else [self.worker]
+            if prototypes and isinstance(prototypes[0], list):
+                entries = [(worker, gen_wdir / f"chainstep.{i:02d}") for i, worker in enumerate(prototypes[0])]
+            else:
+                entries = [(worker, gen_wdir if len(prototypes) == 1 else gen_wdir / f"w{i}")
+                           for i, worker in enumerate(prototypes)]
+            for prototype, directory in entries:
+                # Runtime specifications are immutable and cannot be deep-copied.
+                gen_worker = create_worker(prototype.as_dict(), directory=directory)
+                workers.append(gen_worker)
 
         return workers
 
@@ -851,10 +823,19 @@ class ConcurrentHopping(BaseExpedition):
             recipe["builder"] = builder.as_dict()
         recipe = dict(random_seed=self.random_seed, **recipe)
         assert self.worker is not None
+
+        def serialize_workers(workers):
+            if isinstance(workers, list):
+                return [serialize_workers(worker) for worker in workers]
+            return workers.as_dict()
+
+        runtime = serialize_workers(self.worker)
+        if isinstance(runtime, list) and len(runtime) == 1 and isinstance(runtime[0], dict):
+            runtime = runtime[0]
         return {
-            "method": "concurrent_hopping",
+            "method": "basin_hopping",
             "recipe": recipe,
-            "runtime": self.worker.as_dict(),  # type: ignore
+            "runtime": runtime,
         }
 
 

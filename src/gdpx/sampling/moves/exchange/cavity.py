@@ -5,7 +5,7 @@
 from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.data import chemical_symbols, covalent_radii
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.neighborlist import NeighborList
@@ -163,6 +163,7 @@ class CavityExchangeOperator(BasicExchangeOperator):
         self._state["atomic_indices"] = atomic_indices[:num_atoms_in_particle]
 
         random_positions = self.region.get_random_positions(size=self.num_trials, rng=rng)
+        self._transaction.before_append()
         for random_position in random_positions:
             trial_adpart = adpart.copy()
             trial_adpart = translate_then_rotate(trial_adpart, position=random_position, use_com=True, rng=rng)
@@ -240,6 +241,7 @@ class CavityExchangeOperator(BasicExchangeOperator):
         adpart = self._particle_instances[self.particles.index(particle)].copy()
 
         random_positions = self.region.get_random_positions(size=self.num_trials - 1, rng=rng)
+        self._transaction.before_append()
         for random_position in random_positions:
             trial_adpart = adpart.copy()
             trial_adpart = translate_then_rotate(trial_adpart, position=random_position, use_com=True, rng=rng)
@@ -287,80 +289,13 @@ class CavityExchangeOperator(BasicExchangeOperator):
         del new_atoms[atomic_indices[1:]]
 
         # Remove the selected particle
-        del new_atoms[removed_indices]
+        self._transaction.delete(removed_indices)
 
         # Update info
         self._extra_info = f"Remove_{particle}_{particle_tag}_c{num_cavities}"  # type: ignore
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> None:
-        """Revert the state of the atoms to the previous state."""
-        operation = self._state.get("operation")
-        if operation == "insert":
-            atomic_indices = self._state.get("atomic_indices")
-            del atoms[atomic_indices]
-        elif operation == "remove":
-            # The removed particle will be added to the end of the atoms,
-            # the order of atoms has changed but the tags are preserved.
-            removed_particle = self._state.get("removed_particle")
-            atoms.extend(removed_particle)
-        else:
-            raise Exception(f"Unknown operation: {operation}")
-
-        return
-
-    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
-        """"""
-        # Temperature parameters
-        kBT_eV = units.kB * self.temperature
-        beta = 1.0 / kBT_eV  # 1/(kb*T), eV
-
-        # Get particle properties
-        chempot = self.chempots[0]
-        cubic_wavelength = self._cubic_wavelengths[0]
-
-        # Compute the prefactor
-        num_particles = self._state["num_particles"]
-        region_volume = self._state["volume"]
-        symm_factor = self._state["symm_factor"]
-
-        ene_diff = curr_ene - prev_ene
-        if self._state["operation"] == "insert":
-            assert isinstance(region_volume, float)
-            prefactor = region_volume / (num_particles + 1) / cubic_wavelength / symm_factor
-            ene_gcmc = ene_diff - chempot
-        elif self._state["operation"] == "remove":
-            prefactor = symm_factor * num_particles * cubic_wavelength / region_volume
-            ene_gcmc = ene_diff + chempot
-        else:
-            raise RuntimeError(f"Unknown exchange operation {self._state['operation']}.")
-
-        acc_ratio = np.min([1.0, prefactor * np.exp(-beta * (ene_gcmc))])
-        ran_ratio = rng.uniform()
-
-        # Some log information
-        content = "--> mcstate\n"
-        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
-        content += f"Prefactor {prefactor:>12.4f} " + f"SymmFactor {symm_factor:>12.4f}\n"
-        content += f"CubicWavelength {cubic_wavelength:>12.4f} [A^3]\n"
-        content += f"N  {num_particles:>12d}\n"
-        content += f"dE {ene_diff:>12.4f} [eV]  " + f"dF {ene_gcmc:>12.4f} [eV]\n"
-        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
-        for x in content.split("\n"):
-            self._print(self.indent + x)
-
-        success = ran_ratio < acc_ratio
-        if not success:
-            assert self._atoms is not None, "Atoms should not be None when reverting state."
-            self.revert_state(self._atoms)
-        else:
-            ...
-
-        self._state = {}
-        self._atoms = None
-
-        return success
 
     def as_dict(self) -> dict:
         """"""

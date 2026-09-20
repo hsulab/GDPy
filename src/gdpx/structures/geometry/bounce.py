@@ -76,6 +76,7 @@ def bounce_one_atom(
     covalent_ratio: tuple[float, float],
     bond_distance_dict: dict,
     rng: np.random.Generator,
+    before_move: Callable | None = None,
 ) -> tuple[Atoms, list[tuple[int, np.ndarray, np.ndarray]]]:
     """Bounce one atom and repel its neighbours if they are too close.
 
@@ -103,6 +104,8 @@ def bounce_one_atom(
 
     prev_pos = copy.deepcopy(new_atoms[atom_index].position)
     curr_pos = prev_pos + disp_vec * max_disp
+    if before_move is not None:
+        before_move([atom_index])
     new_atoms[atom_index].position = curr_pos
 
     bounced = [(atom_index, prev_pos, curr_pos)]
@@ -136,6 +139,8 @@ def bounce_one_atom(
 
     # Update positions of repelled neighbours
     for neigh_index, _, neigh_position_curr in repelled:
+        if before_move is not None:
+            before_move([neigh_index])
         new_atoms[neigh_index].position = neigh_position_curr
 
     return new_atoms, bounced + repelled

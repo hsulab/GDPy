@@ -9,12 +9,11 @@ from ase import Atoms
 from ase.io import write
 
 from gdpx.execution.factory import create_worker
-from gdpx.utils.strconv import dictionary_to_string
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
 from .monte_carlo import MCStepState, MonteCarlo
-from .utils import select_operator
+from ..move_step import read_pending, run_worker_move
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
@@ -94,7 +93,14 @@ class HybridMonteCarlo(MonteCarlo):
         if not converged:
             # init structure
             step_converged = False
-            if not self._verify_checkpoint():
+            self._resume_context = None
+            if (self.directory / "pending-hybrid").exists():
+                self.atoms, pending_data = read_pending(self.directory / "pending-hybrid", self.rng)
+                self.energy_stored = pending_data["energy"]
+                self._resume_context = pending_data["context"]
+                self.start_step = self._resume_context["step"] - 1
+                step_converged = True
+            elif not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
                 raise Exception("Checkpoint exists but hybrid_monte_carlo does not support restart.")
@@ -119,7 +125,10 @@ class HybridMonteCarlo(MonteCarlo):
 
                 step_state = MCStepState.UNFINISHED
                 self._print(f"===== Hybrid MC Step {curr_step} =====")
-                for subproc_name, subproc_func in procedure_steps:  # [dynamics, mcmove]
+                for procedure_index, (subproc_name, subproc_func) in enumerate(procedure_steps):
+                    if self._resume_context and procedure_index < self._resume_context["procedure_index"]:
+                        continue
+                    self._procedure_index = procedure_index
                     step_state = subproc_func(name=subproc_name, step=curr_step)
                     if step_state == MCStepState.UNFINISHED:
                         self._print("Wait MC step to finish.")
@@ -176,87 +185,33 @@ class HybridMonteCarlo(MonteCarlo):
         return step_state
 
     def _irun_metropolis(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
-        """Run a single MC step.
-
-        Each step has three status as FINISHED, UNFINISHED, and FAILED.
-
-        """
-        self._print(f">>>>> {name.upper()} ")
-        self._print(f"RANDOM_SEED:  {self.random_seed}")
-        for l in dictionary_to_string(self.rng.bit_generator.state).split("\n"):
-            self._print(l)
-
+        """Run a sequence of proposals, resuming a pending attempt without redrawing."""
         worker.directory = self.directory / f"step.{step:>04d}" / "mcmove"
-
-        # TODO: Maybe we can group all spcs into one job by a socket-based calculator
-        #       if one spc is expensive, for example, a DFT calculation.
-        for i in range(self.num_mcmoves):
-            # Update worker calculation folder name
+        context = getattr(self, "_resume_context", None)
+        start = context["index"] if context else 0
+        for i in range(start, self.num_mcmoves):
             worker.wdir_name = f"{self.WDIR_PREFIX}{i}"
-
-            # Run mcmove
-            curr_op = select_operator(self.operators, self.op_probs, self.rng)
-
-            self._print(f"  >>> mcmove.{i:>04d}  {curr_op.name} ")
-            self.atoms.calc = None  # Clear calc as exchange may break atoms arrays such as forces.
-            curr_atoms = curr_op.run(self.atoms, self.rng)
-            if curr_atoms:  # is not None
-                # Add info to atoms and remove step info from driver
-                curr_atoms.info["confid"] = int(f"{step}")
-                curr_atoms.info["step"] = -1
-            else:
-                self._save_step_info(
-                    curr_op, (step - 1) * self.num_mcmoves + i, False, self.energy_stored, self.energy_stored
-                )
-                self._print(
-                    "  FAILED to run operation..."
-                )  # Due to absence of particles in the region or neighbour distance restraints
-
-            # Run single-point-calculation and metropolis
-            if curr_atoms is not None:
-                assert isinstance(curr_atoms, Atoms), "Operator must return an Atoms object."
-                # Save tags
-                curr_tags = curr_atoms.get_tags()
-
-                # single-point calculation
-                _ = worker.run([curr_atoms], read_ckpt=True)
-                worker.inspect(resubmit=True)
-                if worker.get_number_of_running_jobs() == 0:
-                    curr_atoms = worker.retrieve()[0][-1]
-                    curr_atoms.set_tags(curr_tags)
-
-                    self.energy_operated = curr_atoms.get_potential_energy()
-                    self._print(f"  ene {self.energy_stored:>18.4f} -> {self.energy_operated:>18.4f}")
-
-                    # run metropolis
-                    success = curr_op.metropolis(self.energy_stored, self.energy_operated, self.rng)
-                    self._save_step_info(
-                        curr_op, (step - 1) * self.num_mcmoves + i, success, self.energy_stored, self.energy_operated
-                    )  # save step info in one global file
-
-                    if success:
-                        self.energy_stored = self.energy_operated
-                        self.atoms = curr_atoms
-                        self._print("  <<< success")
-                    else:
-                        # atoms should be reverted in metropolis
-                        self._print("  <<< revert")
-
-                    # check earlystopping
-                    step_state = self._check_earlystop(self.atoms)
-                else:
-                    step_state = MCStepState.UNFINISHED
-                    break
-            else:
-                # save the previous structure as the current operation gives no structure.
-                step_state = MCStepState.FAILED
-        else:
-            step_state = MCStepState.FINISHED  # If we reach here, all mcmoves are finished
-
-        # Save the final structure only
+            result = run_worker_move(
+                self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
+                worker, self.directory / "pending-hybrid",
+                info={"confid": step, "step": -1},
+                resume_context={"step": step, "index": i,
+                                "procedure_index": getattr(self, "_procedure_index", 0)},
+            )
+            self.atoms = result.atoms
+            if result.accepted is None:
+                self.energy_stored = result.energy
+                return MCStepState.UNFINISHED
+            self._resume_context = None
+            self._save_step_info(result.operator, (step - 1) * self.num_mcmoves + i,
+                                 result.accepted, self.energy_stored, result.energy, result.diagnostic)
+            if result.accepted:
+                self.energy_stored = result.energy
+            state = self._check_earlystop(self.atoms)
+            if state == MCStepState.EARLYSTOPPED:
+                return state
         write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
-
-        return step_state
+        return MCStepState.FINISHED
 
     def get_workers(self):
         """Get all workers used by this expedition."""

@@ -1,7 +1,7 @@
 from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.data import chemical_symbols
 
 from .operator import BaseMCOperator
@@ -49,14 +49,14 @@ class SwapTypeOperator(BaseMCOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
+    def _propose(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
         # Check state
         assert self._state == {}, "State should be empty before running the operator."
         assert self._atoms is None, "Atoms should be None before running the operator."
 
         # Check particles in the region
-        super().run(atoms)
+        super()._propose(atoms, rng)
         self._extra_info = "-"
 
         # We need covalent bond distances for neighbour check
@@ -102,6 +102,7 @@ class SwapTypeOperator(BaseMCOperator):
             # Pick an atom either index of an atom or tag of an moiety
             pick_one = self._select_species(new_atoms, [first_ptype], rng=rng)
             assert len(pick_one) == 1, "Only one atom should be selected for swap type operator."
+            self._transaction.watch(pick_one, ("numbers",))
             new_atoms[pick_one[0]].symbol = second_ptype
             # TODO: renormalise other properties such as velocity, charge, and magnetic moment
             self._print(self.indent + f"succeed to random after {i + 1} attempts...")
@@ -126,72 +127,6 @@ class SwapTypeOperator(BaseMCOperator):
 
         return new_atoms
 
-    def revert_state(self, atoms: Atoms) -> Atoms:
-        """Revert the state of atoms."""
-        picked_atom_index = self._state.get("picked_atom_index")
-        first_ptype = self._state.get("first_ptype")
-
-        assert isinstance(picked_atom_index, int)
-        atoms[picked_atom_index].symbol = first_ptype
-
-        return atoms
-
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random.default_rng()) -> bool:
-        """Metropolis criterion for the swap type operator."""
-        # Temperature parameters
-        kBT_eV = units.kB * self.temperature
-        beta = 1.0 / kBT_eV  # 1/(kb*T), eV
-
-        # Check number of particles in the region
-        assert isinstance(self._curr_tags_dict, dict)
-
-        first_ptype = self._state.get("first_ptype")
-        assert isinstance(first_ptype, str)
-        num_first_ptype = self._state.get("num_first_ptype")
-        assert isinstance(num_first_ptype, int)
-
-        second_ptype = self._state.get("second_ptype")
-        assert isinstance(second_ptype, str)
-        num_second_ptype = self._state.get("num_second_ptype")
-        assert isinstance(num_second_ptype, int)
-
-        mu_diff = self.chempots[self.particles.index(first_ptype)] - self.chempots[self.particles.index(second_ptype)]
-
-        # Energetic parameters
-        ene_diff = curr_ene - prev_ene
-        ene_sgce = ene_diff + mu_diff
-
-        # Compute the prefactor
-        prefactor = 1.0
-        region_volume = self.region.get_volume()
-
-        # Propability of acceptance
-        acc_ratio = np.min([1.0, prefactor * np.exp(-beta * ene_sgce)])
-        ran_ratio = rng.uniform()
-
-        # Some log information
-        content = "--> mcstate\n"
-        content += f"Volume {region_volume:>12.4f} [A^3] Beta {beta:>12.4f} [1/eV]\n"
-        content += f"Prefactor {prefactor:>12.4f}\n"
-        content += f"Particle One: {first_ptype:<4s} ({num_first_ptype})\n"
-        content += f"Particle Two: {second_ptype:<4s} ({num_second_ptype})\n"
-        content += f"dMu {mu_diff:>11.4f} [eV]\n"
-        content += f"dE {ene_diff:>12.4f} [eV]  " + f"dF {ene_sgce:>12.4f} [eV]\n"
-        content += f"Accept {acc_ratio:>4.2e} >? {ran_ratio:>4.2e}"
-        for x in content.split("\n"):
-            self._print(self.indent + x)
-
-        success = ran_ratio < acc_ratio
-        if not success:
-            assert self._atoms is not None, "Atoms should not be None when reverting state."
-            self.revert_state(self._atoms)
-        else:
-            ...
-
-        self._state = {}
-        self._atoms = None
-
-        return success
 
     def as_dict(self) -> dict:
         """Convert the operator to a dictionary."""
