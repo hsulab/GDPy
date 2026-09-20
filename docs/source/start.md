@@ -1,6 +1,6 @@
 # Getting Started
 
-This section introduces the schema-v2 **potential**, **executor**, and
+This section introduces the schema-v3 **potential**, **executor**, and
 **scheduler** components used to calculate structures with GDPy.
 
 The related commands are
@@ -19,7 +19,7 @@ $ gdp -d ./results -r ./runtime.yaml compute ./structures.xyz
 An example input file (`runtime.yaml`) is organised as follows:
 
 ```yaml
-schema_version: 2
+schema_version: 3
 potential:
     provider: deepmd
     parameters:
@@ -32,10 +32,9 @@ executor:
         temp: 600
         timestep: 1.0
         steps: 100
-scheduler:
-    provider: local
-    parameters: {}
 ```
+
+No `scheduler` section is needed for direct execution on the current machine.
 
 ## Units
 
@@ -52,7 +51,7 @@ The example below shows how to define a **deepmd** potential using the **ase** b
 in a **yaml** file:
 
 ```yaml
-schema_version: 2
+schema_version: 3
 potential:
     provider: deepmd
     method: default
@@ -101,26 +100,26 @@ scheduler:
         environs: "conda activate py37\n"
 ```
 
-The scheduler above submits with `sbatch` on the current machine. To stage
-the calculation and submit over SSH, wrap any queue scheduler with the remote
-provider (install the optional dependency with `pip install gdpx[remote]`):
+The scheduler above submits with `sbatch` on the current machine because the
+transport defaults to `local`. To stage the calculation and submit over SSH,
+add the nested SSH transport (install it with `pip install gdpx[remote]`):
 
 ```yaml
 scheduler:
-    provider: remote
+    provider: slurm
     parameters:
+        partition: compute
+        time: "1:00:00"
+    transport:
+      provider: ssh
+      parameters:
         hostname: cluster.example
         remote_wdir: /scratch/user/gdpx
-        scheduler:
-            provider: slurm
-            parameters:
-                partition: compute
-                time: "1:00:00"
 ```
 
-The nested scheduler may be `slurm`, `lsf`, `pbs`, or a third-party
-queue scheduler that implements GDPy's transport-independent status hooks.
-The local scheduler cannot be wrapped for remote execution.
+Use `provider: direct` with the same SSH transport to run synchronously on a
+remote machine without a queue. See {ref}`scheduler-transport` for all four
+configurations.
 
 ## Runtime
 
@@ -130,5 +129,5 @@ runtimes and explicit nested lists for runtime chains; GDPy does not infer a
 Cartesian product between components.
 
 :::{note}
-If **scheduler** is omitted, GDPy uses `LocalScheduler`.
+If **scheduler** is omitted, GDPy uses direct execution with local transport.
 :::

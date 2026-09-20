@@ -8,6 +8,10 @@ possible so the workflow, configuration, and outputs remain easy to inspect.
 Increase the population size, number of generations, and calculation accuracy
 for production searches.
 
+All examples run directly on the current machine by default, so their input
+files omit `scheduler`. See {ref}`scheduler-transport` to configure queue or
+SSH execution.
+
 The examples are grouped by their main physical system: **Cluster** covers
 finite atomic and molecular aggregates, **Bulk** covers fully periodic
 crystals, and **Interface** covers surfaces, supported clusters, and

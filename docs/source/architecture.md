@@ -41,7 +41,11 @@ The implementation packages are now `providers`, `execution`,
 `exploration`, `workflow`, `structures`, `analysis`, `modifiers`, and
 `data`. Version 0.1 removes the former compatibility packages and global
 registry catalog; integrations enter through the `gdpx.providers` plugin
-group. Runtime input requires `schema_version: 2` and explicit
+group. Runtime input requires `schema_version: 3` and explicit
 `potential`/`executor` component sections. Calculators are created only
 after the executor target is known, and unsupported target/modifier
 combinations fail explicitly.
+
+Scheduling has two provider boundaries: a scheduler chooses direct or queued
+dispatch, and its transport chooses the current host or SSH. This keeps host
+location independent of queue semantics and permits every combination.

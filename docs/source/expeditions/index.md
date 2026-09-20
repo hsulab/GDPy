@@ -8,7 +8,7 @@ algorithms, and other search policies independent of the potential and the
 software used to run it.
 
 ```yaml
-schema_version: 2
+schema_version: 3
 potential:
   provider: deepmd
   parameters:
@@ -21,14 +21,10 @@ executor:
     fmax: 0.05
     steps: 400
     constraint: lowest 120
-scheduler:
-  provider: slurm
-  parameters:
-    ntasks: 1
-    time: "00:10:00"
-options:
-  batch_size: 5
 ```
+
+This runtime executes directly on the current machine by default. Add a
+{ref}`scheduler configuration <scheduler-transport>` for queue or SSH execution.
 
 The exploration layer owns proposal state, convergence, and selection. The
 execution layer owns materialization, job submission, restart, and result
@@ -36,7 +32,7 @@ collection.
 
 Global-optimisation inputs use a common top-level architecture. The `recipe`
 contains the random seed and settings specific to the selected method; runtime
-and scheduler configuration remain separate execution concerns.
+and optional scheduler configuration remain separate execution concerns.
 
 ```yaml
 method: genetic_algorithm
@@ -47,8 +43,10 @@ recipe:
       random: {}
   # remaining method-specific settings
 runtime: {}
-scheduler: {}
 ```
+
+Omitting the top-level `scheduler` also runs the exploration itself directly
+on the current machine.
 
 ## List of exploration methods
 

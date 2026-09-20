@@ -99,7 +99,7 @@ recipe:
 Use a single-worker runtime for sequential Monte Carlo moves:
 
 ```yaml
-schema_version: 2
+schema_version: 3
 potential:
   provider: deepmd
   parameters:

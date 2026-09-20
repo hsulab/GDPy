@@ -35,7 +35,7 @@ calculator interface. Native input settings remain potential parameters while
 the calculation method is selected by the executor:
 
 ```
-schema_version: 2
+schema_version: 3
 potential:
   provider: vasp
   parameters:
@@ -54,7 +54,7 @@ executor:
 Biases and enhanced-sampling forces are explicit runtime `modifiers`. Each
 modifier is a provider component with a method and parameters. Runtime
 resolution applies compatible modifiers to the materialized potential; the
-removed mixer potential is not part of schema version 2.
+removed mixer potential is not part of schema version 3.
 
 ## Supported families
 

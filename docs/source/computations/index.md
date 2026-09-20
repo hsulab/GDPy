@@ -2,12 +2,12 @@
 
 # Computations
 
-Every computation is described by one schema-v2 runtime: a potential, an
+Every computation is described by one schema-v3 runtime: a potential, an
 executor, optional modifiers, and an optional scheduler. The potential defines
 the model; the executor defines the software and calculation method.
 
 ```yaml
-schema_version: 2
+schema_version: 3
 potential:
   provider: deepmd
   parameters:
@@ -22,12 +22,9 @@ executor:
     timestep: 1.0
     steps: 1000
     dump_period: 10
-scheduler:
-  provider: local
-  parameters: {}
-options:
-  batch_size: 1
 ```
+
+With `scheduler` omitted, this calculation runs directly on the current machine.
 
 Run it with:
 
@@ -62,14 +59,18 @@ image sequence.
 
 ## Schedulers and batching
 
-If `scheduler` is omitted, GDPy uses the local scheduler. Queue schedulers
-are provider components with their submission settings in `parameters`.
-`options.batch_size` controls how many structures are assigned to a task.
-Use the `remote` scheduler provider with a nested scheduler component when
-the queue commands must be executed through SSH; the ordinary `slurm`,
-`lsf`, and `pbs` providers continue to execute their commands on the
-current machine.
+The scheduler controls how work is dispatched, while its nested transport
+controls whether commands run on this machine or over SSH. See
+{ref}`scheduler-transport` for the four supported combinations and complete
+examples. `options.batch_size` controls how many structures are assigned to a
+queued task.
 
 For multiple independent calculations, provide an explicit list of complete
 runtimes. For sequential calculations, provide an explicit nested runtime
 chain. GDPy does not broadcast components or construct a Cartesian grid.
+
+```{toctree}
+:hidden:
+
+schedulers
+```

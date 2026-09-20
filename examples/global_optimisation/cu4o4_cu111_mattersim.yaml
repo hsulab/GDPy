@@ -44,7 +44,7 @@ recipe:
     generation: 1
 
 runtime:
-  schema_version: 2
+  schema_version: 3
   potential:
     provider: mattersim
     parameters:
@@ -57,7 +57,3 @@ runtime:
       fmax: 0.05
       steps: 100
       constraint: lowest 4
-
-scheduler:
-  provider: local
-  parameters: {}

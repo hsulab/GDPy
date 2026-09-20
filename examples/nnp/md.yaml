@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 potential:
   provider: nnp
   parameters:
@@ -17,7 +17,10 @@ executor:
       name: langevin
 
 scheduler:
-  provider: local
+  provider: direct
   parameters: {}
+  transport:
+    provider: local
+    parameters: {}
 options:
   batch_size: 1

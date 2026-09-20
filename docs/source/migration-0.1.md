@@ -22,7 +22,7 @@ Use the package that owns the concept:
 Every runtime is complete and explicitly versioned:
 
 ```
-schema_version: 2
+schema_version: 3
 potential:
   provider: deepmd
   method: default
@@ -35,9 +35,12 @@ executor:
     steps: 10000
 modifiers: []
 scheduler:
-  provider: local
+  provider: direct
   method: default
   parameters: {}
+  transport:
+    provider: local
+    parameters: {}
 options:
   batch_size: 1
   worker: batch
@@ -48,6 +51,15 @@ options:
 Lists represent independent runtimes. Nested lists passed to
 `create_worker_chains` represent ordered chains. There is no implicit
 Cartesian product.
+
+Schema 3 separates dispatch from transport. Replace the schema-2 scheduler
+providers as follows:
+
+- `provider: local` becomes scheduler `direct` with transport `local`.
+- `provider: remote` becomes the actual scheduler (`direct`, `slurm`, `lsf`,
+  or `pbs`) with a nested `ssh` transport.
+
+Schema-2 runtime files and compute plans are not translated automatically.
 
 ## Workflow and CLI
 

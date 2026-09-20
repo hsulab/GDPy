@@ -2,7 +2,9 @@
 
 GDPy integrations are stateless providers. A provider may expose potentials,
 materializers, executors, trainers, dataset codecs, modifiers, collective
-variables, schedulers, or exploration strategies through a capability map.
+variables, schedulers, transports, or exploration strategies through a
+capability map. A transport factory receives the resolved scheduler in its
+`scheduler` context argument and returns the scheduler or a transport wrapper.
 
 ## A minimal potential provider
 
@@ -44,10 +46,10 @@ only from the factory or materializer that needs them.
 
 ## Configuration
 
-Provider configurations use schema version 2:
+Provider configurations use schema version 3:
 
 ```
-schema_version: 2
+schema_version: 3
 potential:
   provider: example
   method: default
@@ -59,17 +61,16 @@ executor:
   parameters:
     fmax: 0.05
     steps: 10
-scheduler:
-  provider: local
-  parameters: {}
 ```
+
+The omitted scheduler defaults to direct execution on the current machine.
 
 The executor declares the materialization interface it consumes. Resolution
 fails before submission when the potential cannot produce that interface.
 
 ## Breaking boundary in 0.1
 
-Provider entry points and schema version 2 are the only supported extension
+Provider entry points and schema version 3 are the only supported extension
 boundary. The former manager registries, `potter` configuration, and
 `BasePotentialManager.create_driver` API have been removed. A missing
 `schema_version` or a legacy component key is an error rather than an

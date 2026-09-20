@@ -16,4 +16,4 @@ calculation, define a `runtime_chain`. Do not express alternatives by placing
 lists inside potential or executor fields; list the complete runtimes instead.
 
 This explicit boundary ensures that every submitted task has exactly one
-potential/executor pairing and can be serialized as schema version 2.
+potential/executor pairing and can be serialized as schema version 3.
