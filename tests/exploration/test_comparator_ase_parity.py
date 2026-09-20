@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from gdpx.exploration.genetic_algorithm.comparator.basic import NNMatComparator
-from gdpx.exploration.genetic_algorithm.comparator.ofp import OFPComparator
+from gdpx.exploration.population.comparators.basic import NNMatComparator
+from gdpx.exploration.population.comparators.ofp import OFPComparator
 
 ase_ofp = pytest.importorskip("ase_ga.ofp_comparator")
 ase_particle = pytest.importorskip("ase_ga.particle_comparator")

@@ -7,15 +7,15 @@ import enum
 import itertools
 import pathlib
 import shutil
-from typing import Callable, Mapping, Optional
+from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
 from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_workers
-from gdpx.structures.builders.factory import canonicalise_builder
-from gdpx.analysis.comparators import create_comparator
+from ..population.random import RandomStreamRegistry
+from .population import HoppingPopulation
 from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
@@ -25,7 +25,6 @@ from gdpx.utils.strconv import integers_to_string
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
-from ..persist.thanos import dispatch_thanos
 from gdpx.sampling import parse_operators, select_operator
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
@@ -38,190 +37,6 @@ GenerationState = enum.Enum(
         "EXTINCTED",
     ),
 )
-
-
-def compute_population_fitness(structures: list[Atoms], with_history=True) -> list[float]:
-    """Calculates the fitness."""
-    scores = [x.info["key_value_pairs"]["raw_score"] for x in structures]
-    min_s = min(scores)
-    max_s = max(scores)
-    T = min_s - max_s
-
-    f = [0.5 * (1.0 - np.tanh(2.0 * (s - max_s) / T - 1.0)) for s in scores]
-    if with_history:
-        M = [float(atoms.info["n_paired"]) for atoms in structures]
-        L = [float(atoms.info["looks_like"]) for atoms in structures]
-        f = [f[i] * 1.0 / np.sqrt(1.0 + M[i]) * 1.0 / np.sqrt(1.0 + L[i]) for i in range(len(f))]
-
-    return f
-
-
-class ConcurrentPopulation:
-    def __init__(
-        self,
-        initial_size: int,
-        generation_size: int,
-        random_offspring_generator: dict,
-        comparator: Optional[dict] = None,
-        thanos: Optional[dict] = None,
-        population_size: Optional[int] = None,
-        print_func=print,
-        debug_func=print,
-        **legacy_kwargs,
-    ) -> None:
-        """"""
-        if "database_fname" in legacy_kwargs:
-            raise ValueError(
-                "Concurrent-hopping population.database_fname is no longer configurable; "
-                f"remove it. GDPy uses {CANDIDATES_DATABASE_FILENAME!r}."
-            )
-        if legacy_kwargs:
-            key = next(iter(legacy_kwargs))
-            raise TypeError(f"Unexpected concurrent-hopping population key {key!r}.")
-
-        # Population sizes
-        self._ini_size = initial_size
-        self._gen_size = generation_size
-
-        if population_size is not None:
-            self._pop_size = population_size
-        else:
-            self._pop_size = self._gen_size
-
-        if self.ini_size < self.pop_size:
-            raise RuntimeError(
-                f"`initial_size`({self.ini_size}) must be greater than `population_size`({self.pop_size})."
-            )
-
-        if self.pop_size < self.gen_size:
-            raise RuntimeError(
-                f"`population_size`({self.pop_size}) must be greater than or equal `generation_size`({self.gen_size})."
-            )
-
-        # This can be `None` as it may be lazy-initialised by builder externally.
-        self.random_offspring_generator = canonicalise_builder(random_offspring_generator)
-
-        # Comparator adds history information for atoms in the population
-        if comparator is None:
-            from gdpx.exploration.genetic_algorithm.comparator.basic import AtomsComparator
-
-            self.comparator = AtomsComparator()
-        else:
-            name = comparator.pop("name", "interatomic_distance")
-            self.comparator = create_comparator(dict(method=name, **comparator))
-
-        # Thanos (observer/describer) extincts structures in the population
-        extinct_callbacks = None
-        if thanos is not None:
-            thanos_config = copy.deepcopy(thanos)
-            # check whether dict or list by mapping
-            if isinstance(thanos_config, Mapping):
-                thanos_config = [thanos_config]
-            extinct_callbacks = [dispatch_thanos(**tc) for tc in thanos_config]
-        else:
-            ...
-
-        self.extinct_callbacks = extinct_callbacks
-
-        # Print and debug
-        self._print = print_func
-        self._debug = debug_func
-
-        return
-
-    @property
-    def ini_size(self):
-        """The number of structures in the initial generation."""
-
-        return self._ini_size
-
-    @property
-    def gen_size(self):
-        """The number of structures in the following generations."""
-
-        return self._gen_size
-
-    @property
-    def pop_size(self):
-        """The number of structures in the population."""
-
-        return self._pop_size
-
-    def get_current_population(self, database: "GlobalOptimisationDatabase", use_extinct: bool = False) -> list[Atoms]:
-        """"""
-        all_relaxed_candidates = database.get_all_relaxed_candidates(use_extinct=use_extinct)
-        # The candidates have already been sorted by raw_score,
-        # here, we just double check it.
-        all_relaxed_candidates.sort(key=lambda cand: cand.info["key_value_pairs"]["raw_score"], reverse=True)
-
-        # We may not have enough structures for the population as some of them may look like.
-        # TODO: Cache candidates?
-        selected_candidates = []
-        for candidate in all_relaxed_candidates:
-            for s_cand in selected_candidates:
-                if self.comparator.looks_like(candidate, s_cand):
-                    break
-            else:
-                selected_candidates.append(candidate)
-            num_candidates = len(selected_candidates)
-            if num_candidates == self.pop_size:
-                break
-        else:
-            ...  # Not enough candidates to select
-
-        def count_looks_like(a, all_cand, comp):
-            """Utility method for counting occurrences."""
-            n = 0
-            for b in all_cand:
-                if a.info["confid"] == b.info["confid"]:
-                    continue
-                if comp.looks_like(a, b):
-                    n += 1
-            return n
-
-        for s_cand in selected_candidates:
-            s_cand.info["looks_like"] = count_looks_like(s_cand, selected_candidates, self.comparator)
-
-        # TODO: Check history?
-        for s_cand in selected_candidates:
-            s_cand.info["n_paired"] = 0
-
-        num_selected = len(selected_candidates)
-        self._print(f"population: [{num_selected}/{self.pop_size}]")
-        for i, s_cand in enumerate(selected_candidates):
-            self._debug(
-                f"cand{i:>4d} looks_like->{s_cand.info['looks_like']:>04d} n_paired->{s_cand.info['n_paired']:>04d}"
-            )
-
-        return selected_candidates
-
-    def get_current_generation(
-        self,
-        database: "GlobalOptimisationDatabase",
-        rng: np.random.Generator,
-        with_history: bool = True,
-        use_extinct: bool = False,
-    ) -> list[Atoms]:
-        """"""
-        popultion = self.get_current_population(database, use_extinct=use_extinct)
-        num_structures_in_population = len(popultion)
-
-        if num_structures_in_population <= self.gen_size:
-            selected_candidates = popultion
-        else:
-            fit = compute_population_fitness(popultion, with_history=with_history)
-            fit = np.array(fit)
-            weights = fit / np.sum(fit)
-            cand_indices = list(range(num_structures_in_population))
-            selected_indices = rng.choice(
-                cand_indices, size=self.gen_size, p=weights, replace=True
-            )  # TODO: allow same candidate?
-            selected_candidates = [popultion[i] for i in selected_indices]
-
-        num_selected = len(selected_candidates)
-        self._print(f"generation: [{num_selected}/{self.gen_size}]")
-
-        return selected_candidates
 
 
 def run_hopping_steps(atoms, identifier, driver, operators, probabilities, mcsteps, rng):
@@ -419,13 +234,17 @@ class BasinHopping(BaseExpedition):
         """Initialise BasinHopping.
 
         Args:
-            builder: Builder parameters.
+            builder: Removed; use population.builders.
             operators: Operator parameters.
             population: Population parameters.
 
         """
         reject_legacy_property(kwargs)
+        if builder is not None:
+            raise ValueError("BH builder moved to population.builders and initial.builder_allocations.")
         super().__init__(*args, **kwargs)
+        self.random_streams = RandomStreamRegistry(self.random_seed)
+        self.rng = self.random_streams.get("engine")
 
         objective = normalise_objective(objective, {"energy", "formation_energy"})
 
@@ -435,19 +254,13 @@ class BasinHopping(BaseExpedition):
             operators=operators,
             mcworker=mcworker,
             population=population,
-            builder=builder,
         )
         if not is_default_objective(objective):
             self._init_params["objective"] = copy.deepcopy(objective)
         self._init_params.update(convergence=convergence, use_archive=use_archive)
 
-        # population
-        self.population = ConcurrentPopulation(**population)
-
-        if builder is not None:
-            builder = canonicalise_builder(builder)
-            self.population.random_offspring_generator = builder
-            self._print("Overwrite random_offspring_generator externally.")
+        self.population = HoppingPopulation(population, self.random_streams)
+        self.generator = self.population.builders[self.population.reference_builder_name]
 
         # Parse monte carlo settings
         self.num_mcmoves = num_mcmoves
@@ -508,9 +321,9 @@ class BasinHopping(BaseExpedition):
         # Register minimum covalent bond distance used by operators
         # TODO: Maker a better interface?
         bond_distance_dict = {}
-        if hasattr(self.population.random_offspring_generator, "get_bond_distance_dict"):
+        if hasattr(self.generator, "get_bond_distance_dict"):
             try:
-                bond_distance_dict.update(self.population.random_offspring_generator.get_bond_distance_dict())
+                bond_distance_dict.update(self.generator.get_bond_distance_dict())
             except NotImplementedError:
                 # File/direct builders inherit the unsupported base method.
                 # Actual candidate elements are added before each hopping chain.
@@ -521,9 +334,9 @@ class BasinHopping(BaseExpedition):
         bond_distance_dict.update(get_bond_distance_dict(unique_atomic_numbers=unique_atomic_numbers, ratio=1.0))
 
         custom_pair_distance_dict = {}
-        if hasattr(self.population.random_offspring_generator, "get_custom_pair_distance_dict"):
+        if hasattr(self.generator, "get_custom_pair_distance_dict"):
             custom_pair_distance_dict.update(
-                self.population.random_offspring_generator.get_custom_pair_distance_dict()  # type: ignore
+                self.generator.get_custom_pair_distance_dict()  # type: ignore
             )
 
         prepare_operators(self.operators, unique_atomic_numbers, bond_distance_dict, custom_pair_distance_dict)
@@ -564,7 +377,7 @@ class BasinHopping(BaseExpedition):
         if gen_num == 0:
             # The first generation (gen-0)
             # TODO: If the initial random is failed?
-            structures = self.population.random_offspring_generator.run(size=self.population.ini_size)  # type: ignore
+            structures = self.population._prepare_initial_population(self.population.builders)
             num_structures = len(structures)
             self._print(f"The initial population {num_structures=}.")
             for atoms in structures:
@@ -578,7 +391,7 @@ class BasinHopping(BaseExpedition):
             # Try to generate new structures
             candidates = sorted(
                 self.population.get_current_generation(
-                    database=database, rng=self.rng, with_history=True, use_extinct=self.use_extinct
+                    database=database, with_history=True, use_extinct=self.use_extinct
                 ),
                 key=lambda a: a.info["confid"],
             )
@@ -589,6 +402,7 @@ class BasinHopping(BaseExpedition):
                 self._print(f">>>>> cand{icand} confid {candidate.info['confid']}")
                 self.mcworker.driver.directory = gen_wdir / f"mc_{icand}"
                 atoms = candidate.copy()
+                atoms.info = copy.deepcopy(candidate.info)
                 atoms.calc = candidate.calc  # Borrow cached results until the first proposal.
                 atoms_after_mc, mcstates = run_hopping_steps(
                     atoms,
@@ -668,7 +482,7 @@ class BasinHopping(BaseExpedition):
 
     def get_generation_info(self, database: GlobalOptimisationDatabase) -> tuple[int, GenerationState]:
         """"""
-        ini_size, gen_size = self.population.ini_size, self.population.gen_size
+        ini_size, gen_size = self.population.init_size, self.population.gen_size
 
         # def get_generation_state(number_rest, number_target):
         #     """"""
@@ -821,10 +635,8 @@ class BasinHopping(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        recipe = copy.deepcopy(self._init_params)
-        builder = recipe.get("builder")
-        if hasattr(builder, "as_dict"):
-            recipe["builder"] = builder.as_dict()
+        recipe = {key: copy.deepcopy(value) for key, value in self._init_params.items() if key != "population"}
+        recipe["population"] = self.population.serialise(self._init_params["population"])
         recipe = dict(random_seed=self.random_seed, **recipe)
         assert self.worker is not None
 

@@ -1,5 +1,4 @@
 import copy
-import inspect
 import itertools
 import pathlib
 from collections.abc import Mapping
@@ -12,7 +11,6 @@ from ase.build import niggli_reduce
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
-from gdpx.structures.builders import REGISTER as BUILDER_REGISTER
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.structures.geometry.ga import CellBounds
 from gdpx.utils.atoms_tags import get_tags_per_species
@@ -29,6 +27,7 @@ from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .core import OperationSelector, RandomStreamRegistry
 from .population.manager import PopulationManager
+from ..population.comparators import create_population_comparator
 
 
 def plot_evolution_figure(rdir, data, gen_num, target):
@@ -206,25 +205,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.random_streams = RandomStreamRegistry(self.random_seed)
         self.rng = self.random_streams.get("engine")
 
-        population = copy.deepcopy(population)
-        if "random_generator" in population:
-            raise ValueError("Legacy GA population key 'random_generator' is not supported; use 'builders'.")
-        builders_config = population.pop("builders", None)
-        reference_builder = population.pop("reference_builder", "random")
-        if not isinstance(builders_config, Mapping) or not builders_config:
-            raise ValueError("GA population configuration requires a non-empty 'builders' mapping.")
-        if not all(isinstance(name, str) and name for name in builders_config):
-            raise ValueError("GA population builder names must be non-empty strings.")
-        if not isinstance(reference_builder, str):
-            raise ValueError("GA population.reference_builder must name one of population.builders.")
-        if reference_builder not in builders_config:
-            if reference_builder == "random":
-                raise ValueError(
-                    "GA population defaults reference_builder to 'random', but population.builders "
-                    "does not define 'random'; set reference_builder to another builder name."
-                )
-            raise ValueError("GA population.reference_builder must name one of population.builders.")
-
+        # Config mappings may contain builder instances; never deep-copy them.
+        population = dict(population)
+        self._reject_legacy_population_comparators(operators)
         self.pop_manager = PopulationManager(
             population, rng=self.random_streams.get("population")
         )
@@ -244,49 +227,15 @@ class GeneticAlgorithmEngine(BaseExpedition):
         ga_dict.update(convergence=convergence, use_archive=use_archive)
 
         # Store initial parameters
-        self.ga_dict = copy.deepcopy(ga_dict)
+        self.ga_dict = {key: copy.deepcopy(value) for key, value in ga_dict.items() if key != "population"}
+        self.ga_dict["population"] = dict(population)
 
-        # Check random consistency, builders and population
-        self._print(f"GA RANDOM SEED {self.random_seed}")
-        self.builders = {}
-        for name, builder_config in builders_config.items():
-            child_seed = self.random_streams.seed(f"builder/{name}")
-            if isinstance(builder_config, Mapping):
-                params = copy.deepcopy(dict(builder_config))
-                population_owned = {"pbc", "use_tags"}.intersection(params)
-                if population_owned:
-                    migrations = {
-                        "pbc": "population.periodic",
-                        "use_tags": "population.preserve_fragments",
-                    }
-                    details = ", ".join(
-                        f"{key} -> {migrations[key]}" for key in sorted(population_owned)
-                    )
-                    raise ValueError(
-                        f"GA population builder {name!r} contains population-owned keys: {details}."
-                    )
-                method = params.get("method", "direct")
-                builder_class = BUILDER_REGISTER[method]
-                if "pbc" in inspect.signature(builder_class.__init__).parameters:
-                    params["pbc"] = self.periodic
-                params["random_seed"] = child_seed
-                builder = canonicalise_builder(params)
-            else:
-                builder = builder_config
-                if not hasattr(builder, "set_rng"):
-                    raise TypeError(f"Population builder {name!r} must be a builder configuration or instance.")
-                builder.set_rng(child_seed)
-            if builder is None:
-                raise ValueError(f"Population builder {name!r} could not be initialised.")
-            if hasattr(builder, "use_tags"):
-                builder.use_tags = True
-            builder.rng = self.random_streams.get(f"builder/{name}")
-            self.builders[name] = builder
-            self._print(f"SET BUILDER {name!r} SEED TO {child_seed}")
-
-        self.reference_builder_name = reference_builder
-        # Keep this alias for operator/system metadata that comes from one reference builder.
-        self.generator = self.builders[reference_builder]
+        self.builders = self.pop_manager.initialise_builders(population, self.random_streams)
+        self.reference_builder_name = self.pop_manager.reference_builder_name
+        self.generator = self.builders[self.reference_builder_name]
+        self.population_comparator = create_population_comparator(
+            self.pop_manager.comparator_config, self.periodic,
+            self.random_streams.get("population/comparator"))
 
         # Worker will be lazily checked in run
         self.worker = None
@@ -627,7 +576,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         self.pop_manager.update_population(
             database=self.da,
-            comparing=self.operators["mobile"]["comparing"],
+            comparing=self.population_comparator,
         )
         assert self.pop_manager.population is not None
 
@@ -699,6 +648,16 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return is_converged
 
+    @staticmethod
+    def _reject_legacy_population_comparators(operators):
+        if not isinstance(operators, Mapping):
+            return
+        for path, config in [("operators", operators)] + [
+            (f"operators.{group}", operators.get(group, {})) for group in ("mobile", "custom")
+        ]:
+            if isinstance(config, Mapping) and "comparator" in config:
+                raise ValueError(f"{path}.comparator moved to population.comparator.")
+
     def _register_operators(self):
         """"""
         self.operators = {}
@@ -707,7 +666,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
         if op_dict is None:
             op_dict = {
                 "mobile": {
-                    "comparator": {"name": "InteratomicDistanceComparator"},
                     "crossover": {"method": "periodic_cut_and_splice"},
                 }
             }
@@ -791,24 +749,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """Parse operators for a given group.
 
         Returns:
-            A dict with comparing, pairing, and mutations.
+            A dict with pairing and mutations.
 
         """
-        # --- comparator
-        comp_params = op_dict.get("comparator", None)
-        if comp_params is not None:
-            self._reject_population_owned_operator_keys(comp_params, f"operators.{group}.comparator")
-            comp_specific = dict(
-                specific_params,
-                rng=self.random_streams.get(f"operator/{group}/comparator"),
-            )
-            comparing = instantiate_a_genetic_operator("comparator", comp_params, comp_specific)
-
-            self._print("  --- comparator ---")
-            self._print(f"  Use comparator {comparing.__class__.__name__}.")
-        else:
-            comparing = None
-
         # --- crossover
         crossover_params = op_dict.get("crossover", None)
         if crossover_params is not None:
@@ -876,7 +819,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 [], [], rng=self.random_streams.get(f"operator/{group}/mutation_selector")
             )
 
-        return dict(comparing=comparing, pairing=pairing, mutations=mutations)
+        return dict(pairing=pairing, mutations=mutations)
 
     @staticmethod
     def _reject_population_owned_operator_keys(params: Mapping, path: str) -> None:
@@ -950,7 +893,8 @@ class GeneticAlgorithmEngine(BaseExpedition):
         da.init_task(
             canonicalised_substrate,
             data=dict(
-                population_size=self.pop_manager.gen_size,
+                generation_size=self.pop_manager.gen_size,
+                retained_size=self.pop_manager.retained_size,
                 initial_population_size=self.pop_manager.init_size,
                 num_atoms_substrate=num_atoms_substrate,
             ),
@@ -1021,20 +965,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        population = copy.deepcopy(self.ga_dict["population"])
-        builders = {}
-        for name, builder in self.builders.items():
-            builder_config = copy.deepcopy(builder.as_dict())
-            builder_config.pop("pbc", None)
-            builder_config.pop("use_tags", None)
-            builders[name] = builder_config
-        population_prefix: dict[str, Any] = {
-            "builders": builders
-        }
+        population = self.pop_manager.serialise(self.ga_dict["population"])
         if self.reference_builder_name != "random":
-            population_prefix["reference_builder"] = self.reference_builder_name
-        population = dict(**population_prefix, **population)
-        ga_dict = copy.deepcopy(self.ga_dict)
+            population["reference_builder"] = self.reference_builder_name
+        ga_dict = {key: copy.deepcopy(value) for key, value in self.ga_dict.items() if key != "population"}
         ga_dict["population"] = population
         recipe = dict(
             random_seed=self.random_seed,

@@ -6,51 +6,14 @@ from ase import Atoms
 from ase.geometry import find_mic
 
 from gdpx.exploration.persist.database import GlobalOptimisationDatabase as GODB
-from gdpx.exploration.persist.thanos import dispatch_thanos
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
 from .population import Population, PopulationWithVariableComposition
+from ...population.config import PopulationConfig, clean_seed_structures
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: list[str] = ["extinct", "origin"]
-
-
-def clean_seed_structures(prev_frames: list[Atoms]) -> list[Atoms]:
-    """"""
-    curr_frames = []
-    # energies, forces = [], []
-    for _, prev_atoms in enumerate(prev_frames):
-        # copy geometry
-        curr_atoms = Atoms(
-            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
-            positions=copy.deepcopy(prev_atoms.get_positions()),
-            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
-            pbc=copy.deepcopy(prev_atoms.get_pbc()),
-            tags=prev_atoms.get_tags(),  # retain this for molecules
-        )
-        # if prev_atoms.get_kinetic_energy() > 0.: # retain this for MD
-        #    curr_atoms.set_momenta(prev_atoms.get_momenta())
-        curr_frames.append(curr_atoms)
-
-        # save properties
-        # try:
-        #     ene = prev_atoms.get_potential_energy()
-        #     energies.append(ene)
-        # except:
-        #     raise RuntimeError(f"Cannot get energy for seed structure {i}.")
-        #
-        # try:
-        #     frc = prev_atoms.get_forces()
-        #     forces.append(frc)
-        # except:
-        #     raise RuntimeError(f"Cannot get forces for seed structure {i}.")
-
-    # for a, e, f in zip(curr_frames, energies, forces):
-    #     calc = SinglePointCalculator(a, energy=e, forces=f)
-    #     a.calc = calc
-
-    return curr_frames
 
 
 def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20) -> bool:
@@ -124,7 +87,7 @@ def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:
     return
 
 
-class PopulationManager:
+class PopulationManager(PopulationConfig):
     """An abstract population manager for evolutionary algorithms.
 
     For structure exploration, there are generally two formulations. ASE forms
@@ -220,15 +183,7 @@ class PopulationManager:
         substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
         if "dtol" in substrate_params:
             raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
-        self.periodic = self._boolean_setting(params, "periodic", default=True)
-        self.preserve_fragments = self._boolean_setting(
-            params, "preserve_fragments", default=True
-        )
-        self.init_size = self._positive_integer(init_params.get("total_size"), "initial.total_size")
-        self.initial_builder_allocations = self._parse_builder_allocations(
-            init_params.get("builder_allocations"), self.init_size
-        )
-
+        super().__init__(params, rng=self.rng)
         # Get number of structures from different origins in one generation
         self.gen_size = self._positive_integer(gen_params.get("total_size"), "generation.total_size")
         reproduction_params = gen_params.get("reproduction", {})
@@ -256,74 +211,16 @@ class PopulationManager:
         # Get the tolerance for comparing two atoms by substrates
         self.substrate_dtol = substrate_params.get("distance_tolerance", -1.0)  # Ang
 
-        # Thanos (observer/describer) extincts structures in the population
-        thanos = params.get("thanos", None)
-        extinct_callbacks = None
-        if thanos is not None:
-            thanos_config = copy.deepcopy(thanos)
-            # check whether dict or list by mapping
-            if isinstance(thanos_config, Mapping):
-                thanos_config = [thanos_config]
-            extinct_callbacks = [dispatch_thanos(**tc) for tc in thanos_config]
-        else:
-            ...
-
-        self.extinct_callbacks = extinct_callbacks
-        self.use_extinct = True if extinct_callbacks is not None else False
-
         # Lazy attributes
         self.population = None
 
         return
 
-    @staticmethod
-    def _boolean_setting(params: Mapping, key: str, default: bool) -> bool:
-        value = params.get(key, default)
-        if not isinstance(value, bool):
-            raise ValueError(f"population.{key} must be a boolean; got {value!r}.")
-        return value
-
-    @staticmethod
-    def _positive_integer(value, path: str) -> int:
-        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-            raise ValueError(f"{path} must be a positive integer; got {value!r}.")
-        return value
-
-    @staticmethod
-    def _nonnegative_integer(value, path: str) -> int:
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            raise ValueError(f"{path} must be a non-negative integer; got {value!r}.")
-        return value
 
     def _attempts(self, params: Mapping, size: int, section: str) -> int:
         attempts = params.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
         return self._nonnegative_integer(attempts, f"generation.{section}.maximum_attempts")
 
-    def _parse_builder_allocations(self, allocations, total_size: int) -> list[dict]:
-        if not isinstance(allocations, list) or not allocations:
-            raise ValueError("initial.builder_allocations must be a non-empty list.")
-        parsed = []
-        names = set()
-        for index, allocation in enumerate(allocations):
-            if (
-                not isinstance(allocation, Mapping)
-                or not isinstance(allocation.get("builder"), str)
-                or not allocation["builder"]
-            ):
-                raise ValueError(f"initial.builder_allocations[{index}] requires a builder name.")
-            size = self._nonnegative_integer(allocation.get("size"), f"initial.builder_allocations[{index}].size")
-            maximum_attempts = allocation.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
-            maximum_attempts = self._nonnegative_integer(
-                maximum_attempts, f"initial.builder_allocations[{index}].maximum_attempts"
-            )
-            name = allocation["builder"]
-            if name in names:
-                raise ValueError(f"initial.builder_allocations repeats builder {name!r}.")
-            names.add(name)
-            parsed.append(dict(builder=name, size=size, maximum_attempts=maximum_attempts))
-        if sum(x["size"] for x in parsed) != total_size:
-            raise ValueError("initial builder allocation sizes must sum to initial.total_size.")
-        return parsed
 
     def _parse_builder_proportions(self, proportions) -> list[dict]:
         if not isinstance(proportions, list) or not proportions:
@@ -384,7 +281,7 @@ class PopulationManager:
         if self.name == "constant":
             population = Population(
                 data_connection=database,
-                population_size=self.gen_size,
+                population_size=self.retained_size,
                 comparator=comparing,
                 use_extinct=self.use_extinct,
                 rng=self.rng,
@@ -395,7 +292,7 @@ class PopulationManager:
         elif self.name == "variable":
             population = PopulationWithVariableComposition(
                 data_connection=database,
-                population_size=self.gen_size,
+                population_size=self.retained_size,
                 comparator=comparing,
                 use_extinct=self.use_extinct,
                 rng=self.rng,
@@ -472,81 +369,6 @@ class PopulationManager:
 
         return candidate_groups
 
-    def _generate_from_builder(self, name: str, builder, size: int, maximum_attempts: int) -> list[Atoms]:
-        frames: list[Atoms] = []
-        for _ in range(maximum_attempts):
-            if len(frames) == size:
-                break
-            generated = builder.run(size=size - len(frames))
-            if isinstance(generated, Atoms):
-                generated = [generated]
-            if generated is None:
-                generated = []
-            if not isinstance(generated, list) or not all(isinstance(atoms, Atoms) for atoms in generated):
-                raise RuntimeError(f"Builder {name!r} returned invalid structures.")
-            if len(generated) > size - len(frames):
-                raise RuntimeError(f"Builder {name!r} returned more structures than requested.")
-            for offset, atoms in enumerate(generated):
-                self.validate_candidate(atoms, f"builder {name!r}", len(frames) + offset)
-            frames.extend(generated)
-        if len(frames) != size:
-            raise RuntimeError(
-                f"Builder {name!r} generated {len(frames)} of {size} requested structures "
-                f"after {maximum_attempts} attempts."
-            )
-        return frames
-
-    def validate_candidate(self, atoms: Atoms, source: str, index: Optional[int] = None) -> None:
-        """Validate population-wide system invariants for a candidate."""
-        location = source if index is None else f"{source} candidate {index}"
-        expected_pbc = np.full(3, self.periodic, dtype=bool)
-        if not np.array_equal(atoms.get_pbc(), expected_pbc):
-            raise ValueError(
-                f"{location} has periodic boundary conditions {atoms.get_pbc().tolist()}, "
-                f"but population.periodic is {self.periodic}."
-            )
-        if self.preserve_fragments and not atoms.has("tags"):
-            raise ValueError(
-                f"{location} has no explicit ASE tags, but population.preserve_fragments is true."
-            )
-        if self.preserve_fragments:
-            tags = atoms.get_tags()
-            if np.any(tags < 0) or not np.any(tags > 0):
-                raise ValueError(
-                    f"{location} must use tag 0 only for substrate atoms and positive tags "
-                    "for mobile fragments when population.preserve_fragments is true."
-                )
-
-    @staticmethod
-    def _require_builders(builders: Mapping, names) -> None:
-        missing = sorted(set(names) - set(builders))
-        if missing:
-            raise ValueError(f"Unknown population builders: {', '.join(missing)}.")
-
-    def _prepare_initial_population(self, builders: Mapping) -> list[Atoms]:
-        """Build the initial population from explicit, strictly sized allocations."""
-        self._require_builders(builders, (x["builder"] for x in self.initial_builder_allocations))
-        starting_population = []
-        for allocation in self.initial_builder_allocations:
-            name = allocation["builder"]
-            frames = self._generate_from_builder(
-                name, builders[name], allocation["size"], allocation["maximum_attempts"]
-            )
-            starting_population.extend(self.clean_initial_structures(frames, name))
-        if len(starting_population) != self.init_size:
-            raise RuntimeError("Failed to generate the configured initial population.")
-        return starting_population
-
-    @staticmethod
-    def clean_initial_structures(frames: list[Atoms], builder_name: str) -> list[Atoms]:
-        """Remove calculators and attach persisted initial-builder metadata."""
-        cleaned = clean_seed_structures(frames)
-        for atoms in cleaned:
-            atoms.info["data"] = {"builder": builder_name}
-            atoms.info["key_value_pairs"] = dict(
-                origin=f"InitialBuilder:{builder_name}", extinct=0
-            )
-        return cleaned
 
     def _prepare_current_population(
         self,
@@ -639,6 +461,8 @@ class PopulationManager:
                 self._print(f"Mutation attempt {i} ->")
                 parent = population.get_one_candidate(with_history=True)
                 assert isinstance(parent, Atoms)
+                parent = parent.copy()
+                parent.info = copy.deepcopy(parent.info)
                 atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
                 if atoms is not None:
                     self.validate_candidate(atoms, "mutation")
@@ -742,6 +566,8 @@ class PopulationManager:
         if num_structures_in_population >= 2:
             if pairing.allow_variable_composition:
                 parents = population.get_two_candidates()
+                if parents is None:
+                    return None
                 natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
                 self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
             else:
@@ -780,8 +606,12 @@ class PopulationManager:
                     natoms_p0 = len(parents[0])
         else:
             # We only have one structure
-            parents = [copy.deepcopy(population.pop[0])]
+            parents = [population.pop[0]]
             natoms_p0 = len(parents[0])
+
+        parents = [parent.copy() for parent in parents]
+        for parent in parents:
+            parent.info = copy.deepcopy(parent.info)
 
         # HACK: We need adjust n_top of some operators for comptability.
         prev_substrate = None

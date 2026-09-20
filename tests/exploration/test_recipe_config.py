@@ -16,8 +16,8 @@ from gdpx.exploration.persist.database import (
 )
 from gdpx.exploration.basin_hopping.engine import (
     BasinHopping,
-    ConcurrentPopulation,
 )
+from gdpx.exploration.population.config import PopulationConfig
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
 from gdpx.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
@@ -181,12 +181,7 @@ def test_searches_reject_configurable_database_names():
         )
 
     with pytest.raises(ValueError, match="population.database_fname is no longer configurable"):
-        ConcurrentPopulation(
-            initial_size=1,
-            generation_size=1,
-            random_offspring_generator={},
-            database_fname="custom.db",
-        )
+        PopulationConfig({"database_fname": "custom.db"})
 
 
 def test_population_searches_use_fixed_database_path(tmp_path):
@@ -491,6 +486,8 @@ def test_ga_serialization_uses_recipe_and_runtime():
         "use_archive": True,
     }
 
+    engine.pop_manager = PopulationConfig(engine.ga_dict["population"])
+    engine.pop_manager.builders = engine.builders
     config = engine.as_dict()
 
     assert list(config) == ["method", "recipe", "runtime"]
@@ -631,7 +628,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     concurrent.random_seed = 13
     concurrent.worker = worker
     concurrent._init_params = {
-        "builder": Serializable({"method": "builder"}),
+        "population": _minimal_ga_population("random"),
         "convergence": {"generation": 2},
         "objective": {
             "target": "formation_energy",
@@ -639,6 +636,8 @@ def test_other_global_optimisers_serialize_the_recipe():
         },
         "use_archive": True,
     }
+    concurrent.population = PopulationConfig(concurrent._init_params["population"])
+    concurrent.population.builders = concurrent._init_params["population"]["builders"]
     concurrent_config = concurrent.as_dict()
     assert concurrent_config["method"] == "basin_hopping"
 
@@ -650,7 +649,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     annealing_config = annealing.as_dict()
 
     assert concurrent_config["recipe"]["random_seed"] == 13
-    assert concurrent_config["recipe"]["builder"] == {"method": "builder"}
+    assert concurrent_config["recipe"]["population"]["retained_size"] == 1
     assert concurrent_config["recipe"]["objective"] == {
         "target": "formation_energy",
         "chemical_potentials": {"O": -4.95},

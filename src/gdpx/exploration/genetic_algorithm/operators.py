@@ -2,9 +2,7 @@ import copy
 import inspect
 from typing import Any
 
-from .comparator.basic import NNMatComparator
-from .comparator.ofp import OFPComparator
-from .comparator.interatomic_distance import InteratomicDistanceComparator
+from ..population.comparators import COMPARATORS
 from .crossover import ClusterCutAndSpliceCrossover, PeriodicCutAndSpliceCrossover
 from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
@@ -16,14 +14,6 @@ from .mutation.rattle import RattleMutation
 from .mutation.soft import SoftMutation
 from .mutation.strain import StrainMutation
 from .mutation.swap import SwapMutation
-
-COMPARATORS: dict[str, Any] = dict(
-    # GDPy implementations of ASE-GA-compatible comparators
-    ofp=OFPComparator,
-    nnmat=NNMatComparator,
-    # Custom comparators
-    interatomic_distance=InteratomicDistanceComparator,
-)
 
 CROSSOVERS: dict[str, Any] = dict(
     # GDPy implementations of ASE-GA-compatible crossovers

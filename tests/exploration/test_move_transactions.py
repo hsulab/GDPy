@@ -432,8 +432,10 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         "options": {"worker": "single"},
     }
     engine = create_expedition({"method": "basin_hopping", "recipe": {
-        "population": {"initial_size": 1, "generation_size": 1,
-                       "random_offspring_generator": {"method": "read_stru", "fname": str(source)}},
+        "population": {"periodic": False, "retained_size": 1,
+                       "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
+                       "generation": {"total_size": 3},
+                       "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
         "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.05,
                        "skip_distance_check": True}],
         "num_mcmoves": 2, "mcworker": runtime, "convergence": {"generation": 1},
@@ -448,3 +450,13 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     assert serialized["method"] == "basin_hopping"
     assert serialized["runtime"]["executor"]["method"] == "spc"
     assert len(engine.get_workers()) == 2
+    from ase.io import read
+    frames = read(engine.directory / "results" / "all_candidates.xyz", ":")
+    assert len(frames) == 4
+    trajectories = sorted((engine.directory / "tmp_folder/gen1/mctrajs").glob("mc-*.xyz"))
+    assert len(trajectories) == 3
+    for trajectory in trajectories:
+        start = read(trajectory, 0)
+        np.testing.assert_allclose(start.positions, atoms.positions)
+    serialized.pop("runtime")
+    assert create_expedition(serialized).population.gen_size == 3

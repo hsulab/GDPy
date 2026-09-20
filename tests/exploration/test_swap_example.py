@@ -19,7 +19,7 @@ EXAMPLE_PATH = (
 def test_cu7ni6_example_generates_tagged_clusters_and_swaps_species():
     config = yaml.safe_load(EXAMPLE_PATH.read_text())
     config.pop("runtime")
-    config.pop("scheduler")
+    config.pop("scheduler", None)
     engine = create_expedition(config)[0]
 
     candidates = engine.builders["random"].run(size=4)

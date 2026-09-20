@@ -68,10 +68,14 @@ class GlobalOptimisationDatabase:
 
     def init_task(self, substrate: Atoms, data: dict[str, int]) -> None:
         """"""
-        # We must have three integers, population_size, initial_population_size, and num_atoms_substrate in data
-        if "population_size" not in data or "initial_population_size" not in data or "num_atoms_substrate" not in data:
+        # Accept the legacy production-size field when opening older task definitions.
+        if (
+            not ({"generation_size", "population_size"} & data.keys())
+            or "initial_population_size" not in data
+            or "num_atoms_substrate" not in data
+        ):
             raise RuntimeError(
-                "Data dictionary must contain 'population_size', 'initial_population_size', and 'num_atoms_substrate' keys."
+                "Data dictionary must contain 'generation_size', 'initial_population_size', and 'num_atoms_substrate' keys."
             )
 
         self.connection.write(
@@ -279,7 +283,9 @@ class GlobalOptimisationDatabase:
         """
         init_pop_size = self.get_param("initial_population_size")
         assert isinstance(init_pop_size, int)
-        pop_size = self.get_param("population_size")
+        pop_size = self.get_param("generation_size")
+        if pop_size is None:  # Databases written before retained_size was introduced.
+            pop_size = self.get_param("population_size")
         assert isinstance(pop_size, int)
 
         all_candidates = list(self.connection.select(relaxed=1))
