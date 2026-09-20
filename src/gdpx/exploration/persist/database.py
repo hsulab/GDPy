@@ -334,6 +334,8 @@ class GlobalOptimisationDatabase:
             state = GenerationState.END_OF_GEN if complete else (
                 GenerationState.MID_OF_GEN if submitted or evaluated or plan else GenerationState.BEG_OF_GEN
             )
+            if complete and plan is not None and plan.get("termination_reason") == "extinct":
+                state = GenerationState.EXTINCTED
             return GenerationInfo(num, state, sorted(submitted - evaluated), sorted(evaluated))
 
         if generation is not None:

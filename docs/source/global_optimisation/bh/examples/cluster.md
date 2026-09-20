@@ -17,12 +17,13 @@ The complete input is `examples/global_optimisation/cu8_bh_emt.yaml`:
 
 `population.periodic: false` makes the cluster nonperiodic. The 12 Å box supplies a coordinate
 frame for generation and move selection; it does not create periodic images.
-Four initial Cu₈ candidates are generated in a sphere and relaxed. Individual
+The `random_structure_improved` builder generates four initial Cu₈ candidates
+in a sphere, which are then relaxed. Individual
 atom tags let the move operator select one Cu atom at a time.
 
-Each subsequent generation launches two independent chains from the retained
+The search selects starts once and launches two independent chains from the retained
 pool of up to two distinct candidates. Starts are sampled with replacement,
-so both chains may start from the same candidate. Each chain runs three displacement proposals, with a maximum displacement of 0.8 Å.
+so both chains may start from the same candidate. Each chain runs ten displacement proposals, with a maximum displacement of 0.8 Å.
 Both chains propose once per round, and the calculation worker minimizes the
 batch of valid trials before their energies are used for acceptance.
 The operator's 500 K temperature controls uphill acceptance during the search;
@@ -30,7 +31,10 @@ it is not an MD thermostat or a claim of thermal equilibrium sampling.
 
 The top-level `runtime` relaxes the initial population and every valid trial
 using EMT and a force tolerance of 0.05 eV/Å. Every relaxed trial endpoint is stored, whether accepted or rejected,
-without another relaxation. Each search generation adds up to six trial minima. The example stops after generation 2; generation 0 is initialization.
+without another relaxation. The search adds up to twenty trial minima, for at
+most 24 evaluated structures including initialization. The omitted `convergence`
+uses the default final generation of 1; generation 0 is initialization. Stored
+discoveries do not replace chain states: MC acceptance determines each next state.
 
 ## Run
 
@@ -47,10 +51,11 @@ Results are written under `run-cu8-bh-emt/expedition-0`:
   with the lowest-energy candidate first for the default energy objective.
 - `results/pop.png`: candidate energies by generation.
 - `tmp_folder/gen*/mctrajs/mc-*.xyz`: each chain's starting structure and accepted
-  hops; rejected trials are not appended.
+  hops; rejected trials are not appended. Runs with extinction rules also mark
+  replacement starts as restart events. This demo has no extinction rules.
 
-The small population and short chains keep this example quick to run. Increase
-`population.initial.total_size`, `population.retained_size`,
-`population.generation.total_size`, `num_mcmoves`, and
-`convergence.generation` for a more extensive search. The demonstration does
-not establish the global minimum of Cu₈.
+The small population and ten-move chains keep this example short. Increase
+`num_mcmoves` for longer chains, or adjust the initial population and number of
+chains for a broader search. Setting `convergence.generation` above 1 additionally
+reselects chain starts from the accumulated minima between search generations.
+The demonstration does not establish the global minimum of Cu₈.

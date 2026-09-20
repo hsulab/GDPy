@@ -153,3 +153,9 @@ from the XYZ trajectories used for inspection.
 
 Legacy BH runs with pending inputs that lack generation metadata cannot be
 resumed; start a new run for those inputs.
+
+For BH, an accepted extinct trial also terminates its chain segment. The retained
+population is refreshed after the complete round to select a replacement for the
+remaining moves. Rejected extinct trials only affect population eligibility.
+Replacement choices and all selection RNG streams are included in the round
+checkpoint; interruption cannot redraw a committed replacement.

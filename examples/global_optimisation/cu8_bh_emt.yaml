@@ -32,9 +32,7 @@ recipe:
       covalent_ratio: [0.6, 2.0]
       max_random_attempts: 100
       probability: 1.0
-  num_mcmoves: 3
-  convergence:
-    generation: 2
+  num_mcmoves: 10
 
 runtime:
   potential:

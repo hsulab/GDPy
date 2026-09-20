@@ -1,6 +1,7 @@
 import copy
 import itertools
 import pathlib
+from collections.abc import Mapping
 from typing import Callable, Optional
 
 import numpy as np
@@ -162,7 +163,7 @@ class BasinHopping(BaseExpedition):
         operators: list[dict],
         num_mcmoves: int,
         population: dict,
-        convergence: dict,
+        convergence: Optional[dict] = None,
         objective: Optional[dict] = None,
         builder=None,
         use_archive: bool = True,
@@ -182,6 +183,12 @@ class BasinHopping(BaseExpedition):
             raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
         if isinstance(num_mcmoves, bool) or not isinstance(num_mcmoves, int) or num_mcmoves < 0:
             raise ValueError("BH num_mcmoves must be a non-negative integer.")
+        if convergence is not None and not isinstance(convergence, Mapping):
+            raise TypeError("BH convergence must be a mapping.")
+        convergence = {"generation": 1, **copy.deepcopy(dict(convergence or {}))}
+        generation = convergence["generation"]
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
+            raise ValueError("BH convergence.generation must be a non-negative integer.")
         if builder is not None:
             raise ValueError("BH builder moved to population.builders and initial.builder_allocations.")
         super().__init__(*args, **kwargs)
@@ -329,7 +336,7 @@ class BasinHopping(BaseExpedition):
         plan = database.get_generation_plan(gen_num)
         candidates = database.generation_candidates(gen_num)
         if gen_num > 0 and (
-            (plan is not None and plan.get("round_version") != 3)
+            (plan is not None and plan.get("round_version") != 4)
             or (plan is None and (candidates or (gen_wdir / "chains").exists()))
         ):
             raise ValueError("Incompatible serial BH checkpoint or older round checkpoint; start a new run.")
@@ -340,7 +347,7 @@ class BasinHopping(BaseExpedition):
                     raise ValueError("Legacy partial BH generation has no production checkpoint; start a new run.")
                 plan = dict(stage="complete", random_states=self.random_streams.snapshot())
             else:
-                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=3)
+                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=4)
                 if gen_num > 0:
                     self.population.refresh(database)
                     starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
@@ -369,20 +376,37 @@ class BasinHopping(BaseExpedition):
             for start, confid in zip(starts, plan["parents"]):
                 start.info["confid"] = confid
 
-            def record_trial(step, chain, trial, accepted, parent):
+            def record_trial(step, chain, trial, accepted, parent, segment, start_parent):
                 canonical_candidates_from_worker_results(
                     [trial], gen_num=gen_num, use_tags=True, objective=self.objective,
                     extinct_callbacks=self.population_config.extinct_callbacks)
+                extinct = bool(trial.info["key_value_pairs"].get("extinct", 0))
                 trial.info["data"].update(
                     parents=[parent], chain=chain, round=step, accepted=bool(accepted),
-                    start_parent=plan["parents"][chain])
+                    start_parent=start_parent, segment=segment,
+                    outcome="extinct" if accepted and extinct else ("accepted" if accepted else "rejected"))
                 database.add_evaluated_candidate(trial, f"bh:{gen_num}:{chain}:{step}")
+                return extinct
+
+            def restart_chains(terminated):
+                self.population.refresh(database)
+                selected = self.start_selector.select(self.population, len(terminated))
+                replacements = []
+                for candidate in selected:
+                    confid = candidate.info["confid"]
+                    replacement = database.get_one_candidate_by_confid(confid)
+                    replacement.info["confid"] = confid
+                    replacements.append(replacement)
+                return replacements
 
             outcome = run_hopping_rounds(
                 starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
-                self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial)
+                self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
+                restart_chains=restart_chains, random_streams=self.random_streams)
             if outcome.status is EvaluationStatus.PENDING:
                 return None
+            if outcome.extinct:
+                plan["termination_reason"] = "extinct"
             plan["expected_confids"] = sorted(
                 row.confid for row in database.connection.select(relaxed=1, generation=gen_num))
             plan["random_states"] = self.random_streams.snapshot()
@@ -418,7 +442,7 @@ class BasinHopping(BaseExpedition):
             candidate.info["data"].update(provenance)
             database.add_relaxed_step(candidate)
             committed.add(confid)
-        if database.get_generation_info(gen_num).state is GenerationState.END_OF_GEN:
+        if database.get_generation_info(gen_num).state in (GenerationState.END_OF_GEN, GenerationState.EXTINCTED):
             return EvaluationStatus.FINISHED
         return EvaluationStatus.PENDING
 
@@ -427,7 +451,7 @@ class BasinHopping(BaseExpedition):
             database = database or GlobalOptimisationDatabase(self.database_path)
             self._configure_generations(database)
             gen_info = database.get_generation_info()
-        return gen_info.converged(self.convergence.get("generation", 0))
+        return gen_info.converged(self.convergence["generation"])
 
     def report(self, database: Optional[GlobalOptimisationDatabase] = None):
         """"""

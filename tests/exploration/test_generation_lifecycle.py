@@ -358,3 +358,231 @@ def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, 
     assert worker.calls == 1
     assert db.get_generation_plan(1)["expected_confids"] == []
     assert (engine.directory / "results/pop.png").exists()
+
+
+@pytest.mark.parametrize("convergence", [None, {}, {"generation": 1}])
+def test_bh_default_generation_and_serialization(tmp_path, convergence):
+    config, runtime = bh_config(tmp_path)
+    if convergence is None:
+        config["recipe"].pop("convergence")
+    else:
+        config["recipe"]["convergence"] = convergence
+    engine = make_engine(config, runtime, tmp_path / "search")
+    assert engine.convergence == {"generation": 1}
+    serialized = engine.as_dict()
+    assert serialized["recipe"]["convergence"] == {"generation": 1}
+    serialized.pop("runtime")
+    assert create_expedition(serialized).convergence == {"generation": 1}
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert db.get_generation_number() == 2
+    assert db.connection.count(relaxed=1, generation=1) == 4
+    assert db.get_generation_plan(2) is None
+    if convergence is not None:
+        assert config["recipe"]["convergence"] == convergence
+
+
+@pytest.mark.parametrize("generation", [-1, 1.5, True, "1", None])
+def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
+    config, _ = bh_config(tmp_path)
+    config["recipe"]["convergence"] = {"generation": generation}
+    with pytest.raises(ValueError, match="convergence.generation.*non-negative integer"):
+        create_expedition(config)
+
+
+def test_bh_default_generation_resumes_without_reselecting_starts(tmp_path, monkeypatch):
+    import gdpx.exploration.basin_hopping.chain as chain
+    config, runtime = bh_config(tmp_path)
+    config["recipe"].pop("convergence")
+    baseline = make_engine(config, runtime, tmp_path / "baseline")
+    baseline.run()
+    interrupted = make_engine(config, runtime, tmp_path / "interrupted")
+    commit = chain._commit
+    def stop(directory, step, *args):
+        commit(directory, step, *args)
+        if step == 1:
+            raise RuntimeError("stop after first round")
+    monkeypatch.setattr(chain, "_commit", stop)
+    with pytest.raises(RuntimeError, match="first round"):
+        interrupted.run()
+    monkeypatch.setattr(chain, "_commit", commit)
+    resumed = make_engine(config, runtime, interrupted.directory)
+    monkeypatch.setattr(resumed.start_selector, "select", lambda *a: pytest.fail("reselected starts"))
+    resumed.run()
+    assert resumed.read_convergence()
+    expected = read(baseline.directory / "results/all_candidates.xyz", ":")
+    actual = read(resumed.directory / "results/all_candidates.xyz", ":")
+    assert len(actual) == len(expected)
+    for a, b in zip(actual, expected):
+        np.testing.assert_allclose(a.positions, b.positions)
+    assert resumed.random_streams.snapshot() == baseline.random_streams.snapshot()
+
+
+def extinction_engine(config, runtime, directory, worker, callback):
+    engine = make_engine(config, runtime, directory)
+    engine.register_worker(worker)
+    engine.population_config.extinct_callbacks = [callback]
+    engine.population_config.use_extinct = True
+    engine.population.use_extinct = True
+    return engine
+
+
+@pytest.mark.parametrize("trial_energy,extinct", [(-1., False), (100., False), (-1., True), (100., True)])
+def test_bh_extinction_requires_mc_acceptance(tmp_path, monkeypatch, trial_energy, extinct):
+    config, runtime = bh_config(tmp_path, generations=1)
+    engine = extinction_engine(config, runtime, tmp_path / "search", HistoryWorker([0., trial_energy, 0.]),
+                               lambda a: int(extinct and a.get_potential_energy() == trial_energy))
+    selections = []
+    select = engine.start_selector.select
+    def record_selection(population, count):
+        selections.append([a.info["confid"] for a in population.candidates])
+        return select(population, count)
+    monkeypatch.setattr(engine.start_selector, "select", record_selection)
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    first = [r for r in db.connection.select(generation=1) if r.data["round"] == 1]
+    second = [r for r in db.connection.select(generation=1) if r.data["round"] == 2]
+    terminated = trial_energy < 0 and extinct
+    assert len(selections) == (2 if terminated else 1)
+    assert len(first) == len(second) == 2
+    assert all(r.data.accepted == (trial_energy < 0) and r.extinct == int(extinct) for r in first)
+    assert all(r.data.outcome == ("extinct" if terminated else ("accepted" if trial_energy < 0 else "rejected"))
+               for r in first)
+    assert all(r.data.segment == int(terminated) for r in second)
+    if terminated:
+        assert all(db.connection.get(confid=r.data.start_parent, relaxed=1).generation == 0 for r in second)
+        assert all(db.connection.get(confid=i, relaxed=1).extinct == 0 for i in selections[-1])
+    assert db.connection.count(generation=1, relaxed=1) == 4
+
+
+class RoundEnergyWorker(HistoryWorker):
+    def __init__(self):
+        self.calls = 0
+    def run(self, frames):
+        if self.directory.name == "gen0":
+            energies = [0., 0.]
+        elif self.directory.name == "round-000001":
+            energies = [-10., -2.]
+        else:
+            energies = [-1., -20.]
+        self.calls += 1
+        self.results = []
+        for frame, energy in zip(frames, energies):
+            result = frame.copy()
+            result.info = copy.deepcopy(frame.info)
+            result.calc = SinglePointCalculator(result, energy=energy, forces=np.zeros((len(frame), 3)))
+            self.results.append([result])
+
+
+def test_bh_restart_uses_complete_round_and_marks_trajectory(tmp_path, monkeypatch):
+    config, runtime = bh_config(tmp_path, generations=1)
+    config["recipe"]["operators"][0]["temperature"] = 1e12
+    engine = extinction_engine(config, runtime, tmp_path / "search", RoundEnergyWorker(),
+                               lambda a: int(a.get_potential_energy() < -5))
+    select = engine.start_selector.select
+    pools = []
+    def record(population, count):
+        pools.append([(a.info["confid"], a.get_potential_energy()) for a in population.candidates])
+        return select(population, count)
+    monkeypatch.setattr(engine.start_selector, "select", record)
+    engine.run()
+    assert len(pools) == 2  # Initial selection and one replacement; no restart after final round.
+    assert pools[1][0][1] == -2.
+    db = GlobalOptimisationDatabase(engine.database_path)
+    records = {r.evaluation_key: r for r in db.connection.select(generation=1)}
+    source = records["bh:1:1:1"].confid
+    replacement_trial = records["bh:1:0:2"]
+    assert replacement_trial.data.start_parent == source
+    assert replacement_trial.data.parents == [source]
+    assert replacement_trial.data.segment == 1
+    assert records["bh:1:1:2"].data.outcome == "extinct"
+    trajectory = read(engine.directory / "tmp_folder/gen1/mctrajs/mc-0000.xyz", ":")
+    assert [a.info["event"] for a in trajectory] == ["start", "restart", "accepted"]
+    assert trajectory[1].info["source_confid"] == source
+    assert trajectory[1].info["segment"] == 1
+    assert trajectory[1].get_potential_energy() == -2.
+    # A replacement is separately loaded, not aliased to the other active chain.
+    assert replacement_trial.data.parents == records["bh:1:1:2"].data.parents
+
+
+@pytest.mark.parametrize("boundary", ["result", "selection", "round", "pending"])
+def test_bh_extinction_restart_preserves_all_random_streams(tmp_path, monkeypatch, boundary):
+    import gdpx.exploration.basin_hopping.chain as chain
+    config, runtime = bh_config(tmp_path, generations=1)
+    config["recipe"]["operators"][0]["temperature"] = 1e12
+    def make(directory):
+        return extinction_engine(config, runtime, directory, RoundEnergyWorker(),
+                                 lambda a: int(a.get_potential_energy() < -5))
+    baseline = make(tmp_path / "baseline")
+    baseline.run()
+    interrupted = make(tmp_path / "interrupted")
+    with monkeypatch.context() as patch:
+        if boundary == "result":
+            record = GlobalOptimisationDatabase.add_evaluated_candidate
+            def fail(db, atoms, key):
+                record(db, atoms, key)
+                raise RuntimeError("interrupted result")
+            patch.setattr(GlobalOptimisationDatabase, "add_evaluated_candidate", fail)
+        elif boundary == "selection":
+            select = interrupted.start_selector.select
+            calls = []
+            def fail(population, count):
+                result = select(population, count)
+                calls.append(1)
+                if len(calls) == 2:
+                    raise RuntimeError("interrupted selection")
+                return result
+            patch.setattr(interrupted.start_selector, "select", fail)
+        elif boundary == "round":
+            commit = chain._commit
+            def fail(directory, step, *args):
+                commit(directory, step, *args)
+                if step == 1:
+                    raise RuntimeError("interrupted round")
+            patch.setattr(chain, "_commit", fail)
+        else:
+            patch.setattr(interrupted.worker, "get_number_of_running_jobs",
+                          lambda: int(interrupted.worker.directory.name == "round-000002"))
+        if boundary == "pending":
+            interrupted.run()
+            assert not interrupted.read_convergence()
+        else:
+            with pytest.raises(RuntimeError, match="interrupted"):
+                interrupted.run()
+    resumed = make(interrupted.directory)
+    resumed.run()
+    assert resumed.read_convergence()
+    assert baseline.random_streams.snapshot() == resumed.random_streams.snapshot()
+    expected = GlobalOptimisationDatabase(baseline.database_path)
+    actual = GlobalOptimisationDatabase(resumed.database_path)
+    assert actual.connection.count(generation=1) == 4
+    for a, b in zip(actual.connection.select(generation=1), expected.connection.select(generation=1)):
+        assert a.confid == b.confid and dict(a.data) == dict(b.data)
+        np.testing.assert_array_equal(a.positions, b.positions)
+    for index in range(2):
+        name = f"tmp_folder/gen1/mctrajs/mc-{index:04d}.xyz"
+        first = read(baseline.directory / name, ":")
+        second = read(resumed.directory / name, ":")
+        assert len(first) == len(second)
+        for a, b in zip(first, second):
+            assert {k: v for k, v in a.info.items() if k != "unique_id"} == {k: v for k, v in b.info.items() if k != "unique_id"}
+            np.testing.assert_array_equal(a.positions, b.positions)
+
+
+def test_bh_empty_restart_pool_terminates_search(tmp_path, monkeypatch):
+    config, runtime = bh_config(tmp_path, generations=3)
+    engine = extinction_engine(config, runtime, tmp_path / "search", HistoryWorker([0., -1.]),
+                               lambda a: int(a.get_potential_energy() < 0))
+    select = engine.start_selector.select
+    calls = []
+    def empty_after_start(population, count):
+        calls.append(1)
+        return select(population, count) if len(calls) == 1 else []
+    monkeypatch.setattr(engine.start_selector, "select", empty_after_start)
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert db.get_generation_info().state is GenerationState.EXTINCTED
+    assert engine.read_convergence()
+    assert db.get_generation_plan(1)["termination_reason"] == "extinct"
+    assert db.connection.count(generation=1) == 2
+    assert db.get_generation_plan(2) is None
