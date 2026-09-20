@@ -26,7 +26,10 @@ from ..persist.database import (
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .core import OperationSelector, RandomStreamRegistry
-from .population.manager import PopulationManager
+from .generation import GeneticGenerationManager
+from .selection import GeneticParentSelector
+from ..population import Population
+from ..population.config import PopulationConfig
 from ..population.comparators import create_population_comparator
 
 
@@ -208,11 +211,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
         # Config mappings may contain builder instances; never deep-copy them.
         population = dict(population)
         self._reject_legacy_population_comparators(operators)
-        self.pop_manager = PopulationManager(
-            population, rng=self.random_streams.get("population")
-        )
-        self.periodic = self.pop_manager.periodic
-        self.preserve_fragments = self.pop_manager.preserve_fragments
+        GeneticGenerationManager.validate_parameters(population)
+        self.population_config = PopulationConfig(population, rng=self.random_streams.get("population"))
+        self.periodic = self.population_config.periodic
+        self.preserve_fragments = self.population_config.preserve_fragments
 
         objective = normalise_objective(
             objective,
@@ -230,12 +232,24 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self.ga_dict = {key: copy.deepcopy(value) for key, value in ga_dict.items() if key != "population"}
         self.ga_dict["population"] = dict(population)
 
-        self.builders = self.pop_manager.initialise_builders(population, self.random_streams)
-        self.reference_builder_name = self.pop_manager.reference_builder_name
+        self.builders = self.population_config.initialise_builders(population, self.random_streams)
+        self.reference_builder_name = self.population_config.reference_builder_name
         self.generator = self.builders[self.reference_builder_name]
         self.population_comparator = create_population_comparator(
-            self.pop_manager.comparator_config, self.periodic,
+            self.population_config.comparator_config, self.periodic,
             self.random_streams.get("population/comparator"))
+
+        self.population = Population(
+            self.population_config.retained_size, self.population_comparator,
+            self.population_config.use_extinct,
+        )
+        self.parent_selector = GeneticParentSelector(
+            self.random_streams.get("population"), population.get("name", "constant")
+        )
+        self.generation_manager = GeneticGenerationManager(
+            population, self.population_config, self.population, self.parent_selector,
+            self.random_streams.get("population"),
+        )
 
         # Worker will be lazily checked in run
         self.worker = None
@@ -246,13 +260,13 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         # Population and check target-population consistency
         configured_builder_names = [
-            allocation["builder"] for allocation in self.pop_manager.initial_builder_allocations
-        ] + [item["builder"] for item in self.pop_manager.completion_builder_proportions]
-        self.pop_manager._require_builders(self.builders, configured_builder_names)
-        if self.pop_manager.name == "variable":
+            allocation["builder"] for allocation in self.population_config.initial_builder_allocations
+        ] + [item["builder"] for item in self.generation_manager.completion_builder_proportions]
+        self.population_config._require_builders(self.builders, configured_builder_names)
+        if self.generation_manager.name == "variable":
             if self.target not in ("cohesive_energy", "formation_energy"):
                 raise RuntimeError(
-                    f"Population manager `{self.pop_manager.name}` is only compatible with "
+                    f"Population manager `{self.generation_manager.name}` is only compatible with "
                     + "formation energy or cohesive energy target."
                 )
         else:
@@ -319,27 +333,27 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """"""
         candidates_path = (prev_wdir / "results" / "all_candidates.xyz").resolve()
         candidates = read(candidates_path, ":")
-        selected_candidates = candidates[: self.pop_manager.init_size]
+        selected_candidates = candidates[: self.population_config.init_size]
         assert isinstance(selected_candidates, list)
         assert all(isinstance(c, Atoms) for c in selected_candidates)
-        if len(selected_candidates) != self.pop_manager.init_size:
+        if len(selected_candidates) != self.population_config.init_size:
             raise RuntimeError(
                 f"Active population contains {len(selected_candidates)} structures; "
-                f"initial.total_size requires {self.pop_manager.init_size}."
+                f"initial.total_size requires {self.population_config.init_size}."
             )
         name = "active_population"
         self.builders[name] = canonicalise_builder(
-            dict(method="direct", frames=str(candidates_path), indices=list(range(self.pop_manager.init_size)))
+            dict(method="direct", frames=str(candidates_path), indices=list(range(self.population_config.init_size)))
         )
-        self.pop_manager.initial_builder_allocations = [
+        self.population_config.initial_builder_allocations = [
             dict(
                 builder=name,
-                size=self.pop_manager.init_size,
-                maximum_attempts=self.pop_manager.init_size * self.pop_manager.MAX_ATTEMPTS_MULTIPLIER,
+                size=self.population_config.init_size,
+                maximum_attempts=self.population_config.init_size * self.population_config.MAX_ATTEMPTS_MULTIPLIER,
             )
         ]
         self.ga_dict["population"]["initial"]["builder_allocations"] = [
-            dict(builder=name, size=self.pop_manager.init_size)
+            dict(builder=name, size=self.population_config.init_size)
         ]
 
         return
@@ -356,8 +370,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self._print(f"Target of Global Optimisation is {self.target}")
 
         # Update output functions
-        self.pop_manager._print = self._print
-        self.pop_manager._debug = self._debug
+        self.generation_manager._print = self._print
+        self.generation_manager._debug = self._debug
+        self.population_config._print = self._print
+        self.population_config._debug = self._debug
 
         self._print("===== register builders =====")
         for name, builder in self.builders.items():
@@ -496,10 +512,10 @@ class GeneticAlgorithmEngine(BaseExpedition):
                     cand.info["identity_stats"] = identity_stats
                 else:
                     ...
-                self.pop_manager.validate_candidate(cand, "relaxed", ia)
+                self.population_config.validate_candidate(cand, "relaxed", ia)
                 # evaluate raw score
                 self.evaluate_candidate(cand)
-                self.pop_manager._extinct_candidate(cand)
+                self.generation_manager._extinct_candidate(cand)
                 if whether_reduce_cell:
                     cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
                 fitness = cand.info["key_value_pairs"]["raw_score"]
@@ -521,7 +537,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         """The main procedure for the first generation."""
         assert gen_num == 0, "This function is only for the first generation."
 
-        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
+        candidate_groups = self.generation_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         starting_population = list(candidate_groups["initial"])
         plan = self.da.get_generation_plan(gen_num)
         if plan is None:
@@ -537,31 +553,31 @@ class GeneticAlgorithmEngine(BaseExpedition):
                 raise RuntimeError("Persisted initial structure does not identify its builder.")
             existing_by_builder[builder_name] = existing_by_builder.get(builder_name, 0) + 1
 
-        for allocation in self.pop_manager.initial_builder_allocations:
+        for allocation in self.population_config.initial_builder_allocations:
             name = allocation["builder"]
             remaining = allocation["size"] - existing_by_builder.get(name, 0)
             if remaining < 0:
                 raise RuntimeError(f"Too many persisted initial structures for builder {name!r}.")
-            frames = self.pop_manager._generate_from_builder(
+            frames = self.population_config._generate_from_builder(
                 name, self.builders[name], remaining, allocation["maximum_attempts"]
             )
-            for atoms in self.pop_manager.clean_initial_structures(frames, name):
+            for atoms in self.population_config.clean_initial_structures(frames, name):
                 self.da.add_unrelaxed_candidate(atoms, generation=gen_num)
                 starting_population.append(atoms)
                 plan["random_states"] = self.random_streams.snapshot()
                 self.da.set_generation_plan(gen_num, plan)
 
-        if len(starting_population) != self.pop_manager.init_size:
+        if len(starting_population) != self.population_config.init_size:
             raise RuntimeError(
                 f"Initial generation contains {len(starting_population)} candidates; "
-                f"expected {self.pop_manager.init_size}."
+                f"expected {self.population_config.init_size}."
             )
         plan["stage"] = "complete"
         plan["random_states"] = self.random_streams.snapshot()
         self.da.set_generation_plan(gen_num, plan)
 
         # Validate candidate origins for the current generation
-        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
+        candidate_groups = self.generation_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution after:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
@@ -570,33 +586,28 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def _get_candidates_for_the_other_generation(self, gen_num: int) -> list[Atoms]:
         """The main procedure for other generations."""
         # Check candidate origin for the current generation
-        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
+        candidate_groups = self.generation_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution before:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
-        self.pop_manager.update_population(
-            database=self.da,
-            comparing=self.population_comparator,
-        )
-        assert self.pop_manager.population is not None
-
-        pop_confids = [a.info["confid"] for a in self.pop_manager.population.pop]
+        self.generation_manager.update_population(self.da)
+        pop_confids = [a.info["confid"] for a in self.population.candidates]
         self._print(f"number of structures in population: {len(pop_confids)}")
         self._print(f"confids in population: {integers_to_string(pop_confids, inp_convention='lmp')}")
 
-        self.pop_manager._update_generation_settings(
+        self.generation_manager._update_generation_settings(
             self.operators["mobile"]["mutations"],
             self.operators["mobile"]["pairing"],
         )
 
         # Generate candidates for the current generation
         num_candidates = sum(len(group) for group in candidate_groups.values())
-        is_prodcution_complete = num_candidates >= self.pop_manager.gen_size
+        is_prodcution_complete = num_candidates >= self.population_config.gen_size
         if not is_prodcution_complete:
             self._print("Current generation has not finished...")
         # The current candidates have not been created completely.
         # For example, num_relaxed != num_unrelaxed, need create more candidates...
-        current_candidates = self.pop_manager._prepare_current_population(
+        current_candidates = self.generation_manager._prepare_current_population(
             database=self.da,
             curr_gen=gen_num,
             builders=self.builders,
@@ -607,7 +618,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         )
 
         # Validate candidate origins for the current generation
-        candidate_groups = self.pop_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
+        candidate_groups = self.generation_manager._get_current_candidates(database=self.da, curr_gen=gen_num)
         self._print("candidate origin distribution after:")
         self._print("  " + "".join([f"{k:<8s}: {len(v):<4d}  " for k, v in candidate_groups.items()]))
 
@@ -853,14 +864,14 @@ class GeneticAlgorithmEngine(BaseExpedition):
             "Reproduction", "Mutation", "Completion", "Total"
         )
         content += "{:>12d}  {:>12d}  {:>12d}  {:>8d}\n".format(
-            self.pop_manager.gen_rep_size,
-            self.pop_manager.gen_mut_size,
-            self.pop_manager.gen_size - self.pop_manager.gen_rep_size - self.pop_manager.gen_mut_size,
-            self.pop_manager.gen_size,
+            self.generation_manager.gen_rep_size,
+            self.generation_manager.gen_mut_size,
+            self.population_config.gen_size - self.generation_manager.gen_rep_size - self.generation_manager.gen_mut_size,
+            self.population_config.gen_size,
         )
         content += "Note: Reproduced structures mutate according to mutation_probability.\n"
-        content += f"use_extinct: {self.pop_manager.use_extinct}\n"
-        content += f"thanos: {self.pop_manager.extinct_callbacks}\n"
+        content += f"use_extinct: {self.population_config.use_extinct}\n"
+        content += f"thanos: {self.population_config.extinct_callbacks}\n"
         for l in content.split("\n"):
             self._print(l)
 
@@ -893,9 +904,9 @@ class GeneticAlgorithmEngine(BaseExpedition):
         da.init_task(
             canonicalised_substrate,
             data=dict(
-                generation_size=self.pop_manager.gen_size,
-                retained_size=self.pop_manager.retained_size,
-                initial_population_size=self.pop_manager.init_size,
+                generation_size=self.population_config.gen_size,
+                retained_size=self.population_config.retained_size,
+                initial_population_size=self.population_config.init_size,
                 num_atoms_substrate=num_atoms_substrate,
             ),
         )
@@ -965,7 +976,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
     def as_dict(self) -> dict:
         """"""
-        population = self.pop_manager.serialise(self.ga_dict["population"])
+        population = self.population_config.serialise(self.ga_dict["population"])
         if self.reference_builder_name != "random":
             population["reference_builder"] = self.reference_builder_name
         ga_dict = {key: copy.deepcopy(value) for key, value in self.ga_dict.items() if key != "population"}

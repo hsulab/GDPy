@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import copy
 import enum
 import itertools
@@ -15,7 +11,10 @@ from ase.io import read, write
 
 from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_workers
 from ..population.random import RandomStreamRegistry
-from .population import HoppingPopulation
+from .selection import HoppingStartSelector
+from ..population import Population
+from ..population.config import PopulationConfig
+from ..population.comparators import create_population_comparator
 from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
@@ -259,8 +258,20 @@ class BasinHopping(BaseExpedition):
             self._init_params["objective"] = copy.deepcopy(objective)
         self._init_params.update(convergence=convergence, use_archive=use_archive)
 
-        self.population = HoppingPopulation(population, self.random_streams)
-        self.generator = self.population.builders[self.population.reference_builder_name]
+        self.population_config = PopulationConfig(population, rng=self.random_streams.get("population"))
+        unsupported = {"reproduction", "mutation", "completion"} & population["generation"].keys()
+        if unsupported:
+            raise ValueError("BH generation does not accept GA policies: " + ", ".join(sorted(unsupported)))
+        self.builders = self.population_config.initialise_builders(population, self.random_streams)
+        self.generator = self.builders[self.population_config.reference_builder_name]
+        comparator = create_population_comparator(
+            self.population_config.comparator_config, self.population_config.periodic,
+            self.random_streams.get("population/comparator"),
+        )
+        self.population = Population(
+            self.population_config.retained_size, comparator, self.population_config.use_extinct,
+        )
+        self.start_selector = HoppingStartSelector(self.random_streams.get("population"))
 
         # Parse monte carlo settings
         self.num_mcmoves = num_mcmoves
@@ -274,7 +285,7 @@ class BasinHopping(BaseExpedition):
         self.objective = objective
 
         # Whether perform extinction after generation
-        self.use_extinct = True if self.population.extinct_callbacks is not None else False
+        self.use_extinct = True if self.population_config.extinct_callbacks is not None else False
 
         # Whether archive results after run_worker
         self.use_archive = use_archive
@@ -305,8 +316,8 @@ class BasinHopping(BaseExpedition):
         database = GlobalOptimisationDatabase(database_fpath=self.database_path)
 
         # Update print and debug functions
-        self.population._print = self._print
-        self.population._debug = self._debug
+        self.population_config._print = self._print
+        self.population_config._debug = self._debug
         self._print(f"comparator: {self.population.comparator.__class__.__name__}")
         self._print("")
 
@@ -377,7 +388,7 @@ class BasinHopping(BaseExpedition):
         if gen_num == 0:
             # The first generation (gen-0)
             # TODO: If the initial random is failed?
-            structures = self.population._prepare_initial_population(self.population.builders)
+            structures = self.population_config._prepare_initial_population(self.population_config.builders)
             num_structures = len(structures)
             self._print(f"The initial population {num_structures=}.")
             for atoms in structures:
@@ -389,10 +400,9 @@ class BasinHopping(BaseExpedition):
             # We save all mc trajectories in a centralised folder
             (gen_wdir / "mctrajs").mkdir(parents=True, exist_ok=True)
             # Try to generate new structures
+            self.population.refresh(database)
             candidates = sorted(
-                self.population.get_current_generation(
-                    database=database, with_history=True, use_extinct=self.use_extinct
-                ),
+                self.start_selector.select(self.population, self.population_config.gen_size),
                 key=lambda a: a.info["confid"],
             )
             candidates_confids = [a.info["confid"] for a in candidates]
@@ -435,7 +445,7 @@ class BasinHopping(BaseExpedition):
                 gen_num=gen_num,
                 use_tags=True,
                 objective=self.objective,
-                extinct_callbacks=self.population.extinct_callbacks,
+                extinct_callbacks=self.population_config.extinct_callbacks,
             )
             if self.use_extinct:
                 num_extincts = sum(
@@ -482,7 +492,7 @@ class BasinHopping(BaseExpedition):
 
     def get_generation_info(self, database: GlobalOptimisationDatabase) -> tuple[int, GenerationState]:
         """"""
-        ini_size, gen_size = self.population.init_size, self.population.gen_size
+        ini_size, gen_size = self.population_config.init_size, self.population_config.gen_size
 
         # def get_generation_state(number_rest, number_target):
         #     """"""
@@ -636,7 +646,7 @@ class BasinHopping(BaseExpedition):
     def as_dict(self) -> dict:
         """"""
         recipe = {key: copy.deepcopy(value) for key, value in self._init_params.items() if key != "population"}
-        recipe["population"] = self.population.serialise(self._init_params["population"])
+        recipe["population"] = self.population_config.serialise(self._init_params["population"])
         recipe = dict(random_seed=self.random_seed, **recipe)
         assert self.worker is not None
 
@@ -653,7 +663,3 @@ class BasinHopping(BaseExpedition):
             "recipe": recipe,
             "runtime": runtime,
         }
-
-
-if __name__ == "__main__":
-    ...

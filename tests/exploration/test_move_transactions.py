@@ -459,4 +459,4 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         start = read(trajectory, 0)
         np.testing.assert_allclose(start.positions, atoms.positions)
     serialized.pop("runtime")
-    assert create_expedition(serialized).population.gen_size == 3
+    assert create_expedition(serialized).population_config.gen_size == 3

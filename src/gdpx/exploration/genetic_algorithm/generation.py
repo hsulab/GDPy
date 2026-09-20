@@ -9,8 +9,7 @@ from gdpx.exploration.persist.database import GlobalOptimisationDatabase as GODB
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.profiler import CustomTimer
 
-from .population import Population, PopulationWithVariableComposition
-from ...population.config import PopulationConfig, clean_seed_structures
+from ..population.config import PopulationConfig
 
 #: Retained keys in key_value_pairs when get_atoms from the database.
 RETAINED_KEYS: list[str] = ["extinct", "origin"]
@@ -40,7 +39,6 @@ def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20) ->
         a1_substrate_positions = a1.get_positions()[a1_substrate_indices]
         _, mic_distances = find_mic(a1_substrate_positions - a0_substrate_positions, a0.get_cell())
         dmax = np.max(mic_distances)
-        a0.info["dmax"] = dmax
         if dmax <= dtol:
             similar = True
         else:
@@ -87,52 +85,15 @@ def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:
     return
 
 
-class PopulationManager(PopulationConfig):
-    """An abstract population manager for evolutionary algorithms.
-
-    For structure exploration, there are generally two formulations. ASE forms
-    current population from all candidates while USPEX forms it based on the
-    previous generation. Furthermore, USPEX uses fracGene, fracRand, fracTopRand,
-    fracPerm, fracAtomsMut, fracRotMut, fracLatMut, fracSpinMut...
-
-    Example:
-        Parameters needed
-
-        $ cat ga.yaml
-        population:
-            builders:
-                random:
-                    method: random_structure_improved
-            initial:
-                total_size: 50
-                builder_allocations:
-                  - builder: random
-                    size: 50
-            generation:
-                total_size: 20
-                reproduction:
-                    size: 16
-                    mutation_probability: 0.5
-                mutation:
-                    size: 2
-                completion:
-                    builder_proportions:
-                      - builder: random
-                        proportion: 1.0
-
-    """
+class GeneticGenerationManager:
+    """Produce GA generations using shared configuration, population, and a selector."""
 
     _print = print
 
     _debug = print
 
-    #: Maximum attempts to generate new structures.
-    MAX_ATTEMPTS_MULTIPLIER: int = 10
-
-    def __init__(self, params: dict, rng=None) -> None:
-        """"""
-        self.rng = np.random.default_rng() if rng is None else rng
-
+    @staticmethod
+    def validate_parameters(params):
         legacy_keys = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"}.intersection(
             params
         )
@@ -151,8 +112,7 @@ class PopulationManager(PopulationConfig):
         # Get population name
         name = params.get("name", "constant")
         if name not in ["constant", "variable"]:
-            raise Exception("Population name must be `constant` or `variable`.")
-        self.name = name
+            raise ValueError("Population name must be `constant` or `variable`.")
 
         gen_params = params.get("generation", {})
         if not isinstance(gen_params, Mapping):
@@ -183,9 +143,17 @@ class PopulationManager(PopulationConfig):
         substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
         if "dtol" in substrate_params:
             raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
-        super().__init__(params, rng=self.rng)
+        return name
+
+    def __init__(self, params: dict, config: PopulationConfig, population, selector, rng):
+        self.name = self.validate_parameters(params)
+        self.config = config
+        self.population = population
+        self.selector = selector
+        self.rng = rng
+        gen_params = params["generation"]
+        substrate_params = params.get("substrate", {})
         # Get number of structures from different origins in one generation
-        self.gen_size = self._positive_integer(gen_params.get("total_size"), "generation.total_size")
         reproduction_params = gen_params.get("reproduction", {})
         mutation_params = gen_params.get("mutation", {})
         completion_params = gen_params.get("completion", {})
@@ -194,9 +162,9 @@ class PopulationManager(PopulationConfig):
             raise ValueError(
                 "generation.reproduction, generation.mutation, and generation.completion must be mappings."
             )
-        self.gen_rep_size = self._nonnegative_integer(reproduction_params.get("size", 0), "reproduction.size")
-        self.gen_mut_size = self._nonnegative_integer(mutation_params.get("size", 0), "mutation.size")
-        if self.gen_rep_size + self.gen_mut_size > self.gen_size:
+        self.gen_rep_size = self.config._nonnegative_integer(reproduction_params.get("size", 0), "reproduction.size")
+        self.gen_mut_size = self.config._nonnegative_integer(mutation_params.get("size", 0), "mutation.size")
+        if self.gen_rep_size + self.gen_mut_size > self.config.gen_size:
             raise ValueError("generation reproduction and mutation sizes exceed generation.total_size.")
         self.gen_rep_max_try = self._attempts(reproduction_params, self.gen_rep_size, "reproduction")
         self.gen_mut_max_try = self._attempts(mutation_params, self.gen_mut_size, "mutation")
@@ -211,15 +179,12 @@ class PopulationManager(PopulationConfig):
         # Get the tolerance for comparing two atoms by substrates
         self.substrate_dtol = substrate_params.get("distance_tolerance", -1.0)  # Ang
 
-        # Lazy attributes
-        self.population = None
-
         return
 
 
     def _attempts(self, params: Mapping, size: int, section: str) -> int:
-        attempts = params.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
-        return self._nonnegative_integer(attempts, f"generation.{section}.maximum_attempts")
+        attempts = params.get("maximum_attempts", size * self.config.MAX_ATTEMPTS_MULTIPLIER)
+        return self.config._nonnegative_integer(attempts, f"generation.{section}.maximum_attempts")
 
 
     def _parse_builder_proportions(self, proportions) -> list[dict]:
@@ -239,7 +204,7 @@ class PopulationManager(PopulationConfig):
             names.add(name)
             maximum_attempts = item.get("maximum_attempts")
             if maximum_attempts is not None:
-                maximum_attempts = self._nonnegative_integer(
+                maximum_attempts = self.config._nonnegative_integer(
                     maximum_attempts,
                     f"generation.completion.builder_proportions[{index}].maximum_attempts",
                 )
@@ -264,49 +229,16 @@ class PopulationManager(PopulationConfig):
                 maximum_attempts=(
                     item["maximum_attempts"]
                     if item["maximum_attempts"] is not None
-                    else item_size * self.MAX_ATTEMPTS_MULTIPLIER
+                    else item_size * self.config.MAX_ATTEMPTS_MULTIPLIER
                 ),
             )
             for item, item_size in zip(self.completion_builder_proportions, allocated)
         ]
 
-    def update_population(self, database: GODB, comparing) -> None:
-        """Update population.
-
-        Args:
-            database: GODB.
-            comparing: A comparing operator.
-
-        """
-        if self.name == "constant":
-            population = Population(
-                data_connection=database,
-                population_size=self.retained_size,
-                comparator=comparing,
-                use_extinct=self.use_extinct,
-                rng=self.rng,
-                print_func=self._print,
-                debug_func=self._debug,
-            )
-            # self._print(f"population number: {len(current_population.pop)}")
-        elif self.name == "variable":
-            population = PopulationWithVariableComposition(
-                data_connection=database,
-                population_size=self.retained_size,
-                comparator=comparing,
-                use_extinct=self.use_extinct,
-                rng=self.rng,
-                print_func=self._print,
-                debug_func=self._debug,
-            )
-            # for tribe in population.tribes:
-            #     self._print(f"tribe: {tribe[0]} number: {len(tribe[1])}")
-        else:
-            raise RuntimeError(f"Population name `{self.name}` is not supported.")
-
-        self.population = population
-
-        return
+    def update_population(self, database: GODB) -> None:
+        """Refresh shared membership and GA-only parent-selection history."""
+        self.population.refresh(database)
+        self.selector.refresh(self.population, database)
 
     def _extinct_candidate(self, atoms: Atoms) -> None:
         """Extinct the candidate by given callback.
@@ -315,8 +247,8 @@ class PopulationManager(PopulationConfig):
             atoms: The candidate to be evaluated.
 
         """
-        if self.use_extinct and self.extinct_callbacks is not None:
-            extinct_candidate(atoms, self.extinct_callbacks)
+        if self.config.use_extinct and self.config.extinct_callbacks is not None:
+            extinct_candidate(atoms, self.config.extinct_callbacks)
 
         return
 
@@ -396,7 +328,6 @@ class PopulationManager(PopulationConfig):
             A list of Atoms.
 
         """
-        assert self.population is not None
         population = self.population
 
         candidate_groups = candidate_groups or {}
@@ -440,7 +371,7 @@ class PopulationManager(PopulationConfig):
                     num_atoms_substrate,
                 )
                 if atoms is not None:
-                    self.validate_candidate(atoms, "reproduction")
+                    self.config.validate_candidate(atoms, "reproduction")
                     paired_structures.append(atoms)
                     parents = " ".join([str(x) for x in atoms.info["data"]["parents"]])
                     self._print(
@@ -459,20 +390,20 @@ class PopulationManager(PopulationConfig):
                 if len(mutated_structures) >= self.gen_mut_size:
                     break
                 self._print(f"Mutation attempt {i} ->")
-                parent = population.get_one_candidate(with_history=True)
+                parent = self.selector.select_one(population, with_history=True)
                 assert isinstance(parent, Atoms)
                 parent = parent.copy()
                 parent.info = copy.deepcopy(parent.info)
                 atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent])
                 if atoms is not None:
-                    self.validate_candidate(atoms, "mutation")
+                    self.config.validate_candidate(atoms, "mutation")
                     database.add_unrelaxed_candidate(
                         atoms, description=desc, origin="MutationCandidateUnrelaxed", generation=curr_gen
                     )
                     mutated_structures.append(atoms)
                 plan["mutation_attempts"] = i + 1
                 checkpoint()
-            deficit = self.gen_size - len(paired_structures) - len(mutated_structures)
+            deficit = self.config.gen_size - len(paired_structures) - len(mutated_structures)
             if deficit < 0:
                 raise RuntimeError("Reproduction and mutation exceeded generation.total_size.")
             plan["stage"] = "completion"
@@ -480,7 +411,7 @@ class PopulationManager(PopulationConfig):
             checkpoint()
 
         if plan["stage"] == "completion":
-            self._require_builders(builders, (x["builder"] for x in plan["completion_sizes"]))
+            self.config._require_builders(builders, (x["builder"] for x in plan["completion_sizes"]))
             existing = {}
             for atoms in completion_structures:
                 name = atoms.info.get("data", {}).get("builder")
@@ -490,7 +421,7 @@ class PopulationManager(PopulationConfig):
                 remaining = target - existing.get(name, 0)
                 if remaining < 0:
                     raise RuntimeError(f"Too many persisted completion structures for builder {name!r}.")
-                frames = self._generate_from_builder(
+                frames = self.config._generate_from_builder(
                     name, builders[name], remaining, allocation["maximum_attempts"]
                 )
                 for atoms in frames:
@@ -507,16 +438,15 @@ class PopulationManager(PopulationConfig):
             checkpoint()
 
         current_candidates = paired_structures + mutated_structures + completion_structures
-        if len(current_candidates) != self.gen_size:
+        if len(current_candidates) != self.config.gen_size:
             raise RuntimeError(
-                f"Generation {curr_gen} contains {len(current_candidates)} candidates; expected {self.gen_size}."
+                f"Generation {curr_gen} contains {len(current_candidates)} candidates; expected {self.config.gen_size}."
             )
         return current_candidates
 
     def _update_generation_settings(self, mutations, pairing):
         """Update some generation-specific attributes of the operators."""
-        assert self.population is not None
-        candidates = self.population.get_current_population()
+        candidates = self.population.candidates
 
         # mutations
         for mut in mutations.oplist:
@@ -557,7 +487,7 @@ class PopulationManager(PopulationConfig):
             custom_mutations = operators["custom"]["mutations"]
 
         # Check if we have enough structures for pairing
-        num_structures_in_population = len(population.pop)
+        num_structures_in_population = len(population.candidates)
         if not (num_structures_in_population > 0):
             raise RuntimeError(
                 "Not enough structures in the current population. Some errors must have occurred before."
@@ -565,14 +495,14 @@ class PopulationManager(PopulationConfig):
 
         if num_structures_in_population >= 2:
             if pairing.allow_variable_composition:
-                parents = population.get_two_candidates()
+                parents = self.selector.select_pair(population)
                 if parents is None:
                     return None
                 natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
                 self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
             else:
                 for _ in range(100):
-                    parents = population.get_two_candidates()
+                    parents = self.selector.select_pair(population)
                     # TODO: Move this check to population?
                     if parents is not None:
                         self._print(
@@ -585,8 +515,7 @@ class PopulationManager(PopulationConfig):
                                 parents[1],
                                 dtol=self.substrate_dtol,
                             )
-                            dmax = parents[0].info.pop("dmax", -1.0)
-                            self._print(f"    substrate consistency: {dmax=:>4.2f} ({self.substrate_dtol:>4.2f})")
+                            self._print(f"    substrate consistency: {is_substrate_similar}")
                             if not is_substrate_similar:
                                 continue
                         # get two candidates that are both consistent in composition and substrate
@@ -597,16 +526,16 @@ class PopulationManager(PopulationConfig):
                         break
                 else:
                     self._print(
-                        f"Cannot find two parents after 100 attempts from a population of {len(population.pop)}."
+                        f"Cannot find two parents after 100 attempts from a population of {len(population.candidates)}."
                     )
                     self._print(f"Get one parent and perform parthenogenesis.")
-                    parent_0 = population.get_one_candidate()
+                    parent_0 = self.selector.select_one(population)
                     assert parent_0 is not None
                     parents = [parent_0]
                     natoms_p0 = len(parents[0])
         else:
             # We only have one structure
-            parents = [population.pop[0]]
+            parents = [population.candidates[0]]
             natoms_p0 = len(parents[0])
 
         parents = [parent.copy() for parent in parents]
@@ -664,7 +593,7 @@ class PopulationManager(PopulationConfig):
         # Perform mutations.
         num_mutations = len(mutations.oplist)
         if a3 is not None and num_mutations > 0:
-            self.validate_candidate(a3, "crossover")
+            self.config.validate_candidate(a3, "crossover")
             # Add the paired or mutated structure to the database
             a3.info["key_value_pairs"]["generation"] = curr_gen
             database.add_unrelaxed_candidate(
@@ -679,7 +608,7 @@ class PopulationManager(PopulationConfig):
             if curr_prob < self.pmut or is_parthenogenesis:
                 a3_mut, mut_desc = mutations.get_new_individual([a3])
                 if a3_mut is not None:
-                    self.validate_candidate(a3_mut, "reproduction mutation")
+                    self.config.validate_candidate(a3_mut, "reproduction mutation")
                     database.add_unrelaxed_step(a3_mut, mut_desc)
                     a3 = a3_mut
                     self._print(f"  mobile: {desc}  {mut_desc}")
@@ -697,7 +626,7 @@ class PopulationManager(PopulationConfig):
                 if curr_prob < self.pmut_custom:
                     a3_bmut, bmut_desc = custom_mutations.get_new_individual([a3])
                     if a3_bmut is not None:
-                        self.validate_candidate(a3_bmut, "custom mutation")
+                        self.config.validate_candidate(a3_bmut, "custom mutation")
                         database.add_unrelaxed_step(a3_bmut, bmut_desc)
                         a3 = a3_bmut
                         self._print(f"  custom: {bmut_desc}")

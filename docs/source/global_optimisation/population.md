@@ -95,3 +95,32 @@ Use `comparator: {method: atoms}` to retain BH's former exact-equality compariso
 BH now launches the exact requested number of chains even when its retained pool
 is underfilled. Named random streams and the changed selection policy mean that
 migrated BH runs need not reproduce old trajectories bit for bit.
+
+## Population and algorithm policies
+
+GA and BH use the same `gdpx.exploration.population.Population` class. Each
+engine exposes the retained state as `engine.population`, while
+`engine.population_config` owns configuration, builders, initialization, and
+serialization.
+
+`Population.refresh(database)` ranks eligible relaxed candidates, removes
+duplicates, and rebuilds similarity counts. `population.candidates` is a tuple
+of borrowed `Atoms` references; `population.similarity_counts` stores statistics
+by candidate ID. Refresh preserves candidate metadata, including existing
+fingerprint caches. The population does not own random streams or generate new
+structures.
+
+Selection belongs to each algorithm:
+
+- GA's `GeneticParentSelector` selects one parent or a distinct pair, applies
+  pairing-participation penalties, and groups candidates by composition when
+  `population.name: variable` is configured. `GeneticGenerationManager` handles
+  reproduction, mutation, compatibility checks, and builder completion.
+- BH's `HoppingStartSelector` selects chain starts with replacement. The BH
+  engine runs the moves, relaxation, and acceptance steps independently for
+  each selected start.
+
+Selection returns references without copying structures. Each algorithm creates
+an independent mutable copy only when starting an offspring or hopping chain.
+The shared population has no GA-specific subclasses, and algorithm selection
+statistics are kept outside `Atoms.info`.

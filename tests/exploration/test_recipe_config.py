@@ -9,7 +9,11 @@ from gdpx.exploration.genetic_algorithm.engine import (
     GeneticAlgorithmBroadcaster,
     GeneticAlgorithmEngine,
 )
-from gdpx.exploration.genetic_algorithm.population.manager import PopulationManager
+from gdpx.exploration.genetic_algorithm.generation import GeneticGenerationManager
+from gdpx.exploration.genetic_algorithm.selection import GeneticParentSelector
+from gdpx.exploration.population import Population
+from gdpx.exploration.population.comparators import create_population_comparator
+import numpy as np
 from gdpx.exploration.persist.database import (
     CANDIDATES_DATABASE_FILENAME,
     GlobalOptimisationDatabase,
@@ -21,6 +25,15 @@ from gdpx.exploration.population.config import PopulationConfig
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
 from gdpx.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
+
+
+def make_generation_manager(params):
+    GeneticGenerationManager.validate_parameters(params)
+    config = PopulationConfig(params)
+    population = Population(config.retained_size, create_population_comparator(config.comparator_config), config.use_extinct)
+    rng = np.random.default_rng(7)
+    selector = GeneticParentSelector(rng, params.get("name", "constant"))
+    return GeneticGenerationManager(params, config, population, selector, rng)
 
 
 class Serializable:
@@ -249,7 +262,7 @@ def test_ga_requires_reference_when_random_builder_is_absent():
 
 
 def test_ga_population_uses_expanded_keys():
-    population = PopulationManager(
+    population = make_generation_manager(
         {
             "periodic": False,
             "preserve_fragments": False,
@@ -280,7 +293,7 @@ def test_ga_population_uses_expanded_keys():
         }
     )
 
-    assert population.init_size == 4
+    assert population.config.init_size == 4
     assert population.gen_rep_size == 2
     assert population.gen_mut_size == 1
     assert population.gen_mut_max_try == 12
@@ -308,11 +321,11 @@ def test_ga_population_defaults_system_description_to_true():
         },
     }
 
-    population = PopulationManager(base)
+    population = PopulationConfig(base)
     assert population.periodic is True
     assert population.preserve_fragments is True
 
-    disabled = PopulationManager(
+    disabled = PopulationConfig(
         dict(base, periodic=False, preserve_fragments=False)
     )
     assert disabled.periodic is False
@@ -320,11 +333,11 @@ def test_ga_population_defaults_system_description_to_true():
 
     mixed_periodic = dict(base, periodic=[True, True, False])
     with pytest.raises(ValueError, match="population.periodic must be a boolean"):
-        PopulationManager(mixed_periodic)
+        PopulationConfig(mixed_periodic)
 
     invalid_fragments = dict(base, preserve_fragments="yes")
     with pytest.raises(ValueError, match="population.preserve_fragments must be a boolean"):
-        PopulationManager(invalid_fragments)
+        PopulationConfig(invalid_fragments)
 
 
 def test_population_candidate_validation_uses_system_description():
@@ -342,7 +355,7 @@ def test_population_candidate_validation_uses_system_description():
             },
         },
     }
-    population = PopulationManager(config)
+    population = PopulationConfig(config)
 
     tagged = Atoms("H", pbc=True)
     tagged.set_tags([1])
@@ -446,7 +459,7 @@ def test_ga_fragment_policy_configures_and_rejects_operators():
 )
 def test_ga_population_rejects_abbreviated_keys(population):
     with pytest.raises(ValueError, match="Legacy GA"):
-        PopulationManager(population)
+        make_generation_manager(population)
 
 
 def test_monte_carlo_operator_probability_is_expanded():
@@ -486,8 +499,8 @@ def test_ga_serialization_uses_recipe_and_runtime():
         "use_archive": True,
     }
 
-    engine.pop_manager = PopulationConfig(engine.ga_dict["population"])
-    engine.pop_manager.builders = engine.builders
+    engine.population_config = PopulationConfig(engine.ga_dict["population"])
+    engine.population_config.builders = engine.builders
     config = engine.as_dict()
 
     assert list(config) == ["method", "recipe", "runtime"]
@@ -515,7 +528,7 @@ class FixedBuilder:
 
 
 def test_initial_population_uses_ordered_builder_allocations():
-    population = PopulationManager(
+    population = make_generation_manager(
         {
             "periodic": False,
             "preserve_fragments": False,
@@ -532,7 +545,7 @@ def test_initial_population_uses_ordered_builder_allocations():
             },
         }
     )
-    frames = population._prepare_initial_population(
+    frames = population.config._prepare_initial_population(
         {"first": FixedBuilder("H"), "second": FixedBuilder("He")}
     )
 
@@ -554,7 +567,7 @@ def test_generation_plan_round_trip(tmp_path):
 
 
 def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, monkeypatch):
-    population = PopulationManager(
+    population = make_generation_manager(
         {
             "periodic": False,
             "preserve_fragments": False,
@@ -575,7 +588,7 @@ def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, mo
             },
         }
     )
-    population.population = SimpleNamespace(get_one_candidate=lambda **kwargs: Atoms("H"))
+    population.selector = SimpleNamespace(select_one=lambda *args, **kwargs: Atoms("H"))
     monkeypatch.setattr(population, "_reproduce", lambda *args, **kwargs: None)
 
     class Mutation:
@@ -636,8 +649,8 @@ def test_other_global_optimisers_serialize_the_recipe():
         },
         "use_archive": True,
     }
-    concurrent.population = PopulationConfig(concurrent._init_params["population"])
-    concurrent.population.builders = concurrent._init_params["population"]["builders"]
+    concurrent.population_config = PopulationConfig(concurrent._init_params["population"])
+    concurrent.population_config.builders = concurrent._init_params["population"]["builders"]
     concurrent_config = concurrent.as_dict()
     assert concurrent_config["method"] == "basin_hopping"
 
