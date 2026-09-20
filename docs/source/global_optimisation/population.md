@@ -140,9 +140,9 @@ or partial result ingestion without creating duplicate candidates. Generation
 sizes and the extinction policy cannot change on restart.
 
 GA retains its reproduction and mutation plan. BH additionally checkpoints each
-completed hop under `tmp_folder/gen*/chains/chain-*/step-*`, including the
-accepted structure and random state. An interrupted hop can reuse its driver
-checkpoint; completed hops are not repeated. These checkpoints are separate
+completed batch round under `tmp_folder/gen*/rounds/round-*`, including all
+accepted structures and random state. Pending rounds persist trials before
+submission and resume through the worker; committed rounds are not repeated. These checkpoints are separate
 from the XYZ trajectories used for inspection.
 
 Legacy BH runs with pending inputs that lack generation metadata cannot be

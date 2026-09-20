@@ -22,7 +22,9 @@ Use the package that owns the concept:
 
 `method: basin_hopping` now selects the former **concurrent hopping** search.
 Change `method: concurrent_hopping` to `method: basin_hopping` and keep its
-recipe, including `population`, `operators`, `num_mcmoves`, and `mcworker`.
+recipe, including `population`, `operators`, and `num_mcmoves`. Configure
+initialization and batched hop calculations with the top-level `runtime`;
+`recipe.mcworker` is no longer accepted.
 The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
 
 The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations

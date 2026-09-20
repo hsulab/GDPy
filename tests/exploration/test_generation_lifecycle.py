@@ -12,7 +12,7 @@ from gdpx.exploration.generation import GenerationInfo, GenerationState, Evaluat
 from gdpx.exploration.persist.database import GlobalOptimisationDatabase
 from gdpx.exploration.factory import create_expedition
 from gdpx.execution.factory import create_worker
-from gdpx.exploration.basin_hopping.chain import run_hopping_steps
+from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
 from gdpx.sampling import parse_operators
 
 
@@ -75,7 +75,7 @@ def bh_config(tmp_path, initial=2, generations=0):
                        "generation": {"total_size": 2},
                        "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
         "operators": [{"method": "move", "particles": ["Cu"], "max_disp": .05, "skip_distance_check": True}],
-        "num_mcmoves": 2, "mcworker": runtime, "convergence": {"generation": generations},
+        "num_mcmoves": 2, "convergence": {"generation": generations},
         "random_seed": 7, "use_archive": False}}
     return config, runtime
 
@@ -93,10 +93,10 @@ def test_bh_pending_batch_does_not_regenerate_inputs(tmp_path, monkeypatch):
     import gdpx.exploration.basin_hopping.engine as module
     config, runtime = bh_config(tmp_path)
     engine = make_engine(config, runtime, tmp_path / "run")
-    original_execute = module.execute_workers
+    original_execute = module.evaluate_batch
     submitted = []
-    monkeypatch.setattr(module, "execute_workers", lambda candidates, *args, **kwargs:
-                        submitted.extend(a.info["confid"] for a in candidates) or False)
+    monkeypatch.setattr(module, "evaluate_batch", lambda candidates, *args, **kwargs:
+                        submitted.extend(a.info["confid"] for a in candidates) or None)
     engine.run()
     db = GlobalOptimisationDatabase(engine.database_path)
     assert db.get_generation_info().state is GenerationState.MID_OF_GEN
@@ -106,7 +106,7 @@ def test_bh_pending_batch_does_not_regenerate_inputs(tmp_path, monkeypatch):
     def execute(candidates, *args, **kwargs):
         assert [a.info["confid"] for a in candidates] == submitted
         return original_execute(candidates, *args, **kwargs)
-    monkeypatch.setattr(module, "execute_workers", execute)
+    monkeypatch.setattr(module, "evaluate_batch", execute)
     resumed.run()
     assert db.connection.count(relaxed=0) == 2
     assert db.connection.count(relaxed=1) == 2
@@ -147,43 +147,6 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
     assert resumed.read_convergence()
     if method == "ga":
         assert db.connection.count(substrate=True) == 1
-
-
-def test_hop_restart_preserves_rng_and_does_not_repeat_committed_hops(tmp_path):
-    class Driver:
-        def __init__(self, directory, fail_at=None):
-            self.directory = directory
-            self.calls = 0
-            self.fail_at = fail_at
-        def run(self, atoms, **kwargs):
-            self.calls += 1
-            if self.calls == self.fail_at:
-                raise RuntimeError("interrupted hop")
-            self.result = atoms.copy()
-            self.result.calc = SinglePointCalculator(self.result, energy=0., forces=np.zeros((len(atoms), 3)))
-        def read_trajectory(self):
-            return [self.result]
-    def operators():
-        return parse_operators([{"method": "move", "particles": ["Cu"], "max_disp": .05,
-                                 "skip_distance_check": True}])
-    ops, probs = operators()
-    baseline_rng = np.random.default_rng(9)
-    baseline, states = run_hopping_steps(atom(), 0, Driver(tmp_path / "baseline/driver"), ops, probs, 3,
-                                         baseline_rng, tmp_path / "baseline/checkpoints")
-    ops, probs = operators()
-    driver = Driver(tmp_path / "resumed/driver", fail_at=2)
-    with pytest.raises(RuntimeError, match="interrupted hop"):
-        run_hopping_steps(atom(), 0, driver, ops, probs, 3, np.random.default_rng(9), tmp_path / "resumed/checkpoints")
-    resumed_rng = np.random.default_rng(999)
-    driver = Driver(tmp_path / "resumed/driver")
-    ops, probs = operators()
-    resumed, resumed_states = run_hopping_steps(atom(), 0, driver, ops, probs, 3, resumed_rng,
-                                               tmp_path / "resumed/checkpoints")
-    assert driver.calls == 2
-    assert resumed_states == states
-    np.testing.assert_array_equal(resumed.positions, baseline.positions)
-    assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
-    assert len(read(tmp_path / "resumed/mctrajs/mc-0000.xyz", ":")) == 4
 
 
 @pytest.mark.parametrize("method", ["bh", "ga"])
@@ -238,3 +201,39 @@ def test_initial_batch_and_rng_checkpoint_commit_atomically(tmp_path, monkeypatc
     resumed.run()
     assert db.connection.count(relaxed=0) == 2
     assert db.connection.count(relaxed=1) == 2
+
+
+def test_bh_endpoint_ingestion_resumes_without_evaluation(tmp_path, monkeypatch):
+    config, runtime = bh_config(tmp_path, generations=1)
+    engine = make_engine(config, runtime, tmp_path / "search")
+    original = GlobalOptimisationDatabase.add_relaxed_step
+    def interrupt(db, candidate):
+        original(db, candidate)
+        if candidate.info["key_value_pairs"]["generation"] == 1:
+            raise RuntimeError("interrupted endpoint ingestion")
+    monkeypatch.setattr(GlobalOptimisationDatabase, "add_relaxed_step", interrupt)
+    with pytest.raises(RuntimeError, match="endpoint ingestion"):
+        engine.run()
+    monkeypatch.setattr(GlobalOptimisationDatabase, "add_relaxed_step", original)
+    resumed = make_engine(config, runtime, engine.directory)
+    monkeypatch.setattr(resumed.worker, "run", lambda *a, **k: pytest.fail("reevaluated endpoint"))
+    resumed.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert db.connection.count(relaxed=1, generation=1) == 2
+    assert db.connection.count(relaxed=0, generation=1) == 2
+    assert resumed.read_convergence()
+    for row in db.connection.select(relaxed=1, generation=1):
+        assert "chain" in row.data and len(row.data.parents) == 1
+
+
+def test_bh_rejects_removed_mcworker_and_serial_checkpoints(tmp_path):
+    config, runtime = bh_config(tmp_path, generations=1)
+    legacy = copy.deepcopy(config)
+    legacy["recipe"]["mcworker"] = runtime
+    with pytest.raises(ValueError, match="mcworker.*top-level runtime"):
+        create_expedition(legacy)
+    engine = make_engine(config, runtime, tmp_path / "search")
+    db = GlobalOptimisationDatabase(engine.database_path)
+    db.set_generation_plan(1, dict(stage="hopping", parents=[1, 1]))
+    with pytest.raises(ValueError, match="serial BH checkpoint"):
+        engine._prepare_generation(db, 1, engine.directory / "tmp_folder/gen1")

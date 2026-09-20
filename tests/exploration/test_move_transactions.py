@@ -12,7 +12,7 @@ from gdpx.sampling import MoveProposal, parse_operators
 from gdpx.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.exploration.move_step import run_worker_move
-from gdpx.exploration.basin_hopping.chain import run_hopping_steps
+from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo, MCStepState
 from gdpx.exploration.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
 from gdpx.execution.workers.single import SingleWorker
@@ -242,44 +242,6 @@ def test_pending_worker_resumes_without_redrawing(tmp_path, monkeypatch):
     assert not path.exists()
 
 
-def test_bh_rejection_does_not_undo_relaxation_on_the_wrong_object(tmp_path):
-    class Driver:
-        directory = tmp_path / "driver"
-
-        def run(self, atoms, **kwargs):
-            self.result = atoms.copy()
-            self.result.positions += 3
-            self.result.calc = SinglePointCalculator(self.result, energy=100)
-
-        def read_trajectory(self):
-            return [self.result]
-
-    atoms = structure()
-    original = atoms.positions.copy()
-    result, states = run_hopping_steps(atoms, 0, Driver(), [operator()], [1.0], 3, np.random.default_rng(2))
-    assert states == [1, 1, 1]
-    assert result is atoms
-    np.testing.assert_array_equal(atoms.positions, original)
-    assert atoms.get_potential_energy() == 0
-
-
-def test_bh_evaluation_exception_restores_structure_and_metadata(tmp_path):
-    class Driver:
-        directory = tmp_path / "failed-driver"
-
-        def run(self, atoms, **kwargs):
-            raise RuntimeError("failed evaluation")
-
-    atoms = structure()
-    atoms.info["mcstep"] = 99
-    original = atoms.positions.copy()
-    with pytest.raises(RuntimeError, match="failed evaluation"):
-        run_hopping_steps(atoms, 0, Driver(), [operator()], [1.0], 1, np.random.default_rng(0))
-    np.testing.assert_array_equal(atoms.positions, original)
-    assert atoms.info["mcstep"] == 99
-    assert atoms.get_potential_energy() == 0
-
-
 def test_reaction_undo_and_configuration_roundtrip():
     params = dict(method="react", reaction=dict(particles=["H", "H2"], chempot_0=[0, 0], coefficients=[-2, 1]),
                   region=REGION, temperature=300, use_bias=False, skip_distance_check=True)
@@ -407,14 +369,12 @@ def test_hopping_with_actual_emt_driver(tmp_path):
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
         "options": {"worker": "single"},
     })
-    driver = worker.driver
-    driver.directory = tmp_path / "evaluation"
     atoms = Atoms("Cu2", positions=[[5, 5, 5], [7.4, 5, 5]], tags=[1, 2], cell=[20] * 3)
     atoms.calc = EMT()
     atoms.get_potential_energy()
     op = operator(particles=["Cu"], max_disp=0.05)
-    result, states = run_hopping_steps(atoms, 0, driver, [op], [1.0], 2, np.random.default_rng(3))
-    assert len(states) == 2 and set(states) <= {0, 1}
+    outcome = run_hopping_rounds([atoms], worker, [op], [1.0], 2, np.random.default_rng(3), tmp_path / "rounds")
+    result = outcome.endpoints[0]
     assert np.isfinite(result.get_potential_energy())
     np.testing.assert_array_equal(result.get_tags(), [1, 2])
 
@@ -438,18 +398,25 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
                        "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
         "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.05,
                        "skip_distance_check": True}],
-        "num_mcmoves": 2, "mcworker": runtime, "convergence": {"generation": 1},
+        "num_mcmoves": 2, "convergence": {"generation": 1},
         "random_seed": 7, "use_archive": False,
     }})
     engine.directory = tmp_path / "bh"
     engine.register_worker(runtime)
+    submitted = []
+    original_run = engine.worker.run
+    def record(frames, *args, **kwargs):
+        submitted.append(len(frames))
+        return original_run(frames, *args, **kwargs)
+    engine.worker.run = record
     engine.run()
+    assert submitted == [1, 3, 3]  # Initialization, two rounds, no endpoint evaluation.
     assert engine.read_convergence()
     assert (engine.directory / "results" / "all_candidates.xyz").exists()
     serialized = engine.as_dict()
     assert serialized["method"] == "basin_hopping"
     assert serialized["runtime"]["executor"]["method"] == "spc"
-    assert len(engine.get_workers()) == 2
+    assert len(engine.get_workers()) == 3
     from ase.io import read
     frames = read(engine.directory / "results" / "all_candidates.xyz", ":")
     assert len(frames) == 4

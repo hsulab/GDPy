@@ -1,97 +1,170 @@
-"""Restartable local hopping chains with durable accepted-step boundaries."""
+"""Restartable BH rounds. Workers own evaluation; BH owns acceptance."""
+import copy
 import pickle
-import shutil
+from contextlib import ExitStack
+from dataclasses import dataclass
 
+from ase import Atoms
 from ase.io import write
 
 from gdpx.sampling import select_operator
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 from ..accepted_state import load_accepted_state, save_accepted_state
+from ..generation import EvaluationStatus
 
 
-def run_hopping_steps(atoms, identifier, driver, operators, probabilities, mcsteps, rng, checkpoint_directory=None):
-    """Resume committed hops; an interrupted hop reuses its driver checkpoint."""
-    numbers = infer_unique_atomic_numbers(operators, substrates=[atoms])
+def evaluate_batch(frames, worker, directory, archive=False):
+    """Submit an idempotent batch and return ID-matched endpoints, or pending."""
+    worker.directory = directory
+    worker.run(frames)
+    return retrieve_batch([a.info["confid"] for a in frames], worker, archive)
+
+
+def retrieve_batch(identifiers, worker, archive=False):
+    worker.inspect(resubmit=True)
+    if worker.get_number_of_running_jobs():
+        return None
+    expected = set(identifiers)
+    if len(expected) != len(identifiers):
+        raise ValueError("BH batch candidate IDs must be unique.")
+    results = {}
+    for trajectory in worker.retrieve(include_retrieved=True, use_archive=archive):
+        if not trajectory:
+            continue
+        atoms = trajectory[-1]
+        identifier = atoms.info["confid"]
+        if identifier not in expected or identifier in results:
+            raise RuntimeError("Worker returned an unexpected or duplicate BH trial ID.")
+        results[identifier] = atoms
+    if results.keys() != expected:
+        return None
+    return [results[identifier] for identifier in identifiers]
+
+
+def _save(path, value):
+    with path.open("wb") as stream:
+        pickle.dump(value, stream)
+
+
+def _load(path):
+    with path.open("rb") as stream:
+        return pickle.load(stream)
+
+
+def _load_trial(path):
+    values = _load(path)
+    constraints = values.pop("constraints", [])
+    atoms = Atoms.fromdict(values)
+    atoms.set_constraint(constraints)
+    return atoms
+
+
+@dataclass
+class HoppingResult:
+    status: EvaluationStatus
+    endpoints: list[Atoms]
+
+
+def _commit(directory, step, atoms, states, rng, total_steps):
+    staging = directory / f"staging-{step:06d}"
+    staging.mkdir(parents=True, exist_ok=True)
+    for index, frame in enumerate(atoms):
+        save_accepted_state(staging / f"accepted-{index:06d}.pkl", frame, frame.get_potential_energy())
+    _save(staging / "state.pkl", dict(version=2, step=step, total_steps=total_steps,
+                                     count=len(atoms), states=states, rng=rng.bit_generator.state))
+    staging.rename(directory / f"round-{step:06d}")
+
+
+def _write_trajectories(directory, states, count):
+    target = directory.parent / "mctrajs"
+    target.mkdir(exist_ok=True)
+    for index in range(count):
+        for step in [0] + [i + 1 for i, values in enumerate(states) if values[index] == 0]:
+            frame = load_accepted_state(directory / f"round-{step:06d}" / f"accepted-{index:06d}.pkl")
+            frame.info["mcstep"] = step
+            write(target / f"mc-{index:04d}.xyz", frame, append=step != 0)
+
+
+def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory, archive=False):
+    """Advance a generation through round barriers, returning when work is pending.
+
+    Pending inputs are durable before submission. Live proposals borrow distinct
+    chain structures only until worker.run captures the batch; no borrow crosses
+    a wait, acceptance decision, or exception boundary.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    completed = sorted(directory.glob("round-*"))
+    if completed:
+        state = _load(completed[-1] / "state.pkl")
+        if state.get("version") != 2 or state["total_steps"] != mcsteps or state["count"] != len(starts):
+            raise ValueError("Incompatible BH round checkpoint; use the original recipe or start a new run.")
+        atoms = [load_accepted_state(completed[-1] / f"accepted-{i:06d}.pkl") for i in range(len(starts))]
+        rng.bit_generator.state = state["rng"]
+        step, states = state["step"], state["states"]
+    else:
+        atoms = list(starts)
+        step, states = 0, []
+        _commit(directory, 0, atoms, states, rng, mcsteps)
+    numbers = infer_unique_atomic_numbers(operators, substrates=atoms)
     for op in operators:
         prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
                           getattr(op, "custom_pair_distance_dict", None))
-    base_directory = driver.directory
-    trajectory = base_directory.parent / "mctrajs" / f"mc-{identifier:>04d}.xyz"
-    trajectory.parent.mkdir(parents=True, exist_ok=True)
-    original_atoms = atoms
-    had_mcstep = "mcstep" in atoms.info
-    previous_mcstep = atoms.info.get("mcstep")
-    states = []
-    start = 0
+    _write_trajectories(directory, states, len(atoms))
 
-    def checkpoint(step):
-        if checkpoint_directory is None:
-            return
-        checkpoint_directory.mkdir(parents=True, exist_ok=True)
-        staging = checkpoint_directory / f"pending-{step:06d}"
-        staging.mkdir(exist_ok=True)
-        save_accepted_state(staging / "accepted.pkl", atoms, atoms.get_potential_energy())
-        with (staging / "state.pkl").open("wb") as stream:
-            pickle.dump(dict(version=1, step=step, total_steps=mcsteps, states=states, rng=rng.bit_generator.state), stream)
-        staging.rename(checkpoint_directory / f"step-{step:06d}")
-
-    try:
-        completed = sorted(checkpoint_directory.glob("step-*")) if checkpoint_directory is not None else []
-        if completed:
-            with (completed[-1] / "state.pkl").open("rb") as stream:
-                saved = pickle.load(stream)
-            if saved["version"] != 1:
-                raise ValueError("Unsupported BH chain checkpoint version.")
-            if saved["total_steps"] != mcsteps:
-                raise ValueError("BH num_mcmoves changed; resume with the original recipe.")
-            start, states = saved["step"], saved["states"]
-            atoms = load_accepted_state(completed[-1] / "accepted.pkl")
-            rng.bit_generator.state = saved["rng"]
-            # Rebuild the display trajectory from committed states so a crash
-            # between checkpoint and XYZ writes cannot duplicate or omit a hop.
-            frames = []
-            for step in [0] + [i + 1 for i, state in enumerate(states) if state == 0]:
-                frame = load_accepted_state(checkpoint_directory / f"step-{step:06d}" / "accepted.pkl")
-                frame.info["mcstep"] = step
-                frames.append(frame)
-            write(trajectory, frames)
+    for step in range(step + 1, mcsteps + 1):
+        pending = directory / f"pending-{step:06d}"
+        worker.directory = directory.parent / "evaluations" / f"round-{step:06d}"
+        if pending.exists():
+            data = _load(pending / "proposal.pkl")
+            if data.get("version") != 2:
+                raise ValueError("Unsupported BH pending round checkpoint; start a new run.")
+            rng.bit_generator.state = data["rng"]
+            trials = [_load_trial(pending / f"trial-{i:06d}.pkl")
+                      for i, entry in enumerate(data["entries"]) if entry["valid"]]
+            if trials:
+                worker.run(trials)
         else:
-            atoms.info["mcstep"] = 0
-            checkpoint(0)
-            write(trajectory, atoms)
-        energy_before = atoms.get_potential_energy()
-        for step in range(start + 1, mcsteps + 1):
-            if checkpoint_directory is not None:
-                driver.directory = base_directory / f"hop-{step:06d}"
-            op = select_operator(operators, probabilities, rng)
-            proposal = op.propose(atoms, rng)
-            if not proposal.valid:
-                states.append(2)
-                checkpoint(step)
+            staging = directory / f"proposing-{step:06d}"
+            staging.mkdir(exist_ok=True)
+            entries, trials = [], []
+            with ExitStack() as stack:
+                for index, accepted in enumerate(atoms):
+                    energy = accepted.get_potential_energy()
+                    op = select_operator(operators, probabilities, rng)
+                    proposal = op.propose(accepted, rng)
+                    entry = dict(valid=proposal.valid, operator=operators.index(op), energy=energy,
+                                 metadata=copy.deepcopy(proposal.metadata), diagnostic=proposal.diagnostic)
+                    entries.append(entry)
+                    if not proposal.valid:
+                        continue
+                    stack.enter_context(proposal)
+                    proposal.set_info("confid", index)
+                    entry["tags"] = accepted.get_tags()
+                    _save(staging / f"trial-{index:06d}.pkl", accepted.todict())
+                    trials.append(accepted)
+                data = dict(version=2, entries=entries, rng=copy.deepcopy(rng.bit_generator.state))
+                _save(staging / "proposal.pkl", data)
+                staging.rename(pending)
+                if trials:
+                    worker.run(trials)
+        identifiers = [i for i, entry in enumerate(data["entries"]) if entry["valid"]]
+        evaluated = retrieve_batch(identifiers, worker, archive) if identifiers else []
+        if evaluated is None:
+            return HoppingResult(EvaluationStatus.PENDING, [])
+        results = {a.info["confid"]: a for a in evaluated}
+        decisions = []
+        for index, entry in enumerate(data["entries"]):
+            if not entry["valid"]:
+                decisions.append(2)
                 continue
-            with proposal:
-                tags = atoms.get_tags()
-                driver.run(atoms, read_ckpt=True)
-            relaxed = driver.read_trajectory()[-1]
-            relaxed.set_tags(tags)
-            energy_after = relaxed.get_potential_energy()
-            success = op.acceptance.accept(proposal, energy_before, energy_after, rng)
-            if success:
-                atoms = relaxed
-                energy_before = energy_after
-                atoms.info["mcstep"] = step
-            states.append(0 if success else 1)
-            checkpoint(step)
-            if success:
-                write(trajectory, atoms, append=True)
-            if driver.directory.exists():
-                shutil.rmtree(driver.directory)
-        return atoms, states
-    finally:
-        driver.directory = base_directory
-        if had_mcstep:
-            original_atoms.info["mcstep"] = previous_mcstep
-        else:
-            original_atoms.info.pop("mcstep", None)
-        if atoms is not original_atoms:
-            atoms.info.pop("mcstep", None)
+            trial = results[index]
+            trial.set_tags(entry["tags"])
+            accepted = operators[entry["operator"]].acceptance.accept(
+                entry["metadata"], entry["energy"], trial.get_potential_energy(), rng)
+            decisions.append(0 if accepted else 1)
+            if accepted:
+                atoms[index] = trial
+        states.append(decisions)
+        _commit(directory, step, atoms, states, rng, mcsteps)
+        _write_trajectories(directory, states, len(atoms))
+    return HoppingResult(EvaluationStatus.FINISHED, atoms)

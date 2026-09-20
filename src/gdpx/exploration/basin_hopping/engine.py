@@ -5,9 +5,9 @@ from typing import Callable, Optional
 
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 
-from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_workers
+from gdpx.execution.lifecycle.runtime import create_runtime_workers
 from ..population.random import RandomStreamRegistry
 from .selection import HoppingStartSelector
 from ..population import Population
@@ -17,14 +17,13 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
-from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from gdpx.sampling import parse_operators
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
-from .chain import run_hopping_steps
+from .chain import evaluate_batch, run_hopping_rounds
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 def evaluate_candidate(
@@ -162,7 +161,6 @@ class BasinHopping(BaseExpedition):
         self,
         operators: list[dict],
         num_mcmoves: int,
-        mcworker: dict,
         population: dict,
         convergence: dict,
         objective: Optional[dict] = None,
@@ -180,6 +178,10 @@ class BasinHopping(BaseExpedition):
 
         """
         reject_legacy_property(kwargs)
+        if "mcworker" in kwargs:
+            raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
+        if isinstance(num_mcmoves, bool) or not isinstance(num_mcmoves, int) or num_mcmoves < 0:
+            raise ValueError("BH num_mcmoves must be a non-negative integer.")
         if builder is not None:
             raise ValueError("BH builder moved to population.builders and initial.builder_allocations.")
         super().__init__(*args, **kwargs)
@@ -192,7 +194,6 @@ class BasinHopping(BaseExpedition):
         self._init_params = dict(
             num_mcmoves=num_mcmoves,
             operators=operators,
-            mcworker=mcworker,
             population=population,
         )
         if not is_default_objective(objective):
@@ -217,7 +218,6 @@ class BasinHopping(BaseExpedition):
         # Parse monte carlo settings
         self.num_mcmoves = num_mcmoves
         self.operators, self.op_probs = parse_operators(operators)
-        self.mcworker = create_worker(mcworker)
 
         # Some convergence criteria
         self.convergence = convergence
@@ -240,10 +240,12 @@ class BasinHopping(BaseExpedition):
 
     def register_worker(self, worker, *args, **kwargs) -> None:
         """Accept constructed CLI workers as well as runtime configurations."""
-        if isinstance(worker, BaseWorker):
-            self.worker = [worker]
-        else:
-            self.worker = worker if isinstance(worker, list) else create_runtime_workers(worker)
+        if not isinstance(worker, BaseWorker) and not hasattr(worker, "run"):
+            workers = worker if isinstance(worker, list) else create_runtime_workers(worker)
+            if len(workers) != 1 or isinstance(workers[0], list):
+                raise ValueError("BH requires one calculation runtime.")
+            worker = workers[0]
+        self.worker = worker
 
         return
 
@@ -326,6 +328,11 @@ class BasinHopping(BaseExpedition):
         restore_generation_random_states(database, gen_num, self.random_streams)
         plan = database.get_generation_plan(gen_num)
         candidates = database.generation_candidates(gen_num)
+        if gen_num > 0 and (
+            (plan is not None and plan.get("round_version") != 2)
+            or (plan is None and (candidates or (gen_wdir / "chains").exists()))
+        ):
+            raise ValueError("Incompatible serial BH checkpoint; start a new run for batched hopping.")
         target = self.population_config.init_size if gen_num == 0 else self.population_config.gen_size
         if plan is None:
             if candidates:
@@ -333,7 +340,7 @@ class BasinHopping(BaseExpedition):
                     raise ValueError("Legacy partial BH generation has no production checkpoint; start a new run.")
                 plan = dict(stage="complete", random_states=self.random_streams.snapshot())
             else:
-                plan = dict(stage="initial" if gen_num == 0 else "hopping")
+                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=2)
                 if gen_num > 0:
                     self.population.refresh(database)
                     starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
@@ -357,15 +364,16 @@ class BasinHopping(BaseExpedition):
                     plan["random_states"] = self.random_streams.snapshot()
                     database.set_generation_plan(gen_num, plan)
         elif plan["stage"] == "hopping":
-            for index in range(len(candidates), len(plan["parents"])):
-                parent = database.get_one_candidate_by_confid(plan["parents"][index])
-                atoms = parent.copy()
-                atoms.info = copy.deepcopy(parent.info)
-                atoms.calc = parent.calc
-                self.mcworker.driver.directory = gen_wdir / f"mc_{index}"
-                endpoint, states = run_hopping_steps(
-                    atoms, index, self.mcworker.driver, self.operators, self.op_probs,
-                    self.num_mcmoves, self.rng, checkpoint_directory=gen_wdir / "chains" / f"chain-{index:04d}")
+            starts = [database.get_one_candidate_by_confid(confid) for confid in plan["parents"]]
+            # Loading each parent independently gives repeated starts distinct
+            # mutable structures without an additional full Atoms copy.
+            outcome = run_hopping_rounds(
+                starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
+                self.rng, gen_wdir / "rounds", archive=self.use_archive)
+            if outcome.status is EvaluationStatus.PENDING:
+                return None
+            for index in range(len(candidates), len(outcome.endpoints)):
+                endpoint = outcome.endpoints[index]
                 endpoint.info["key_value_pairs"] = {}
                 endpoint.info["data"] = {"parents": [plan["parents"][index]], "chain": index}
                 with database.connection:
@@ -384,23 +392,26 @@ class BasinHopping(BaseExpedition):
         gen_wdir = self.directory / "tmp_folder" / f"gen{gen_num}"
         gen_wdir.mkdir(parents=True, exist_ok=True)
         candidates = self._prepare_generation(database, gen_num, gen_wdir)
-        # Include queued and already ingested candidates to preserve batch IDs
-        # when the worker resumes. It owns idempotent submission/retrieval.
-        finished = execute_workers(candidates, self.worker, archive=self.use_archive, directory=gen_wdir)
-        if not finished:
+        if candidates is None:
+            return EvaluationStatus.PENDING
+        # Endpoints already carry the accepted calculation; evaluate only initialization.
+        results = (evaluate_batch(candidates, self.worker, gen_wdir, self.use_archive)
+                   if gen_num == 0 else candidates)
+        if results is None:
             return EvaluationStatus.PENDING
         committed = set(database.get_generation_info(gen_num).relaxed_confids)
         expected = {a.info["confid"] for a in candidates}
-        results = read(gen_wdir / "results" / "end_frames.xyz", ":")
         for candidate in results:
             confid = candidate.info["confid"]
             if confid not in expected:
                 raise RuntimeError("Worker returned a candidate outside the current generation.")
             if confid in committed:
                 continue
+            provenance = candidate.info.get("data", {})
             canonical_candidates_from_worker_results(
                 [candidate], gen_num=gen_num, use_tags=True, objective=self.objective,
                 extinct_callbacks=self.population_config.extinct_callbacks)
+            candidate.info["data"].update(provenance)
             database.add_relaxed_step(candidate)
             committed.add(confid)
         if database.get_generation_info(gen_num).state is GenerationState.END_OF_GEN:
@@ -473,26 +484,12 @@ class BasinHopping(BaseExpedition):
 
         This should always be called after the convergence is confirmed.
 
-        Note:
-            We do not have MC trajectories for now.
-
         """
-        gen_wdirs = (self.directory / "tmp_folder").glob("gen*")
-        gen_wdirs = sorted(gen_wdirs, key=lambda p: int(p.name[3:]))
-        self._print(f"{gen_wdirs=}")
-
-        workers = []
-        for gen_wdir in gen_wdirs:
-            prototypes = self.worker if isinstance(self.worker, list) else [self.worker]
-            if prototypes and isinstance(prototypes[0], list):
-                entries = [(worker, gen_wdir / f"chainstep.{i:02d}") for i, worker in enumerate(prototypes[0])]
-            else:
-                entries = [(worker, gen_wdir if len(prototypes) == 1 else gen_wdir / f"w{i}")
-                           for i, worker in enumerate(prototypes)]
-            for prototype, directory in entries:
-                # Runtime specifications are immutable and cannot be deep-copied.
-                gen_worker = create_worker(prototype.as_dict(), directory=directory)
-                workers.append(gen_worker)
+        root = self.directory / "tmp_folder"
+        directories = [root / "gen0"]
+        directories.extend(sorted(root.glob("gen*/evaluations/round-*")))
+        workers = [create_worker(self.worker.as_dict(), directory=directory)
+                   for directory in directories if directory.exists()]
 
         return workers
 
@@ -503,16 +500,8 @@ class BasinHopping(BaseExpedition):
         recipe = dict(random_seed=self.random_seed, **recipe)
         assert self.worker is not None
 
-        def serialize_workers(workers):
-            if isinstance(workers, list):
-                return [serialize_workers(worker) for worker in workers]
-            return workers.as_dict()
-
-        runtime = serialize_workers(self.worker)
-        if isinstance(runtime, list) and len(runtime) == 1 and isinstance(runtime[0], dict):
-            runtime = runtime[0]
         return {
             "method": "basin_hopping",
             "recipe": recipe,
-            "runtime": runtime,
+            "runtime": self.worker.as_dict(),
         }

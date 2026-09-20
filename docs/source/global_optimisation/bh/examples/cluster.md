@@ -23,13 +23,14 @@ atom tags let the move operator select one Cu atom at a time.
 Each subsequent generation launches two independent chains from the retained
 pool of up to two distinct candidates. Starts are sampled with replacement,
 so both chains may start from the same candidate. Each chain runs three displacement proposals, with a maximum displacement of 0.8 Å.
-The `mcworker` minimizes each trial before its energy is used for acceptance.
+Both chains propose once per round, and the calculation worker minimizes the
+batch of valid trials before their energies are used for acceptance.
 The operator's 500 K temperature controls uphill acceptance during the search;
 it is not an MD thermostat or a claim of thermal equilibrium sampling.
 
-The top-level `runtime` relaxes the initial population and the endpoints of
-the hopping chains. Both evaluation stages use EMT and a force tolerance of
-0.05 eV/Å. The example stops after generation 2; generation 0 is initialization.
+The top-level `runtime` relaxes the initial population and every valid trial
+using EMT and a force tolerance of 0.05 eV/Å. Accepted endpoints are stored
+without another relaxation. The example stops after generation 2; generation 0 is initialization.
 
 ## Run
 

@@ -695,4 +695,4 @@ def test_basin_hopping_accepts_a_constructed_cli_worker():
     engine = object.__new__(BasinHopping)
     worker = object.__new__(SingleWorker)
     engine.register_worker(worker)
-    assert engine.worker == [worker]
+    assert engine.worker is worker
