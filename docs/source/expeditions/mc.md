@@ -6,6 +6,17 @@
 
 MC is a conventional method to explore the configuration space.
 
+This implementation remains an exploration method. Its worker determines
+whether trial configurations undergo single-point evaluation, minimization,
+or dynamics. The minimization example below is a search workflow, not a claim
+of equilibrium canonical sampling. Some biased moves use heuristic acceptance
+rules. Ensemble validation and migration to an MC executor are separate work.
+
+Population-based basin hopping is a separate {doc}`../global_optimisation/basin_hopping` method.
+Both methods reuse moves and acceptance rules from `gdpx.sampling`; BH does
+not inherit from MC. Moves use reversible in-place edits rather than copying
+the whole structure on every attempt.
+
 ## Example
 
 The related commands are
@@ -67,7 +78,7 @@ method: monte_carlo
 recipe:
   random_seed: 1112
   builder:
-    method: reader
+    method: read_stru
     fname: ./fcc-s111p44.xyz
   operators:
     - method: exchange
@@ -76,9 +87,8 @@ recipe:
         origin: [0, 0, 8.0]
         cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
       covalent_ratio: [0.8, 2.0]
-      reservoir:
-        mu: -5.75
-        species: O
+      particles: [O]
+      chempots: [-5.75]
       temperature: 800
       probability: 0.5
     - method: move

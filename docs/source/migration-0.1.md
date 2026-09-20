@@ -16,6 +16,31 @@ Use the package that owns the concept:
 - selectors and validators: `gdpx.analysis`
 - biases and collective variables: `gdpx.modifiers`
 - loaders and arrays: `gdpx.data`
+- reusable Monte Carlo proposals and acceptance rules: `gdpx.sampling`
+
+## Basin hopping and shared moves
+
+`method: basin_hopping` now selects the former **concurrent hopping** search.
+Change `method: concurrent_hopping` to `method: basin_hopping` and keep its
+recipe, including `population`, `operators`, `num_mcmoves`, and `mcworker`.
+The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
+
+The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations
+using that alias must change to `method: monte_carlo`. Old concurrent-hopping
+names and imports are not retained as compatibility aliases.
+
+Moves now live in `gdpx.sampling.moves`; use `parse_operators` from
+`gdpx.sampling`. Existing operator configuration keys are retained. Replace
+calls to `run()`/`metropolis()` with `propose()` and the operator's separate
+`acceptance.accept()` rule. Proposals borrow their input in place: close each
+successful proposal with `commit()` or `rollback()`, or use its context manager.
+
+New MC checkpoints store versioned operator configurations instead of pickled
+operator instances. Legacy operator checkpoints cannot be resumed; start a
+new working directory. New checkpoints and pending-move records support restart.
+
+This extraction preserves the existing acceptance formulas. It does not certify
+detailed balance of biased moves or change MC into an execution method.
 
 ## Runtime configuration
 
