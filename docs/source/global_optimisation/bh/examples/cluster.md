@@ -29,8 +29,8 @@ The operator's 500 K temperature controls uphill acceptance during the search;
 it is not an MD thermostat or a claim of thermal equilibrium sampling.
 
 The top-level `runtime` relaxes the initial population and every valid trial
-using EMT and a force tolerance of 0.05 eV/Å. Accepted endpoints are stored
-without another relaxation. The example stops after generation 2; generation 0 is initialization.
+using EMT and a force tolerance of 0.05 eV/Å. Every relaxed trial endpoint is stored, whether accepted or rejected,
+without another relaxation. Each search generation adds up to six trial minima. The example stops after generation 2; generation 0 is initialization.
 
 ## Run
 
@@ -43,7 +43,7 @@ gdp -d ./run-cu8-bh-emt explore \
 
 Results are written under `run-cu8-bh-emt/expedition-0`:
 
-- `results/all_candidates.xyz`: relaxed population candidates, ordered by score
+- `results/all_candidates.xyz`: all evaluated minima (including rejected trials), ordered by score
   with the lowest-energy candidate first for the default energy objective.
 - `results/pop.png`: candidate energies by generation.
 - `tmp_folder/gen*/mctrajs/mc-*.xyz`: each chain's starting structure and accepted

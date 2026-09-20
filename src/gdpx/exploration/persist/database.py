@@ -179,6 +179,27 @@ class GlobalOptimisationDatabase:
 
         return
 
+    def add_evaluated_candidate(self, atoms: Atoms, evaluation_key: str) -> int:
+        """Record an evaluated search trial once, without a fictitious input row.
+
+        The stable evaluation key identifies an event, not a geometry: two
+        identical minima from different trials remain separate history entries.
+        """
+        with self.connection:
+            existing = list(self.connection.select(evaluation_key=evaluation_key))
+            if existing:
+                confid = existing[0].confid
+            else:
+                pairs = dict(atoms.info["key_value_pairs"])
+                pairs.pop("confid", None)
+                confid = self.connection.write(
+                    atoms, relaxed=1, evaluation_key=evaluation_key,
+                    key_value_pairs=pairs, data=atoms.info.get("data", {}))
+                self.connection.update(confid, confid=confid)
+        atoms.info["confid"] = confid
+        atoms.info["relax_id"] = confid
+        return confid
+
     def get_one_candidate_by_confid(self, confid: int, add_info: bool = True, mark_as_queued: bool = False) -> Atoms:
         """"""
         images = list(self.connection.select(confid=confid))
@@ -297,11 +318,19 @@ class GlobalOptimisationDatabase:
         def info(num):
             evaluated = relaxed.get(num, set())
             submitted = produced.get(num, set())
-            target = settings["initial_size"] if num == 0 else settings["generation_size"]
-            if len(evaluated) > target:
-                raise RuntimeError(f"Generation {num} has more evaluated candidates than its configured size.")
             plan = self.get_generation_plan(num)
-            complete = len(evaluated) == target and (plan is None or plan.get("stage") == "complete")
+            if plan is not None and "expected_confids" in plan:
+                expected = set(plan["expected_confids"])
+                submitted = submitted | expected
+                finalized = plan.get("stage") == "complete"
+                if finalized and evaluated - expected:
+                    raise RuntimeError(f"Generation {num} has results outside its finalized evaluation plan.")
+                complete = finalized and evaluated == expected
+            else:
+                target = settings["initial_size"] if num == 0 else settings["generation_size"]
+                if len(evaluated) > target:
+                    raise RuntimeError(f"Generation {num} has more evaluated candidates than its configured size.")
+                complete = len(evaluated) == target and (plan is None or plan.get("stage") == "complete")
             state = GenerationState.END_OF_GEN if complete else (
                 GenerationState.MID_OF_GEN if submitted or evaluated or plan else GenerationState.BEG_OF_GEN
             )

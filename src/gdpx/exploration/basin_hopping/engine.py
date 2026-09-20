@@ -329,24 +329,25 @@ class BasinHopping(BaseExpedition):
         plan = database.get_generation_plan(gen_num)
         candidates = database.generation_candidates(gen_num)
         if gen_num > 0 and (
-            (plan is not None and plan.get("round_version") != 2)
+            (plan is not None and plan.get("round_version") != 3)
             or (plan is None and (candidates or (gen_wdir / "chains").exists()))
         ):
-            raise ValueError("Incompatible serial BH checkpoint; start a new run for batched hopping.")
+            raise ValueError("Incompatible serial BH checkpoint or older round checkpoint; start a new run.")
         target = self.population_config.init_size if gen_num == 0 else self.population_config.gen_size
         if plan is None:
             if candidates:
-                if len(candidates) != target:
+                if gen_num == 0 and len(candidates) != target:
                     raise ValueError("Legacy partial BH generation has no production checkpoint; start a new run.")
                 plan = dict(stage="complete", random_states=self.random_streams.snapshot())
             else:
-                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=2)
+                plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=3)
                 if gen_num > 0:
                     self.population.refresh(database)
                     starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
                     if not starts:
                         raise RuntimeError("No eligible parents for BH generation.")
                     plan["parents"] = [a.info["confid"] for a in starts]
+                    plan["expected_confids"] = []
                 plan["random_states"] = self.random_streams.snapshot()
             database.set_generation_plan(gen_num, plan)
         self.random_streams.restore(plan["random_states"])
@@ -365,23 +366,27 @@ class BasinHopping(BaseExpedition):
                     database.set_generation_plan(gen_num, plan)
         elif plan["stage"] == "hopping":
             starts = [database.get_one_candidate_by_confid(confid) for confid in plan["parents"]]
-            # Loading each parent independently gives repeated starts distinct
-            # mutable structures without an additional full Atoms copy.
+            for start, confid in zip(starts, plan["parents"]):
+                start.info["confid"] = confid
+
+            def record_trial(step, chain, trial, accepted, parent):
+                canonical_candidates_from_worker_results(
+                    [trial], gen_num=gen_num, use_tags=True, objective=self.objective,
+                    extinct_callbacks=self.population_config.extinct_callbacks)
+                trial.info["data"].update(
+                    parents=[parent], chain=chain, round=step, accepted=bool(accepted),
+                    start_parent=plan["parents"][chain])
+                database.add_evaluated_candidate(trial, f"bh:{gen_num}:{chain}:{step}")
+
             outcome = run_hopping_rounds(
                 starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
-                self.rng, gen_wdir / "rounds", archive=self.use_archive)
+                self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial)
             if outcome.status is EvaluationStatus.PENDING:
                 return None
-            for index in range(len(candidates), len(outcome.endpoints)):
-                endpoint = outcome.endpoints[index]
-                endpoint.info["key_value_pairs"] = {}
-                endpoint.info["data"] = {"parents": [plan["parents"][index]], "chain": index}
-                with database.connection:
-                    database.add_unrelaxed_candidate(endpoint, generation=gen_num)
-                    candidates.append(endpoint)
-                    plan["random_states"] = self.random_streams.snapshot()
-                    database.set_generation_plan(gen_num, plan)
-        if len(candidates) != target:
+            plan["expected_confids"] = sorted(
+                row.confid for row in database.connection.select(relaxed=1, generation=gen_num))
+            plan["random_states"] = self.random_streams.snapshot()
+        if gen_num == 0 and len(candidates) != target:
             raise RuntimeError(f"Generation {gen_num} has {len(candidates)} inputs; expected {target}.")
         plan["stage"] = "complete"
         database.set_generation_plan(gen_num, plan)
@@ -394,9 +399,8 @@ class BasinHopping(BaseExpedition):
         candidates = self._prepare_generation(database, gen_num, gen_wdir)
         if candidates is None:
             return EvaluationStatus.PENDING
-        # Endpoints already carry the accepted calculation; evaluate only initialization.
-        results = (evaluate_batch(candidates, self.worker, gen_wdir, self.use_archive)
-                   if gen_num == 0 else candidates)
+        # Every hopping evaluation was already persisted by the round coordinator.
+        results = evaluate_batch(candidates, self.worker, gen_wdir, self.use_archive) if gen_num == 0 else []
         if results is None:
             return EvaluationStatus.PENDING
         committed = set(database.get_generation_info(gen_num).relaxed_confids)
@@ -450,11 +454,15 @@ class BasinHopping(BaseExpedition):
                 candidates_by_generations[k] = list(v)
 
         target = self.objective["target"]
-        maximum_generation_number = max(candidates_by_generations.keys()) + 1
+        maximum_generation_number = max(max(candidates_by_generations.keys(), default=0),
+                                        db.get_generation_number() - 1) + 1
 
         data = []
         for i in range(maximum_generation_number):
-            candidates = candidates_by_generations[i]
+            candidates = candidates_by_generations.get(i, [])
+            if not candidates:
+                self._print(f"generation {i}: no evaluated candidates")
+                continue
             properties = np.array([a.info["key_value_pairs"]["target"] for a in candidates])
             stats = dict(
                 min=np.min(properties),

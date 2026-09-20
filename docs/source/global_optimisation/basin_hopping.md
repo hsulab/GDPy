@@ -82,7 +82,18 @@ and biased proposals do not imply that its population is an equilibrium sample.
 BH advances chains in rounds: one proposal per chain, one batch of valid trials,
 then acceptance after every trial result is available. Invalid proposals consume
 a hop without evaluation. Rejected trials retain the previous accepted minimum.
-Final chain endpoints enter the population without another relaxation.
+Every evaluated minimum enters the candidate database, including rejected
+trials and accepted intermediate minima. Acceptance controls the chain's next
+state; it does not control whether the result is stored. The next generation
+selects from all eligible stored minima using the shared population comparator
+and ranking. Repeated evaluations remain separate history records, while the
+retained population removes similar structures. No extra candidate or relaxation
+is created for a final chain endpoint.
+
+Each trial record includes its chain, round, acceptance decision, originating
+accepted candidate (`data.parents`), and starting parent. Invalid proposals have
+no evaluated result and create no candidate record. Results excluded by extinction
+rules remain stored but are ineligible for selection.
 
 Top-level `scheduler` places the exploration loop. Top-level `runtime` defines
 its calculation worker; `runtime.scheduler` places the expensive calculations.
@@ -96,6 +107,7 @@ recipe and directory to resume queued work. Results are matched by trial ID,
 and acceptance uses chain order independently of result arrival order.
 
 Remove the former `recipe.mcworker` and move its calculation settings into
-`runtime`. Serial-chain checkpoints cannot resume an in-progress generation
-with this implementation. Round ordering also changes trajectories for old
+`runtime`. Older serial-chain and endpoint-only round checkpoints cannot resume an
+in-progress generation with this implementation. Completed history remains
+readable; minima from older worker outputs are not backfilled automatically. Round ordering also changes trajectories for old
 random seeds; new runs are reproducible across restart boundaries.

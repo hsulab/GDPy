@@ -13,7 +13,7 @@ similar; extinction rules exclude candidates that are no longer eligible.
 | --- | --- |
 | `population.initial.total_size` | Number of candidates generated for initialization |
 | `population.retained_size` | Maximum number of distinct candidates retained for parent selection |
-| `population.generation.total_size` | Number of new candidates per generation; independent chains for BH |
+| `population.generation.total_size` | New candidates per generation for GA; independent chains per generation for BH |
 
 All three sizes must be positive integers, but need not be equal or ordered.
 `retained_size` defaults to `generation.total_size`. The retained pool may be
@@ -77,7 +77,11 @@ rules in both methods.
 
 GA keeps `generation.reproduction`, `generation.mutation`, and
 `generation.completion`. BH requires only `generation.total_size`; its move
-operators and `num_mcmoves` define how each chain produces a candidate.
+operators and `num_mcmoves` define the trials along each chain. Every evaluated
+trial minimum enters the database, including rejected trials. A BH generation
+therefore adds up to `generation.total_size × num_mcmoves` evaluated candidates;
+invalid proposals add none. Population refresh considers all eligible stored
+minima at the start of the next generation.
 
 ## Migrating existing input
 
@@ -129,9 +133,11 @@ statistics are kept outside `Atoms.info`.
 
 Both engines use `gdpx.exploration.generation.GenerationInfo` and
 `GenerationState`. The database determines whether a generation is beginning,
-in progress, complete, or the search is extinct. Completion requires the
-requested number of distinct candidate IDs with committed evaluation results;
-an output directory alone does not establish completion. Worker evaluation
+in progress, complete, or the search is extinct. GA and initialization require
+fixed counts of committed evaluations. BH hopping generations finalize an
+explicit list of evaluated candidate IDs after all rounds; completion requires
+all listed results, even when there are more evaluations than chains or no
+valid trials at all. An output directory alone does not establish completion. Worker evaluation
 uses a separate `EvaluationStatus` (`PENDING` or `FINISHED`).
 
 Generation plans persist construction progress and random-stream states.

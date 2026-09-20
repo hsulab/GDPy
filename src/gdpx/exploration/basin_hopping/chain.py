@@ -70,7 +70,7 @@ def _commit(directory, step, atoms, states, rng, total_steps):
     staging.mkdir(parents=True, exist_ok=True)
     for index, frame in enumerate(atoms):
         save_accepted_state(staging / f"accepted-{index:06d}.pkl", frame, frame.get_potential_energy())
-    _save(staging / "state.pkl", dict(version=2, step=step, total_steps=total_steps,
+    _save(staging / "state.pkl", dict(version=3, step=step, total_steps=total_steps,
                                      count=len(atoms), states=states, rng=rng.bit_generator.state))
     staging.rename(directory / f"round-{step:06d}")
 
@@ -85,7 +85,7 @@ def _write_trajectories(directory, states, count):
             write(target / f"mc-{index:04d}.xyz", frame, append=step != 0)
 
 
-def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory, archive=False):
+def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory, archive=False, record_trial=None):
     """Advance a generation through round barriers, returning when work is pending.
 
     Pending inputs are durable before submission. Live proposals borrow distinct
@@ -96,7 +96,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     completed = sorted(directory.glob("round-*"))
     if completed:
         state = _load(completed[-1] / "state.pkl")
-        if state.get("version") != 2 or state["total_steps"] != mcsteps or state["count"] != len(starts):
+        if state.get("version") != 3 or state["total_steps"] != mcsteps or state["count"] != len(starts):
             raise ValueError("Incompatible BH round checkpoint; use the original recipe or start a new run.")
         atoms = [load_accepted_state(completed[-1] / f"accepted-{i:06d}.pkl") for i in range(len(starts))]
         rng.bit_generator.state = state["rng"]
@@ -116,7 +116,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         worker.directory = directory.parent / "evaluations" / f"round-{step:06d}"
         if pending.exists():
             data = _load(pending / "proposal.pkl")
-            if data.get("version") != 2:
+            if data.get("version") != 3:
                 raise ValueError("Unsupported BH pending round checkpoint; start a new run.")
             rng.bit_generator.state = data["rng"]
             trials = [_load_trial(pending / f"trial-{i:06d}.pkl")
@@ -142,7 +142,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     entry["tags"] = accepted.get_tags()
                     _save(staging / f"trial-{index:06d}.pkl", accepted.todict())
                     trials.append(accepted)
-                data = dict(version=2, entries=entries, rng=copy.deepcopy(rng.bit_generator.state))
+                data = dict(version=3, entries=entries, rng=copy.deepcopy(rng.bit_generator.state))
                 _save(staging / "proposal.pkl", data)
                 staging.rename(pending)
                 if trials:
@@ -162,6 +162,10 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
             accepted = operators[entry["operator"]].acceptance.accept(
                 entry["metadata"], entry["energy"], trial.get_potential_energy(), rng)
             decisions.append(0 if accepted else 1)
+            if record_trial is not None:
+                # Persist even rejected minima before publishing the accepted
+                # round. Stable trial identities make replay after a crash safe.
+                record_trial(step, index, trial, accepted, atoms[index].info["confid"])
             if accepted:
                 atoms[index] = trial
         states.append(decisions)

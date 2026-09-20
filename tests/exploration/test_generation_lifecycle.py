@@ -203,27 +203,47 @@ def test_initial_batch_and_rng_checkpoint_commit_atomically(tmp_path, monkeypatc
     assert db.connection.count(relaxed=1) == 2
 
 
-def test_bh_endpoint_ingestion_resumes_without_evaluation(tmp_path, monkeypatch):
+@pytest.mark.parametrize("boundary", ["result", "round"])
+def test_bh_trial_ingestion_is_idempotent(tmp_path, monkeypatch, boundary):
+    import gdpx.exploration.basin_hopping.chain as chain
     config, runtime = bh_config(tmp_path, generations=1)
+    baseline = make_engine(config, runtime, tmp_path / "baseline")
+    baseline.run()
     engine = make_engine(config, runtime, tmp_path / "search")
-    original = GlobalOptimisationDatabase.add_relaxed_step
-    def interrupt(db, candidate):
-        original(db, candidate)
-        if candidate.info["key_value_pairs"]["generation"] == 1:
-            raise RuntimeError("interrupted endpoint ingestion")
-    monkeypatch.setattr(GlobalOptimisationDatabase, "add_relaxed_step", interrupt)
-    with pytest.raises(RuntimeError, match="endpoint ingestion"):
+    record = GlobalOptimisationDatabase.add_evaluated_candidate
+    commit = chain._commit
+    def interrupt_result(db, candidate, key):
+        result = record(db, candidate, key)
+        raise RuntimeError("interrupted result commit")
+    def interrupt_round(directory, step, *args):
+        if step == 1:
+            raise RuntimeError("interrupted round commit")
+        return commit(directory, step, *args)
+    if boundary == "result":
+        monkeypatch.setattr(GlobalOptimisationDatabase, "add_evaluated_candidate", interrupt_result)
+    else:
+        monkeypatch.setattr(chain, "_commit", interrupt_round)
+    with pytest.raises(RuntimeError, match="interrupted"):
         engine.run()
-    monkeypatch.setattr(GlobalOptimisationDatabase, "add_relaxed_step", original)
-    resumed = make_engine(config, runtime, engine.directory)
-    monkeypatch.setattr(resumed.worker, "run", lambda *a, **k: pytest.fail("reevaluated endpoint"))
-    resumed.run()
     db = GlobalOptimisationDatabase(engine.database_path)
-    assert db.connection.count(relaxed=1, generation=1) == 2
-    assert db.connection.count(relaxed=0, generation=1) == 2
+    assert db.get_generation_info().num == 1
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    monkeypatch.setattr(GlobalOptimisationDatabase, "add_evaluated_candidate", record)
+    monkeypatch.setattr(chain, "_commit", commit)
+    resumed = make_engine(config, runtime, engine.directory)
+    resumed.run()
+    assert db.connection.count(relaxed=1, generation=1) == 4
+    assert db.connection.count(relaxed=0, generation=1) == 0
     assert resumed.read_convergence()
-    for row in db.connection.select(relaxed=1, generation=1):
-        assert "chain" in row.data and len(row.data.parents) == 1
+    expected = GlobalOptimisationDatabase(baseline.database_path)
+    actual_rows = list(db.connection.select(relaxed=1, generation=1))
+    for actual, wanted in zip(actual_rows, expected.connection.select(relaxed=1, generation=1)):
+        assert actual.confid == wanted.confid
+        assert dict(actual.data) == dict(wanted.data)
+        np.testing.assert_allclose(actual.positions, wanted.positions)
+        assert actual.energy == pytest.approx(wanted.energy)
+    assert resumed.random_streams.snapshot() == baseline.random_streams.snapshot()
+    assert len({row.evaluation_key for row in actual_rows}) == 4
 
 
 def test_bh_rejects_removed_mcworker_and_serial_checkpoints(tmp_path):
@@ -237,3 +257,104 @@ def test_bh_rejects_removed_mcworker_and_serial_checkpoints(tmp_path):
     db.set_generation_plan(1, dict(stage="hopping", parents=[1, 1]))
     with pytest.raises(ValueError, match="serial BH checkpoint"):
         engine._prepare_generation(db, 1, engine.directory / "tmp_folder/gen1")
+
+
+def test_explicit_generation_results_complete_only_when_finalized(tmp_path):
+    db = GlobalOptimisationDatabase(tmp_path / "candidates.db")
+    db.configure_generations(1, 1)
+    initial = atom()
+    db.add_unrelaxed_candidate(initial, generation=0)
+    relaxed(db, initial)
+    db.set_generation_plan(1, dict(stage="hopping", expected_confids=[]))
+    ids = []
+    for index in range(3):
+        candidate = atom(index)
+        candidate.info.update(key_value_pairs=dict(generation=1, raw_score=0.), data={})
+        ids.append(db.add_evaluated_candidate(candidate, f"trial-{index}"))
+        assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+        assert db.get_generation_number() == 1
+    db.set_generation_plan(1, dict(stage="complete", expected_confids=ids + [999]))
+    assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    db.set_generation_plan(1, dict(stage="complete", expected_confids=ids))
+    assert db.get_generation_info(1).state is GenerationState.END_OF_GEN
+    assert db.get_generation_number() == 2
+    db.set_generation_plan(2, dict(stage="complete", expected_confids=[]))
+    assert db.get_generation_number() == 3
+
+
+class HistoryWorker:
+    """Deterministic evaluated endpoints with controllable uphill acceptance."""
+    def __init__(self, energies):
+        self.energies = iter(energies)
+        self.calls = 0
+    def run(self, frames):
+        energy = next(self.energies)
+        self.calls += 1
+        self.results = []
+        for frame in frames:
+            result = frame.copy()
+            result.info = copy.deepcopy(frame.info)
+            result.calc = SinglePointCalculator(result, energy=energy, forces=np.zeros((len(frame), 3)))
+            self.results.append([result])
+    def inspect(self, **kwargs):
+        pass
+    def get_number_of_running_jobs(self):
+        return 0
+    def retrieve(self, **kwargs):
+        return self.results
+
+
+@pytest.mark.parametrize("accept_uphill", [False, True])
+def test_every_minimum_is_available_to_next_population(tmp_path, accept_uphill):
+    config, runtime = bh_config(tmp_path, generations=2 if accept_uphill else 1)
+    config["recipe"]["population"]["comparator"] = {"method": "atoms"}
+    config["recipe"]["population"]["retained_size"] = 1 if accept_uphill else 10
+    config["recipe"]["operators"][0]["temperature"] = 1e12 if accept_uphill else 1e-6
+    engine = make_engine(config, runtime, tmp_path / "search")
+    worker = HistoryWorker([0., -10., -1., -2., -3.])
+    engine.register_worker(worker)
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    rows = list(db.connection.select(relaxed=1, generation=1))
+    assert len(rows) == 4
+    earlier = [row for row in rows if row.data["round"] == 1]
+    later = [row for row in rows if row.data["round"] == 2]
+    assert all(row.data.accepted is accept_uphill for row in later)
+    assert {row.data.parents[0] for row in later} == {row.confid for row in earlier}
+    assert db.connection.count(relaxed=0, generation=1) == 0
+    if accept_uphill:
+        # Generation 2 starts at an intermediate -10 minimum, not a -1 endpoint.
+        assert set(db.get_generation_plan(2)["parents"]) <= {row.confid for row in earlier}
+        assert worker.calls == 5
+    else:
+        engine.population.refresh(db)
+        assert {row.confid for row in later} <= {a.info["confid"] for a in engine.population.candidates}
+        assert worker.calls == 3
+    frames = read(engine.directory / "results/all_candidates.xyz", ":")
+    assert len(frames) == db.connection.count(relaxed=1)
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, invalid):
+    from gdpx.sampling.proposal import MoveProposal
+    config, runtime = bh_config(tmp_path, generations=2)
+    if not invalid:
+        config["recipe"]["num_mcmoves"] = 0
+    engine = make_engine(config, runtime, tmp_path / "search")
+    if invalid:
+        def reject(atoms, rng):
+            proposal = MoveProposal(atoms)
+            proposal.valid = False
+            proposal.rollback()
+            return proposal
+        monkeypatch.setattr(engine.operators[0], "propose", reject)
+    worker = HistoryWorker([0.])
+    engine.register_worker(worker)
+    engine.run()
+    db = GlobalOptimisationDatabase(engine.database_path)
+    assert engine.read_convergence()
+    assert db.get_generation_number() == 3
+    assert db.connection.count(relaxed=1) == 2
+    assert worker.calls == 1
+    assert db.get_generation_plan(1)["expected_confids"] == []
+    assert (engine.directory / "results/pop.png").exists()

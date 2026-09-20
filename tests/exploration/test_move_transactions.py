@@ -419,7 +419,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     assert len(engine.get_workers()) == 3
     from ase.io import read
     frames = read(engine.directory / "results" / "all_candidates.xyz", ":")
-    assert len(frames) == 4
+    assert len(frames) == 7
     trajectories = sorted((engine.directory / "tmp_folder/gen1/mctrajs").glob("mc-*.xyz"))
     assert len(trajectories) == 3
     for trajectory in trajectories:
