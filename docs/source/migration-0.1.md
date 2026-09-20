@@ -19,10 +19,11 @@ Use the package that owns the concept:
 
 ## Runtime configuration
 
-Every runtime is complete and explicitly versioned:
+Every runtime is complete. An omitted `schema_version` selects the current
+schema; explicit unsupported versions are rejected. Serialized runtimes and
+saved compute plans retain explicit versions.
 
 ```
-schema_version: 3
 potential:
   provider: deepmd
   method: default

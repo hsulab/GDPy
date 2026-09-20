@@ -41,7 +41,6 @@ recipe:
     generation: 1
 
 runtime:
-  schema_version: 3
   potential:
     provider: mattersim
     parameters:

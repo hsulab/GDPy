@@ -7,7 +7,6 @@ executor, optional modifiers, and an optional scheduler. The potential defines
 the model; the executor defines the software and calculation method.
 
 ```yaml
-schema_version: 3
 potential:
   provider: deepmd
   parameters:

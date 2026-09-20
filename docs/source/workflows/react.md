@@ -11,7 +11,6 @@ For NEB, use executor method `neb` with the provider that runs the path, for
 example:
 
 ```
-schema_version: 3
 potential:
   provider: emt
   parameters: {}

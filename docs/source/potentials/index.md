@@ -35,7 +35,6 @@ calculator interface. Native input settings remain potential parameters while
 the calculation method is selected by the executor:
 
 ```
-schema_version: 3
 potential:
   provider: vasp
   parameters:

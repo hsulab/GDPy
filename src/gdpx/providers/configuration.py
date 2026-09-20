@@ -85,7 +85,7 @@ class RuntimeConfig:
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "RuntimeConfig":
         raw = copy.deepcopy(dict(value))
-        version = raw.pop("schema_version", None)
+        version = raw.pop("schema_version", SCHEMA_VERSION)
         legacy_fields = sorted({"potter", "driver", "computer", "backend"}.intersection(raw))
         if version != SCHEMA_VERSION:
             suffix = f" Legacy fields found: {', '.join(legacy_fields)}." if legacy_fields else ""

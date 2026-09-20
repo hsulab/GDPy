@@ -8,7 +8,6 @@ algorithms, and other search policies independent of the potential and the
 software used to run it.
 
 ```yaml
-schema_version: 3
 potential:
   provider: deepmd
   parameters:

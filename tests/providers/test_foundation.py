@@ -223,20 +223,41 @@ def test_legacy_runtime_is_rejected_without_mutating_input():
     }
     original = copy.deepcopy(source)
 
-    with pytest.raises(ProviderConfigurationError, match="Legacy fields found: driver, potter"):
+    with pytest.raises(ProviderConfigurationError, match="Legacy runtime fields are not supported: driver, potter"):
         RuntimeConfig.from_mapping(source)
 
     assert source == original
 
 
 def test_legacy_dimer_controller_is_rejected():
-    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
+    with pytest.raises(ProviderConfigurationError, match="Legacy runtime fields are not supported: driver"):
         RuntimeConfig.from_mapping(
             {
                 "potential": {"name": "cp2k", "params": {"backend": "cp2k"}},
                 "driver": {"task": "ts", "controller": {"name": "dimer_ts"}},
             }
         )
+
+def test_omitted_schema_uses_current_version_and_serializes_explicitly():
+    from gdpx.providers import SCHEMA_VERSION
+
+    source = {
+        "potential": {"provider": "emt"},
+        "executor": {"provider": "ase", "method": "min"},
+    }
+    original = copy.deepcopy(source)
+    config = RuntimeConfig.from_mapping(source)
+    assert config.schema_version == SCHEMA_VERSION
+    assert config.to_dict()["schema_version"] == SCHEMA_VERSION
+    assert source == original
+    assert RuntimeConfig.from_mapping(config.to_dict()) == config
+
+
+@pytest.mark.parametrize("version", [None, 1, 2, 4, "3"])
+def test_explicit_unsupported_schema_is_rejected(version):
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
+        RuntimeConfig.from_mapping({"schema_version": version})
+
 
 def test_builtin_potentials_are_exposed_through_provider_manager():
     from gdpx.providers import get_provider_manager

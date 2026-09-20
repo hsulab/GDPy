@@ -40,8 +40,8 @@ Independent runtimes are also written as explicit lists; component broadcasting
 and implicit Cartesian products are not supported.
 
 References such as `${vx:emt}` are resolved by the workflow session. Runtime
-configuration serialized outside a session uses `schema_version: 3` as shown
-in {ref}`computations`.
+configuration may omit `schema_version` to use the current schema, as shown
+in {ref}`computations`. Serialized runtimes retain an explicit version.
 
 ```{toctree}
 :maxdepth: 1

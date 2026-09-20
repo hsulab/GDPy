@@ -19,7 +19,6 @@ $ gdp -d ./results -r ./runtime.yaml compute ./structures.xyz
 An example input file (`runtime.yaml`) is organised as follows:
 
 ```yaml
-schema_version: 3
 potential:
     provider: deepmd
     parameters:
@@ -35,6 +34,9 @@ executor:
 ```
 
 No `scheduler` section is needed for direct execution on the current machine.
+Omitting `schema_version` uses the current configuration schema. Explicit
+unsupported versions are rejected; serialized runtimes and saved compute plans
+still record their schema version.
 
 ## Units
 
@@ -51,7 +53,6 @@ The example below shows how to define a **deepmd** potential using the **ase** b
 in a **yaml** file:
 
 ```yaml
-schema_version: 3
 potential:
     provider: deepmd
     method: default

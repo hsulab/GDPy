@@ -49,7 +49,6 @@ only from the factory or materializer that needs them.
 Provider configurations use schema version 3:
 
 ```
-schema_version: 3
 potential:
   provider: example
   method: default
@@ -72,9 +71,9 @@ fails before submission when the potential cannot produce that interface.
 
 Provider entry points and schema version 3 are the only supported extension
 boundary. The former manager registries, `potter` configuration, and
-`BasePotentialManager.create_driver` API have been removed. A missing
-`schema_version` or a legacy component key is an error rather than an
-implicit migration.
+`BasePotentialManager.create_driver` API have been removed. An omitted
+`schema_version` selects the current schema. Explicit unsupported versions and
+legacy component keys are rejected rather than implicitly migrated.
 
 ## Provider boundary
 

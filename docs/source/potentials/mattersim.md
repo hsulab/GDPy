@@ -24,7 +24,6 @@ Configure MatterSim under `runtime.potential` and select the calculation under
 
 ```yaml
 runtime:
-  schema_version: 3
   potential:
     provider: mattersim
     parameters:
