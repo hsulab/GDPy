@@ -15,7 +15,7 @@ Mutations modify one candidate to create structural or compositional variation.
 | `cluster_rotation` | Finds graph-connected clusters and rotates selected clusters as rigid units about a fixed or random axis. |
 | {ref}`exchange <ga-exchange-mutation>` | Inserts or removes atoms or molecular fragments for variable-composition searches. |
 | `group_rattle` | Selects atoms from a group expression and randomly displaces either a fixed number or a fraction of them, rejecting overlaps. |
-| `swap` | Exchanges the positions of different tagged particle types while preserving the internal geometry of molecular fragments. |
+| {ref}`swap <ga-swap-mutation>` | Exchanges the positions of different tagged particle types while preserving the internal geometry of molecular fragments. |
 
 ```{toctree}
 :maxdepth: 1
@@ -24,4 +24,5 @@ Mutations modify one candidate to create structural or compositional variation.
 
 exchange
 rattle
+swap
 ```
