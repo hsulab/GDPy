@@ -17,6 +17,7 @@ from gdpx.execution.lifecycle.runtime import create_runtime_workers, execute_wor
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.analysis.comparators import create_comparator
 from gdpx.execution.factory import create_worker
+from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
@@ -472,9 +473,12 @@ class BasinHopping(BaseExpedition):
         """Return the fixed candidate database path for this expedition."""
         return self.directory / CANDIDATES_DATABASE_FILENAME
 
-    def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
-        """Overwrite this function as we need computer in this expedition."""
-        self.worker = worker if isinstance(worker, list) else create_runtime_workers(worker)
+    def register_worker(self, worker, *args, **kwargs) -> None:
+        """Accept constructed CLI workers as well as runtime configurations."""
+        if isinstance(worker, BaseWorker):
+            self.worker = [worker]
+        else:
+            self.worker = worker if isinstance(worker, list) else create_runtime_workers(worker)
 
         return
 

@@ -1,0 +1,54 @@
+method: basin_hopping
+recipe:
+  random_seed: 7
+  population:
+    initial_size: 4
+    population_size: 2
+    generation_size: 2
+    random_offspring_generator:
+      method: random_structure_improved
+      random_seed: 7
+      composition:
+        Cu: 8
+      pbc: false
+      use_tags: true
+      box: [12.0, 12.0, 12.0]
+      region:
+        method: sphere
+        origin: [6.0, 6.0, 6.0]
+        radius: 3.0
+      covalent_ratio: [0.6, 2.0]
+  operators:
+    - method: move
+      particles: [Cu]
+      temperature: 500.0
+      max_disp: 0.8
+      covalent_ratio: [0.6, 2.0]
+      max_random_attempts: 100
+      probability: 1.0
+  num_mcmoves: 3
+  mcworker:
+    potential:
+      provider: emt
+      parameters: {}
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        fmax: 0.05
+        steps: 300
+    options:
+      worker: single
+  convergence:
+    generation: 2
+
+runtime:
+  potential:
+    provider: emt
+    parameters: {}
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      fmax: 0.05
+      steps: 300

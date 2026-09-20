@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from gdpx.exploration.genetic_algorithm.engine import GeneticAlgorithmEngine
-from gdpx.exploration.monte_carlo.concurrent_hopping import evaluate_candidate
+from gdpx.exploration.basin_hopping.engine import evaluate_candidate
 
 
 def _evaluated_atoms(symbols, energy):

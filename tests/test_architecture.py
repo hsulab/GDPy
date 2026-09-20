@@ -11,6 +11,21 @@ import networkx as nx
 
 
 ROOT = pathlib.Path(__file__).parents[1]
+
+
+def test_sampling_has_no_orchestration_dependencies():
+    forbidden = ("gdpx.execution", "gdpx.exploration", "gdpx.workflow", "gdpx.cli", "gdpx.providers")
+    for path in (ROOT / "src" / "gdpx" / "sampling").rglob("*.py"):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            assert not any(name == prefix or name.startswith(prefix + ".")
+                           for name in names for prefix in forbidden), path
+
 DOMAIN_DIRECTORIES = tuple(
     path.name
     for path in (ROOT / "src" / "gdpx").iterdir()

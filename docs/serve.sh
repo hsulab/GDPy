@@ -31,5 +31,6 @@ exec conda run --no-capture-output -n catorch3 \
     sphinx-autobuild \
     --host 127.0.0.1 \
     --port "$port" \
+    -a \
     -W --keep-going \
     "$docs_dir/source" "$docs_dir/build/html"

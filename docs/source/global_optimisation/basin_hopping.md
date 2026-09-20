@@ -5,6 +5,12 @@
 evaluates candidates using execution workers, and ranks them using the search
 objective. It inherits directly from `BaseExpedition`, independently of MC.
 
+```{toctree}
+:maxdepth: 1
+
+bh/examples/cluster
+```
+
 The recipe retains these settings:
 
 - `population`: `initial_size`, `generation_size`, optional `population_size`,

@@ -14,12 +14,12 @@ from gdpx.exploration.persist.database import (
     CANDIDATES_DATABASE_FILENAME,
     GlobalOptimisationDatabase,
 )
-from gdpx.exploration.monte_carlo.concurrent_hopping import (
-    ConcurrentHopping,
+from gdpx.exploration.basin_hopping.engine import (
+    BasinHopping,
     ConcurrentPopulation,
 )
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
-from gdpx.exploration.monte_carlo.utils import parse_operators
+from gdpx.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
 
 
@@ -44,7 +44,6 @@ class SerializableBuilder(Serializable):
         "genetic_algorithm",
         "monte_carlo",
         "basin_hopping",
-        "concurrent_hopping",
         "simulated_annealing",
     ],
 )
@@ -65,6 +64,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
                 "random_seed": 17,
                 "operators": [],
                 "convergence": {"steps": 2},
+                **({"population": {}} if method == "basin_hopping" else {}),
             },
         }
     )
@@ -74,6 +74,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
         "random_seed": 17,
         "operators": [],
         "convergence": {"steps": 2},
+        **({"population": {}} if method == "basin_hopping" else {}),
     }
 
 
@@ -161,7 +162,7 @@ def test_search_objective_rejects_legacy_keys():
         )
 
     with pytest.raises(ValueError, match="property.*objective"):
-        ConcurrentHopping(
+        BasinHopping(
             operators=[],
             num_mcmoves=1,
             mcworker={},
@@ -192,7 +193,7 @@ def test_population_searches_use_fixed_database_path(tmp_path):
     ga = object.__new__(GeneticAlgorithmEngine)
     ga.directory = tmp_path / "expedition-0"
 
-    concurrent = object.__new__(ConcurrentHopping)
+    concurrent = object.__new__(BasinHopping)
     concurrent._directory = (tmp_path / "expedition-1").resolve()
 
     assert ga.db_path == (tmp_path / "expedition-0" / CANDIDATES_DATABASE_FILENAME).resolve()
@@ -626,7 +627,7 @@ def test_monte_carlo_serialization_uses_recipe_and_runtime():
 def test_other_global_optimisers_serialize_the_recipe():
     worker = Serializable({"schema_version": 3})
 
-    concurrent = object.__new__(ConcurrentHopping)
+    concurrent = object.__new__(BasinHopping)
     concurrent.random_seed = 13
     concurrent.worker = worker
     concurrent._init_params = {
@@ -639,6 +640,7 @@ def test_other_global_optimisers_serialize_the_recipe():
         "use_archive": True,
     }
     concurrent_config = concurrent.as_dict()
+    assert concurrent_config["method"] == "basin_hopping"
 
     annealing = object.__new__(SimulatedAnnealing)
     annealing.random_seed = 19
@@ -662,3 +664,23 @@ def test_other_global_optimisers_serialize_the_recipe():
         },
         "runtime": {"schema_version": 3},
     }
+
+
+def test_basin_hopping_replaces_the_old_alias_and_registration():
+    from gdpx.exploration.expedition import BaseExpedition
+    assert REGISTER["basin_hopping"] is BasinHopping
+    assert BasinHopping.__bases__ == (BaseExpedition,)
+    assert "concurrent_hopping" not in REGISTER
+    with pytest.raises(ValueError, match="renamed to basin_hopping"):
+        create_expedition({"method": "concurrent_hopping", "recipe": {}})
+    with pytest.raises(ValueError, match="former MC alias use method: monte_carlo"):
+        create_expedition({"method": "basin_hopping", "recipe": {"convergence": {"steps": 2}}})
+
+
+def test_basin_hopping_accepts_a_constructed_cli_worker():
+    from gdpx.execution.workers.single import SingleWorker
+
+    engine = object.__new__(BasinHopping)
+    worker = object.__new__(SingleWorker)
+    engine.register_worker(worker)
+    assert engine.worker == [worker]
