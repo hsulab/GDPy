@@ -25,7 +25,7 @@ from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
-from ..persist.database import GlobalOptimisationDatabase
+from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from ..persist.thanos import dispatch_thanos
 from .utils import parse_operators, select_operator
 
@@ -94,15 +94,19 @@ class ConcurrentPopulation:
         comparator: Optional[dict] = None,
         thanos: Optional[dict] = None,
         population_size: Optional[int] = None,
-        database_fname: str = "mydb.db",
         print_func=print,
         debug_func=print,
+        **legacy_kwargs,
     ) -> None:
         """"""
-        # Name of attached databse
-        if not database_fname.endswith("db"):
-            raise Exception("`database_fname` must end with db.")
-        self.database_fname = database_fname
+        if "database_fname" in legacy_kwargs:
+            raise ValueError(
+                "Concurrent-hopping population.database_fname is no longer configurable; "
+                f"remove it. GDPy uses {CANDIDATES_DATABASE_FILENAME!r}."
+            )
+        if legacy_kwargs:
+            key = next(iter(legacy_kwargs))
+            raise TypeError(f"Unexpected concurrent-hopping population key {key!r}.")
 
         # Population sizes
         self._ini_size = initial_size
@@ -500,6 +504,11 @@ class ConcurrentHopping(BaseExpedition):
 
         return
 
+    @property
+    def database_path(self) -> pathlib.Path:
+        """Return the fixed candidate database path for this expedition."""
+        return self.directory / CANDIDATES_DATABASE_FILENAME
+
     def register_worker(self, worker: dict, *args, **kwargs) -> None:  # type: ignore
         """Overwrite this function as we need computer in this expedition."""
         self.worker = worker if isinstance(worker, list) else create_runtime_workers(worker)
@@ -513,8 +522,7 @@ class ConcurrentHopping(BaseExpedition):
         # assert isinstance(self.worker, DriverBasedWorker)
 
         # Try to connect to a database
-        database_fpath = self.directory / self.population.database_fname
-        database = GlobalOptimisationDatabase(database_fpath=database_fpath)
+        database = GlobalOptimisationDatabase(database_fpath=self.database_path)
 
         # Update print and debug functions
         self.population._print = self._print
@@ -671,8 +679,7 @@ class ConcurrentHopping(BaseExpedition):
         # Otherwise, internally, we can reuse pre-determined info.
         if gen_num is None:
             if database is None:
-                database_fpath = self.directory / self.population.database_fname
-                database = GlobalOptimisationDatabase(database_fpath)
+                database = GlobalOptimisationDatabase(self.database_path)
             gen_num, gen_state = self.get_generation_info(database=database)
         else:
             assert gen_state is not None
@@ -764,8 +771,7 @@ class ConcurrentHopping(BaseExpedition):
     def report(self, database: Optional[GlobalOptimisationDatabase] = None):
         """"""
         if database is None:
-            database_fpath = self.directory / self.population.database_fname
-            db = GlobalOptimisationDatabase(database_fpath)
+            db = GlobalOptimisationDatabase(self.database_path)
         else:
             db = database
 

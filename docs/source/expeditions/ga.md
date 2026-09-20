@@ -78,9 +78,9 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
   > can be found in {ref}`region-definitions`. More specific, Cu atoms will have
   > arbitrary x- and y-coordiantes but z-coordinate within the range [7,7+6].
 
-The remaining entries below are in the `recipe` section:
-
-- database: All explored structures are stored in this file with suffix `.db`.
+GDPy stores explored structures and restart metadata in `candidates.db` inside
+the expedition directory; its name is not configurable. The remaining entries
+below are in the `recipe` section:
 
 - objective: Optional search target. It defaults to `energy`, so the section can
   be omitted for ordinary energy minimisation. Composition-dependent targets
@@ -134,7 +134,6 @@ The remaining entries below are in the `recipe` section:
 method: genetic_algorithm
 recipe:
   random_seed: 127
-  database: mydb.db
   population:
     preserve_fragments: false
     builders:

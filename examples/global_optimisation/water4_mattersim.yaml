@@ -1,7 +1,6 @@
 method: genetic_algorithm
 recipe:
   random_seed: 17
-  database: water4.db
   population:
     builders:
       random:

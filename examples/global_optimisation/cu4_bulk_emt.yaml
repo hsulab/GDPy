@@ -1,7 +1,6 @@
 method: genetic_algorithm
 recipe:
   random_seed: 29
-  database: cu4-bulk.db
   population:
     builders:
       random:

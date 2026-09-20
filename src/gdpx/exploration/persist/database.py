@@ -8,6 +8,8 @@ from typing import Optional
 import ase.db
 from ase import Atoms
 
+CANDIDATES_DATABASE_FILENAME = "candidates.db"
+
 GenerationState = enum.Enum(
     "GenerationState",
     (

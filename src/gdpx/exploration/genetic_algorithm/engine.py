@@ -20,7 +20,11 @@ from gdpx.utils.strconv import integers_to_string
 
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
-from ..persist.database import GenerationInfo, GenerationState
+from ..persist.database import (
+    CANDIDATES_DATABASE_FILENAME,
+    GenerationInfo,
+    GenerationState,
+)
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from .operators import instantiate_a_genetic_operator
 from .core import OperationSelector, RandomStreamRegistry
@@ -77,7 +81,6 @@ class GeneticAlgorithmBroadcaster:
         self,
         population: dict,
         convergence: dict,
-        database: str = "mydb.db",
         operators: Optional[dict] = None,
         objective: Optional[dict] = None,
         use_archive: bool = True,
@@ -86,6 +89,11 @@ class GeneticAlgorithmBroadcaster:
     ):
         """"""
         reject_legacy_property(legacy_kwargs)
+        if "database" in legacy_kwargs:
+            raise ValueError(
+                "The genetic-algorithm database filename is no longer configurable; "
+                f"remove 'database'. GDPy uses {CANDIDATES_DATABASE_FILENAME!r}."
+            )
         if legacy_kwargs:
             key = next(iter(legacy_kwargs))
             raise TypeError(f"Unexpected genetic-algorithm recipe key {key!r}.")
@@ -95,7 +103,6 @@ class GeneticAlgorithmBroadcaster:
             {"energy", "cohesive_energy", "formation_energy"},
         )
         recipe = dict(
-            database=database,
             population=population,
             operators=operators,
         )
@@ -177,7 +184,6 @@ class GeneticAlgorithmEngine(BaseExpedition):
         self,
         population: dict,
         convergence: dict,
-        database: str = "mydb.db",
         operators: Optional[dict] = None,
         objective: Optional[dict] = None,
         use_archive: bool = True,
@@ -191,6 +197,11 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         """
         reject_legacy_property(kwargs)
+        if "database" in kwargs:
+            raise ValueError(
+                "The genetic-algorithm database filename is no longer configurable; "
+                f"remove 'database'. GDPy uses {CANDIDATES_DATABASE_FILENAME!r}."
+            )
         super().__init__(*args, **kwargs)
         self.random_streams = RandomStreamRegistry(self.random_seed)
         self.rng = self.random_streams.get("engine")
@@ -225,16 +236,12 @@ class GeneticAlgorithmEngine(BaseExpedition):
             {"energy", "cohesive_energy", "formation_energy"},
         )
         ga_dict = dict(
-            database=database,
             population=population,
             operators=operators,
         )
         if not is_default_objective(objective):
             ga_dict["objective"] = objective
         ga_dict.update(convergence=convergence, use_archive=use_archive)
-
-        # Database
-        self.db_name = ga_dict.get("database", "mydb.db")
 
         # Store initial parameters
         self.ga_dict = copy.deepcopy(ga_dict)
@@ -314,7 +321,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
     def directory(self, directory: Union[str, pathlib.Path]) -> None:
         """"""
         self._directory = pathlib.Path(directory).resolve()
-        self.db_path = self._directory / self.db_name
+        self.db_path = self._directory / CANDIDATES_DATABASE_FILENAME
 
         return
 

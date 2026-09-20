@@ -1,7 +1,6 @@
 method: genetic_algorithm
 recipe:
   random_seed: 7
-  database: cu13.db
   population:
     periodic: false
     preserve_fragments: false

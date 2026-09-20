@@ -10,8 +10,14 @@ from gdpx.exploration.genetic_algorithm.engine import (
     GeneticAlgorithmEngine,
 )
 from gdpx.exploration.genetic_algorithm.population.manager import PopulationManager
-from gdpx.exploration.persist.database import GlobalOptimisationDatabase
-from gdpx.exploration.monte_carlo.concurrent_hopping import ConcurrentHopping
+from gdpx.exploration.persist.database import (
+    CANDIDATES_DATABASE_FILENAME,
+    GlobalOptimisationDatabase,
+)
+from gdpx.exploration.monte_carlo.concurrent_hopping import (
+    ConcurrentHopping,
+    ConcurrentPopulation,
+)
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
 from gdpx.exploration.monte_carlo.utils import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
@@ -123,6 +129,7 @@ def test_ga_broadcaster_uses_named_recipe_fields():
     } == {-3.0, -2.0}
     assert all(item["random_seed"] == 23 for item in broadcaster.input_params_list)
     assert all("params" not in item for item in broadcaster.input_params_list)
+    assert all("database" not in item for item in broadcaster.input_params_list)
 
 
 def test_ga_omits_default_energy_objective():
@@ -162,6 +169,37 @@ def test_search_objective_rejects_legacy_keys():
             convergence={},
             property={"target": "energy"},
         )
+
+
+def test_searches_reject_configurable_database_names():
+    with pytest.raises(ValueError, match="database filename is no longer configurable"):
+        GeneticAlgorithmBroadcaster(
+            population=_minimal_ga_population("random"),
+            convergence={"generation": 1},
+            database="custom.db",
+        )
+
+    with pytest.raises(ValueError, match="population.database_fname is no longer configurable"):
+        ConcurrentPopulation(
+            initial_size=1,
+            generation_size=1,
+            random_offspring_generator={},
+            database_fname="custom.db",
+        )
+
+
+def test_population_searches_use_fixed_database_path(tmp_path):
+    ga = object.__new__(GeneticAlgorithmEngine)
+    ga.directory = tmp_path / "expedition-0"
+
+    concurrent = object.__new__(ConcurrentHopping)
+    concurrent._directory = (tmp_path / "expedition-1").resolve()
+
+    assert ga.db_path == (tmp_path / "expedition-0" / CANDIDATES_DATABASE_FILENAME).resolve()
+    assert concurrent.database_path == (
+        tmp_path / "expedition-1" / CANDIDATES_DATABASE_FILENAME
+    ).resolve()
+    assert ga.db_path != concurrent.database_path
 
 
 def _minimal_ga_population(builder_name, reference_builder=None):
@@ -441,7 +479,6 @@ def test_ga_serialization_uses_recipe_and_runtime():
     engine.reference_builder_name = "random"
     engine.worker = Serializable({"schema_version": 2})
     engine.ga_dict = {
-        "database": "search.db",
         "population": {
             "periodic": False,
             "preserve_fragments": False,
@@ -465,6 +502,7 @@ def test_ga_serialization_uses_recipe_and_runtime():
     assert "params" not in config
     assert "worker" not in config
     assert "objective" not in config["recipe"]
+    assert "database" not in config["recipe"]
 
     engine.reference_builder_name = "imported"
     assert engine.as_dict()["recipe"]["population"]["reference_builder"] == "imported"

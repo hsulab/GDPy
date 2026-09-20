@@ -1,7 +1,6 @@
 method: genetic_algorithm
 recipe:
   random_seed: 67
-  database: cu4-co-alumina111.db
   population:
     builders:
       random:
