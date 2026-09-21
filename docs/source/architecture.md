@@ -16,9 +16,10 @@ own the corresponding execution mechanisms. Exploration algorithms may
 request calculations from the execution service, but execution must never
 depend on exploration.
 
-`gdpx.sampling` is also a domain library. It owns reusable Monte Carlo moves,
-acceptance rules, and geometry preparation; it imports no providers, execution,
-exploration, or application layers. Basin hopping lives independently in
+`gdpx.exploration.sampling` contains shared sampling primitives. It owns reusable
+Monte Carlo moves, acceptance rules, and geometry preparation; it imports no
+providers, execution, other exploration modules, or application layers.
+Basin hopping lives independently in
 `gdpx.exploration.basin_hopping`. MC and hybrid MC currently remain exploration
 methods, sharing sampling primitives rather than serving as BH base classes.
 

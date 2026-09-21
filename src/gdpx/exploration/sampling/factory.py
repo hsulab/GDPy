@@ -9,6 +9,7 @@ from .moves import (
     CavityExchangeOperator,
     ExchangeOperator,
     MoveOperator,
+    RattleOperator,
     ReactOperator,
     SwapOperator,
     SwapTypeOperator,
@@ -27,7 +28,7 @@ def select_operator(operators: list, probs: list[float], rng: np.random.Generato
 def parse_operators(op_params: list[dict]):
     """Parse parameters for various operators.
 
-    Currently, we have move, swap, and exchange (insert/remove).
+    Includes single-particle moves, collective rattles, swaps, and exchanges.
 
     """
     operators, probs = [], []
@@ -39,6 +40,8 @@ def parse_operators(op_params: list[dict]):
         prob = param.get("probability", 1.0)
         if name == "move":
             op = MoveOperator(**param)
+        elif name == "rattle":
+            op = RattleOperator(**param)
         elif name == "bounce":
             op = BounceOperator(**param)
         elif name == "swap":

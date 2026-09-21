@@ -48,6 +48,7 @@ def assert_arrays(atoms, original):
 
 @pytest.mark.parametrize("method,params", [
     ("move", {}), ("swap", {"particles": ["H", "He"]}),
+    ("rattle", {"rattle_strength": 0.2, "rattle_prop": 1.0}),
     ("swap_type", {"particles": ["H", "He"], "chempots": [0.0, 0.0]}),
     ("bounce", {"direction": "+x"}),
     ("exchange", {"chempots": [0.0]}),
@@ -344,6 +345,7 @@ def test_hybrid_pending_move_resumes_at_its_original_index(tmp_path, monkeypatch
 def test_all_move_settings_roundtrip_without_mutating_input():
     configurations = [
         dict(method="move", max_disp=0.2),
+        dict(method="rattle", rattle_strength=0.2, rattle_prop=0.6),
         dict(method="swap", particles=["H", "He"], swap_mode="cop_z", check_used_pairs=True),
         dict(method="bounce", direction="+z", bias_ratio=0.5, repulsion_strength=0.2),
         dict(method="exchange", chempots=[-1.0]),
@@ -515,3 +517,68 @@ def test_pending_mc_resolution_commits_off_period(tmp_path):
     expected = engine.atoms.positions.copy()
     engine._load_checkpoint()
     np.testing.assert_array_equal(engine.atoms.positions, expected)
+
+
+def test_rattle_collective_displacement_and_no_atoms_copy(monkeypatch):
+    atoms = structure()
+    original = atoms.positions.copy()
+    def no_copy(*args, **kwargs):
+        pytest.fail('rattle must not copy Atoms')
+    monkeypatch.setattr(Atoms, 'copy', no_copy)
+    op = operator('rattle', rattle_strength=0.2, rattle_prop=1.)
+    with op.propose(atoms, np.random.default_rng(12)) as proposal:
+        assert proposal.valid and proposal.atoms is atoms
+        delta = atoms.positions - original
+        assert np.all(np.abs(delta) <= 0.2)
+        assert np.any(delta[0]) and np.any(delta[2])
+        np.testing.assert_array_equal(delta[1], 0.)
+        assert not np.array_equal(delta[0], delta[2])
+        expected = delta.copy()
+    np.testing.assert_array_equal(atoms.positions, original)
+    with op.propose(atoms, np.random.default_rng(12)):
+        np.testing.assert_array_equal(atoms.positions - original, expected)
+
+
+def test_rattle_preserves_tagged_fragments():
+    atoms = structure()
+    atoms.set_tags([1, 2, 1])
+    original = atoms.positions.copy()
+    op = operator('rattle', particles=['H2'], rattle_prop=1.)
+    with op.propose(atoms, np.random.default_rng(8)) as proposal:
+        assert proposal.valid
+        np.testing.assert_allclose(atoms.positions[0] - original[0], atoms.positions[2] - original[2])
+        np.testing.assert_array_equal(atoms.positions[1], original[1])
+    np.testing.assert_array_equal(atoms.positions, original)
+
+
+def test_rattle_checks_clashes_between_moved_particles():
+    atoms = structure()
+    atoms.positions[2] = atoms.positions[0] + [0.01, 0., 0.]
+    original = atoms.positions.copy()
+    op = operator('rattle', rattle_strength=0.001, rattle_prop=1.,
+                  skip_distance_check=False, allow_isolated=True, max_random_attempts=3)
+    proposal = op.propose(atoms, np.random.default_rng(8))
+    assert not proposal.valid and proposal.closed
+    np.testing.assert_array_equal(atoms.positions, original)
+
+
+@pytest.mark.parametrize('kwargs', [dict(rattle_strength=0), dict(rattle_strength=float('nan')),
+                                   dict(rattle_prop=0), dict(rattle_prop=1.1)])
+def test_rattle_rejects_invalid_parameters(kwargs):
+    with pytest.raises(ValueError):
+        operator('rattle', **kwargs)
+
+
+def test_rattle_checkpoint_replay(tmp_path):
+    engine = mc_engine(tmp_path / 'mc')
+    engine.operators = [operator('rattle', rattle_prop=1., rattle_strength=0.1)]
+    assert engine._irun(1) == MCStepState.FINISHED
+    engine._save_checkpoint(1)
+    assert engine._irun(2) == MCStepState.FINISHED
+    expected = engine.atoms.positions.copy()
+    rng_state = copy.deepcopy(engine.rng.bit_generator.state)
+    engine._load_checkpoint()
+    assert engine.operators[0].name == 'rattle'
+    assert engine._irun(2) == MCStepState.FINISHED
+    np.testing.assert_array_equal(engine.atoms.positions, expected)
+    assert engine.rng.bit_generator.state == rng_state

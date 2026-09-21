@@ -13,7 +13,7 @@ of equilibrium canonical sampling. Some biased moves use heuristic acceptance
 rules. Ensemble validation and migration to an MC executor are separate work.
 
 Population-based basin hopping is a separate {doc}`../global_optimisation/basin_hopping` method.
-Both methods reuse moves and acceptance rules from `gdpx.sampling`; BH does
+Both methods reuse moves and acceptance rules from `gdpx.exploration.sampling`; BH does
 not inherit from MC. Moves use reversible in-place edits rather than copying
 the whole structure on every attempt.
 
@@ -50,6 +50,15 @@ See {ref}`region-definitions` for more information about defining a region.
 - swap:
 
   > Swap the positions of two particles from two different types.
+
+- rattle:
+
+  > Perturb several particles in one proposal. Each eligible particle is selected
+  > independently with `rattle_prop` (default `0.4`). Each displacement component
+  > is uniform between `-rattle_strength` and `+rattle_strength` Angstrom
+  > (default `0.8`), following the GA rattle convention rather than a Gaussian.
+  > Tagged molecular particles translate rigidly without rotation. Eligibility
+  > follows the same `particles` and `region` rules as `move`.
 
 - exchange:
 
@@ -126,6 +135,27 @@ executor:
 options:
   worker: single
 ```
+
+## Rattle example
+
+For collective rattle moves in either MC or BH, use this operator entry:
+
+```yaml
+operators:
+  - method: rattle
+    particles: [Cu]
+    rattle_strength: 0.2
+    rattle_prop: 0.4
+    temperature: 500.0
+    probability: 1.0
+```
+
+Rattle retries empty selections and invalid geometries up to
+`max_random_attempts`. Exhausted proposals are skipped. It uses the existing
+distance settings and energy-based MC acceptance rule.
+Use distinct atom tags for independent atomic particles;
+atoms sharing a tag form one particle. Position edits are reversible and do not
+copy the complete structure.
 
 ## Checkpoints and restart
 

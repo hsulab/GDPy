@@ -317,3 +317,17 @@ def test_export_committed_history_after_finalization(tmp_path, energy, expected_
         stream.write(b'uncommitted tail')
     assert export_trajectories(directory, tmp_path / 'export') == paths
     assert [path.read_bytes() for path in paths] == before
+
+
+def test_bh_rattle_batches_and_restart(tmp_path):
+    def rattle():
+        return parse_operators([dict(method='rattle', particles=['Cu'], rattle_prop=1.,
+                                     rattle_strength=.05, skip_distance_check=True)])[0]
+    baseline_rng = np.random.default_rng(9)
+    expected = run(tmp_path / 'baseline/rounds', Worker(), rng=baseline_rng, ops=rattle())
+    assert run(tmp_path / 'restart/rounds', Worker(pending=True), ops=rattle()).status is EvaluationStatus.PENDING
+    resumed_rng = np.random.default_rng(100)
+    result = run(tmp_path / 'restart/rounds', Worker(), rng=resumed_rng, ops=rattle())
+    for actual, wanted in zip(result.endpoints, expected.endpoints):
+        np.testing.assert_array_equal(actual.positions, wanted.positions)
+    assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
