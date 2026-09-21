@@ -19,6 +19,7 @@ configuration. The recipe uses these settings:
   `generation.total_size`, comparator, and extinction settings.
 - `operators`: weighted move configurations shared with MC.
 - `num_mcmoves`: number of proposals per candidate chain.
+- `selection.replace`: sample chain starts with replacement; defaults to `false`.
 - `convergence.generation`: final generation number; defaults to `1`.
 - `objective`: energy or formation-energy ranking, with chemical potentials
   for the latter.
@@ -47,6 +48,29 @@ restores the candidate without trying to reverse its relaxation.
 
 BH owns population selection and search objectives. Shared acceptance formulas
 and biased proposals do not imply that its population is an equilibrium sample.
+
+## Chain-start selection
+
+```yaml
+recipe:
+  selection:
+    replace: false
+```
+
+Chain starts use fitness-weighted sampling. By default, selection is without
+replacement when the eligible retained population has at least as many candidates
+as the requested starts. If fewer candidates are available, that selection call
+automatically samples with replacement. Set `replace: true` to always allow
+replacement, retaining the previous selection policy.
+
+The same setting applies to generation starts and simultaneous extinction
+restarts. Uniqueness applies within each selection call: candidates used by
+other running chains remain eligible. An empty population still terminates the
+search as extinct. Selection borrows candidate references without copying atoms.
+
+Already checkpointed starts are reused on resume. The new default can change
+future selections for the same seed; use `replace: true` to retain the previous
+sampling policy, and resume with the same configuration for reproducibility.
 
 ## Batched rounds and execution
 
@@ -79,7 +103,8 @@ in the database regardless of either result.
 
 After all results in the round are stored, BH refreshes the retained population
 from eligible database minima, including discoveries from that round. It selects
-replacement starts with the existing fitness weights, with replacement. Earlier
+replacement starts with the existing fitness weights and `selection.replace`
+policy described above. Earlier
 valid states remain eligible, even if a later trial terminated their segment.
 
 Replacement starts reuse their stored energies and begin on the next round.

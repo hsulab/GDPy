@@ -594,3 +594,47 @@ def test_bh_empty_restart_pool_terminates_search(tmp_path, monkeypatch):
     assert db.get_generation_plan(1)["termination_reason"] == "extinct"
     assert db.connection.count(generation=1) == 2
     assert db.get_generation_plan(2) is None
+
+
+@pytest.mark.parametrize('replace', [False, True])
+def test_bh_selection_config_roundtrip(tmp_path, replace):
+    config, runtime = bh_config(tmp_path)
+    config['recipe']['selection'] = {'replace': replace}
+    engine = make_engine(config, runtime, tmp_path / 'run')
+    assert engine.start_selector.replace is replace
+    exported = engine.as_dict()
+    assert exported['recipe']['selection'] == {'replace': replace}
+    restored_runtime = exported.pop('runtime')
+    restored = make_engine(exported, restored_runtime, tmp_path / 'restored')
+    assert restored.start_selector.replace is replace
+
+
+@pytest.mark.parametrize('selection', [True, [], {'replace': 'false'}, {'replace': 0}, {'replacement': False}])
+def test_bh_selection_invalid_config(tmp_path, selection):
+    config, runtime = bh_config(tmp_path)
+    config['recipe']['selection'] = selection
+    with pytest.raises((TypeError, ValueError), match='selection'):
+        make_engine(config, runtime, tmp_path / 'run')
+
+
+@pytest.mark.parametrize('replace', [False, True])
+def test_bh_generation_and_extinction_share_selection_policy(tmp_path, monkeypatch, replace):
+    config, runtime = bh_config(tmp_path, generations=1)
+    config['recipe']['population']['retained_size'] = 2
+    config['recipe']['selection'] = {'replace': replace}
+    engine = extinction_engine(config, runtime, tmp_path / 'run', HistoryWorker([0., -1., 0.]),
+                               lambda a: int(a.get_potential_energy() == -1.))
+    monkeypatch.setattr(engine.population.comparator, 'looks_like', lambda a, b: False)
+    selections = []
+    original = engine.start_selector.select
+    def select(population, count):
+        result = original(population, count)
+        selections.append(([a.info['confid'] for a in result], len(population.candidates)))
+        return result
+    monkeypatch.setattr(engine.start_selector, 'select', select)
+    engine.run()
+    assert len(selections) == 2  # Generation starts, then both chains restart.
+    assert all(available == 2 and len(ids) == 2 for ids, available in selections)
+    if not replace:
+        assert all(len(set(ids)) == 2 for ids, _ in selections)
+    assert engine.start_selector.replace is replace

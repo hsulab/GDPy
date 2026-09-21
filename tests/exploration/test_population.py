@@ -366,3 +366,36 @@ def test_ga_incompatible_pairs_fall_back_to_independent_single_parent():
     for frame, info, coords in zip(frames, snapshots, positions):
         assert frame.info == info
         np.testing.assert_array_equal(frame.positions, coords)
+
+
+@pytest.mark.parametrize('available,required', [(4, 2), (2, 2), (1, 3), (0, 2), (2, 0)])
+def test_bh_replacement_defaults_and_borrowing(available, required, monkeypatch):
+    from types import SimpleNamespace
+    frames = tuple(candidate(i) for i in range(available))
+    population = SimpleNamespace(candidates=frames, similarity_counts={})
+    def no_copy(*args, **kwargs):
+        pytest.fail('selection copied Atoms')
+    monkeypatch.setattr(Atoms, 'copy', no_copy)
+    rng = np.random.default_rng(17)
+    selector = HoppingStartSelector(rng)
+    result = selector.select(population, required)
+    assert len(result) == (required if available else 0)
+    assert all(any(frame is original for original in frames) for frame in result)
+    if available >= required:
+        assert len({id(frame) for frame in result}) == required
+    expected = HoppingStartSelector(np.random.default_rng(17)).select(population, required)
+    assert [id(a) for a in result] == [id(a) for a in expected]
+
+
+def test_bh_explicit_replacement_keeps_weighted_legacy_draws():
+    from types import SimpleNamespace
+    frames = tuple(candidate(i, score=i) for i in range(4))
+    population = SimpleNamespace(candidates=frames, similarity_counts={})
+    weights = compute_population_fitness(frames, {})
+    expected_rng = np.random.default_rng(7)
+    actual_rng = np.random.default_rng(7)
+    expected = expected_rng.choice(4, size=4, replace=True, p=weights / weights.sum())
+    result = HoppingStartSelector(actual_rng, replace=True).select(population, 4)
+    assert [a.info['confid'] for a in result] == list(expected)
+    assert actual_rng.bit_generator.state == expected_rng.bit_generator.state
+    assert len(set(expected)) < 4

@@ -168,6 +168,7 @@ class BasinHopping(BaseExpedition):
         objective: Optional[dict] = None,
         builder=None,
         use_archive: bool = True,
+        selection: Optional[dict] = None,
         *args,
         **kwargs,
     ) -> None:
@@ -180,6 +181,13 @@ class BasinHopping(BaseExpedition):
 
         """
         reject_legacy_property(kwargs)
+        if selection is not None and not isinstance(selection, Mapping):
+            raise TypeError("BH selection must be a mapping.")
+        selection = {"replace": False, **dict(selection or {})}
+        if selection.keys() - {"replace"}:
+            raise ValueError("Unknown BH selection settings: " + ", ".join(sorted(selection.keys() - {"replace"})))
+        if not isinstance(selection["replace"], bool):
+            raise TypeError("BH selection.replace must be a boolean.")
         if "mcworker" in kwargs:
             raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
         if isinstance(num_mcmoves, bool) or not isinstance(num_mcmoves, int) or num_mcmoves < 0:
@@ -201,6 +209,7 @@ class BasinHopping(BaseExpedition):
         # Store initial parameters
         self._init_params = dict(
             num_mcmoves=num_mcmoves,
+            selection=selection,
             operators=operators,
             population=population,
         )
@@ -221,7 +230,7 @@ class BasinHopping(BaseExpedition):
         self.population = Population(
             self.population_config.retained_size, comparator, self.population_config.use_extinct,
         )
-        self.start_selector = HoppingStartSelector(self.random_streams.get("population"))
+        self.start_selector = HoppingStartSelector(self.random_streams.get("population"), **selection)
 
         # Parse monte carlo settings
         self.num_mcmoves = num_mcmoves

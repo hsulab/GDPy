@@ -3,8 +3,11 @@ from ..population.population import compute_population_fitness
 
 
 class HoppingStartSelector:
-    def __init__(self, rng):
+    def __init__(self, rng, replace=False):
+        if not isinstance(replace, bool):
+            raise TypeError("BH selection.replace must be a boolean.")
         self.rng = rng
+        self.replace = replace
 
     def select(self, population, count, with_history=True):
         candidates = population.candidates
@@ -13,5 +16,6 @@ class HoppingStartSelector:
         fitness = compute_population_fitness(
             candidates, population.similarity_counts if with_history else None
         )
-        indices = self.rng.choice(len(candidates), size=count, replace=True, p=fitness / fitness.sum())
+        indices = self.rng.choice(len(candidates), size=count, replace=self.replace or len(candidates) < count,
+                                  p=fitness / fitness.sum())
         return [candidates[i] for i in indices]
