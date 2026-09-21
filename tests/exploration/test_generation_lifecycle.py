@@ -325,6 +325,8 @@ def test_every_minimum_is_available_to_next_population(tmp_path, accept_uphill):
     if accept_uphill:
         # Generation 2 starts at an intermediate -10 minimum, not a -1 endpoint.
         assert set(db.get_generation_plan(2)["parents"]) <= {row.confid for row in earlier}
+        assert set(db.get_generation_plan(2)["parents"]) <= set(db.get_generation_plan(2)["population"])
+        assert len(db.get_generation_plan(2)["population"]) == 1
         assert worker.calls == 5
     else:
         engine.population.refresh(db)

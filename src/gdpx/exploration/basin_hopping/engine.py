@@ -387,6 +387,7 @@ class BasinHopping(BaseExpedition):
                 plan = dict(stage="initial" if gen_num == 0 else "hopping", round_version=5)
                 if gen_num > 0:
                     self.population.refresh(database)
+                    plan["population"] = [a.info["confid"] for a in self.population.candidates]
                     starts = sorted(self.start_selector.select(self.population, target), key=lambda a: a.info["confid"])
                     if not starts:
                         raise RuntimeError("No eligible parents for BH generation.")
@@ -510,6 +511,9 @@ class BasinHopping(BaseExpedition):
 
         all_relaxed_candidates = db.get_all_relaxed_candidates(use_extinct=False)
         write(results_folder / "all_candidates.xyz", all_relaxed_candidates)
+
+        from .lineage import plot_lineage
+        plot_lineage(db.connection, self.directory)
 
         # Plot generations
         candidates_by_generations = {}

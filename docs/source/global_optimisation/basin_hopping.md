@@ -159,3 +159,32 @@ Remove the former `recipe.mcworker` and move its calculation settings into
 in-progress generation with this implementation. Completed history remains
 readable; minima from older worker outputs are not backfilled automatically. Round ordering also changes trajectories for old
 random seeds; new runs are reproducible across restart boundaries.
+
+## Lineage figures
+
+Completed runs write compact 1200 × 600 PNGs to `results/lineage/`.
+`gen0001.png` combines all initial (generation 0) candidates with generation 1.
+`gen0002.png` combines the retained population at the start of generation 2 with
+its trials, and later generations follow the same pattern. Earlier candidates
+referenced by parentage or restarts are also included in the left column.
+An initialization-only run writes `gen0000.png`.
+
+Retained population IDs are saved in the generation plan without copying atoms.
+Older runs without this snapshot show recorded chain starts and referenced
+candidates instead of reconstructing an uncertain historical population.
+
+Plots retain a frame, a round x-axis, and an energy colorbar, but omit titles,
+legends, and y-axis text. Candidate IDs appear only when the available pixel
+spacing accommodates all labels without crowding. Dense production runs
+(for example, 20 chains × 50 rounds) omit IDs and use smaller nodes.
+Rounds run left to right, with chains in separate lanes and rejected trials
+slightly offset; the left column's vertical positions do not indicate chain
+assignment.
+
+Node colors encode energy within each figure (purple is lower, yellow higher);
+orange indicates unavailable energy. Filled nodes are initial or accepted
+candidates, hollow nodes are rejected trials, and red crosses mark extinct
+candidates. Dark-blue arrows show parentage. Purple dashed arrows point from a
+terminated trial to the selected restart candidate; these are selection links,
+not parentage. Only committed hopping rounds are included, using metadata
+without loading atomic structures.
