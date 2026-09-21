@@ -411,7 +411,7 @@ class BasinHopping(BaseExpedition):
                 starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
                 self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
                 restart_chains=restart_chains, random_streams=self.random_streams,
-                read_candidate=database.get_one_candidate_by_confid)
+                store_history=False)
             if outcome.status is EvaluationStatus.PENDING:
                 return None
             if outcome.extinct:

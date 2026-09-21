@@ -89,7 +89,7 @@ mechanism, and the Cu₈ demo does not enable extinction rules.
 
 Chain IDs identify persistent execution slots. `data.segment` increments on
 replacement, and `data.start_parent` identifies the new segment's source.
-Trajectories include replacement structures marked with `event: restart`,
+Exported trajectories include replacement structures marked with `event: restart`,
 `segment`, and `source_confid`. Rejected and extinct trial geometries remain
 available in the database and worker outputs.
 
@@ -112,8 +112,11 @@ loaded without pickle. Only the latest and previous committed rounds and the
 current pending batch are retained. A damaged latest snapshot falls back to the
 previous one. `events.jsonl` records candidate IDs, acceptance decisions, and
 segment changes; structures remain in `candidates.db`, including rejected minima.
-Together they allow trajectories to be reconstructed without storing every full
-round. After generation finalization, full round snapshots are removed; the
+BH does not write chain XYZ trajectories automatically. Use
+`gdpx.exploration.basin_hopping.export_trajectories(rounds_directory, output_directory)`
+to export them on demand from committed events and database structures; see the
+{doc}`bh/examples/cluster` example. An optional `database` argument specifies a
+relocated candidate database. After generation finalization, full round snapshots are removed; the
 event journal and `final.json` completion metadata remain.
 
 Remove the former `recipe.mcworker` and move its calculation settings into

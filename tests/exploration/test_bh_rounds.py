@@ -118,7 +118,10 @@ def test_pending_round_reuses_inputs_and_rng(tmp_path, monkeypatch):
     for actual, wanted in zip(resumed.endpoints, expected.endpoints):
         np.testing.assert_array_equal(actual.positions, wanted.positions)
     assert rng.bit_generator.state == baseline_rng.bit_generator.state
-    assert len(read(tmp_path / "restart/mctrajs/mc-0000.xyz", ":")) == 4
+    from gdpx.exploration.basin_hopping import export_trajectories
+    assert not (tmp_path / "restart/mctrajs").exists()
+    paths = export_trajectories(tmp_path / "restart/rounds", tmp_path / "export")
+    assert len(read(paths[0], ":")) == 4
 
 
 @pytest.mark.parametrize("boundary", ["submission", "before_commit", "after_commit"])
@@ -262,7 +265,9 @@ def test_bh_retention_and_recovery_from_damaged_latest_snapshot(tmp_path):
     assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
     assert len(list(path.glob('round-*'))) == 2
     assert len((path / 'events.jsonl').read_text().splitlines()) == 9
-    assert len(read(path.parent / 'mctrajs/mc-0000.xyz', ':')) == 9
+    from gdpx.exploration.basin_hopping import export_trajectories
+    assert not (path.parent / 'mctrajs').exists()
+    assert len(read(export_trajectories(path, tmp_path / 'export')[0], ':')) == 9
 
 
 @pytest.mark.parametrize('boundary', ['manifest', 'prune'])
@@ -295,3 +300,20 @@ def test_bh_interrupted_publication_and_pruning(tmp_path, monkeypatch, boundary)
     assert rng.bit_generator.state == baseline_rng.bit_generator.state
     assert len(list(path.glob('round-*'))) == 2
     assert not list(path.glob('pending-*'))
+
+
+@pytest.mark.parametrize('energy,expected_count', [(-1., 4), (1.e6, 1)])
+def test_export_committed_history_after_finalization(tmp_path, energy, expected_count):
+    from gdpx.exploration.basin_hopping import export_trajectories
+    directory = tmp_path / 'rounds'
+    run(directory, Worker(energy=energy))
+    assert not (tmp_path / 'mctrajs').exists()
+    paths = export_trajectories(directory, tmp_path / 'export')
+    before = [path.read_bytes() for path in paths]
+    assert all(len(read(path, ':')) == expected_count for path in paths)
+    chain.finalize_checkpoints(directory)
+    assert not list(directory.glob('round-*'))
+    with (directory / 'events.jsonl').open('ab') as stream:
+        stream.write(b'uncommitted tail')
+    assert export_trajectories(directory, tmp_path / 'export') == paths
+    assert [path.read_bytes() for path in paths] == before

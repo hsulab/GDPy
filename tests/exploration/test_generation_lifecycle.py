@@ -496,7 +496,9 @@ def test_bh_restart_uses_complete_round_and_marks_trajectory(tmp_path, monkeypat
     assert replacement_trial.data.parents == [source]
     assert replacement_trial.data.segment == 1
     assert records["bh:1:1:2"].data.outcome == "extinct"
-    trajectory = read(engine.directory / "tmp_folder/gen1/mctrajs/mc-0000.xyz", ":")
+    from gdpx.exploration.basin_hopping import export_trajectories
+    paths = export_trajectories(engine.directory / "tmp_folder/gen1/rounds", engine.directory / "export")
+    trajectory = read(paths[0], ":")
     assert [a.info["event"] for a in trajectory] == ["start", "restart", "accepted"]
     assert trajectory[1].info["source_confid"] == source
     assert trajectory[1].info["segment"] == 1
@@ -559,8 +561,12 @@ def test_bh_extinction_restart_preserves_all_random_streams(tmp_path, monkeypatc
     for a, b in zip(actual.connection.select(generation=1), expected.connection.select(generation=1)):
         assert a.confid == b.confid and dict(a.data) == dict(b.data)
         np.testing.assert_array_equal(a.positions, b.positions)
+    from gdpx.exploration.basin_hopping import export_trajectories
+    for engine in (baseline, resumed):
+        assert not (engine.directory / "tmp_folder/gen1/mctrajs").exists()
+        export_trajectories(engine.directory / "tmp_folder/gen1/rounds", engine.directory / "export")
     for index in range(2):
-        name = f"tmp_folder/gen1/mctrajs/mc-{index:04d}.xyz"
+        name = f"export/mc-{index:04d}.xyz"
         first = read(baseline.directory / name, ":")
         second = read(resumed.directory / name, ":")
         assert len(first) == len(second)

@@ -475,7 +475,9 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     from ase.io import read
     frames = read(engine.directory / "results" / "all_candidates.xyz", ":")
     assert len(frames) == 7
-    trajectories = sorted((engine.directory / "tmp_folder/gen1/mctrajs").glob("mc-*.xyz"))
+    from gdpx.exploration.basin_hopping import export_trajectories
+    assert not (engine.directory / "tmp_folder/gen1/mctrajs").exists()
+    trajectories = export_trajectories(engine.directory / "tmp_folder/gen1/rounds", engine.directory / "export")
     assert len(trajectories) == 3
     for trajectory in trajectories:
         start = read(trajectory, 0)

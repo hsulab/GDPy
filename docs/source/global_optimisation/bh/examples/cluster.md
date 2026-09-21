@@ -50,9 +50,24 @@ Results are written under `run-cu8-bh-emt/expedition-0`:
 - `results/all_candidates.xyz`: all evaluated minima (including rejected trials), ordered by score
   with the lowest-energy candidate first for the default energy objective.
 - `results/pop.png`: candidate energies by generation.
-- `tmp_folder/gen*/mctrajs/mc-*.xyz`: each chain's starting structure and accepted
-  hops; rejected trials are not appended. Runs with extinction rules also mark
-  replacement starts as restart events. This demo has no extinction rules.
+- `tmp_folder/gen*/rounds/events.jsonl`: chain decisions and references to
+  structures in `candidates.db`. Trajectory files are not written automatically.
+
+Export each chain's starting structure and accepted hops when needed:
+
+```python
+from gdpx.exploration.basin_hopping import export_trajectories
+
+export_trajectories(
+    "run-cu8-bh-emt/expedition-0/tmp_folder/gen1/rounds",
+    "cu8-trajectories",
+)
+```
+
+This writes `mc-0000.xyz`, `mc-0001.xyz`, and so on, overwriting previous exports
+of those chains. Rejected trials are omitted. Extinction replacements are marked
+as restart events; this demo has no extinction rules. Export works during a run
+up to its last committed round and after generation finalization.
 
 The small population and ten-move chains keep this example short. Increase
 `num_mcmoves` for longer chains, or adjust the initial population and number of

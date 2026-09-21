@@ -152,7 +152,7 @@ Only two committed snapshots are retained, plus the current pending batch.
 Pending rounds persist trials before submission and resume through the worker.
 A compact event journal references candidate structures in the database; full
 snapshots are removed after generation finalization. These checkpoints are
-separate from the XYZ trajectories used for inspection.
+independent of optional XYZ trajectory exports used for inspection.
 
 Legacy BH runs with pending inputs that lack generation metadata cannot be
 resumed; start a new run for those inputs.

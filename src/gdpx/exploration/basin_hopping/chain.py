@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 import ase.db
 from ase import Atoms
-from ase.io import write
 
 from gdpx.sampling import select_operator
 from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
@@ -96,23 +95,6 @@ def _read_round(path):
     return state, atoms
 
 
-def _write_trajectories(directory, count, read_candidate, offset):
-    target = directory.parent / "mctrajs"
-    target.mkdir(exist_ok=True)
-    with (directory / "events.jsonl").open('rb') as stream:
-        while stream.tell() < offset:
-            event = json.loads(stream.readline())
-            for index in range(count):
-                decision = event["decisions"][index]
-                if event["step"] and decision not in (0, 4):
-                    continue
-                frame = read_candidate(event["candidates"][index])
-                frame.info.update(mcstep=event["step"], segment=event["segments"][index],
-                                  source_confid=event["sources"][index],
-                                  event="start" if not event["step"] else ("restart" if decision == 4 else "accepted"))
-                write(target / f"mc-{index:04d}.xyz", frame, append=event["step"] != 0)
-
-
 def finalize_checkpoints(directory):
     """Keep history and small final metadata after database finalization."""
     if (directory / 'final.json').exists():
@@ -130,7 +112,7 @@ def finalize_checkpoints(directory):
 
 
 def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory,
-                       archive=False, record_trial=None, restart_chains=None, random_streams=None, read_candidate=None):
+                       archive=False, record_trial=None, restart_chains=None, random_streams=None, store_history=True):
     """Advance a generation through round barriers, returning when work is pending.
 
     Pending inputs are durable before submission. Live proposals borrow distinct
@@ -141,12 +123,11 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     when a registry is supplied, including replacement-selection randomness.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    # Standalone coordinators use an ASE history database; the engine supplies
-    # its existing candidate database, so scientific structures are stored once.
+    # Standalone coordinators use an ASE history database. The engine disables
+    # this because record_trial already persists structures in candidates.db.
     history = None
-    if read_candidate is None:
+    if store_history:
         history = ase.db.connect(directory / 'history.db')
-        read_candidate = lambda identifier: history.get_atoms(identifier, add_additional_information=True)
     def history_record(frame, key):
         rows = list(history.select(event_key=key))
         return rows[0].id if rows else history.write(frame, event_key=key)
@@ -178,7 +159,6 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     for op in operators:
         prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
                           getattr(op, "custom_pair_distance_dict", None))
-    _write_trajectories(directory, len(atoms), read_candidate, context["journal_offset"])
 
     if context["exhausted"]:
         return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
@@ -271,7 +251,6 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         states = [decisions]
         context["random_states"] = random_streams.snapshot() if random_streams is not None else {}
         _commit(directory, step, atoms, states, rng, mcsteps, context)
-        _write_trajectories(directory, len(atoms), read_candidate, context["journal_offset"])
         if context["exhausted"]:
             return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
     return HoppingResult(EvaluationStatus.FINISHED,
