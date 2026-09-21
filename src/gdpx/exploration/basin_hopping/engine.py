@@ -320,7 +320,8 @@ class BasinHopping(BaseExpedition):
                     resumed=database.get_generation_plan(gen_num) is not None)
                 self._generation_reporter = reporter
                 try:
-                    status = self._irun(database, gen_info)
+                    with reporter.as_parent():
+                        status = self._irun(database, gen_info)
                     plan = database.get_generation_plan(gen_num) or {}
                     if status is EvaluationStatus.PENDING:
                         detail = (f"waiting for round {reporter.step + 1}/{self.num_mcmoves} evaluations"

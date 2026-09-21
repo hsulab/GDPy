@@ -25,6 +25,8 @@ from gdpx.execution.factory import create_worker, create_workers
 from gdpx.providers import RuntimeConfig
 from gdpx.execution.workers.drive import DriverBasedWorker
 
+from gdpx.execution.output import get_reporter, reporting_session
+
 PLAN_SCHEMA_VERSION = 3
 DEFAULT_PLAN_RELPATH = pathlib.Path("_data") / "compute-plan.json"
 
@@ -263,6 +265,7 @@ def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePla
     return plan
 
 
+@reporting_session
 def prepare_compute(
     config: Union[str, pathlib.Path, dict, list],
     structures: Iterable[Union[str, pathlib.Path, Atoms]],
@@ -361,6 +364,7 @@ def _restore(plan: ComputePlan):
         worker._task_plan = [
             (task.driver_index, task.structure_index) for batch in worker_plan.batches for task in batch.tasks
         ]
+        get_reporter(worker).configure(batches)
         restored.append((worker, worker_plan, batches))
     return frames, restored
 
@@ -376,6 +380,7 @@ def _selected_batches(worker_plan: WorkerPlan, batches: Optional[Iterable[int]])
     return selected
 
 
+@reporting_session
 def submit_compute(
     plan_or_path: Union[ComputePlan, str, pathlib.Path], batches: Optional[Iterable[int]] = None
 ) -> SubmissionResult:
@@ -383,6 +388,8 @@ def submit_compute(
     frames, restored = _restore(plan)
     submitted = []
     for worker, worker_plan, worker_batches in restored:
+        selected = _selected_batches(worker_plan, batches)
+        get_reporter(worker).configure([worker_batches[index] for index in selected], announce=True)
         for batch_index in _selected_batches(worker_plan, batches):
             before = {record.gdir for record in worker.job_store.get_queued()}
             worker._run_by_scheduler(worker_plan.identifier, frames, worker_batches, target_batch=batch_index)
@@ -392,6 +399,7 @@ def submit_compute(
     return SubmissionResult(plan.plan_id, tuple(submitted))
 
 
+@reporting_session
 def run_compute_batch(
     plan_or_path: Union[ComputePlan, str, pathlib.Path], batch: int, worker_index: int = 0
 ) -> BatchResult:
@@ -402,10 +410,13 @@ def run_compute_batch(
     worker, worker_plan, batches = restored[worker_index]
     _selected_batches(worker_plan, [batch])
     worker.is_spawned = True
+    get_reporter(worker).configure([batches[batch]], announce=True)
     worker._run_by_commandline(worker_plan.identifier, [], batches, target_batch=batch)
+    get_reporter(worker).summary("finished")
     return BatchResult(plan.plan_id, worker_index, batch, True)
 
 
+@reporting_session
 def inspect_compute(plan_or_path: Union[ComputePlan, str, pathlib.Path]) -> ComputeStatus:
     plan = plan_or_path if isinstance(plan_or_path, ComputePlan) else load_compute_plan(plan_or_path)
     _, restored = _restore(plan)
@@ -427,6 +438,7 @@ def inspect_compute(plan_or_path: Union[ComputePlan, str, pathlib.Path]) -> Comp
     return ComputeStatus(plan.plan_id, state, queued, finished, retrieved, total)
 
 
+@reporting_session
 def resubmit_compute(
     plan_or_path: Union[ComputePlan, str, pathlib.Path], batches: Optional[Iterable[int]] = None
 ) -> SubmissionResult:
@@ -450,6 +462,7 @@ def resubmit_compute(
     return SubmissionResult(plan.plan_id, tuple(submitted))
 
 
+@reporting_session
 def collect_compute(plan_or_path: Union[ComputePlan, str, pathlib.Path], archive: bool = False) -> ComputeResult:
     plan = plan_or_path if isinstance(plan_or_path, ComputePlan) else load_compute_plan(plan_or_path)
     status = inspect_compute(plan)
@@ -468,6 +481,7 @@ def collect_compute(plan_or_path: Union[ComputePlan, str, pathlib.Path], archive
     return ComputeResult(plan.plan_id, str(result_path), len(trajectories))
 
 
+@reporting_session
 def orchestrate_compute(plan_or_path: Union[ComputePlan, str, pathlib.Path], archive: bool = False) -> ComputeStatus:
     """Compatibility implementation of the historical one-shot command."""
     plan = plan_or_path if isinstance(plan_or_path, ComputePlan) else load_compute_plan(plan_or_path)

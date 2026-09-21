@@ -46,6 +46,25 @@ gdp -d results compute collect
 `prepare` writes a versioned plan without submitting work. `status` is
 read-only, and resubmission is always explicit.
 
+## Progress output
+
+Workers report one aggregate box for the requested calculations, with counts of
+finished, pending, and failed calculations. The same timestamped boxes appear
+in `gdp compute` and inside basin hopping generation output. Candidate lists are
+omitted, so output stays compact for large batches. Long-running local batches
+report progress at most once every 30 seconds, after a calculation completes.
+
+Collected results include minimum, mean, and maximum simulation steps, energy
+`[eV]`, and maximum atomic force (`maxfrc`) `[eV/Å]`. Steps come from the last saved frame's
+simulation step, rather than the number of saved frames. Single-point steps and
+unavailable metadata display `—` (`-` on ASCII terminals). Statistics describe
+the available collected results; the box reports how many results contribute.
+Force statistics respect atomic constraints and use cached forces.
+
+A finished calculation is not necessarily converged.
+Reporting does not evaluate calculators, copy structures, or read extra
+trajectories. Routine worker diagnostics remain available at DEBUG level.
+
 ## Executors
 
 Use `spc` for single-point evaluation, `min` for minimization, and `md`

@@ -5,6 +5,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 
 from gdpx import config
+from gdpx.execution.output import worker_output
 from gdpx.execution.schedulers import DirectScheduler
 from gdpx.execution.schedulers.scheduler import BaseScheduler
 
@@ -120,6 +121,7 @@ class BaseWorker(abc.ABC):
         self._initialise(*args, **kwargs)
         self._print(f"<<-- {self.__class__.__name__}+run -->>")
 
+    @worker_output("inspect")
     def inspect(self, resubmit=False, *args, **kwargs):
         """Check convergence of all running jobs.
 
@@ -177,6 +179,7 @@ class BaseWorker(abc.ABC):
         """
         return
 
+    @worker_output("retrieve")
     def retrieve(self, *args, **kwargs):
         """Collect results from finished jobs.
 

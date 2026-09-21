@@ -1,51 +1,12 @@
 """Scrolling BH progress blocks, independent of structure ownership and RNGs."""
-from contextlib import contextmanager
-from contextvars import ContextVar
 import json
-import logging
 import time
-import textwrap
 
 from gdpx import config
+from gdpx.core.output import Box, quiet_logging as bh_logging, _unicode_supported
 
 
-_DIAGNOSTICS = ContextVar('bh_diagnostics', default=False)
-
-
-class _DiagnosticsFilter(logging.Filter):
-    def filter(self, record):
-        if _DIAGNOSTICS.get() and record.levelno == logging.INFO and not getattr(record, 'gdpx_panel', False):
-            if not config.logger.isEnabledFor(logging.DEBUG):
-                return False
-            record.levelno, record.levelname = logging.DEBUG, 'DEBUG'
-        return True
-
-
-@contextmanager
-def bh_logging():
-    """Demote only routine GDP messages from this BH invocation."""
-    token = _DIAGNOSTICS.set(True)
-    filter_ = _DiagnosticsFilter()
-    config.logger.addFilter(filter_)
-    try:
-        yield
-    finally:
-        config.logger.removeFilter(filter_)
-        _DIAGNOSTICS.reset(token)
-
-
-def _unicode_supported():
-    for handler in config.logger.handlers:
-        encoding = getattr(getattr(handler, 'stream', None), 'encoding', None)
-        if encoding:
-            try:
-                '┌─│├└┐┤┘—'.encode(encoding)
-            except (UnicodeError, LookupError):
-                return False
-    return True
-
-
-class GenerationReporter:
+class GenerationReporter(Box):
     width = 76
 
     def __init__(self, database, directory, generation, maximum_generation, chains,
@@ -83,22 +44,6 @@ class GenerationReporter:
         else:
             self.line(f'initial candidates: {initial_size}   chains: {chains}')
             self.line(f'objective: {objective} [eV]')
-
-    def border(self, kind, title=None):
-        glyphs = {'top': ('┌', '┐'), 'middle': ('├', '┤'), 'bottom': ('└', '┘')}
-        left, right = glyphs[kind] if self.unicode else ('+', '+')
-        rule = '─' if self.unicode else '-'
-        content = rule * (self.width - 2)
-        if title:
-            content = f'{rule} {title} '.ljust(self.width - 2, rule)
-        self.emit(left + content + right)
-
-    def line(self, message):
-        bar = '│' if self.unicode else '|'
-        if not self.unicode:
-            message = message.replace('—', '-')
-        for text in textwrap.wrap(message, self.width - 4) or ['']:
-            self.emit(f'{bar} {text:<{self.width - 4}} {bar}')
 
     def table_row(self, values):
         cells = [f'{str(value):<{width}}' if index == 0 else f'{str(value):>{width}}'

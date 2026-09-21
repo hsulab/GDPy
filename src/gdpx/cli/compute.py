@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import dataclasses
 import pathlib
 from typing import Optional, Union
 
-from gdpx import config
+from gdpx.core.output import Box
+from gdpx.execution.output import reporting_session
 from gdpx.execution.lifecycle import (
     collect_compute,
     inspect_compute,
@@ -28,6 +28,7 @@ def load_runtime_input(value):
     return parse_input_file(value) if isinstance(value, (str, pathlib.Path)) else value
 
 
+@reporting_session
 def run_computation(
     structures,
     runtime,
@@ -82,5 +83,18 @@ def run_computation(
         else:
             result = orchestrate_compute(compute_plan, archive=archive)
 
-    config._print(dataclasses.asdict(result))
+    box = Box('compute | ' + (action or 'run'))
+    if hasattr(result, 'state'):
+        box.line(f'state: {result.state}   batches: {result.total}   finished: {result.finished}   pending: {result.queued}')
+    elif hasattr(result, 'number_of_trajectories'):
+        box.line(f'collected: {result.number_of_trajectories} calculations')
+        box.line(f'results: {result.end_frames}')
+    elif hasattr(result, 'submitted_batches'):
+        box.line(f'submitted batches: {len(result.submitted_batches)}')
+    elif hasattr(result, 'workers'):
+        box.line(f'workers: {len(result.workers)}   batches: {sum(len(w.batches) for w in result.workers)}')
+        box.line(f'plan: {result.path}')
+    else:
+        box.line(f'worker: {result.worker}   batch: {result.batch}   finished: {str(result.finished).lower()}')
+    box.border('bottom')
     return result

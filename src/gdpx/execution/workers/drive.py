@@ -18,8 +18,10 @@ from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
 
+from gdpx import config
 from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.execution.driver import BaseDriver
+from gdpx.execution.output import get_reporter, worker_output
 from .registry import WORKER_REGISTRY
 from gdpx.execution.runtime import Runtime
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
@@ -70,6 +72,8 @@ def run_computation_in_commandline(
     share_wdir: bool,
     print_period: int = 100,
     print_func=print,
+    progress_func=None,
+    error_func=None,
 ) -> None:
     """Run computations directly in the commandline.
 
@@ -83,7 +87,9 @@ def run_computation_in_commandline(
         directory: Root computation directory.
         share_wdir: Whether to share a working directory.
         print_period: Print frequency for progress.
-        print_func: Print function.
+        print_func: Diagnostic print function.
+        progress_func: Optional callback receiving workdir and success after each calculation.
+        error_func: Optional line-by-line error sink; defaults to print_func.
     """
     is_single_driver = isinstance(drivers, BaseDriver) or len(drivers) == 1
 
@@ -127,7 +133,12 @@ def run_computation_in_commandline(
             traceback=traceback_text,
         )
         failures.append(failure)
-        print_func(f"ERROR: driver computation failed in {dirname} ({failure.driver_name})\n{traceback_text}")
+        if error_func is None:
+            print_func(f"ERROR: driver computation failed in {dirname} ({failure.driver_name})\n{traceback_text}")
+        else:
+            error_func(f"driver computation failed in {dirname} ({failure.driver_name})")
+            for line in traceback_text.splitlines():
+                error_func(line)
 
     # Run computations. State shared by reused driver instances is always restored.
     try:
@@ -137,6 +148,7 @@ def run_computation_in_commandline(
                     d_idx = 0 if driver_indices is None else driver_indices[gi]
                     curr_driver = _get_driver(d_idx)
                     curr_driver.directory = directory / dirname
+                    succeeded = False
                     prev_random_seed = curr_driver.random_seed
                     try:
                         curr_driver.set_rng(seed=rs)
@@ -146,10 +158,13 @@ def run_computation_in_commandline(
                         )
                         curr_driver.reset()
                         curr_driver.run(atoms, read_ckpt=True, extra_info=None)
+                        succeeded = True
                     except Exception as error:
                         _record_failure(gi, dirname, d_idx, curr_driver, error)
                     finally:
                         curr_driver.set_rng(seed=prev_random_seed)
+                        if progress_func is not None:
+                            progress_func(dirname, succeeded)
             else:
                 # shared working directory mode
                 cache_fpath = directory / "_data" / f"{identifier}_cache.xyz"
@@ -162,9 +177,12 @@ def run_computation_in_commandline(
                 temp_wdir = directory / "_shared"
                 for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
                     if dirname in cache_wdirs:
+                        if progress_func is not None:
+                            progress_func(dirname, True)
                         continue
                     d_idx = 0 if driver_indices is None else driver_indices[gi]
                     curr_driver = _get_driver(d_idx)
+                    succeeded = False
                     prev_random_seed = curr_driver.random_seed
                     try:
                         if temp_wdir.exists():
@@ -181,10 +199,13 @@ def run_computation_in_commandline(
                         new_atoms = curr_driver.read_trajectory()[-1]
                         new_atoms.info["wdir"] = atoms.info["wdir"]
                         write(cache_fpath, new_atoms, append=True)
+                        succeeded = True
                     except Exception as error:
                         _record_failure(gi, dirname, d_idx, curr_driver, error)
                     finally:
                         curr_driver.set_rng(seed=prev_random_seed)
+                        if progress_func is not None:
+                            progress_func(dirname, succeeded)
     finally:
         for driver, previous_prefix in zip(all_drivers, prev_prefixes):
             driver.setting.machine_prefix = previous_prefix
@@ -465,12 +486,15 @@ class DriverBasedWorker(BaseWorker):
     # Run
     # ------------------------------------------------------------------
 
+    @worker_output("run")
     def run(self, builder=None, rng_states=list(), *args, **kwargs) -> None:
         super().run(*args, **kwargs)
 
         identifier, frames, batches = self.prepare_batches(builder, rng_states)
 
         target_batch = kwargs.get("batch", None)
+        selected = batches if target_batch is None else [batches[target_batch]]
+        get_reporter(self).configure(selected, announce=True)
 
         if not self.is_spawned:
             self._run_by_scheduler(identifier, frames, batches, target_batch=target_batch)
@@ -492,6 +516,8 @@ class DriverBasedWorker(BaseWorker):
             self._share_wdir,
             print_period=self.print_period,
             print_func=self._print,
+            progress_func=get_reporter(self).task_finished,
+            error_func=config.logger.error,
         )
 
     def _run_by_scheduler(self, identifier: str, frames: list[Atoms], batches, target_batch: Optional[int] = None):
@@ -595,6 +621,8 @@ class DriverBasedWorker(BaseWorker):
             share_wdir=self._share_wdir,
             print_period=self.print_period,
             print_func=self._print,
+            progress_func=get_reporter(self).task_finished,
+            error_func=config.logger.error,
         )
 
         self.scheduler.write()
@@ -673,6 +701,8 @@ class DriverBasedWorker(BaseWorker):
             share_wdir=self._share_wdir,
             print_period=self.print_period,
             print_func=self._print,
+            progress_func=get_reporter(self).task_finished,
+            error_func=config.logger.error,
         )
         job_id = self.scheduler.submit(func_to_execute=func_to_execute)
         self.job_store.mark_submitted(job.gdir, job_id)

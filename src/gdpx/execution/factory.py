@@ -6,6 +6,7 @@ import pathlib
 from collections.abc import Mapping, Sequence
 from typing import Callable
 
+from gdpx import config
 from gdpx.execution.driver import BaseDriver
 from gdpx.execution.reactor import BaseReactor
 from gdpx.execution.runtime import Runtime
@@ -32,7 +33,7 @@ def create_worker(
     value: RuntimeInput,
     *,
     directory="./",
-    print_func: Callable = print,
+    print_func: Callable = config.logger.debug,
 ) -> BaseWorker:
     """Create exactly one worker from one complete runtime."""
     runtime = _resolve(value)
@@ -73,7 +74,7 @@ def create_workers(
     values: Sequence[RuntimeInput],
     *,
     directory="./",
-    print_func: Callable = print,
+    print_func: Callable = config.logger.debug,
 ) -> list[BaseWorker]:
     """Create independent workers from an explicit non-empty runtime list."""
     if isinstance(values, (str, bytes, Mapping, Runtime, RuntimeConfig)):
@@ -96,7 +97,7 @@ def create_worker_chains(
     chains: Sequence[Sequence[RuntimeInput]],
     *,
     directory="./",
-    print_func: Callable = print,
+    print_func: Callable = config.logger.debug,
 ) -> list[list[BaseWorker]]:
     """Create explicit worker chains; each inner sequence is one ordered chain."""
     if not chains:
