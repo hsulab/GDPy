@@ -15,8 +15,9 @@ The complete input is `examples/global_optimisation/cu8_bh_emt.yaml`:
 :language: yaml
 ```
 
-`population.periodic: false` makes the cluster nonperiodic. The 12 Å box supplies a coordinate
-frame for generation and move selection; it does not create periodic images.
+`population.periodic: true` places the cluster in a 20 × 20 × 20 Å periodic vacuum cell.
+The vacuum separates neighbouring cluster images; the calculation still targets
+an isolated cluster rather than a bulk material.
 The `random_structure_improved` builder generates four initial Cu₈ candidates
 in a sphere, which are then relaxed. Individual
 atom tags let the move operator select one Cu atom at a time.

@@ -4,6 +4,14 @@ recipe:
   population:
     retained_size: 2
     periodic: true
+    thanos:
+      name: restraints
+      restraints:
+        - type: contact_count
+          pair: [O, O]
+          scope: all_atoms
+          distance: {min: 0.0, max: 1.6}
+          max: 0
     initial:
       total_size: 4
       builder_allocations:
@@ -17,7 +25,8 @@ recipe:
       random:
         method: random_structure_improved
         composition:
-          Cu: 8
+          Cu: 4
+          O: 4
         box: [20.0, 20.0, 20.0]
         region:
           method: sphere
@@ -25,22 +34,25 @@ recipe:
           radius: 3.0
         covalent_ratio: [0.6, 2.0]
   operators:
-    - method: move
-      particles: [Cu]
-      temperature: 500.0
-      max_disp: 0.8
+    - method: rattle
+      particles: [Cu, O]
+      temperature: 100000.0  # Deliberately high to exercise extinction after acceptance.
+      rattle_strength: 1.8
+      rattle_prop: 0.8
       covalent_ratio: [0.6, 2.0]
       max_random_attempts: 100
       probability: 1.0
-  num_mcmoves: 10
+  num_mcmoves: 8
 
 runtime:
   potential:
-    provider: emt
-    parameters: {}
+    provider: mattersim
+    parameters:
+      model: MatterSim-v1.0.0-1M
+      compute_stress: false
   executor:
     provider: ase
     method: min
     parameters:
       fmax: 0.05
-      steps: 300
+      steps: 150

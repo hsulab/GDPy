@@ -9,6 +9,7 @@ objective. It inherits directly from `BaseExpedition`, independently of MC.
 :maxdepth: 1
 
 bh/examples/cluster
+bh/examples/cuox_thanos
 ```
 
 See the shared {ref}`global-optimisation-population` reference for population

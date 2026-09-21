@@ -31,15 +31,15 @@ Both methods use named `builders` and exact `initial.builder_allocations`:
 ```yaml
 population:
   retained_size: 2
-  periodic: false
+  periodic: true
   builders:
     random:
       method: random_structure_improved
       composition: {Cu: 8}
-      box: [12.0, 12.0, 12.0]
+      box: [20.0, 20.0, 20.0]
       region:
         method: sphere
-        origin: [6.0, 6.0, 6.0]
+        origin: [10.0, 10.0, 10.0]
         radius: 3.0
   initial:
     total_size: 4

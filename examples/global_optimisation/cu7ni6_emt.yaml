@@ -5,17 +5,17 @@ recipe:
     comparator:
       method: interatomic_distance
     retained_size: 2
-    periodic: false
+    periodic: true
     builders:
       random:
         method: random_structure_improved
         composition:
           Cu: 7
           Ni: 6
-        box: [10.0, 10.0, 10.0]
+        box: [20.0, 20.0, 20.0]
         region:
           method: sphere
-          origin: [5.0, 5.0, 5.0]
+          origin: [10.0, 10.0, 10.0]
           radius: 3.0
         covalent_ratio: [0.7, 2.0]
     initial:

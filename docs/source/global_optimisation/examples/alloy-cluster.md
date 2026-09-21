@@ -17,7 +17,7 @@ The complete example is available at
 :language: yaml
 ```
 
-`population.periodic: false` describes the isolated cluster. The random
+`population.periodic: true` places the isolated cluster in a 20 × 20 × 20 Å periodic vacuum cell. The random
 builder assigns every Cu and Ni atom a distinct positive tag, so the default
 fragment-preserving mode treats each atom as an independently movable
 particle.

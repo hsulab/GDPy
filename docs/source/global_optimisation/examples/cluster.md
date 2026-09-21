@@ -20,9 +20,9 @@ The complete example is available at
 
 The search uses interatomic-distance comparison, cluster cut-and-splice
 crossover, and rattle mutation. A fixed random seed makes candidate generation
-reproducible. This is the documented exception to the GA defaults:
-`population.periodic: false` describes the isolated cluster, and
-`population.preserve_fragments: false` permits the atom-wise cluster crossover.
+reproducible. `population.periodic: true` uses a 20 × 20 × 20 Å periodic vacuum cell for the
+cluster. `population.preserve_fragments: false` permits the atom-wise cluster
+crossover.
 
 ## Run
 
