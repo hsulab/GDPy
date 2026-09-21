@@ -125,7 +125,7 @@ class ExpeditionBasedWorker(BaseWorker):
             if batch_name in queued_names:
                 uid = queued_uuids[i]
                 job_name = uid + "-" + EXP_DIR_PREFIX + "-" + f"{i}"
-                self._print(f"{job_name} at {self.directory.name} was submitted.")
+                self._debug(f"{job_name} at {self.directory.name} was submitted.")
                 continue
             else:
                 uid = str(uuid.uuid1())
@@ -156,7 +156,7 @@ class ExpeditionBasedWorker(BaseWorker):
                 f"gdp explore {relative_inp_fpath} --wait {self.timewait} --spawn {batch_index_str}\n"
             )
             job_status = self.scheduler.submit(func_to_execute=exp_func)
-            self._print(f"{wdir.name}: {job_status}")
+            self._debug(f"{wdir.name}: {job_status}")
 
             # Update database
             with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
@@ -207,7 +207,7 @@ class ExpeditionBasedWorker(BaseWorker):
                     if all(wdir_existence):
                         for wdir_name in wdir_names:
                             exp_index = int(wdir_name[len("expedition-") :])
-                            self._print(f"{exp_index=}")
+                            self._debug(f"{exp_index=}")
                             wdir_path = self.directory / wdir_name
                             if not wdir_path.exists():
                                 break
@@ -219,7 +219,7 @@ class ExpeditionBasedWorker(BaseWorker):
                             is_finished = True
                     else:
                         self._print(f"NOT all workding directories exist.")
-                    self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
+                    self._debug(f"progress: {nwdir_exists}/{len(wdir_existence)}")
                     if is_finished:
                         database.update({"finished": True}, doc_ids=[doc_data.doc_id])
                     else:

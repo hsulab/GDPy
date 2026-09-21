@@ -195,12 +195,13 @@ def main():
         config.logger.addHandler(fh)
 
     # Display the package logo
-    for line in config.LOGO_LINES:
-        config._print(line)
+    if args.subcommand != "explore":
+        for line in config.LOGO_LINES:
+            config._print(line)
 
     # Set the number of processors
     config.NJOBS = args.n_jobs
-    if config.NJOBS != 1:
+    if config.NJOBS != 1 and args.subcommand != "explore":
         config._print(f"Use {config.NJOBS} processors.")
 
     # Set the global random state
@@ -209,11 +210,27 @@ def main():
         config.GRNG = np.random.default_rng(random_seed)
     else:
         random_seed = config._random_seed
-    config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+    state_print = config._debug if args.subcommand == "explore" else config._print
+    state_print(f"GLOBAL RANDOM SEED : {random_seed}")
 
     rng_state = config.GRNG.bit_generator.state
     for l in dictionary_to_string(rng_state).split("\n"):
-        config._print(l)
+        state_print(l)
+
+    if args.subcommand == "explore":
+        from .cli.explore import run_expedition
+        from .exploration.output import exploration_output
+
+        try:
+            with exploration_output(args.directory, args.CONFIG, random_seed):
+                params = parse_input_file(args.CONFIG)
+                runtime = parse_input_file(args.runtime) if args.runtime else None
+                run_expedition(params, args.wait, args.directory, runtime, spawn=args.spawn)
+        finally:
+            config._debug(f"GLOBAL RANDOM SEED : {random_seed}")
+            for line in dictionary_to_string(config.GRNG.bit_generator.state).split("\n"):
+                config._debug(line)
+        return
 
     runtime = parse_input_file(args.runtime) if args.runtime and args.subcommand != "compute" else None
 
@@ -257,11 +274,6 @@ def main():
             plan=args.plan,
             worker_index=args.worker,
         )
-    elif args.subcommand == "explore":
-        from .cli.explore import run_expedition
-
-        params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, runtime, spawn=args.spawn)
     elif args.subcommand == "validate":
         from .cli.validate import run_validation
         from .execution.factory import create_worker

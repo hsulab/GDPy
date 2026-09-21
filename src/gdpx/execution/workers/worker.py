@@ -119,7 +119,7 @@ class BaseWorker(abc.ABC):
         implement their own submission logic.
         """
         self._initialise(*args, **kwargs)
-        self._print(f"<<-- {self.__class__.__name__}+run -->>")
+        self._debug(f"<<-- {self.__class__.__name__}+run -->>")
 
     @worker_output("inspect")
     def inspect(self, resubmit=False, *args, **kwargs):
