@@ -40,14 +40,3 @@ recipe:
       covalent_ratio: [0.7, 2.0]
   convergence:
     generation: 1
-
-runtime:
-  potential:
-    provider: emt
-    parameters: {}
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 100

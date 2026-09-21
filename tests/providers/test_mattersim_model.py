@@ -38,12 +38,12 @@ def test_missing_local_model_is_rejected(tmp_path):
         canonicalise_mattersim_model(str(model))
 
 
-def test_water_cluster_example_uses_the_fastest_pretrained_model():
+def test_water_cluster_example_and_small_mattersim_runtime():
     path = (
         Path(__file__).parents[2]
         / "examples"
         / "global_optimisation"
-        / "water4_mattersim.yaml"
+        / "explorations/genetic_algorithm/water4.yaml"
     )
     with path.open() as stream:
         config = yaml.safe_load(stream)
@@ -55,7 +55,9 @@ def test_water_cluster_example_uses_the_fastest_pretrained_model():
         "periodic_cut_and_splice"
     )
     assert config["recipe"]["operators"]["mutation"]["method"] == "rattle"
-    assert config["runtime"]["potential"] == {
+    runtime_path = Path(__file__).parents[2] / "examples/global_optimisation/runtimes/mattersim_min_100.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text())
+    assert runtime["potential"] == {
         "provider": "mattersim",
         "parameters": {
             "model": "MatterSim-v1.0.0-1M",

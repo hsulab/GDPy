@@ -32,14 +32,3 @@ recipe:
       max_random_attempts: 100
       probability: 1.0
   num_mcmoves: 10
-
-runtime:
-  potential:
-    provider: emt
-    parameters: {}
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 300

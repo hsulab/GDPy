@@ -11,9 +11,15 @@ exchanging unlike atomic species without changing the composition.
 ## Input
 
 The complete example is available at
-`examples/global_optimisation/cu7ni6_emt.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu7ni6_emt.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_min_100.yaml
 :language: yaml
 ```
 
@@ -35,8 +41,9 @@ generation.
 From the repository root, run:
 
 ```shell
-gdp -d ./run-cu7ni6-emt explore \
-    ./examples/global_optimisation/cu7ni6_emt.yaml
+gdp -d ./run-cu7ni6-emt \
+    --runtime ./examples/global_optimisation/runtimes/emt_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml
 ```
 
 The search is stored under `run-cu7ni6-emt/expedition-0`, with its restart state

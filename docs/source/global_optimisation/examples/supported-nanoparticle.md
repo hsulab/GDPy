@@ -39,10 +39,16 @@ relax.
 
 ## Input
 
-The complete search configuration is available at
-`examples/global_optimisation/cu4_alumina111_mattersim.yaml`:
+The exploration configuration is available at
+`examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu4_alumina111_mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_alumina_min_20.yaml
 :language: yaml
 ```
 
@@ -57,8 +63,9 @@ installation and model details.
 After installing MatterSim, run from the repository root:
 
 ```shell
-gdp -d ./run-cu4-alumina111 explore \
-    ./examples/global_optimisation/cu4_alumina111_mattersim.yaml
+gdp -d ./run-cu4-alumina111 \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_alumina_min_20.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml
 ```
 
 The search is stored under `run-cu4-alumina111/expedition-0`. When it completes,

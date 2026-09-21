@@ -16,7 +16,13 @@ prevents severe overlap; Thanos applies its separate rule after minimization.
 
 ## Input
 
-```{literalinclude} ../../../../../examples/global_optimisation/cu4o4_bh_thanos_mattersim.yaml
+```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/mattersim_min_150.yaml
 :language: yaml
 ```
 
@@ -44,8 +50,9 @@ Install MatterSim following {ref}`potential-mattersim`. The example uses the
 root, run:
 
 ```shell
-OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos explore \
-    ./examples/global_optimisation/cu4o4_bh_thanos_mattersim.yaml
+OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_min_150.yaml explore \
+    ./examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
 
 python ./examples/global_optimisation/verify_cu4o4_bh_thanos.py \
     ./run-cu4o4-bh-thanos/expedition-0

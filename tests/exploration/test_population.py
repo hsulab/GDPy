@@ -167,8 +167,11 @@ def test_generation_accounting_uses_generation_size_not_retained(tmp_path, legac
     assert db.get_generation_number() == 2
 
 
-@pytest.mark.parametrize("example", ["cu8_bh_emt.yaml", "cu13_emt.yaml"])
-def test_example_population_round_trip_and_config_immutability(example):
+@pytest.mark.parametrize("example, runtime_name", [
+    ("explorations/basin_hopping/cu8.yaml", "emt_min_300.yaml"),
+    ("explorations/genetic_algorithm/cu13.yaml", "emt_min_100.yaml"),
+])
+def test_example_population_round_trip_and_config_immutability(example, runtime_name):
     from pathlib import Path
     import yaml
     from gdpx.exploration.factory import create_expedition
@@ -176,7 +179,7 @@ def test_example_population_round_trip_and_config_immutability(example):
 
     source = Path(__file__).resolve().parents[2] / "examples/global_optimisation" / example
     config = yaml.safe_load(source.read_text())
-    runtime = config.pop("runtime")
+    runtime = yaml.safe_load((source.parents[2] / "runtimes" / runtime_name).read_text())
     original = copy.deepcopy(config)
     engine = create_expedition(copy.deepcopy(config))
     if isinstance(engine, list):

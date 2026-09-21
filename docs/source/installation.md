@@ -55,6 +55,21 @@ $ git fetch
 $ git pull
 ```
 
+## Optional potential packages
+
+From the repository root, install only the potential packages you need:
+
+```shell
+python -m pip install -e '.[mattersim]'
+python -m pip install -e '.[tace]'
+# Or install both in the same environment:
+python -m pip install -e '.[tace,mattersim]'
+```
+
+The TACE extra uses a tested GitHub commit and requires Git. See
+{doc}`potentials/tace` and {doc}`potentials/mattersim` for model selection and
+runtime configuration.
+
 [ase]: https://wiki.fysik.dtu.dk/ase
 [omegaconf]: https://omegaconf.readthedocs.io
 [tinydb]: https://tinydb.readthedocs.io

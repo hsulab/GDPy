@@ -8,6 +8,14 @@ possible so the workflow, configuration, and outputs remain easy to inspect.
 Increase the population size, number of generations, and calculation accuracy
 for production searches.
 
+Exploration inputs live under `examples/global_optimisation/explorations/`,
+grouped by method. Shared calculation inputs live under `runtimes/` in the same
+directory. Each guide shows both files. Select a runtime with
+`gdp --runtime <runtime.yaml> explore <exploration.yaml>`; the exploration can
+be reused with another suitable potential without editing its recipe. Use a
+new output directory when changing runtimes, and preserve the slab constraints
+when adapting surface examples.
+
 All examples run directly on the current machine by default, so their input
 files omit `scheduler`. See {ref}`scheduler-transport` to configure queue or
 SSH execution.

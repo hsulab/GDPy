@@ -53,6 +53,7 @@ tutorials/index
 
 Overview <potentials/index>
 MatterSim <potentials/mattersim>
+TACE <potentials/tace>
 ```
 
 ```{toctree}

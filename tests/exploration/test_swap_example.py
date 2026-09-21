@@ -12,13 +12,12 @@ EXAMPLE_PATH = (
     Path(__file__).resolve().parents[2]
     / "examples"
     / "global_optimisation"
-    / "cu7ni6_emt.yaml"
+    / "explorations/genetic_algorithm/cu7ni6.yaml"
 )
 
 
 def test_cu7ni6_example_generates_tagged_clusters_and_swaps_species():
     config = yaml.safe_load(EXAMPLE_PATH.read_text())
-    config.pop("runtime")
     config.pop("scheduler", None)
     engine = create_expedition(config)[0]
 

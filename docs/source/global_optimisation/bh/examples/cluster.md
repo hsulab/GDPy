@@ -9,9 +9,15 @@ download is needed.
 
 ## Input
 
-The complete input is `examples/global_optimisation/cu8_bh_emt.yaml`:
+The exploration input is `examples/global_optimisation/explorations/basin_hopping/cu8.yaml`:
 
-```{literalinclude} ../../../../../examples/global_optimisation/cu8_bh_emt.yaml
+```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/emt_min_300.yaml
 :language: yaml
 ```
 
@@ -30,7 +36,7 @@ batch of valid trials before their energies are used for acceptance.
 The operator's 500 K temperature controls uphill acceptance during the search;
 it is not an MD thermostat or a claim of thermal equilibrium sampling.
 
-The top-level `runtime` relaxes the initial population and every valid trial
+The separate runtime relaxes the initial population and every valid trial
 using EMT and a force tolerance of 0.05 eV/Å. Every relaxed trial endpoint is stored, whether accepted or rejected,
 without another relaxation. The search adds up to twenty trial minima, for at
 most 24 evaluated structures including initialization. The omitted `convergence`
@@ -42,8 +48,9 @@ discoveries do not replace chain states: MC acceptance determines each next stat
 From the repository root:
 
 ```shell
-gdp -d ./run-cu8-bh-emt explore \
-    ./examples/global_optimisation/cu8_bh_emt.yaml
+gdp -d ./run-cu8-bh-emt \
+    --runtime ./examples/global_optimisation/runtimes/emt_min_300.yaml explore \
+    ./examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 ```
 
 Results are written under `run-cu8-bh-emt/expedition-0`:

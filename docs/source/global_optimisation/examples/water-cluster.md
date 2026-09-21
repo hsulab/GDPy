@@ -12,9 +12,15 @@ installation, model selection, and runtime settings.
 ## Input
 
 The complete example is available at
-`examples/global_optimisation/water4_mattersim.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/water4.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/water4_mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_min_100.yaml
 :language: yaml
 ```
 
@@ -29,8 +35,9 @@ After installing MatterSim as described in the {ref}`potential-mattersim`
 guide, run from the repository root:
 
 ```shell
-gdp -d ./run-water4-mattersim explore \
-    ./examples/global_optimisation/water4_mattersim.yaml
+gdp -d ./run-water4-mattersim \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
 ```
 
 The search is stored under `run-water4-mattersim/expedition-0`. The small

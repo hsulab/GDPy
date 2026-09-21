@@ -51,9 +51,15 @@ upper substrate layer and the CuₓOᵧ overlayer can relax. The insertion regio
 covers the complete surface cell from z = 4.60 to 9.10 Å.
 
 The complete configuration is available at
-`examples/global_optimisation/cuxoy_cu111_mattersim.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cuxoy_cu111_mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml
 :language: yaml
 ```
 
@@ -67,8 +73,9 @@ MatterSim is required because the search contains both Cu and O; see the
 After installing MatterSim, run from the repository root:
 
 ```shell
-gdp -d ./run-cuxoy-cu111 explore \
-    ./examples/global_optimisation/cuxoy_cu111_mattersim.yaml
+gdp -d ./run-cuxoy-cu111 \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
 ```
 
 The search is stored under `run-cuxoy-cu111/expedition-0`. When it completes,

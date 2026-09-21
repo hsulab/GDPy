@@ -1,0 +1,6 @@
+#!/bin/bash -l
+
+
+
+
+gdp -d /Users/jyxu/Documents/repository/GDPy/examples/compute/cu2_emt/_run compute run --plan /Users/jyxu/Documents/repository/GDPy/examples/compute/cu2_emt/_run/_data/compute-plan.json --worker 0 --batch 0

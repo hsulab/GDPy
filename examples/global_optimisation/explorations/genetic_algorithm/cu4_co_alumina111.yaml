@@ -1,27 +1,26 @@
 method: genetic_algorithm
 recipe:
-  random_seed: 79
+  random_seed: 67
   population:
     periodic: true
     comparator:
       method: interatomic_distance
     builders:
-      adsorbate:
-        method: adsorbate_insertion
-        substrates: ./examples/global_optimisation/assets/cu4_alumina111_supported.xyz
+      random:
+        method: random_structure_improved
+        substrates: ./examples/global_optimisation/assets/alpha_alumina111_ortho.xyz
         composition:
+          Cu: 4
           CO: 1
-        sites:
-          group: "`symbol Cu`"
-          cutoff: 3.0
-          max_order: 1
-          surf_index: 2
+        region:
+          method: sphere
+          origin: [7.1385, 8.2428, 10.2]
+          radius: 2.4
         covalent_ratio: [0.6, 2.0]
-    reference_builder: adsorbate
     initial:
       total_size: 4
       builder_allocations:
-        - builder: adsorbate
+        - builder: random
           size: 4
     generation:
       total_size: 2
@@ -32,7 +31,7 @@ recipe:
         size: 0
       completion:
         builder_proportions:
-          - builder: adsorbate
+          - builder: random
             proportion: 1.0
   operators:
     crossover:
@@ -41,17 +40,3 @@ recipe:
       method: rattle
   convergence:
     generation: 1
-
-runtime:
-  potential:
-    provider: mattersim
-    parameters:
-      model: MatterSim-v1.0.0-1M
-      compute_stress: false
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 100
-      constraint: lowest 60

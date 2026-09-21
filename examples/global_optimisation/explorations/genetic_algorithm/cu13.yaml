@@ -1,22 +1,22 @@
 method: genetic_algorithm
 recipe:
-  random_seed: 17
+  random_seed: 7
   population:
-    periodic: true
     comparator:
       method: interatomic_distance
+    periodic: true
+    preserve_fragments: false
     builders:
       random:
         method: random_structure_improved
         composition:
-          H2O: 4
+          Cu: 13
         box: [20.0, 20.0, 20.0]
         region:
           method: sphere
           origin: [10.0, 10.0, 10.0]
           radius: 3.0
-        molecular_distances: [1.5, 5.0]
-        covalent_ratio: [0.7, 2.0]
+        covalent_ratio: [0.6, 2.0]
     initial:
       total_size: 4
       builder_allocations:
@@ -26,7 +26,7 @@ recipe:
       total_size: 2
       reproduction:
         size: 2
-        mutation_probability: 1.0
+        mutation_probability: 0.5
       mutation:
         size: 0
       completion:
@@ -35,21 +35,8 @@ recipe:
             proportion: 1.0
   operators:
     crossover:
-      method: periodic_cut_and_splice
+      method: cluster_cut_and_splice
     mutation:
       method: rattle
   convergence:
     generation: 1
-
-runtime:
-  potential:
-    provider: mattersim
-    parameters:
-      model: MatterSim-v1.0.0-1M
-      compute_stress: false
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 100

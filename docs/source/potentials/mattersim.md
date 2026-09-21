@@ -8,10 +8,10 @@ minimisation, and molecular-dynamics executors.
 
 ## Installation
 
-Install MatterSim in the same environment as GDPy:
+Install MatterSim in the same environment as GDPy, from the repository root:
 
 ```shell
-python -m pip install mattersim
+python -m pip install '.[mattersim]'
 ```
 
 PyTorch is also required and is installed by the standard MatterSim package.

@@ -12,9 +12,15 @@ global optimisation.
 ## Input
 
 The complete example is available at
-`examples/global_optimisation/cu13_emt.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu13_emt.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_min_100.yaml
 :language: yaml
 ```
 
@@ -29,8 +35,9 @@ crossover.
 From the repository root, run:
 
 ```shell
-gdp -d ./run-cu13-emt explore \
-    ./examples/global_optimisation/cu13_emt.yaml
+gdp -d ./run-cu13-emt \
+    --runtime ./examples/global_optimisation/runtimes/emt_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml
 ```
 
 The search is stored under `run-cu13-emt/expedition-0`. When it completes,

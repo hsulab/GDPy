@@ -1,5 +1,12 @@
 # Basin hopping
 
+Examples keep search recipes in
+`examples/global_optimisation/explorations/basin_hopping/` and reusable
+calculation settings in `examples/global_optimisation/runtimes/`. Combine them
+with `gdp --runtime <runtime.yaml> explore <exploration.yaml>`, placing
+`--runtime` before `explore`. To compare potentials, keep the exploration file
+and select another suitable runtime in a new output directory.
+
 `method: basin_hopping` runs the population-based search formerly named
 `concurrent_hopping`. It selects starting structures for hopping chains,
 evaluates candidates using execution workers, and ranks them using the search
@@ -10,6 +17,7 @@ objective. It inherits directly from `BaseExpedition`, independently of MC.
 
 bh/examples/cluster
 bh/examples/cuox_thanos
+bh/examples/cuox_tace
 ```
 
 See the shared {ref}`global-optimisation-population` reference for population
@@ -34,7 +42,13 @@ This self-contained Cu₈ example generates four random structures using
 `random_structure_improved` and launches two chains of ten proposals. Its
 calculation runtime minimizes initial structures and every valid trial batch.
 
-```{literalinclude} ../../../examples/global_optimisation/cu8_bh_emt.yaml
+```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../examples/global_optimisation/runtimes/emt_min_300.yaml
 :language: yaml
 ```
 

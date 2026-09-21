@@ -30,10 +30,16 @@ and the Cu–O overlayer to relax.
 
 ## Input
 
-The complete search configuration is available at
-`examples/global_optimisation/cu4o4_cu111_mattersim.yaml`:
+The exploration configuration is available at
+`examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu4o4_cu111_mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml
 :language: yaml
 ```
 
@@ -48,8 +54,9 @@ example requires a potential that describes both Cu and O; see the
 After installing MatterSim, run from the repository root:
 
 ```shell
-gdp -d ./run-cu4o4-cu111 explore \
-    ./examples/global_optimisation/cu4o4_cu111_mattersim.yaml
+gdp -d ./run-cu4o4-cu111 \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
 ```
 
 The search is stored under `run-cu4o4-cu111/expedition-0`. When it completes,

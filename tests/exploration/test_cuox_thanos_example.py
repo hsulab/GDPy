@@ -25,7 +25,7 @@ def cluster(oo=False):
 
 
 def test_demo_thanos_checks_oo_even_with_shared_tags():
-    config = yaml.safe_load((EXAMPLES / 'cu4o4_bh_thanos_mattersim.yaml').read_text())
+    config = yaml.safe_load((EXAMPLES / 'explorations/basin_hopping/cu4o4_thanos.yaml').read_text())
     thanos = config['recipe']['population']['thanos']
     assert thanos['restraints'][0]['distance']['max'] == DEMO['OO_CUTOFF']
     extinct = dispatch_thanos(**thanos)

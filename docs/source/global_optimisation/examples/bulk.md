@@ -11,9 +11,15 @@ a converged Cu crystal-structure prediction.
 ## Input
 
 The complete example is available at
-`examples/global_optimisation/cu4_bulk_emt.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu4_bulk_emt.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_min_100.yaml
 :language: yaml
 ```
 
@@ -29,8 +35,9 @@ treats the atoms as independently movable particles.
 From the repository root, run:
 
 ```shell
-gdp -d ./run-cu4-bulk-emt explore \
-    ./examples/global_optimisation/cu4_bulk_emt.yaml
+gdp -d ./run-cu4-bulk-emt \
+    --runtime ./examples/global_optimisation/runtimes/emt_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
 ```
 
 The search is stored under `run-cu4-bulk-emt/expedition-0`. When it completes,

@@ -1,0 +1,64 @@
+{
+  "schema_version": 3,
+  "plan_id": "9aeb8f19f9bf8bd2bfcc7ebe8dd2aa0ace09ee96484be4c6cd8df7075af663dc",
+  "created_at": 1789968433.846436,
+  "directory": "/Users/jyxu/Documents/repository/GDPy/examples/compute/cu2_emt/_run",
+  "structure_file": "_data/input.xyz",
+  "structure_digest": "ccc34426586cd6e5053dbf13047ebd4bb37c34a829264f729d18d0805b116a42",
+  "config": {
+    "schema_version": 3,
+    "potential": {
+      "provider": "emt",
+      "parameters": {}
+    },
+    "modifiers": [],
+    "executor": {
+      "provider": "ase",
+      "method": "min",
+      "parameters": {
+        "fmax": 0.05,
+        "steps": 100,
+        "dump_period": 1,
+        "random_seed": 7
+      }
+    },
+    "options": {
+      "batch_size": 3
+    }
+  },
+  "workers": [
+    {
+      "index": 0,
+      "directory": ".",
+      "identifier": "3ce0cb47525c49b19330b186f192655b",
+      "batches": [
+        {
+          "index": 0,
+          "tasks": [
+            {
+              "index": 0,
+              "driver_index": 0,
+              "structure_index": 0,
+              "workdir": "cand0",
+              "random_seed": 94490495
+            },
+            {
+              "index": 1,
+              "driver_index": 0,
+              "structure_index": 1,
+              "workdir": "cand1",
+              "random_seed": 62509546
+            },
+            {
+              "index": 2,
+              "driver_index": 0,
+              "structure_index": 2,
+              "workdir": "cand2",
+              "random_seed": 68417993
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

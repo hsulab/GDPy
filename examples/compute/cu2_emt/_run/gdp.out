@@ -1,0 +1,33 @@
+2026Sep21-01:27:13 - INFO:   ____ ____  ______  __ 
+2026Sep21-01:27:13 - INFO:  / ___|  _ \|  _ \ \/ / 
+2026Sep21-01:27:13 - INFO: | |  _| | | | |_) \  /  
+2026Sep21-01:27:13 - INFO: | |_| | |_| |  __//  \  
+2026Sep21-01:27:13 - INFO:  \____|____/|_|  /_/\_\ 
+2026Sep21-01:27:13 - INFO:                         
+2026Sep21-01:27:13 - INFO: GLOBAL RANDOM SEED : 113866845625
+2026Sep21-01:27:13 - INFO: bit_generator: PCG64
+2026Sep21-01:27:13 - INFO: state:
+2026Sep21-01:27:13 - INFO:   state: 16303583108984646511447099925853380662
+2026Sep21-01:27:13 - INFO:   inc: 142163345974698752197926978632084660671
+2026Sep21-01:27:13 - INFO: has_uint32: 0
+2026Sep21-01:27:13 - INFO: uinteger: 0
+2026Sep21-01:27:13 - INFO: 
+2026Sep21-01:27:13 - INFO: ┌─ worker | minimization | calculations: 3 | batches: 1 ───────────────────┐
+2026Sep21-01:27:13 - INFO: │ executor: ase   potential: emt                                           │
+2026Sep21-01:27:13 - INFO: │ state: finished   finished: 3   pending: 0   failed: 0                   │
+2026Sep21-01:27:13 - INFO: │ steps:         min    3.0   avg    5.0   max    6.0                      │
+2026Sep21-01:27:13 - INFO: │ energy [eV]:   min 3.1814   avg 3.1814   max 3.1814                      │
+2026Sep21-01:27:13 - INFO: │ maxfrc [eV/Å]: min 0.0038   avg 0.0122   max 0.0280                      │
+2026Sep21-01:27:13 - INFO: │ results summarized: 3   elapsed this invocation: 0.1 s                   │
+2026Sep21-01:27:13 - INFO: └──────────────────────────────────────────────────────────────────────────┘
+2026Sep21-01:27:13 - INFO: ┌─ compute | run ──────────────────────────────────────────────────────────┐
+2026Sep21-01:27:13 - INFO: │ state: finished   batches: 1   finished: 1   pending: 0                  │
+2026Sep21-01:27:13 - INFO: └──────────────────────────────────────────────────────────────────────────┘
+2026Sep21-01:27:13 - INFO: GLOBAL RANDOM SEED : 113866845625
+2026Sep21-01:27:13 - INFO: bit_generator: PCG64
+2026Sep21-01:27:13 - INFO: state:
+2026Sep21-01:27:13 - INFO:   state: 305978030913435613982126358121773610061
+2026Sep21-01:27:13 - INFO:   inc: 142163345974698752197926978632084660671
+2026Sep21-01:27:13 - INFO: has_uint32: 1
+2026Sep21-01:27:13 - INFO: uinteger: 181504435
+2026Sep21-01:27:13 - INFO: 

@@ -33,9 +33,15 @@ Cu4 structure because its atoms have positive tags.
 ## Input
 
 The complete configuration is available at
-`examples/global_optimisation/cu4_co_alumina111_adsorbate_insertion_mattersim.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/cu4_co_alumina111_adsorbate_insertion_mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml
+:language: yaml
+```
+
+Pair this exploration with the following runtime (passed with `--runtime`):
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml
 :language: yaml
 ```
 
@@ -54,8 +60,9 @@ details.
 After installing MatterSim, run from the repository root:
 
 ```shell
-gdp -d ./run-cu4-co-adsorbate-insertion explore \
-    ./examples/global_optimisation/cu4_co_alumina111_adsorbate_insertion_mattersim.yaml
+gdp -d ./run-cu4-co-adsorbate-insertion \
+    --runtime ./examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml explore \
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml
 ```
 
 The search is stored under

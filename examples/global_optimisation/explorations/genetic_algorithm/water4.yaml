@@ -1,6 +1,6 @@
 method: genetic_algorithm
 recipe:
-  random_seed: 41
+  random_seed: 17
   population:
     periodic: true
     comparator:
@@ -8,18 +8,15 @@ recipe:
     builders:
       random:
         method: random_structure_improved
-        substrates: ./examples/global_optimisation/assets/cu111_p2x2_2layer.xyz
         composition:
-          Cu: 4
-          O: 4
+          H2O: 4
+        box: [20.0, 20.0, 20.0]
         region:
-          method: lattice
-          origin: [0.0, 0.0, 4.6]
-          cell:
-            - [5.11238203, 0.0, 0.0]
-            - [0.0, 4.42745271, 0.0]
-            - [0.0, 0.0, 4.5]
-        covalent_ratio: [0.6, 2.0]
+          method: sphere
+          origin: [10.0, 10.0, 10.0]
+          radius: 3.0
+        molecular_distances: [1.5, 5.0]
+        covalent_ratio: [0.7, 2.0]
     initial:
       total_size: 4
       builder_allocations:
@@ -29,7 +26,7 @@ recipe:
       total_size: 2
       reproduction:
         size: 2
-        mutation_probability: 0.5
+        mutation_probability: 1.0
       mutation:
         size: 0
       completion:
@@ -43,17 +40,3 @@ recipe:
       method: rattle
   convergence:
     generation: 1
-
-runtime:
-  potential:
-    provider: mattersim
-    parameters:
-      model: MatterSim-v1.0.0-1M
-      compute_stress: false
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 100
-      constraint: lowest 4

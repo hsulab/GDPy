@@ -1,0 +1,14 @@
+schema_version: 3
+potential:
+  provider: tace
+  parameters:
+    model: TACE-OAM-7M
+    precision: float32
+    device: cpu
+    fidelity_idx: 0
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 300

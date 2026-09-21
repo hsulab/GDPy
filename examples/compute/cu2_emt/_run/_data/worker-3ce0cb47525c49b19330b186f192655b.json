@@ -1,0 +1,24 @@
+{
+  "schema_version": 3,
+  "potential": {
+    "provider": "emt",
+    "parameters": {}
+  },
+  "modifiers": [],
+  "executor": {
+    "provider": "ase",
+    "method": "min",
+    "parameters": {
+      "fmax": 0.05,
+      "steps": 100,
+      "dump_period": 1,
+      "random_seed": 7
+    }
+  },
+  "options": {
+    "batch_size": 3,
+    "worker": "batch",
+    "share_workdir": false,
+    "retain_info": false
+  }
+}

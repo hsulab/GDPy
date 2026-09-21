@@ -66,6 +66,7 @@ group; see {doc}`../extensions/index`.
 ## Provider guides
 
 - {doc}`MatterSim <mattersim>`
+- {doc}`TACE <tace>`
 
 ## Training
 
