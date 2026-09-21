@@ -112,7 +112,8 @@ def finalize_checkpoints(directory):
 
 
 def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory,
-                       archive=False, record_trial=None, restart_chains=None, random_streams=None, store_history=True):
+                       archive=False, record_trial=None, restart_chains=None, random_streams=None, store_history=True,
+                       on_progress=None):
     """Advance a generation through round barriers, returning when work is pending.
 
     Pending inputs are durable before submission. Live proposals borrow distinct
@@ -121,6 +122,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     whether the evaluated trial is extinct; restart_chains returns independently
     owned starts in terminated-slot order. All named streams are checkpointed
     when a registry is supplied, including replacement-selection randomness.
+    Optional on_progress(step, journal_offset, resumed=False) observes only
+    published state, including the initial or recovered checkpoint.
     """
     directory.mkdir(parents=True, exist_ok=True)
     # Standalone coordinators use an ASE history database. The engine disables
@@ -132,7 +135,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         rows = list(history.select(event_key=key))
         return rows[0].id if rows else history.write(frame, event_key=key)
 
-    if (directory / 'current.json').exists():
+    resumed = (directory / 'current.json').exists()
+    if resumed:
         checkpoint, (state, atoms) = read_snapshot(directory, _read_round)
         if state["total_steps"] != mcsteps or state["count"] != len(starts):
             raise ValueError("Incompatible BH round checkpoint; use the original recipe or start a new run.")
@@ -160,6 +164,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         prepare_operators([op], numbers, getattr(op, "bond_distance_dict", None),
                           getattr(op, "custom_pair_distance_dict", None))
 
+    if on_progress is not None:
+        on_progress(step, context["journal_offset"], resumed=resumed)
     if context["exhausted"]:
         return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
     for step in range(step + 1, mcsteps + 1):
@@ -251,6 +257,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         states = [decisions]
         context["random_states"] = random_streams.snapshot() if random_streams is not None else {}
         _commit(directory, step, atoms, states, rng, mcsteps, context)
+        if on_progress is not None:
+            on_progress(step, context["journal_offset"])
         if context["exhausted"]:
             return HoppingResult(EvaluationStatus.FINISHED, [], extinct=True)
     return HoppingResult(EvaluationStatus.FINISHED,

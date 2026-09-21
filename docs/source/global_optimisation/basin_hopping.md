@@ -96,6 +96,40 @@ available in the database and worker outputs.
 
 ## Execution and checkpoints
 
+### Generation output
+
+BH prints a scrolling, bordered block for each generation in the terminal and
+`gdp.out`. Every line, including borders, has the standard logging timestamp
+and level prefix (omitted in the illustration below). Generation 0 reports initialization; hopping generations show one
+row per committed round:
+
+```text
+round  eval  accept  reject  invalid  extinct  restart  best energy [eV]
+6/8       2       2       0        0        1        1          -36.1077
+```
+
+The round column expands to fit the configured move count, including `1000/1000`.
+`eval` counts minimized/evaluated trials. `accept` includes accepted extinct
+trials; `reject` counts MC rejections. `invalid` counts proposals that were not
+evaluated. `extinct` includes both accepted and rejected trials marked extinct,
+whereas `restart` counts actual replacement starts. These columns overlap:
+extinction and restart are not additional acceptance outcomes.
+
+The best eligible value uses the configured objective, excludes extinct
+candidates, and includes discoveries from initialization and earlier generations,
+even if a trial was MC-rejected. Eligible candidate totals are database counts,
+not the size of the deduplicated retained population. Missing values appear as
+`—` (or `-` with ASCII output).
+
+Blocks end with `complete`, `waiting`, `extinct`, or `failed`. Resumed blocks
+identify the last committed round and reconstruct cumulative counts without
+reprinting previous round rows. Timings cover the current invocation only.
+Routine GDP worker and move messages appear with `gdp --debug`; warnings and
+errors remain visible normally. Blocks use no cursor control or colour escapes,
+so redirected and scheduler logs retain the same readable structure.
+
+### Runtime and restart files
+
 Top-level `scheduler` places the exploration loop. Top-level `runtime` defines
 its calculation worker; `runtime.scheduler` places the expensive calculations.
 Both use the existing direct, queue, and transport configuration. No driver is

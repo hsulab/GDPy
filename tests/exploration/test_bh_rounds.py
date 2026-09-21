@@ -63,10 +63,11 @@ class Worker:
         return results
 
 
-def run(path, worker, rng=None, starts=None, steps=3, ops=None):
+def run(path, worker, rng=None, starts=None, steps=3, ops=None, on_progress=None):
     ops, probs = operators() if ops is None else (ops, [1.])
     return chain.run_hopping_rounds(starts if starts is not None else [atoms(), atoms()], worker,
-                                    ops, probs, steps, rng if rng is not None else np.random.default_rng(9), path)
+                                    ops, probs, steps, rng if rng is not None else np.random.default_rng(9), path,
+                                    on_progress=on_progress)
 
 
 @pytest.mark.parametrize("energy,decision", [(0., 0), (100., 1)])
@@ -331,3 +332,45 @@ def test_bh_rattle_batches_and_restart(tmp_path):
     for actual, wanted in zip(result.endpoints, expected.endpoints):
         np.testing.assert_array_equal(actual.positions, wanted.positions)
     assert resumed_rng.bit_generator.state == baseline_rng.bit_generator.state
+
+
+def test_progress_observes_commits_and_checkpoint_fallback(tmp_path, monkeypatch):
+    expected_rng = np.random.default_rng(9)
+    expected = run(tmp_path / 'baseline', Worker(), rng=expected_rng)
+    path = tmp_path / 'observed'
+    calls = []
+    def observe(step, offset, resumed=False):
+        manifest = json.loads((path / 'current.json').read_text())
+        assert manifest['snapshots'][0] == f'round-{step:06d}'
+        committed = (path / 'events.jsonl').read_bytes()[:offset]
+        assert json.loads(committed.splitlines()[-1])['step'] == step
+        calls.append((step, resumed))
+    actual_rng = np.random.default_rng(9)
+    actual = run(path, Worker(), rng=actual_rng, on_progress=observe)
+    assert calls == [(0, False), (1, False), (2, False), (3, False)]
+    assert actual_rng.bit_generator.state == expected_rng.bit_generator.state
+    for a, b in zip(actual.endpoints, expected.endpoints):
+        np.testing.assert_array_equal(a.positions, b.positions)
+    # Recovery announces the last valid commit, not the damaged latest round.
+    (path / 'round-000003/state.json').write_text('{broken')
+    calls.clear()
+    run(path, Worker(), on_progress=observe)
+    assert calls == [(2, True), (3, False)]
+
+
+def test_progress_does_not_report_pending_or_failed_commit(tmp_path, monkeypatch):
+    calls = []
+    observe = lambda step, offset, resumed=False: calls.append((step, resumed))
+    path = tmp_path / 'rounds'
+    run(path, Worker(pending=True), on_progress=observe)
+    assert calls == [(0, False)]
+    commit = chain._commit
+    def fail(directory, step, *args, **kwargs):
+        if step == 1:
+            raise RuntimeError('commit interrupted')
+        return commit(directory, step, *args, **kwargs)
+    monkeypatch.setattr(chain, '_commit', fail)
+    calls.clear()
+    with pytest.raises(RuntimeError, match='commit interrupted'):
+        run(path, Worker(), on_progress=observe)
+    assert calls == [(0, True)]

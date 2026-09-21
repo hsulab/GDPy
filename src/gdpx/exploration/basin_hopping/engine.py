@@ -11,6 +11,7 @@ from ase.io import write
 from gdpx.execution.lifecycle.runtime import create_runtime_workers
 from ..population.random import RandomStreamRegistry
 from .selection import HoppingStartSelector
+from .output import GenerationReporter, bh_logging
 from ..population import Population
 from ..population.config import PopulationConfig
 from ..population.comparators import create_population_comparator
@@ -257,6 +258,10 @@ class BasinHopping(BaseExpedition):
         return
 
     def run(self):
+        with bh_logging():
+            return self._run()
+
+    def _run(self):
         """"""
         self._print(f"===== Basin Hopping =====")
         # Make sure we have everything for the expedition
@@ -276,8 +281,7 @@ class BasinHopping(BaseExpedition):
             op._print = self._print
             op._debug = self._debug
             op.indent = "  "
-            for l in str(op).splitlines():
-                self._print(l)
+            self._debug(f"operator: {op.as_dict()}")
             self._print("")
 
         # Register minimum covalent bond distance used by operators
@@ -307,11 +311,38 @@ class BasinHopping(BaseExpedition):
         for _ in range(1000):
             gen_info = database.get_generation_info()
             converged = self.read_convergence(gen_info=gen_info)
-            self._print(f"Generation info: {gen_info} converged={converged}")
             if not converged:
-                status = self._irun(database, gen_info)
+                gen_num = gen_info.num
+                reporter = GenerationReporter(
+                    database, self.directory / "tmp_folder" / f"gen{gen_num}" / "rounds",
+                    gen_num, self.convergence["generation"], self.population_config.gen_size,
+                    self.num_mcmoves, self.population_config.init_size, self.objective["target"],
+                    resumed=database.get_generation_plan(gen_num) is not None)
+                self._generation_reporter = reporter
+                try:
+                    status = self._irun(database, gen_info)
+                    plan = database.get_generation_plan(gen_num) or {}
+                    if status is EvaluationStatus.PENDING:
+                        detail = (f"waiting for round {reporter.step + 1}/{self.num_mcmoves} evaluations"
+                                  if gen_num else "waiting for initialization evaluations")
+                        reporter.finish("waiting", detail)
+                    else:
+                        extinct = plan.get("termination_reason") == "extinct"
+                        if not gen_num:
+                            extinct = not any(not row.get("extinct", 0) for row in
+                                              database.connection.select(relaxed=1, generation=0,
+                                                                         columns=['id', 'key_value_pairs']))
+                        reporter.finish("extinct" if extinct else "complete")
+                except BaseException as error:
+                    # Output must not obscure the original calculation failure.
+                    try:
+                        reporter.finish("failed", f"{type(error).__name__}: {error}")
+                    except Exception:
+                        pass
+                    raise
+                finally:
+                    self._generation_reporter = None
                 if status is EvaluationStatus.PENDING:
-                    self._print("Wait generation to finish.")
                     break
             else:
                 self.report(database)
@@ -411,7 +442,9 @@ class BasinHopping(BaseExpedition):
                 starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
                 self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
                 restart_chains=restart_chains, random_streams=self.random_streams,
-                store_history=False)
+                store_history=False,
+                on_progress=(getattr(self, "_generation_reporter", None).progress
+                             if getattr(self, "_generation_reporter", None) is not None else None))
             if outcome.status is EvaluationStatus.PENDING:
                 return None
             if outcome.extinct:
@@ -505,8 +538,8 @@ class BasinHopping(BaseExpedition):
                 avg=np.mean(properties),
                 std=np.std(properties),
             )
-            self._print(
-                f"num {properties.shape[0]:>4d} min {stats['min']:>12.4f} max {stats['max']:>12.4f} avg {stats['avg']:>12.4f} std {stats['std']:>12.4f}"
+            self._debug(
+                f"generation {i}: {properties.shape[0]} candidates; {target} statistics: {stats}"
             )
             data.append([i, properties])
 
