@@ -111,11 +111,13 @@ class ExpeditionBasedWorker(BaseWorker):
     def job_store(self):
         self._initialise()
         if self._job_store is None:
-            self._job_store = JobStore(self.metadata_directory / f'_{self.scheduler.name}_jobs.json')
+            self._job_store = JobStore(self.metadata_directory / '_scheduler.json')
         return self._job_store
 
     def _initialise(self, *args, **kwargs):
-        self.output_directories = exploration_layout(self.directory, len(self.expeditions), create=True)
+        self.output_directories = exploration_layout(
+            self.directory, len(self.expeditions), create=True, scheduler=self.scheduler.name
+        )
         super()._initialise(*args, **kwargs)
 
     def _prepare_job(self, index, uid, job_name, wdir_names):
@@ -130,7 +132,7 @@ class ExpeditionBasedWorker(BaseWorker):
         if self.scheduler.transport_name == 'ssh':
             self.scheduler.local_root = self.directory.resolve()
             self.scheduler.staging_excludes = {
-                path.resolve() for path in self.metadata_directory.glob('_*_jobs.json')
+                path.resolve() for path in self.metadata_directory.glob('_*.json')
             }
         # Submission happens beside the script, including after SSH staging.
         # PBS may start in the user's home directory instead of that directory.
