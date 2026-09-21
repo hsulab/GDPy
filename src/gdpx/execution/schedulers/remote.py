@@ -23,12 +23,13 @@ def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_pa
     return remote_attr.st_size != local_stat.st_size or remote_attr.st_mtime != local_stat.st_mtime
 
 
-def _sync_latest_recursive(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items) -> int:
+def _sync_latest_recursive(sftp: paramiko.SFTPClient, remote_dir: str, local_dir: str, skipped_items,
+                           protected_paths=()) -> int:
     files_synced = 0
     for item in sftp.listdir_attr(remote_dir):
         remote_item = os.path.join(remote_dir, item.filename)
         local_item = os.path.join(local_dir, item.filename)
-        if item.filename in skipped_items:
+        if item.filename in skipped_items or pathlib.Path(local_item).resolve() in protected_paths:
             continue
         if stat.S_ISREG(item.st_mode):
             os.makedirs(local_dir, exist_ok=True)
@@ -38,7 +39,7 @@ def _sync_latest_recursive(sftp: paramiko.SFTPClient, remote_dir: str, local_dir
                 os.utime(local_item, (remote_attr.st_atime, remote_attr.st_mtime))
                 files_synced += 1
         elif stat.S_ISDIR(item.st_mode):
-            files_synced += _sync_latest_recursive(sftp, remote_item, local_item, skipped_items)
+            files_synced += _sync_latest_recursive(sftp, remote_item, local_item, skipped_items, protected_paths)
     return files_synced
 
 
@@ -49,6 +50,7 @@ def _remove_outdated_recursive(
     skipped_items: list[str],
     print_func=print,
     debug_func=print,
+    protected_paths=(),
 ) -> int:
     del debug_func
     if not os.path.isdir(local_dir):
@@ -57,7 +59,7 @@ def _remove_outdated_recursive(
     for item in os.listdir(local_dir):
         remote_item = os.path.join(remote_dir, item)
         local_item = os.path.join(local_dir, item)
-        if item in skipped_items:
+        if item in skipped_items or pathlib.Path(local_item).resolve() in protected_paths:
             continue
         try:
             sftp.stat(remote_item)
@@ -71,7 +73,8 @@ def _remove_outdated_recursive(
             continue
         if os.path.isdir(local_item):
             items_removed += _remove_outdated_recursive(
-                sftp, remote_item, local_item, skipped_items, print_func=print_func
+                sftp, remote_item, local_item, skipped_items, print_func=print_func,
+                protected_paths=protected_paths
             )
     return items_removed
 
@@ -102,6 +105,9 @@ class SshTransport(BaseScheduler):
         self.hostname = hostname
         self.remote_wdir = remote_path
         self.local_root: Optional[pathlib.Path] = None
+        # Optional exact exclusions for callers sharing a staging root. The
+        # default retains legacy name-based job-store exclusions.
+        self.staging_excludes: Optional[set[pathlib.Path]] = None
         self._ssh_client_factory = ssh_client_factory or paramiko.SSHClient
 
     @property
@@ -226,7 +232,8 @@ class SshTransport(BaseScheduler):
         skipped = {f"_{self.name}_jobs.json"}
         for path in local_root.rglob("*"):
             relative = path.relative_to(local_root)
-            if relative.name in skipped:
+            if (path.resolve() in self.staging_excludes if self.staging_excludes is not None
+                    else relative.name in skipped):
                 continue
             remote_path = remote_root.joinpath(*relative.parts)
             if path.is_dir():
@@ -291,13 +298,33 @@ class SshTransport(BaseScheduler):
         finally:
             client.close()
 
-    def sync(self, wdir_names: Iterable[str] = ()) -> None:
+    def sync(self, wdir_names: Iterable[str] = (), *, root_relative: bool = False) -> None:
+        """Retrieve outputs; root-relative mode protects shared exploration metadata."""
         local_root, remote_root, _ = self._roots()
         skipped = [f"_{self.name}_jobs.json"]
         client = self._client()
         sftp = None
         try:
             sftp = client.open_sftp()
+            if root_relative:
+                # Exploration jobs share metadata but own disjoint output trees.
+                protected = {(local_root / '_meta').resolve()}
+                count = removed = 0
+                for name in wdir_names:
+                    local_item = (local_root / name).resolve()
+                    relative = local_item.relative_to(local_root)
+                    if local_item in protected or (local_root / '_meta') in local_item.parents:
+                        raise ValueError('Cannot synchronize shared exploration metadata as outputs.')
+                    remote_item = remote_root.joinpath(*relative.parts)
+                    count += _sync_latest_recursive(
+                        sftp, str(remote_item), str(local_item), [], protected
+                    )
+                    removed += _remove_outdated_recursive(
+                        sftp, str(remote_item), str(local_item), [], print_func=self._print,
+                        protected_paths=protected,
+                    )
+                self._debug(f'synced {count} files; removed {removed} outdated items.')
+                return
             count = _sync_latest_recursive(sftp, str(remote_root), str(local_root), skipped)
             self._print(f"synced {count} files from {remote_root}.")
             removed = 0

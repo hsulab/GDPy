@@ -7,6 +7,7 @@ from typing import Optional, Union
 
 from gdpx import config
 from gdpx.exploration.output import exploration_output
+from gdpx.exploration.layout import exploration_layout, reject_legacy_layout
 from gdpx.workflow.factory import create_expedition
 from gdpx.execution.schedulers.factory import canonicalise_scheduler
 from gdpx.execution.factory import create_worker
@@ -65,7 +66,10 @@ def run_expedition(
 
         num_expeditions = len(expedition)
         if spawn:  # Run expedition in commandline as input files are prepared by worker
-            exp_indices = spawn.split(",")
+            exp_indices = [int(index) for index in spawn.split(",")]
+            if any(index < 0 for index in exp_indices) or len(set(exp_indices)) != len(exp_indices):
+                raise ValueError("Spawn indices must be distinct nonnegative integers.")
+            reject_legacy_layout(directory)
             num_indices = len(exp_indices)
             assert (
                 num_expeditions == num_indices
@@ -78,9 +82,16 @@ def run_expedition(
                     print_func=config._print,
                 )
             else:
+                directories = exploration_layout(directory)
+                if directories is None:
+                    directories = exploration_layout(
+                        directory, max(num_expeditions, max(exp_indices) + 1), create=True
+                    )
+                if max(exp_indices) >= len(directories):
+                    raise ValueError("Spawn index is outside the saved exploration layout.")
                 for i, exp in zip(exp_indices, expedition):
                     run_expedition_in_commandline(
-                        directory / f"expedition-{i}",
+                        directory / directories[i],
                         exp,
                         timewait=wait,
                         print_func=config._print,

@@ -12,6 +12,7 @@ import omegaconf
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.factory import create_expedition
 from gdpx.exploration.expedition import BaseExpedition
+from gdpx.exploration.layout import exploration_layout
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.variable import DummyVariable, Variable
 from gdpx.execution.workers.explore import ExpeditionBasedWorker
@@ -107,12 +108,11 @@ class explore(Operation):
             curr_iter = int(self.directory.parent.name.split(".")[-1])
             if curr_iter > 0:
                 self._print("    >>> Update seed_file...")
-                for i in range(num_expeditions):
-                    prev_wdir = (
-                        self.directory.parent.parent / f"iter.{str(curr_iter-1).zfill(4)}" / self.directory.name
-                    ) / f"expedition-{i}"
-                    if hasattr(expedition, "update_active_params"):
-                        expedition.update_active_params(prev_wdir)
+                previous = self.directory.parent.parent / f"iter.{curr_iter-1:04d}" / self.directory.name
+                directories = exploration_layout(previous, num_expeditions)
+                for i, current in enumerate(expeditions):
+                    if hasattr(current, "update_active_params"):
+                        current.update_active_params(previous / directories[i])
 
         self._print(f"{dyn_worker=}")
         for expedition in expeditions:
