@@ -5,7 +5,6 @@ recipe:
     periodic: true
     comparator:
       method: interatomic_distance
-    retained_size: 2
     builders:
       random:
         method: random_structure_improved

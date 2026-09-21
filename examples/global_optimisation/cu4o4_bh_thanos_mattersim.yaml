@@ -2,7 +2,6 @@ method: basin_hopping
 recipe:
   random_seed: 7
   population:
-    retained_size: 2
     periodic: true
     thanos:
       name: restraints
@@ -37,7 +36,7 @@ recipe:
     - method: rattle
       particles: [Cu, O]
       temperature: 100000.0  # Deliberately high to exercise extinction after acceptance.
-      rattle_strength: 1.8
+      rattle_strength: 1.8  # Tuned with rattle_prop to trigger extinction in this short demo.
       rattle_prop: 0.8
       covalent_ratio: [0.6, 2.0]
       max_random_attempts: 100
