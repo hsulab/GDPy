@@ -1,71 +1,49 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+"""Optional TACE ASE adapter for checkpoints and foundation models."""
 
 import copy
-
-from gdpx.providers.ase.backend import DummyCalculator
 
 from ..manager_base import BasePotentialManager
 from ..potential_utils import build_a_committee_calculator, canonicalise_input_models
 
 
+def canonicalise_tace_models(model, foundation_names=()):
+    """Preserve registered aliases and resolve checkpoint paths without downloading."""
+    models = model if isinstance(model, list) else [model]
+    if not models or any(not isinstance(m, str) or not m.strip() for m in models):
+        raise ValueError("TACE model must be a non-empty name, checkpoint path, or list of these.")
+    names = set(foundation_names)
+    return [m if m in names else canonicalise_input_models(m)[0] for m in models]
+
+
 class TaceManager(BasePotentialManager):
-
     name = "tace"
-
     implemented_backends = ("ase",)
-
     valid_combinations = (("ase", "ase"),)
 
-    def register_calculator(self, calc_params: dict, *agrs, **kwargs):
-        """Register the calculator."""
-        super().register_calculator(calc_params=calc_params, *agrs, **kwargs)
+    def register_calculator(self, calc_params: dict, *args, **kwargs):
+        params = copy.deepcopy(calc_params)
+        super().register_calculator(calc_params=params, *args, **kwargs)
+        try:
+            import torch
+            from tace.foundations import tace_foundations
+            from tace.interface.ase import TACEAseCalc
+        except ImportError as exc:
+            raise ImportError(
+                "TACE requires a compatible TACE and PyTorch installation. "
+                "Install GDPy's TACE extra with: python -m pip install '.[tace]'"
+            ) from exc
 
-        calc_params = copy.deepcopy(calc_params)
-
-        # Check if all models exist and update the self.calc_params
-        # as the potential may be used in other directories if submitted by a scheduler.
-        models = canonicalise_input_models(calc_params.pop("model", []))
+        # Iteration lists names only: Mapping membership would trigger downloads.
+        names = set(tace_foundations)
+        models = canonicalise_tace_models(params.pop("model", None), names)
         self.calc_params.update(model=models)
-
-        precision = calc_params.pop("precision", "float32")
-
-        estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
-
-        calc = DummyCalculator()
-        if self.calc_backend == "ase":
-            try:
-                import torch
-                from tace.interface.ase import TACECalculator
-            except:
-                raise ModuleNotFoundError("Please install tace and torch to use the ase interface.")
-
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-
-            shared_params = dict(use_ema=True, device=device, dtype=precision)
-            params_list = []
-            for m in models:
-                specific_params = copy.deepcopy(shared_params)
-                specific_params["model_path"] = m
-                params_list.append(specific_params)
-
-            num_models = len(models)
-            if num_models > 0:
-                calc = build_a_committee_calculator(
-                    TACECalculator,
-                    params_list=params_list,
-                    estimate_uncertainty=estimate_uncertainty,
-                )
-        elif self.calc_backend == "lammps":
-            raise NotImplementedError("The lammps backend is not implemented for the tace potential. Please use the ase backend.")
-        else:
-            ...  # Backend has already been checked.
-
-        self.calc = calc
-
-        return
-
-
-if __name__ == "__main__":
-    ...
+        precision = params.pop("precision", "float32")
+        params.setdefault("dtype", precision)
+        params.setdefault("device", "cuda" if torch.cuda.is_available() else "cpu")
+        uncertainty = params.pop("estimate_uncertainty", False)
+        resolved = [str(tace_foundations[m]) if m in names else m for m in models]
+        self.calc = build_a_committee_calculator(
+            TACEAseCalc,
+            params_list=[dict(params, model=m) for m in resolved],
+            estimate_uncertainty=uncertainty,
+        )

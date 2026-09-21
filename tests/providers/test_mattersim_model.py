@@ -50,7 +50,7 @@ def test_water_cluster_example_uses_the_fastest_pretrained_model():
 
     builder = config["recipe"]["population"]["builders"]["random"]
     assert builder["composition"] == {"H2O": 4}
-    assert builder["pbc"] is True
+    assert config["recipe"]["population"]["periodic"] is True
     assert config["recipe"]["operators"]["crossover"]["method"] == (
         "periodic_cut_and_splice"
     )
