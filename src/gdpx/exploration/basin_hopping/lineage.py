@@ -58,18 +58,46 @@ def collect_lineage(connection, directory):
     return nodes, restarts
 
 
-def _ids_fit(positions, transform):
-    """Require space for every ID at the actual output pixel scale."""
-    points = sorted((transform.transform(position)[0], transform.transform(position)[1],
-                     max(24, len(str(identifier)) * 6 + 12))
-                    for identifier, position in positions.items())
-    for index, (x, y, width) in enumerate(points):
-        for other_x, other_y, other_width in points[index + 1:]:
-            if other_x - x >= max(width, other_width):
+def _boxes_fit(boxes, bounds):
+    """Check marker/label envelopes in output pixels, including frame clearance."""
+    boxes = sorted(boxes)
+    for index, (left, bottom, right, top) in enumerate(boxes):
+        if left < bounds.x0 or right > bounds.x1 or bottom < bounds.y0 or top > bounds.y1:
+            return False
+        for other_left, other_bottom, _, other_top in boxes[index + 1:]:
+            if other_left >= right:
                 break
-            if abs(other_y - y) < 28:
+            if other_bottom < top and other_top > bottom:
                 return False
     return True
+
+
+def _node_style(positions, ax):
+    """Choose the largest readable marker/ID pair fitting the actual raster."""
+    from matplotlib.font_manager import FontProperties
+
+    renderer = ax.figure.canvas.get_renderer()
+    scale = ax.figure.dpi / 72
+    points = [(str(identifier), *ax.transData.transform(position))
+              for identifier, position in positions.items()]
+    for font_size in range(18, 7, -1):
+        diameter = font_size + 6
+        radius = diameter * scale / 2
+        boxes = []
+        font = FontProperties(size=font_size)
+        for label, x, y in points:
+            width, height, descent = renderer.get_text_width_height_descent(label, font, False)
+            half_width = max(radius, width / 2) + 3
+            boxes.append((x - half_width, y - radius - 4 * scale - max(height + descent, font_size * scale),
+                          x + half_width, y + radius + 3))
+        if _boxes_fit(boxes, ax.bbox):
+            return diameter, font_size
+    for diameter in range(18, 2, -1):
+        radius = diameter * scale / 2 + 3
+        boxes = [(x - radius, y - radius, x + radius, y + radius) for _, x, y in points]
+        if _boxes_fit(boxes, ax.bbox):
+            return diameter, None
+    return 3, None
 
 
 def _plot_generation(nodes, restarts, generation, path, population=()):
@@ -108,7 +136,7 @@ def _plot_generation(nodes, restarts, generation, path, population=()):
             spine.set_color('#123b68')
         energies = [nodes[i]['energy'] for i in selected if np.isfinite(nodes[i]['energy'])]
         norm = Normalize(min(energies), max(energies)) if energies else Normalize(0, 1)
-        cmap = plt.get_cmap('viridis')
+        cmap = plt.get_cmap('coolwarm')
         colorbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, pad=.025, fraction=.04)
         colorbar.set_label('energy [eV]', color='#123b68')
         colorbar.ax.tick_params(colors='#123b68')
@@ -116,9 +144,9 @@ def _plot_generation(nodes, restarts, generation, path, population=()):
         if not energies:
             colorbar.set_ticks([])
         fig.canvas.draw()
-        show_ids = _ids_fit(positions, ax.transData)
-        size = 42 if show_ids else 12
-        shrink = 4 if show_ids else 2
+        diameter, font_size = _node_style(positions, ax)
+        size = diameter ** 2
+        shrink = diameter / 2 + 1
         for identifier in sorted(current):
             for parent in nodes[identifier]['parents']:
                 if parent in positions:
@@ -137,10 +165,10 @@ def _plot_generation(nodes, restarts, generation, path, population=()):
             ax.scatter(x, y, s=size, facecolors=[color] if node['accepted'] else 'none',
                        edgecolors='#123b68', linewidths=.8, zorder=3)
             if node['extinct']:
-                ax.scatter(x, y, s=size * 1.5, marker='x', color='#d62728', linewidths=1.2, zorder=4)
-            if show_ids:
-                ax.annotate(str(identifier), (x, y), xytext=(0, -12), textcoords='offset points',
-                            ha='center', fontsize=7, color='#123b68')
+                ax.scatter(x, y, s=size, marker='x', color='#d62728', linewidths=1.2, zorder=4)
+            if font_size is not None:
+                ax.annotate(str(identifier), (x, y), xytext=(0, -diameter / 2 - 3), textcoords='offset points',
+                            ha='center', va='top', fontsize=font_size, color='#123b68')
         path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(path, dpi=100, facecolor='white')
     finally:

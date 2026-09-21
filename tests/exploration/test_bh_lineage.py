@@ -71,11 +71,19 @@ def test_dense_generation_is_compact_and_has_no_text(tmp_path, monkeypatch):
         assert image.size == (1200, 600)
 
 
-def test_ids_depend_on_pixel_spacing():
-    from matplotlib.transforms import IdentityTransform
-    from gdpx.exploration.basin_hopping.lineage import _ids_fit
-    assert _ids_fit({1: (0, 0), 2: (60, 0)}, IdentityTransform())
-    assert not _ids_fit({1: (0, 0), 2: (10, 0)}, IdentityTransform())
+def test_markers_and_ids_grow_to_fit_available_space():
+    import matplotlib.pyplot as plt
+    from gdpx.exploration.basin_hopping.lineage import _node_style
+    fig, ax = plt.subplots(figsize=(12, 6), dpi=100)
+    try:
+        ax.set(xlim=(-1, 10), ylim=(-1, 10))
+        fig.canvas.draw()
+        diameter, font_size = _node_style({1: (1, 1), 2: (8, 8)}, ax)
+        assert diameter == 24 and font_size == 18
+        crowded_diameter, crowded_font = _node_style({1000: (1, 1), 1001: (1.2, 1)}, ax)
+        assert crowded_diameter < diameter and crowded_font is None
+    finally:
+        plt.close(fig)
 
 
 def test_generation_figures_include_initial_and_saved_population(tmp_path, monkeypatch):

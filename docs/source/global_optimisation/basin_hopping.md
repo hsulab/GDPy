@@ -199,14 +199,15 @@ Older runs without this snapshot show recorded chain starts and referenced
 candidates instead of reconstructing an uncertain historical population.
 
 Plots retain a frame, a round x-axis, and an energy colorbar, but omit titles,
-legends, and y-axis text. Candidate IDs appear only when the available pixel
-spacing accommodates all labels without crowding. Dense production runs
+legends, and y-axis text. Markers and candidate IDs scale to the available pixel spacing, up to
+24-point markers and 18-point IDs. Labels are omitted when they cannot fit
+without crowding or crossing the frame. Dense production runs
 (for example, 20 chains × 50 rounds) omit IDs and use smaller nodes.
 Rounds run left to right, with chains in separate lanes and rejected trials
 slightly offset; the left column's vertical positions do not indicate chain
 assignment.
 
-Node colors encode energy within each figure (purple is lower, yellow higher);
+The `coolwarm` colormap encodes energy within each figure (blue is lower, red higher);
 orange indicates unavailable energy. Filled nodes are initial or accepted
 candidates, hollow nodes are rejected trials, and red crosses mark extinct
 candidates. Dark-blue arrows show parentage. Purple dashed arrows point from a
