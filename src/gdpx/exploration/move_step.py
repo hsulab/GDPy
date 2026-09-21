@@ -9,8 +9,8 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 
-from gdpx.sampling import select_operator
-from gdpx.sampling.moves.operator import BaseMCOperator
+from .sampling import select_operator
+from .sampling.moves.operator import BaseMCOperator
 
 from .accepted_state import load_accepted_state, save_accepted_state
 from .checkpoint import load_data, save_data

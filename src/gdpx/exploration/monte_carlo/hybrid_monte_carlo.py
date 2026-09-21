@@ -15,7 +15,7 @@ from gdpx.execution.workers.single import SingleWorker
 from .monte_carlo import MCStepState, MonteCarlo
 from ..move_step import read_pending, run_worker_move
 from ..checkpoint import read_snapshot
-from gdpx.sampling import parse_operators
+from ..sampling import parse_operators
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 

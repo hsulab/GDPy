@@ -10,7 +10,7 @@ from ase.io import read
 
 from gdpx.exploration.basin_hopping import chain
 from gdpx.exploration.generation import EvaluationStatus
-from gdpx.sampling import parse_operators
+from gdpx.exploration.sampling import parse_operators
 
 
 def atoms():
@@ -165,7 +165,7 @@ def test_result_ids_are_validated(tmp_path, mode):
 @pytest.mark.parametrize("steps", [0, 2])
 def test_invalid_and_zero_hops_skip_worker(tmp_path, monkeypatch, steps):
     op = operators()[0][0]
-    from gdpx.sampling.proposal import MoveProposal
+    from gdpx.exploration.sampling.proposal import MoveProposal
     def invalid(frame, rng):
         proposal = MoveProposal(frame)
         proposal.valid = False
@@ -185,7 +185,7 @@ def test_mixed_validity_and_submission_exception_roll_back(tmp_path, monkeypatch
     original = op.propose
     starts = [atoms(), atoms()]
     starts[0].info["skip"] = True
-    from gdpx.sampling.proposal import MoveProposal
+    from gdpx.exploration.sampling.proposal import MoveProposal
     def propose(frame, rng):
         if frame.info.get("skip"):
             proposal = MoveProposal(frame)

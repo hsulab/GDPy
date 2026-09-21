@@ -22,10 +22,10 @@ from gdpx.utils.atoms_tags import get_tags_per_species
 from ..expedition import BaseExpedition
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
-from gdpx.sampling import parse_operators
+from ..sampling import parse_operators
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
 from .chain import evaluate_batch, run_hopping_rounds, finalize_checkpoints
-from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 def evaluate_candidate(
     atoms: Atoms,

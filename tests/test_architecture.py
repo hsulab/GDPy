@@ -2,6 +2,7 @@
 
 import ast
 import copy
+import importlib.util
 import os
 import pathlib
 import subprocess
@@ -14,17 +15,39 @@ ROOT = pathlib.Path(__file__).parents[1]
 
 
 def test_sampling_has_no_orchestration_dependencies():
+    package = "gdpx.exploration.sampling"
     forbidden = ("gdpx.execution", "gdpx.exploration", "gdpx.workflow", "gdpx.cli", "gdpx.providers")
-    for path in (ROOT / "src" / "gdpx" / "sampling").rglob("*.py"):
+    paths = list((ROOT / "src" / "gdpx" / "exploration" / "sampling").rglob("*.py"))
+    assert paths
+    for path in paths:
+        parent = ".".join(path.parent.relative_to(ROOT / "src").parts)
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             names = []
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names = [node.module]
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if node.level:
+                    module = importlib.util.resolve_name("." * node.level + module, parent)
+                names = [module] + [module + "." + alias.name for alias in node.names]
+            names = [name for name in names if name != package and not name.startswith(package + ".")]
             assert not any(name == prefix or name.startswith(prefix + ".")
                            for name in names for prefix in forbidden), path
+
+
+def test_sampling_import_does_not_load_exploration_engines():
+    code = """
+import sys
+import gdpx.exploration.sampling
+for prefix in ('gdpx.exploration.monte_carlo', 'gdpx.exploration.basin_hopping',
+               'gdpx.exploration.genetic_algorithm', 'gdpx.execution', 'gdpx.providers',
+               'gdpx.workflow', 'gdpx.cli'):
+    assert not any(name == prefix or name.startswith(prefix + '.') for name in sys.modules), prefix
+"""
+    environment = os.environ.copy()
+    environment.setdefault("MPLCONFIGDIR", "/tmp/gdpx-matplotlib")
+    subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=environment, check=True)
 
 DOMAIN_DIRECTORIES = tuple(
     path.name

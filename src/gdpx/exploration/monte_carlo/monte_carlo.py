@@ -15,9 +15,9 @@ from ..expedition import BaseExpedition
 from ..move_step import read_pending, run_worker_move
 from ..accepted_state import load_accepted_state, save_accepted_state
 from ..checkpoint import load_data, save_data, publish_snapshot, read_snapshot, prune_snapshots
-from gdpx.sampling.moves.operator import BaseMCOperator
-from gdpx.sampling import parse_operators
-from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from ..sampling.moves.operator import BaseMCOperator
+from ..sampling import parse_operators
+from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """

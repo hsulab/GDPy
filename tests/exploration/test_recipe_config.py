@@ -23,7 +23,7 @@ from gdpx.exploration.basin_hopping.engine import (
 )
 from gdpx.exploration.population.config import PopulationConfig
 from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
-from gdpx.sampling import parse_operators
+from gdpx.exploration.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
 
 

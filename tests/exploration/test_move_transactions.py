@@ -8,8 +8,8 @@ from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
 
-from gdpx.sampling import MoveProposal, parse_operators
-from gdpx.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
+from gdpx.exploration.sampling import MoveProposal, parse_operators
+from gdpx.exploration.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.exploration.move_step import run_worker_move
 from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
@@ -123,7 +123,7 @@ def test_rollback_does_not_reattach_or_copy_calculator_state():
 
 
 def test_failed_proposal_and_exception_after_edit_restore(monkeypatch):
-    from gdpx.sampling.moves import MoveOperator
+    from gdpx.exploration.sampling.moves import MoveOperator
     atoms, op = structure(), operator(max_random_attempts=0)
     original = atoms.positions.copy()
     assert not op.propose(atoms, np.random.default_rng(0)).valid
@@ -256,7 +256,7 @@ def test_reaction_undo_and_configuration_roundtrip():
 
 
 def test_adsorbate_helper_exception_rolls_back_appended_atoms(monkeypatch):
-    from gdpx.sampling.moves.exchange import adsorb
+    from gdpx.exploration.sampling.moves.exchange import adsorb
 
     def fail(atoms, particle, **kwargs):
         atoms.extend(particle)
