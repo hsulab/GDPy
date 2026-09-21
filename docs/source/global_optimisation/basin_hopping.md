@@ -140,7 +140,8 @@ normalized selection probabilities, particles, temperatures, and move-specific
 settings.
 
 Detailed move diagnostics are saved automatically in one file per hopping
-generation: `logs/mcmoves/gen0001.log`, `gen0002.log`, and so on. Every line has
+generation: `tmp_folder/gen1/mcmoves.log`, `tmp_folder/gen2/mcmoves.log`, and so
+on, alongside each generation's `rounds/` and `evaluations/` folders. Every line has
 a timestamp, level, generation, round, chain, segment, parent candidate, and
 operator index/name. Invocation headers contain full resolved operator settings;
 fields that do not apply to a header use `-`.

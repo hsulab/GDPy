@@ -452,7 +452,7 @@ class BasinHopping(BaseExpedition):
                     replacements.append(replacement)
                 return replacements
 
-            with MoveLog(self.directory / 'logs' / 'mcmoves' / f'gen{gen_num:04d}.log',
+            with MoveLog(gen_wdir / 'mcmoves.log',
                          gen_num, self.operators, self.op_probs) as move_logger:
                 outcome = run_hopping_rounds(
                     starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
