@@ -9,5 +9,4 @@ executor:
   method: min
   parameters:
     fmax: 0.05
-    steps: 100
-    constraint: lowest 60
+    steps: 20

@@ -55,7 +55,7 @@ def test_water_cluster_example_and_small_mattersim_runtime():
         "periodic_cut_and_splice"
     )
     assert config["recipe"]["operators"]["mutation"]["method"] == "rattle"
-    runtime_path = Path(__file__).parents[2] / "examples/global_optimisation/runtimes/mattersim_min_100.yaml"
+    runtime_path = Path(__file__).parents[2] / "examples/global_optimisation/runtimes/mattersim.yaml"
     runtime = yaml.safe_load(runtime_path.read_text())
     assert runtime["potential"] == {
         "provider": "mattersim",

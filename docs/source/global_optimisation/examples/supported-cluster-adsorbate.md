@@ -13,8 +13,9 @@ The example reuses
 `examples/global_optimisation/assets/alpha_alumina111_ortho.xyz` from the
 {ref}`ga-supported-nanoparticle-example`. The 180-atom Al72O108 slab has a
 14.28 × 16.49 Å orthogonal surface and 12 Al atoms in its exposed top layer.
-Its bottom Al–O–Al repeat unit is fixed during relaxation with
-`constraint: lowest 60`.
+The shared demo runtime allows all atoms to relax. To fix the bottom Al–O–Al
+repeat unit for a surface study, add `constraint: lowest 60` to
+`executor.parameters`.
 
 The Cu atoms and the centre of mass of CO are generated inside a sphere of
 radius 2.4 Å centred above the support. Keeping all five mobile particles in
@@ -39,7 +40,7 @@ The exploration configuration is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -58,7 +59,7 @@ After installing MatterSim, run from the repository root:
 
 ```shell
 gdp -d ./run-cu4-co-alumina111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml
 ```
 

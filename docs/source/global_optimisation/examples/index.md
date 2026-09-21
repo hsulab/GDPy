@@ -13,8 +13,10 @@ grouped by method. Shared calculation inputs live under `runtimes/` in the same
 directory. Each guide shows both files. Select a runtime with
 `gdp --runtime <runtime.yaml> explore <exploration.yaml>`; the exploration can
 be reused with another suitable potential without editing its recipe. Use a
-new output directory when changing runtimes, and preserve the slab constraints
-when adapting surface examples.
+new output directory when changing runtimes. EMT allows 1,000 relaxation steps;
+MatterSim and TACE use 20-step demos, which may not reach the force tolerance.
+The shared runtimes allow all atoms to relax; add suitable slab constraints
+when preparing a surface study.
 
 All examples run directly on the current machine by default, so their input
 files omit `scheduler`. See {ref}`scheduler-transport` to configure queue or

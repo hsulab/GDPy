@@ -24,9 +24,9 @@ fixed substrate from the searchable overlayer.
 The insertion region spans the complete right-angled periodic surface cell from
 z = 4.60 to 9.10 Å, leaving about 12.9 Å of clear vacuum above it.
 The default periodic setting applies periodic boundary conditions in all three
-directions. During relaxation,
-`constraint: lowest 4` fixes the lower Cu layer while allowing the upper layer
-and the Cu–O overlayer to relax.
+directions. The shared demo runtime allows all atoms to relax. For a surface
+study, add `constraint: lowest 4` to `executor.parameters` to fix the lower Cu
+layer while relaxing the upper layer and Cu–O overlayer.
 
 ## Input
 
@@ -39,7 +39,7 @@ The exploration configuration is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -55,7 +55,7 @@ After installing MatterSim, run from the repository root:
 
 ```shell
 gdp -d ./run-cu4o4-cu111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
 ```
 

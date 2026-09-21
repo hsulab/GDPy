@@ -17,7 +17,7 @@ The exploration input is `examples/global_optimisation/explorations/basin_hoppin
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../../examples/global_optimisation/runtimes/emt_min_300.yaml
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/emt.yaml
 :language: yaml
 ```
 
@@ -49,7 +49,7 @@ From the repository root:
 
 ```shell
 gdp -d ./run-cu8-bh-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt_min_300.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
     ./examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 ```
 

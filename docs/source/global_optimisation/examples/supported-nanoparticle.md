@@ -33,9 +33,9 @@ positive tag to every Cu atom, allowing GA operations to distinguish the fixed
 support from the searchable nanoparticle.
 :::
 
-During relaxation, `constraint: lowest 60` fixes only the bottom Al–O–Al repeat
-unit while allowing the upper six atomic planes and the Cu nanoparticle to
-relax.
+The shared demo runtime allows all atoms to relax. For a surface study, add
+`constraint: lowest 60` to `executor.parameters` to fix the bottom Al–O–Al repeat
+unit while allowing the upper six planes and Cu nanoparticle to relax.
 
 ## Input
 
@@ -48,7 +48,7 @@ The exploration configuration is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_alumina_min_20.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -64,7 +64,7 @@ After installing MatterSim, run from the repository root:
 
 ```shell
 gdp -d ./run-cu4-alumina111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_alumina_min_20.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml
 ```
 

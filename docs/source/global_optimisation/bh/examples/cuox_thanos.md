@@ -22,7 +22,7 @@ prevents severe overlap; Thanos applies its separate rule after minimization.
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../../examples/global_optimisation/runtimes/mattersim_min_150.yaml
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -51,19 +51,23 @@ root, run:
 
 ```shell
 OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_min_150.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
 
 python ./examples/global_optimisation/verify_cu4o4_bh_thanos.py \
     ./run-cu4o4-bh-thanos/expedition-0
 ```
 
+The shared MatterSim runtime now limits relaxation to 20 steps; the previous
+verified extinction sequence below used 150 steps. The shorter demo may not
+trigger the same events or pass the verifier.
+
 The verifier requires an actual minimized O–O-containing trial that was accepted,
 marked extinct, replaced by an eligible candidate, and followed by another trial
 in the new segment. It fails if the run only extinguishes initialization
 structures or MC-rejected trials.
 
-In the checked CPU run with seed 7, chain 1 produced candidate 20 at round 6
+In the earlier 150-step CPU run with seed 7, chain 1 produced candidate 20 at round 6
 with an O–O distance of approximately 1.38 Å. It was accepted and marked extinct;
 the chain restarted and continued in segment 1. Initialization also produced
 extinct candidates with O–O distances near 1.30 Å. Numerical differences between

@@ -7,4 +7,4 @@ executor:
   method: min
   parameters:
     fmax: 0.05
-    steps: 300
+    steps: 1000

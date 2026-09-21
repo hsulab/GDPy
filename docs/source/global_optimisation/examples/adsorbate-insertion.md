@@ -41,7 +41,7 @@ The complete configuration is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -49,7 +49,8 @@ The only named builder is `adsorbate`, so `reference_builder: adsorbate`
 identifies it as the source of substrate and bond-distance metadata. The CO
 atoms share one positive tag, so default fragment preservation makes periodic
 cut-and-splice crossover and rattle mutation treat CO as one particle. The
-bottom Al–O–Al slab unit is fixed with `constraint: lowest 60`.
+shared demo runtime allows all atoms to relax. To fix the bottom Al–O–Al slab
+unit for a surface study, add `constraint: lowest 60` to `executor.parameters`.
 
 MatterSim is used because the potential must describe Cu, C, O, Al, and their
 interfaces. See the {ref}`potential-mattersim` guide for installation and model
@@ -61,7 +62,7 @@ After installing MatterSim, run from the repository root:
 
 ```shell
 gdp -d ./run-cu4-co-adsorbate-insertion \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_alumina_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml
 ```
 

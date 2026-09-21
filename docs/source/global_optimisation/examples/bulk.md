@@ -19,7 +19,7 @@ The complete example is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt.yaml
 :language: yaml
 ```
 
@@ -36,7 +36,7 @@ From the repository root, run:
 
 ```shell
 gdp -d ./run-cu4-bulk-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
 ```
 

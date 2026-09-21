@@ -16,7 +16,7 @@ This is a short demonstration, not a converged global-minimum search.
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../../examples/global_optimisation/runtimes/tace_min_300.yaml
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/tace.yaml
 :language: yaml
 ```
 
@@ -32,13 +32,14 @@ Install the {ref}`TACE extra <potential-tace>` and run from the repository root:
 conda activate catorch3
 python -m pip install -e '.[tace]'
 OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-tace \
-    --runtime ./examples/global_optimisation/runtimes/tace_min_300.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/tace.yaml explore \
     ./examples/global_optimisation/explorations/basin_hopping/cu4o4.yaml
 ```
 
 The first calculation downloads the approximately 29 MB checkpoint to
 `~/.cache/tace/`. The runtime explicitly uses CPU and float32, without compilation
-or CUDA extensions. Use `device: cuda` on a compatible GPU installation.
+or CUDA extensions. Relaxations are limited to 20 steps and may not reach the
+force tolerance. Use `device: cuda` on a compatible GPU installation.
 
 Under `run-cu4o4-bh-tace/expedition-0`, inspect `candidates.db` for relaxed
 structures and acceptance metadata, `results/lineage/gen0001.png` for the search
@@ -68,10 +69,10 @@ Validated with TACE 0.2.2 at commit
 `90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896`, Torch 2.14.0, NumPy 2.0.2,
 ASE 3.27.0, matscipy 1.2.0, and Lightning 2.6.6. Both models matched direct
 upstream energy and force calculations, and local checkpoint loading worked.
-A symmetric Cu₄O₄ test structure relaxed to a maximum force of 0.045 eV/Å.
+Using a 300-step limit, a symmetric Cu₄O₄ test structure relaxed to a maximum force of 0.045 eV/Å.
 MatterSim 1.2.3 also passed an energy/force smoke test in the same environment.
 
-The complete recipe produced four initial relaxed candidates and 16 relaxed
+With the earlier 300-step runtime, the complete recipe produced four initial relaxed candidates and 16 relaxed
 trials across all eight rounds, with a best energy of approximately
 −36.1774 eV. Every stored relaxed structure had finite energy and forces.
 The lineage figure was generated, and rerunning the completed search left the

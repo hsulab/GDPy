@@ -48,7 +48,7 @@ calculation runtime minimizes initial structures and every valid trial batch.
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../examples/global_optimisation/runtimes/emt_min_300.yaml
+```{literalinclude} ../../../examples/global_optimisation/runtimes/emt.yaml
 :language: yaml
 ```
 

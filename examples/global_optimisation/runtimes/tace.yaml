@@ -1,13 +1,14 @@
 schema_version: 3
 potential:
-  provider: mattersim
+  provider: tace
   parameters:
-    model: MatterSim-v1.0.0-1M
-    compute_stress: false
+    model: TACE-OAM-7M
+    precision: float32
+    device: cpu
+    fidelity_idx: 0
 executor:
   provider: ase
   method: min
   parameters:
     fmax: 0.05
     steps: 20
-    constraint: lowest 60

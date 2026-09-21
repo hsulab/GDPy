@@ -46,8 +46,9 @@ Cu/O reservoirs before interpreting a production search.
 
 The substrate is
 `examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`, with four Cu atoms
-in each layer. The lower four atoms are fixed during relaxation, while the
-upper substrate layer and the CuₓOᵧ overlayer can relax. The insertion region
+in each layer. The shared demo runtime allows all atoms to relax. For a surface
+study, add `constraint: lowest 4` to `executor.parameters` to fix the lower
+layer while relaxing the upper layer and CuₓOᵧ overlayer. The insertion region
 covers the complete surface cell from z = 4.60 to 9.10 Å.
 
 The complete configuration is available at
@@ -59,7 +60,7 @@ The complete configuration is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -74,7 +75,7 @@ After installing MatterSim, run from the repository root:
 
 ```shell
 gdp -d ./run-cuxoy-cu111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_cu111_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
 ```
 

@@ -20,7 +20,7 @@ The complete example is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim_min_100.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
 :language: yaml
 ```
 
@@ -36,7 +36,7 @@ guide, run from the repository root:
 
 ```shell
 gdp -d ./run-water4-mattersim \
-    --runtime ./examples/global_optimisation/runtimes/mattersim_min_100.yaml explore \
+    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
 ```
 

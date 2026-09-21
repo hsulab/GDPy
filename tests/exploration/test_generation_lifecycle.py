@@ -121,7 +121,7 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
         import yaml
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml"
         config = yaml.safe_load(path.read_text())
-        runtime = yaml.safe_load((path.parents[2] / "runtimes/emt_min_100.yaml").read_text())
+        runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
         config["recipe"].update(convergence={"generation": 0}, use_archive=False)
     engine = make_engine(config, runtime, tmp_path / "run")
     original = GlobalOptimisationDatabase.add_relaxed_step
@@ -157,7 +157,7 @@ def test_restart_between_generations_preserves_search_trajectory(tmp_path, monke
         import yaml
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml"
         config = yaml.safe_load(path.read_text())
-        runtime = yaml.safe_load((path.parents[2] / "runtimes/emt_min_100.yaml").read_text())
+        runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
         config["recipe"].update(convergence={"generation": 2}, use_archive=False)
     baseline = make_engine(config, runtime, tmp_path / "baseline")
     baseline.run()
