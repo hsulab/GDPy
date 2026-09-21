@@ -374,3 +374,51 @@ def test_progress_does_not_report_pending_or_failed_commit(tmp_path, monkeypatch
     with pytest.raises(RuntimeError, match='commit interrupted'):
         run(path, Worker(), on_progress=observe)
     assert calls == [(0, True)]
+
+
+def test_move_logging_preserves_results_rng_and_resume(tmp_path, monkeypatch):
+    from gdpx.exploration.sampling.logging import MoveLog
+    rngs = [np.random.default_rng(9), np.random.default_rng(9)]
+    ops, probs = operators()
+    baseline = chain.run_hopping_rounds([atoms(), atoms()], Worker(), ops, probs, 1, rngs[0], tmp_path / 'baseline')
+    worker = Worker(pending=True)
+    path = tmp_path / 'logged'
+    logfile = tmp_path / 'gen0001.log'
+    with MoveLog(logfile, 1, ops, probs) as log:
+        pending = chain.run_hopping_rounds([atoms(), atoms()], worker, ops, probs, 1, rngs[1], path, move_logger=log)
+    assert pending.status is EvaluationStatus.PENDING
+    assert 'committed: accepted' not in logfile.read_text()
+    monkeypatch.setattr(ops[0], 'propose', lambda *args: pytest.fail('regenerated pending proposal'))
+    worker.pending = False
+    with MoveLog(logfile, 1, ops, probs) as log:
+        resumed = chain.run_hopping_rounds([atoms(), atoms()], worker, ops, probs, 1, rngs[1], path, move_logger=log)
+    assert rngs[0].bit_generator.state == rngs[1].bit_generator.state
+    for expected, actual in zip(baseline.endpoints, resumed.endpoints):
+        np.testing.assert_array_equal(expected.positions, actual.positions)
+    assert (tmp_path / 'baseline/events.jsonl').read_bytes() == (path / 'events.jsonl').read_bytes()
+    text = logfile.read_text()
+    assert text.count('proposal begins') == 2
+    assert text.count('committed: accepted') == 2
+    assert 'reusing pending proposals' in text and 'resumed after committed round 0' in text
+
+
+@pytest.mark.parametrize('valid,energy,word', [(False, 0., 'invalid proposal'), (True, 1e6, 'rejected')])
+def test_move_log_invalid_and_rejected(tmp_path, monkeypatch, valid, energy, word):
+    from gdpx.exploration.sampling.logging import MoveLog
+    from gdpx.exploration.sampling.proposal import MoveProposal
+    ops, probs = operators()
+    if not valid:
+        def invalid(frame, rng):
+            proposal = MoveProposal(frame)
+            proposal.valid = False
+            proposal.rollback()
+            return proposal
+        monkeypatch.setattr(ops[0], 'propose', invalid)
+    worker = Worker(energy=energy)
+    logfile = tmp_path / 'moves.log'
+    with MoveLog(logfile, 1, ops, probs) as log:
+        chain.run_hopping_rounds([atoms()], worker, ops, probs, 1, np.random.default_rng(9),
+                                 tmp_path / 'rounds', move_logger=log)
+    assert 'committed: ' + word in logfile.read_text()
+    if not valid:
+        assert not worker.batches

@@ -116,3 +116,18 @@ class GenerationReporter(Box):
         self.line(f'elapsed this invocation: {time.monotonic() - self.started:.1f} s')
         self.border('bottom')
         self.closed = True
+
+
+def report_setup(operators, probabilities):
+    """Show resolved operator basics once per invocation, outside generation boxes."""
+    box = Box('basin hopping | setup')
+    for index, (operator, probability) in enumerate(zip(operators, probabilities)):
+        params = operator.as_dict()
+        box.line(f'operator {index}: {operator.name} | probability: {probability:.6g}')
+        box.line(f"particles: {params.get('particles', '—')} | temperature [K]: {params.get('temperature', '—')}")
+        common = {'method', 'probability', 'particles', 'temperature', 'pressure', 'region', 'group',
+                  'use_rotation', 'covalent_ratio', 'allow_isolated', 'skip_distance_check', 'max_random_attempts'}
+        settings = {key: value for key, value in params.items() if key not in common}
+        if settings:
+            box.line('settings: ' + json.dumps(settings, sort_keys=True, default=str))
+    box.border('bottom')

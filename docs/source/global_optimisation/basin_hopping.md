@@ -133,6 +133,34 @@ Exported trajectories include replacement structures marked with `event: restart
 `segment`, and `source_confid`. Rejected and extinct trial geometries remain
 available in the database and worker outputs.
 
+## Operator summary and move logs
+
+Each BH invocation prints a compact setup box with operator indices and names,
+normalized selection probabilities, particles, temperatures, and move-specific
+settings.
+
+Detailed move diagnostics are saved automatically in one file per hopping
+generation: `logs/mcmoves/gen0001.log`, `gen0002.log`, and so on. Every line has
+a timestamp, level, generation, round, chain, segment, parent candidate, and
+operator index/name. Invocation headers contain full resolved operator settings;
+fields that do not apply to a header use `-`.
+
+Routine operator messages are written at normal verbosity. Detailed DEBUG
+messages are included only when GDPy's DEBUG logging is enabled. Move details
+stay out of the normal console, while setup and progress boxes remain visible.
+
+Logs distinguish uncommitted proposal diagnostics from committed outcomes.
+Outcome lines include acceptance/rejection, energies, extinction, and restart
+candidate IDs where applicable. Invalid proposals are logged without an
+evaluation. Resume appends an invocation marker and identifies reused pending
+proposals; it does not regenerate them for logging. An interruption can leave
+uncommitted or replayed diagnostics, so `events.jsonl` and checkpoints remain the
+authoritative scientific history. These logs survive checkpoint cleanup.
+
+Logging uses existing results and scalar metadata: it does not copy atoms,
+evaluate calculators, or consume random numbers. Canonical MC logging is
+unchanged.
+
 ## Execution and checkpoints
 
 ### Generation output

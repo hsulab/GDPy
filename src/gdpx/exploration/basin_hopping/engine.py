@@ -11,7 +11,8 @@ from ase.io import write
 from gdpx.execution.lifecycle.runtime import create_runtime_workers
 from ..population.random import RandomStreamRegistry
 from .selection import HoppingStartSelector
-from .output import GenerationReporter, bh_logging
+from .output import GenerationReporter, bh_logging, report_setup
+from ..sampling.logging import MoveLog
 from ..population import Population
 from ..population.config import PopulationConfig
 from ..population.comparators import create_population_comparator
@@ -316,6 +317,8 @@ class BasinHopping(BaseExpedition):
 
         prepare_operators(self.operators, unique_atomic_numbers, bond_distance_dict, custom_pair_distance_dict)
 
+        report_setup(self.operators, self.op_probs)
+
         # Run generations
         for _ in range(1000):
             gen_info = database.get_generation_info()
@@ -449,13 +452,15 @@ class BasinHopping(BaseExpedition):
                     replacements.append(replacement)
                 return replacements
 
-            outcome = run_hopping_rounds(
-                starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
-                self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
-                restart_chains=restart_chains, random_streams=self.random_streams,
-                store_history=False,
-                on_progress=(getattr(self, "_generation_reporter", None).progress
-                             if getattr(self, "_generation_reporter", None) is not None else None))
+            with MoveLog(self.directory / 'logs' / 'mcmoves' / f'gen{gen_num:04d}.log',
+                         gen_num, self.operators, self.op_probs) as move_logger:
+                outcome = run_hopping_rounds(
+                    starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
+                    self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
+                    restart_chains=restart_chains, random_streams=self.random_streams,
+                    store_history=False, move_logger=move_logger,
+                    on_progress=(getattr(self, "_generation_reporter", None).progress
+                                 if getattr(self, "_generation_reporter", None) is not None else None))
             if outcome.status is EvaluationStatus.PENDING:
                 return None
             if outcome.extinct:

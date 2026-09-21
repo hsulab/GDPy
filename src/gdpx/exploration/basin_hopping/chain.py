@@ -3,7 +3,7 @@ import copy
 import json
 import os
 import shutil
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from dataclasses import dataclass
 
 import ase.db
@@ -113,7 +113,7 @@ def finalize_checkpoints(directory):
 
 def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, directory,
                        archive=False, record_trial=None, restart_chains=None, random_streams=None, store_history=True,
-                       on_progress=None):
+                       on_progress=None, move_logger=None):
     """Advance a generation through round barriers, returning when work is pending.
 
     Pending inputs are durable before submission. Live proposals borrow distinct
@@ -124,6 +124,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     when a registry is supplied, including replacement-selection randomness.
     Optional on_progress(step, journal_offset, resumed=False) observes only
     published state, including the initial or recovered checkpoint.
+    Optional move_logger routes proposal diagnostics and committed outcomes.
     """
     directory.mkdir(parents=True, exist_ok=True)
     # Standalone coordinators use an ASE history database. The engine disables
@@ -155,6 +156,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                        current_ids=ids, journal_offset=0, terminated=[], exhausted=False,
                        random_states=random_streams.snapshot() if random_streams is not None else {})
         _commit(directory, 0, atoms, states, rng, mcsteps, context)
+    if move_logger is not None:
+        move_logger.write(f"{'resumed' if resumed else 'started'} after committed round {step}")
     prune_snapshots(directory, "round-")
     for pending in directory.glob("pending-*"):
         if int(pending.name.split('-')[1]) <= step:
@@ -173,6 +176,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         worker.directory = directory.parent / "evaluations" / f"round-{step:06d}"
         if pending.exists():
             data = _load(pending / "proposal.json")
+            if move_logger is not None:
+                move_logger.write("reusing pending proposals; no new proposals generated", round=step)
             if data.get("version") != 5:
                 raise ValueError("Unsupported BH pending round checkpoint; start a new run.")
             rng.bit_generator.state = data["rng"]
@@ -192,7 +197,15 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                 for index, accepted in enumerate(atoms):
                     energy = accepted.get_potential_energy()
                     op = select_operator(operators, probabilities, rng)
-                    proposal = op.propose(accepted, rng)
+                    log_context = dict(round=step, chain=index, segment=context['segments'][index],
+                                       parent=accepted.info.get('confid', context['current_ids'][index]),
+                                       operator=f'{operators.index(op)}:{op.name}')
+                    with move_logger.operator(op, **log_context) if move_logger is not None else nullcontext():
+                        if move_logger is not None:
+                            move_logger.write('proposal begins (uncommitted)', **log_context)
+                        proposal = op.propose(accepted, rng)
+                        if move_logger is not None:
+                            move_logger.write(f'proposal valid={proposal.valid}; diagnostic={proposal.diagnostic}', **log_context)
                     entry = dict(valid=proposal.valid, operator=operators.index(op), energy=energy,
                                  metadata=copy.deepcopy(proposal.metadata), diagnostic=proposal.diagnostic)
                     entries.append(entry)
@@ -212,22 +225,36 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         identifiers = [i for i, entry in enumerate(data["entries"]) if entry["valid"]]
         evaluated = retrieve_batch(identifiers, worker, archive) if identifiers else []
         if evaluated is None:
+            if move_logger is not None:
+                move_logger.write("waiting for evaluations", round=step)
             return HoppingResult(EvaluationStatus.PENDING, [])
         results = {a.info["confid"]: a for a in evaluated}
         decisions, terminated = [], []
+        log_outcomes = []
+        log_contexts = [dict(round=step, chain=i, segment=context['segments'][i],
+                             parent=atoms[i].info.get('confid', context['current_ids'][i]),
+                             operator=f"{entry['operator']}:{operators[entry['operator']].name}")
+                        for i, entry in enumerate(data['entries'])] if move_logger is not None else []
         for index, entry in enumerate(data["entries"]):
             if not entry["valid"]:
                 decisions.append(2)
+                if move_logger is not None:
+                    log_outcomes.append("invalid proposal; no evaluation")
                 continue
             trial = results[index]
             trial.set_tags(entry["tags"])
+            trial_energy = trial.get_potential_energy()
             accepted = operators[entry["operator"]].acceptance.accept(
-                entry["metadata"], entry["energy"], trial.get_potential_energy(), rng)
+                entry["metadata"], entry["energy"], trial_energy, rng)
             extinct = False
             if record_trial is not None:
                 extinct = record_trial(step, index, trial, accepted, atoms[index].info["confid"],
                                        context["segments"][index], context["segment_starts"][index])
             identifier = history_record(trial, f"trial:{step}:{index}") if history is not None else trial.info["confid"]
+            if move_logger is not None:
+                log_outcomes.append(f"{'accepted' if accepted else 'rejected'}; candidate={identifier}; "
+                                    f"previous energy [eV]={entry['energy']:.8g}; trial energy [eV]={trial_energy:.8g}; "
+                                    f"extinct={bool(extinct)}")
             if accepted and extinct:
                 decisions.append(3)  # Termination; never propose from this trial.
                 terminated.append(index)
@@ -257,6 +284,13 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         states = [decisions]
         context["random_states"] = random_streams.snapshot() if random_streams is not None else {}
         _commit(directory, step, atoms, states, rng, mcsteps, context)
+        if move_logger is not None:
+            for index, outcome in enumerate(log_outcomes):
+                if decisions[index] == 4:
+                    outcome += f"; restart candidate={context['current_ids'][index]}; next segment={context['segments'][index]}"
+                elif decisions[index] == 3:
+                    outcome += "; chain terminated"
+                move_logger.write('committed: ' + outcome, **log_contexts[index])
         if on_progress is not None:
             on_progress(step, context["journal_offset"])
         if context["exhausted"]:
