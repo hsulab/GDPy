@@ -42,15 +42,20 @@ def test_steps_are_metadata_and_results_are_borrowed(tmp_path, monkeypatch):
         first = len(lines)
         output.collect([[atoms] for atoms in frames])
     assert len(lines) == first
-    assert 'min 10.0   mean 50.0   max 90.0' in '\n'.join(lines)
+    steps = next(line for line in lines if 'steps:' in line)
+    assert 'min 10.0 avg 50.0 max 90.0' in ' '.join(steps.split())
     assert output.values['0'][2] == 0
     assert np.all(frames[0].calc.results['forces'] == 1)
     assert 'converged:' not in '\n'.join(lines)
     assert 'step limit:' not in '\n'.join(lines)
+    title = next(line for line in lines if 'worker | minimization' in line)
+    assert 'calculations: 2 | batches: 1' in title
+    assert sum('calculations:' in line for line in lines) == 1
+    assert not any('worker:' in line for line in lines)
     energy = next(line for line in lines if 'energy [eV]:' in line)
     force = next(line for line in lines if 'maxfrc [eV/Å]:' in line)
-    for label in ('min ', 'mean ', 'max '):
-        assert energy.index(label) == force.index(label)
+    for label in ('min ', 'avg ', 'max '):
+        assert steps.index(label) == energy.index(label) == force.index(label)
     assert all(len(line) == parent.width for line in lines)
 
 
@@ -60,7 +65,7 @@ def test_large_batch_and_spc_have_bounded_output(tmp_path):
     with Box('test', emit=lines.append, unicode=False).as_parent():
         output.collect([[frame(i, 0)] for i in range(1000)])
     assert len(lines) < 20
-    assert 'steps: -' in '\n'.join(lines)
+    assert 'steps: -' in ' '.join(' '.join(lines).split())
     assert all(line.isascii() for line in lines)
 
 

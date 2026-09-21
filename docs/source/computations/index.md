@@ -31,6 +31,24 @@ Run it with:
 gdp --runtime runtime.yaml compute structures.xyz
 ```
 
+## Simple example: copper dimers
+
+The repository includes a ready-to-run example in `examples/compute/cu2_emt/`.
+It minimizes three Cu2 dimers with ASE's built-in EMT potential, requiring no
+model download. The input bond lengths are 2.0, 2.5, and 3.0 Å; all structures use
+periodic 20 × 20 × 20 Å cells.
+
+From the repository root:
+
+```sh
+gdp -d cu2-compute -r examples/compute/cu2_emt/runtime.yaml compute examples/compute/cu2_emt/structures.xyz
+```
+
+The example runs locally in one batch, with a force tolerance of 0.05 eV/Å and a
+limit of 100 optimization steps per structure. The output summarizes steps,
+energy, and `maxfrc` across the three calculations. Relaxed structures are saved
+in `cu2-compute/results/end_frames.xyz`.
+
 ## Compute lifecycle
 
 The lifecycle can be controlled explicitly:
@@ -54,7 +72,7 @@ in `gdp compute` and inside basin hopping generation output. Candidate lists are
 omitted, so output stays compact for large batches. Long-running local batches
 report progress at most once every 30 seconds, after a calculation completes.
 
-Collected results include minimum, mean, and maximum simulation steps, energy
+Collected results include minimum, average (`avg`), and maximum simulation steps, energy
 `[eV]`, and maximum atomic force (`maxfrc`) `[eV/Å]`. Steps come from the last saved frame's
 simulation step, rather than the number of saved frames. Single-point steps and
 unavailable metadata display `—` (`-` on ASCII terminals). Statistics describe

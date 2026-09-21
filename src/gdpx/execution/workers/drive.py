@@ -494,7 +494,7 @@ class DriverBasedWorker(BaseWorker):
 
         target_batch = kwargs.get("batch", None)
         selected = batches if target_batch is None else [batches[target_batch]]
-        get_reporter(self).configure(selected, announce=True)
+        get_reporter(self).configure(selected)
 
         if not self.is_spawned:
             self._run_by_scheduler(identifier, frames, batches, target_batch=target_batch)

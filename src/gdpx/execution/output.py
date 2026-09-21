@@ -72,26 +72,21 @@ class WorkerReporter:
         self.directory = str(worker.directory)
         self.started = time.monotonic()
         self.last_progress = self.started
-        self.announced = False
         self.total = self.batches = None
         self.values = {}
         self.last_summary = None
         self.selected = None
         self.outcomes = {}
 
-    def configure(self, batches, announce=False):
+    def configure(self, batches):
         selected = {str(name) for batch in batches for name in batch[1]}
         if self.selected != selected:
             self.values.clear()
             self.outcomes.clear()
-            self.announced = False
             self.last_summary = None
         self.selected = selected
         self.batches = len(batches)
         self.total = sum(len(batch[1]) for batch in batches)
-        if announce and not self.announced:
-            self.announced = True
-            message(f'worker: {self.total} calculations | {self.batches} batches | {self.worker.directory.name}')
 
     def counts(self):
         jobs = self.worker.job_store.get_queued()
@@ -145,7 +140,7 @@ class WorkerReporter:
         values = [float(value) for value in values if value is not None and np.isfinite(value)]
         if not values:
             return '—'
-        return f'min {min(values):{width}.{digits}f}   mean {np.mean(values):{width}.{digits}f}   max {max(values):{width}.{digits}f}'
+        return f'min {min(values):{width}.{digits}f}   avg {np.mean(values):{width}.{digits}f}   max {max(values):{width}.{digits}f}'
 
     def summary(self, state):
         done, pending, failed = self.counts()
@@ -163,18 +158,18 @@ class WorkerReporter:
         executor = runtime.get('executor', {}).get('provider', '—')
         potential = runtime.get('potential', {}).get('provider', '—')
         title = 'worker | ' + ', '.join({'min': 'minimization', 'md': 'dynamics', 'spc': 'single point'}.get(m, m) for m in methods)
+        total = self.total if self.total is not None else done + pending + failed
+        title += f' | calculations: {total} | batches: {self.batches if self.batches is not None else "—"}'
         box = Box(title)
         box.line(f'executor: {executor}   potential: {potential}')
-        total = self.total if self.total is not None else done + pending + failed
-        box.line(f'calculations: {total}   batches: {self.batches if self.batches is not None else "—"}')
         box.line(f'state: {state}   finished: {done}   pending: {pending}   failed: {failed}')
         if state == 'failed':
             box.line(f'failure details: {self.directory}; see traceback and calculation logs')
         values = list(self.values.values())
-        box.line('steps: ' + self.stats((value[1] for value in values), digits=1))
-        width = max((len(f'{float(value):.4f}') for row in values
-                     for value in (row[0], row[2])
+        width = max((len(f'{float(value):.{digits}f}') for row in values
+                     for value, digits in ((row[0], 4), (row[1], 1), (row[2], 4))
                      if value is not None and np.isfinite(value)), default=0)
+        box.line('steps:         ' + self.stats((value[1] for value in values), digits=1, width=width))
         box.line('energy [eV]:   ' + self.stats((value[0] for value in values), width=width))
         box.line('maxfrc [eV/Å]: ' + self.stats((value[2] for value in values), width=width))
         box.line(f'results summarized: {len(values)}   elapsed this invocation: {time.monotonic()-self.started:.1f} s')

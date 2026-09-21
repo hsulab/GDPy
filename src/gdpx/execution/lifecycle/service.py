@@ -389,7 +389,7 @@ def submit_compute(
     submitted = []
     for worker, worker_plan, worker_batches in restored:
         selected = _selected_batches(worker_plan, batches)
-        get_reporter(worker).configure([worker_batches[index] for index in selected], announce=True)
+        get_reporter(worker).configure([worker_batches[index] for index in selected])
         for batch_index in _selected_batches(worker_plan, batches):
             before = {record.gdir for record in worker.job_store.get_queued()}
             worker._run_by_scheduler(worker_plan.identifier, frames, worker_batches, target_batch=batch_index)
@@ -410,7 +410,7 @@ def run_compute_batch(
     worker, worker_plan, batches = restored[worker_index]
     _selected_batches(worker_plan, [batch])
     worker.is_spawned = True
-    get_reporter(worker).configure([batches[batch]], announce=True)
+    get_reporter(worker).configure([batches[batch]])
     worker._run_by_commandline(worker_plan.identifier, [], batches, target_batch=batch)
     get_reporter(worker).summary("finished")
     return BatchResult(plan.plan_id, worker_index, batch, True)
