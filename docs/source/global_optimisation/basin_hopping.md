@@ -13,11 +13,9 @@ evaluates candidates using execution workers, and ranks them using the search
 objective. It inherits directly from `BaseExpedition`, independently of MC.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
-bh/examples/cluster
-bh/examples/cuox_thanos
-bh/examples/cuox_tace
+bh/examples/index
 ```
 
 See the shared {ref}`global-optimisation-population` reference for population
