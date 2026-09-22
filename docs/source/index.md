@@ -73,7 +73,7 @@ machine resources <computations/schedulers>
 ```
 
 ```{toctree}
-:caption: 'Building Structures:'
+:caption: 'Build Structures:'
 :maxdepth: 1
 :titlesonly:
 
@@ -85,7 +85,7 @@ regions <builders/region>
 ```
 
 ```{toctree}
-:caption: 'Selecting Structures:'
+:caption: 'Select Structures:'
 :maxdepth: 1
 :titlesonly:
 
@@ -94,7 +94,7 @@ descriptor <selections/descriptor>
 ```
 
 ```{toctree}
-:caption: 'Exploring Structures:'
+:caption: 'Explore Structures:'
 :maxdepth: 1
 :titlesonly:
 
