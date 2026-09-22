@@ -41,6 +41,17 @@ invocation boundaries, including partial results when an invocation fails.
 Timestamps come from the original database records. Resuming a search refreshes
 the files without duplicating entries and also reconstructs history for older runs.
 
+Completed searches also write a compact 1200 × 600 `results/family_tree.png`.
+The family tree places candidates in generation rows
+and connects parents to offspring. Only candidate IDs, generation numbers, and
+the objective color bar are labeled, with the same `coolwarm` palette as BH.
+Candidate IDs are shown
+when space permits, including 20 candidates per generation across an initial
+population and 10 evolved generations. Larger searches use smaller markers and
+omit IDs when necessary. Intermediate mutations retain the original crossover parents
+instead of creating self-links. The figure is rebuilt from database history when
+reporting a completed search, including after a restart.
+
 ## Search cycle
 
 A typical GA search repeats the following steps:

@@ -330,6 +330,9 @@ class GeneticAlgorithmEngine(BaseExploration):
 
         plot_evolution_figure(results, data, gen_num, self.target)
 
+        from .lineage import plot_lineage
+        plot_lineage(self.da.connection, self.directory, self.target)
+
         return
 
     def update_active_params(self, prev_wdir: pathlib.Path) -> None:
