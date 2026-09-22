@@ -19,7 +19,8 @@ at Queen's University Belfast.
 
 ## Supported **Potentials**
 
-`deepmd`, `eann`, `lasp`, `MatterSim`, `nequip` / `allegro`
+Classical models, machine-learning potentials, and electronic-structure
+interfaces are listed in the {doc}`potential provider overview <potentials/index>`.
 
 ## Supported **Explorations**
 
@@ -49,19 +50,11 @@ tutorials/index
 
 ```{toctree}
 :caption: 'Potentials:'
-:maxdepth: 1
+:maxdepth: 2
+:titlesonly:
 
 Overview <potentials/index>
-MatterSim <potentials/mattersim>
-TACE <potentials/tace>
-```
-
-```{toctree}
-:caption: 'Advanced Guides:'
-:maxdepth: 2
-
-sessions/index
-workflows/index
+Providers <potentials/providers>
 ```
 
 ```{toctree}
@@ -73,6 +66,14 @@ global_optimisation/genetic-algorithm
 global_optimisation/basin_hopping
 global_optimisation/population
 global_optimisation/output
+```
+
+```{toctree}
+:caption: 'Advanced Guides:'
+:maxdepth: 2
+
+sessions/index
+workflows/index
 ```
 
 ```{toctree}

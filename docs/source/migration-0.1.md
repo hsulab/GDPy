@@ -121,3 +121,77 @@ Population-based global-optimisation methods now store candidates and restart
 metadata in `candidates.db` inside each exploration directory. Remove the former
 GA `database` and concurrent-hopping `population.database_fname` settings;
 custom database filenames are no longer accepted.
+
+## Driver worker output layout
+
+New driver-based runs keep two JSON catalogs under `_meta/`:
+
+```text
+_meta/
+  inputs.json
+  scheduler.json
+  jobscripts/
+    run-<uuid>.script
+```
+
+`inputs.json` contains lossless structures indexed by fingerprint, provenance,
+retained information, frozen calculation sets, immutable job manifests, and the
+optional compute plan.
+`scheduler.json` contains scheduler providers, job lifecycle records, and cached
+shared-workdir results including calculator properties. Workers in one compute
+plan share these catalogs. A hidden `.metadata.lock` coordinates atomic updates
+between processes.
+
+Preparation renders each job script once; submission and resubmission reuse its
+UUID and path. Generated `gdp compute run --job <uuid>` commands resolve their
+input from the catalog. Remote results merge only into the corresponding job;
+remote scheduler records cannot overwrite controller state.
+
+Each calculation folder now represents one fixed set of structures and settings.
+Preparation freezes **all** batches, even when only one batch is submitted.
+Repeating the same request resumes it; remaining planned batches and failed jobs
+can still be submitted or retried. Adding, removing, or reordering structures,
+changing settings, seeds, or task mappings, or appending workers requires a new
+working directory. A conflict is checked before writing metadata or scripts.
+There is no append option or automatic migration.
+
+Calculation directories (`cand*`), collected `results/`, and trajectory archives
+remain in each calculation folder. MC uses `calculations/step.0000/` for its
+initial calculation and `calculations/step.NNNN/` for subsequent steps. HMC uses
+`calculations/step.NNNN/procedure.NNNN/excurs/` or `proposal.NNNN/` beneath the
+procedure directory. Pending calculations resume in their original folders;
+checkpoint rollback removes entire calculation folders beyond the saved step.
+
+Input catalogs now use version 2 and embedded compute plans use schema version 6.
+Older driver layouts, including version-1 input catalogs, separate SHA-256
+snapshots/manifests, schema-4/5 plans, `_data/`, and root-level job databases,
+require fresh folders. Manifest-file `--job` arguments and old append-based
+MC/HMC layouts are rejected. Existing outputs are not modified or migrated.
+Corrupt catalogs raise errors instead of falling back to legacy files.
+
+## Driver input fingerprints
+
+Driver workers and compute plans use the same versioned SHA-256 structure
+fingerprint. It covers frame and atom order, atomic arrays (including custom
+arrays), cell, PBC, and constraints. Standard arrays include tags, masses,
+momenta, initial charges, and initial magnetic moments. Missing standard arrays
+are equivalent to their ASE defaults. Numeric arrays use fixed types and byte
+order; signed zero is normalized. Positions are not rounded, wrapped, sorted,
+or aligned. Non-finite numbers and unsupported values are rejected.
+
+Bookkeeping in `Atoms.info`, attached calculators, and calculated results do not
+affect input identity. Lossless snapshots embedded in `inputs.json` preserve calculation
+inputs, including constraints and full coordinate precision. Snapshots are
+checked against their saved fingerprints before reuse.
+
+Each job manifest in `inputs.json` records a separate job fingerprint covering the
+structure fingerprint, runtime configuration, batch mapping, workdir names,
+and exact random seeds or generator states. Resubmission and staged execution
+read that saved batch. Restarting without an explicit seed reuses the saved
+random choices. The entire calculation set is checked, including unsubmitted
+batches and workdir names. Use a new run directory for changed inputs or settings.
+
+Runtime configuration remains schema version 3. Older driver metadata lacks the
+frozen calculation-set contract and is rejected even when it uses SHA-256.
+Old MD5 records also cannot be migrated reliably because their XYZ snapshots may have
+lost constraints or coordinate precision.

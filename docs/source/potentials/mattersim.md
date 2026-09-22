@@ -1,10 +1,8 @@
 (potential-mattersim)=
 
-# MatterSim
+# mattersim
 
-GDPy exposes MatterSim models as ASE calculators through the `mattersim`
-potential provider. This allows them to be combined with ASE single-point,
-minimisation, and molecular-dynamics executors.
+The `mattersim` provider loads MatterSim pretrained models and local checkpoints.
 
 ## Installation
 
@@ -19,22 +17,12 @@ GDPy automatically uses CUDA when it is available and otherwise uses the CPU.
 
 ## Configuration
 
-Configure MatterSim under `runtime.potential` and select the calculation under
-`runtime.executor`:
-
 ```yaml
-runtime:
-  potential:
-    provider: mattersim
-    parameters:
-      model: MatterSim-v1.0.0-1M
-      compute_stress: false
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 100
+potential:
+  provider: mattersim
+  parameters:
+    model: MatterSim-v1.0.0-1M
+    compute_stress: false
 ```
 
 `compute_stress: false` avoids unnecessary stress evaluation for fixed-cell

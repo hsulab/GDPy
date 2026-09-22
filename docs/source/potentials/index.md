@@ -65,8 +65,8 @@ group; see {doc}`../extensions/index`.
 
 ## Provider guides
 
-- {doc}`MatterSim <mattersim>`
-- {doc}`TACE <tace>`
+See {doc}`providers` for potential configuration examples and requirements.
+Runtime setup and executor compatibility are covered in {doc}`../computations/index`.
 
 ## Training
 

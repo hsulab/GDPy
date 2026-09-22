@@ -1,9 +1,8 @@
 (potential-tace)=
 
-# TACE
+# tace
 
-GDPy's `tace` provider exposes TACE checkpoints and foundation models through
-ASE for single-point calculations, minimisation, and molecular dynamics.
+The `tace` provider loads TACE checkpoints and foundation models.
 
 ## Installation
 
@@ -25,20 +24,13 @@ The base GDPy installation does not require TACE, MatterSim, or PyTorch.
 ## Configuration
 
 ```yaml
-runtime:
-  potential:
-    provider: tace
-    parameters:
-      model: TACE-OAM-7M
-      precision: float32
-      device: cpu
-      fidelity_idx: 0
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      fmax: 0.05
-      steps: 300
+potential:
+  provider: tace
+  parameters:
+    model: TACE-OAM-7M
+    precision: float32
+    device: cpu
+    fidelity_idx: 0
 ```
 
 `model` is required and accepts an exact upstream foundation name, an existing
