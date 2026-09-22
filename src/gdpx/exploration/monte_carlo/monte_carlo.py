@@ -1,13 +1,11 @@
 import copy
 import enum
 import shutil
-from typing import Union
 
 import numpy as np
 from ase import Atoms, data
 from ase.io import read, write
 
-from gdpx.utils.strconv import integers_to_string
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
@@ -119,19 +117,18 @@ class MonteCarlo(BaseExploration):
 
         """
         # Prepare the initial structure
-        step_wdir = self.directory / f"{self.WDIR_PREFIX}0"
-        if not step_wdir.exists():
-            self._print("===== MonteCarlo Structure =====")
-            tags = self.atoms.arrays.get("tags", None)
-            if self.ignore_atoms_tags or tags is None:
-                # default is setting tags by elements
-                symbols = self.atoms.get_chemical_symbols()
-                type_list = sorted(list(set(symbols)))
-                new_tags = [type_list.index(s) * 10000 + i for i, s in enumerate(symbols)]
-                self.atoms.set_tags(new_tags)
-                self._print("set default tags by chemical symbols...")
-            else:
-                self._print("set attached tags from the structure...")
+        self.worker.directory = self.directory / "calculations" / "step.0000"
+        self._print("===== MonteCarlo Structure =====")
+        tags = self.atoms.arrays.get("tags", None)
+        if self.ignore_atoms_tags or tags is None:
+            # default is setting tags by elements
+            symbols = self.atoms.get_chemical_symbols()
+            type_list = sorted(list(set(symbols)))
+            new_tags = [type_list.index(s) * 10000 + i for i, s in enumerate(symbols)]
+            self.atoms.set_tags(new_tags)
+            self._print("set default tags by chemical symbols...")
+        else:
+            self._print("set attached tags from the structure...")
 
         # Run minimisation before any MC steps
         self._print("===== MonteCarlo Initial Minimisation =====")
@@ -144,7 +141,7 @@ class MonteCarlo(BaseExploration):
         write(self.directory / "mc_attempts.xyz", self.atoms)
 
         # TODO: whether init driver?
-        self.worker.wdir_name = step_wdir.name
+        self.worker.wdir_name = "cand0"
         _ = self.worker.run([self.atoms])
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
@@ -190,6 +187,7 @@ class MonteCarlo(BaseExploration):
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
+        self._validate_calculation_layout()
         super().run(*args, **kwargs)
 
         # Check if it has a valid worker
@@ -287,10 +285,10 @@ class MonteCarlo(BaseExploration):
                     # -- save checkpoint
                     self._save_checkpoint(step=curr_step)
                     # -- clean up
-                    if ((self.directory / f"{self.WDIR_PREFIX}{curr_step}").exists()) and (
+                    if ((self.directory / "calculations" / f"step.{curr_step:04d}").exists()) and (
                         curr_step % self.dump_period != 0
                     ):
-                        shutil.rmtree(self.directory / f"{self.WDIR_PREFIX}{curr_step}")
+                        shutil.rmtree(self.directory / "calculations" / f"step.{curr_step:04d}")
                     curr_step += 1
                 elif step_state == MCStepState.FAILED:
                     self._print(f"RETRY STEP {curr_step}.")
@@ -309,7 +307,8 @@ class MonteCarlo(BaseExploration):
     def _irun(self, istep: int) -> MCStepState:
         """Run a move without retaining a mutated accepted structure while waiting."""
         self._print(f"===== MC Step {istep} =====")
-        self.worker.wdir_name = f"{self.WDIR_PREFIX}{istep}"
+        self.worker.directory = self.directory / "calculations" / f"step.{istep:04d}"
+        self.worker.wdir_name = "cand0"
         result = run_worker_move(
             self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
             self.worker, self.directory / f"pending-move-{istep}",
@@ -422,6 +421,7 @@ class MonteCarlo(BaseExploration):
         Also, the computation folders beyond the checkpoint step will be removed.
 
         """
+        self._validate_calculation_layout()
         if not (self.directory / "current.json").exists():
             raise ValueError("Legacy MC operator checkpoint is not supported; start a new run.")
         ckpt_wdir, (state, self.atoms) = read_snapshot(self.directory, self._read_snapshot)
@@ -467,26 +467,8 @@ class MonteCarlo(BaseExploration):
         with open(self.directory / self.INFO_NAME, "w") as fopen:
             fopen.write("".join(opstat_lines[: step + 1]))
 
-        # Rewind single_worker record
-        assert isinstance(self.worker, SingleWorker)
-        self.worker.rewind_to_step(step=step)
-        self._print(f"Rewind worker record to step {step}.")
-
-        # Remove previous computation folders
-        # We check wdirs reversely and stop when the index is smaller than start_step
-        cand_wdirs = sorted(
-            self.directory.glob("cand*"),
-            key=lambda x: int(x.name[4:]),
-        )
-        removed_cand_indices = []
-        for cand_wdir in cand_wdirs[::-1]:
-            cand_index = int(cand_wdir.name[4:])
-            if cand_index > self.start_step:
-                shutil.rmtree(cand_wdir)
-                removed_cand_indices.append(cand_index)
-            else:
-                break
-        self._print(f"Remove previous computation folders {integers_to_string(removed_cand_indices)}.")
+        # Discard complete calculation folders beyond the committed checkpoint.
+        self._prune_calculations(step)
 
         return
 
@@ -522,24 +504,38 @@ class MonteCarlo(BaseExploration):
 
         return converged
 
+    def _validate_calculation_layout(self):
+        """Reject append-era runs before touching their checkpoints or outputs."""
+        from gdpx.execution.workers.metadata import WorkerMetadata
+
+        if ((self.directory / "_meta").exists() or (self.directory / "_data").exists()
+                or any(self.directory.glob("_*_jobs.json")) or any(self.directory.glob("cand*"))
+                or any(self.directory.glob("step.*")) or (self.directory / "init" / "_meta").exists()):
+            raise ValueError("Legacy append-based exploration layout; use a new working directory.")
+        for path in (self.directory / "calculations").glob("**/_meta"):
+            WorkerMetadata(path.parent).compact
+
+    def _prune_calculations(self, step):
+        for path in (self.directory / "calculations").glob("step.*"):
+            if int(path.name.split(".")[1]) > step:
+                shutil.rmtree(path)
+
     def get_workers(self):
-        """Get all workers used by this exploration."""
-        potential = self.worker.runtime.provider_potential
-        if hasattr(potential, "remove_loaded_models"):
-            potential.remove_loaded_models()
+        """Reconstruct workers from each retained calculation's saved runtime."""
+        from gdpx.execution.factory import create_worker
+        from gdpx.execution.workers.metadata import WorkerMetadata
 
-        # workers = []
-        # for curr_wdir in wdirs:
-        #    curr_worker = copy.deepcopy(self.worker)
-        #    curr_worker.directory = curr_wdir.parent
-        #    curr_worker.wdir_name = curr_wdir.name
-        #    workers.append(curr_worker)
-        curr_worker = copy.deepcopy(self.worker)
-        curr_worker.directory = self.directory
-        curr_worker._retrieve_mode = "all"
-
-        workers: list[Union[SingleWorker, DriverBasedWorker]] = [curr_worker]
-
+        self._validate_calculation_layout()
+        workers = []
+        for path in sorted((self.directory / "calculations").glob("**/_meta/inputs.json")):
+            directory = path.parent.parent
+            metadata = WorkerMetadata(directory)
+            definition = metadata.calculation_set(metadata.inputs.read(), ".")
+            worker = create_worker(definition["batches"][0]["runtime"], directory=directory)
+            if isinstance(worker, SingleWorker):
+                worker.wdir_name = "cand0"
+            worker._retrieve_mode = "all"
+            workers.append(worker)
         return workers
 
     def as_dict(self) -> dict:

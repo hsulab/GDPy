@@ -11,8 +11,6 @@ import copy
 import dataclasses
 import json
 import pathlib
-import shlex
-import tempfile
 import time
 from typing import Iterable, Optional, Union
 
@@ -27,10 +25,10 @@ from gdpx.execution.workers.metadata import WorkerMetadata
 
 from gdpx.execution.output import get_reporter, reporting_session
 from gdpx.execution.fingerprint import (
-    normalise_value, payload_digest, structure_digest, read_structure_inputs, write_structure_inputs,
+    normalise_value, payload_digest, structure_digest, read_structure_inputs,
 )
 
-PLAN_SCHEMA_VERSION = 5
+PLAN_SCHEMA_VERSION = 6
 DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "inputs.json"
 LEGACY_PLAN_RELPATH = pathlib.Path("_meta") / "compute-plan.json"
 
@@ -79,7 +77,7 @@ class ComputePlan:
 
     @property
     def path(self) -> pathlib.Path:
-        return pathlib.Path(self.directory) / (DEFAULT_PLAN_RELPATH if self.schema_version >= 5 else LEGACY_PLAN_RELPATH)
+        return pathlib.Path(self.directory) / DEFAULT_PLAN_RELPATH
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -241,18 +239,6 @@ def _deserialise_batches(worker_plan: WorkerPlan, frames: list[Atoms]):
     return batches
 
 
-def _write_plan(plan: ComputePlan) -> None:
-    if plan.schema_version >= 5:
-        WorkerMetadata(plan.directory).put_plan(plan.to_dict())
-        return
-    path = plan.path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False) as handle:
-        json.dump(plan.to_dict(), handle, indent=2)
-        temp_path = pathlib.Path(handle.name)
-    temp_path.replace(path)
-
-
 def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePlan:
     path = pathlib.Path(path_or_directory)
     if path.is_dir() or path.suffix != ".json":
@@ -269,7 +255,7 @@ def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePla
     else:
         with open(path, "r") as handle:
             data = json.load(handle)
-    if data.get("schema_version") not in (4, PLAN_SCHEMA_VERSION):
+    if data.get("schema_version") != PLAN_SCHEMA_VERSION:
         raise ComputeLifecycleError(
             f"Unsupported compute plan schema {data.get('schema_version')}; expected {PLAN_SCHEMA_VERSION}. Prepare a new run."
         )
@@ -294,8 +280,9 @@ def prepare_compute(
     digest = structure_digest(frames)
 
     metadata = WorkerMetadata(directory)
-    plan_path = directory / (DEFAULT_PLAN_RELPATH if metadata.compact else LEGACY_PLAN_RELPATH)
-    has_plan = (metadata.inputs.read().get("plan") is not None if metadata.compact else plan_path.exists())
+    metadata.compact
+    plan_path = metadata.inputs.path
+    has_plan = metadata.inputs.read().get("plan") is not None
     if has_plan:
         existing = load_compute_plan(plan_path)
         if existing.config == normalised_config and existing.structure_digest == digest:
@@ -309,29 +296,24 @@ def prepare_compute(
         raise ComputeLifecycleError(
             f"Legacy driver worker layout at {directory}; use a new working directory."
         )
-    directory.mkdir(parents=True, exist_ok=True)
-    compact = metadata.compact
-    if compact:
-        metadata.ensure()
-        # Worker preprocessing adds provenance to the shared structure catalog.
-        input_path = metadata.inputs.path
-    else:
-        input_path = directory / "_meta" / "input.atoms.json"
-        input_path.parent.mkdir(parents=True, exist_ok=True)
-        write_structure_inputs(input_path, frames)
+    input_path = metadata.inputs.path
+
+    if metadata.inputs.read()["workers"]:
+        raise PlanConflictError("A worker calculation set already exists; use a new working directory for a compute plan.")
 
     workers = _create_workers(normalised_config)
     worker_plans = []
+    requests = []
     num_workers = len(workers)
     for worker_index, worker in enumerate(workers):
         worker_directory = directory if num_workers == 1 else directory / f"w{worker_index}"
         worker.directory = worker_directory
-        if compact:
-            worker.metadata_root = directory
+        worker.metadata_root = directory
         worker_frames = [frame.copy() for frame in frames]
         for structure_index, frame in enumerate(worker_frames):
             frame.info["_gdpx_structure_index"] = structure_index
-        identifier, _, batches = worker.prepare_batches(worker_frames)
+        identifier, prepared_frames, batches = worker.prepare_batches(worker_frames, persist=False)
+        requests.append(worker._calculation_request(identifier, prepared_frames, batches))
         worker_plan = WorkerPlan(
             index=worker_index,
             directory=str(worker_directory.relative_to(directory)) if worker_directory != directory else ".",
@@ -341,13 +323,13 @@ def prepare_compute(
         worker_plans.append(worker_plan)
 
     digest_payload = {
-        "schema_version": PLAN_SCHEMA_VERSION if compact else 4,
+        "schema_version": PLAN_SCHEMA_VERSION,
         "structure_digest": digest,
         "config": normalised_config,
         "workers": [dataclasses.asdict(worker) for worker in worker_plans],
     }
     plan = ComputePlan(
-        schema_version=PLAN_SCHEMA_VERSION if compact else 4,
+        schema_version=PLAN_SCHEMA_VERSION,
         plan_id=_plan_digest(digest_payload),
         created_at=time.time(),
         directory=str(directory),
@@ -356,44 +338,25 @@ def prepare_compute(
         config=normalised_config,
         workers=tuple(worker_plans),
     )
-    _write_plan(plan)
+    metadata.freeze_calculations(requests, complete=True, plan=plan.to_dict())
+    metadata.ensure()
     _write_batch_scripts(plan, workers)
     return plan
 
 
 def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) -> None:
     """Render reviewable scripts without submitting them."""
-    plan_path = plan.path
     for worker, worker_plan in zip(workers, plan.workers):
-        if plan.schema_version >= 5:
-            frames = worker.metadata.frames(worker_plan.structure_digest)
-            batches = _deserialise_batches(worker_plan, frames)
-            for index, batch in enumerate(batches):
-                payload = worker._job_payload(worker_plan.structure_digest, batch, index)
-                uid = worker.metadata.prepare_job(payload, worker.scheduler.machine_prefix)
-                worker._irun(f"group-{index}", uid, worker_plan.structure_digest, frames, batch, submit=False)
-            continue
-        for batch in worker_plan.batches:
-            scheduler = copy.deepcopy(worker.scheduler)
-            scheduler.job_name = f"gdpx-{plan.plan_id[:8]}-w{worker_plan.index}-b{batch.index}"
-            command = (
-                f"gdp -d {shlex.quote(plan.directory)} compute run --plan {shlex.quote(str(plan_path))} "
-                f"--worker {worker_plan.index} --batch {batch.index}"
-            )
-            scheduler.user_commands = command + "\n"
-            script_path = (
-                pathlib.Path(plan.directory)
-                / "_meta"
-                / "scripts"
-                / (f"run-w{worker_plan.index}-b{batch.index}.script")
-            )
-            script_path.parent.mkdir(parents=True, exist_ok=True)
-            content = str(scheduler)
-            script_path.write_text(content, encoding="utf-8")
+        frames = worker.metadata.frames(worker_plan.structure_digest)
+        batches = _deserialise_batches(worker_plan, frames)
+        for index, batch in enumerate(batches):
+            payload = worker._job_payload(worker_plan.structure_digest, batch, index)
+            uid = worker.metadata.prepare_job(payload, worker.scheduler.machine_prefix)
+            worker._irun(f"group-{index}", uid, worker_plan.structure_digest, frames, batch, submit=False)
 
 
 def _restore(plan: ComputePlan):
-    if plan.schema_version not in (4, PLAN_SCHEMA_VERSION) or _plan_digest(_plan_payload(plan)) != plan.plan_id:
+    if plan.schema_version != PLAN_SCHEMA_VERSION or _plan_digest(_plan_payload(plan)) != plan.plan_id:
         raise ComputeLifecycleError("Compute plan fingerprint mismatch; prepare a new run.")
     workers = _create_workers(plan.config)
     if len(workers) != len(plan.workers):
@@ -404,14 +367,16 @@ def _restore(plan: ComputePlan):
     restored = []
     for worker, worker_plan in zip(workers, plan.workers):
         worker.directory = pathlib.Path(plan.directory) / worker_plan.directory
-        if plan.schema_version >= 5:
-            worker.metadata_root = pathlib.Path(plan.directory)
+        worker.metadata_root = pathlib.Path(plan.directory)
         worker.compute_plan_path = plan.path
         worker.compute_worker_index = worker_plan.index
         batches = _deserialise_batches(worker_plan, frames)
         worker._task_plan = [
             (task.driver_index, task.structure_index) for batch in worker_plan.batches for task in batch.tasks
         ]
+        for index, batch in enumerate(batches):
+            worker.metadata.validate_payload(worker._job_payload(worker_plan.structure_digest, batch, index),
+                                             worker.scheduler.machine_prefix)
         get_reporter(worker).configure(batches)
         restored.append((worker, worker_plan, batches))
     return frames, restored

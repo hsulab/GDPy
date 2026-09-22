@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 import functools
 
 from ase import Atoms
@@ -13,7 +12,7 @@ from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
 from .monte_carlo import MCStepState, MonteCarlo
-from ..move_step import read_pending, run_worker_move
+from ..move_step import _store_pending, read_pending, run_worker_move
 from ..checkpoint import read_snapshot
 from ..sampling import parse_operators
 
@@ -81,7 +80,7 @@ class HybridMonteCarlo(MonteCarlo):
     def _run(self):
         """"""
         # set init worker
-        self.worker.directory = self.directory / "init"
+        self.worker.directory = self.directory / "calculations" / "step.0000"
 
         # Format indent
         for op in self.operators:
@@ -151,6 +150,8 @@ class HybridMonteCarlo(MonteCarlo):
                     else:
                         ...
                 else:
+                    # One trajectory frame represents one complete procedure cycle.
+                    write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
                     self._save_checkpoint(curr_step)
                     curr_step += 1
                 if step_state != MCStepState.FINISHED:
@@ -162,6 +163,7 @@ class HybridMonteCarlo(MonteCarlo):
 
     def _load_checkpoint(self):
         """Resume a completed hybrid procedure without rewinding substep workers."""
+        self._validate_calculation_layout()
         if not (self.directory / "current.json").exists():
             raise ValueError("Legacy hybrid checkpoint is not supported; start a new run.")
         _, (state, self.atoms) = read_snapshot(self.directory, self._read_snapshot)
@@ -173,11 +175,27 @@ class HybridMonteCarlo(MonteCarlo):
         for name, size in state["output_sizes"].items():
             with (self.directory / name).open("r+b") as stream:
                 stream.truncate(size)
+        self._prune_calculations(self.start_step)
+
+    def _procedure_directory(self, step):
+        return (self.directory / "calculations" / f"step.{step:04d}"
+                / f"procedure.{getattr(self, '_procedure_index', 0):04d}")
 
     def _irun_dynamics(self, step: int, name: str, worker: DriverBasedWorker) -> MCStepState:
         """"""
         self._print(f">>>>> {name.upper()} ")
-        worker.directory = self.directory / f"step.{step:>04d}" / "excurs"
+        worker.directory = self._procedure_directory(step) / "excurs"
+        context = dict(step=step, procedure_index=getattr(self, "_procedure_index", 0), kind="dynamics")
+        pending_path = self.directory / "pending-hybrid"
+        if getattr(self, "_resume_context", None) == context:
+            self.atoms, saved = read_pending(pending_path, self.rng)
+            self.energy_stored = saved["energy"]
+            if saved.get("resolved"):
+                self._resume_context = None
+                return self._check_earlystop(self.atoms)
+        data = dict(version=2, context=context, energy=self.energy_stored,
+                    rng=self.rng.bit_generator.state, resolved=False)
+        _store_pending(pending_path, self.atoms, data)
 
         # Get tags as it is not stored by the worker.
         curr_atoms = self.atoms
@@ -186,7 +204,7 @@ class HybridMonteCarlo(MonteCarlo):
         _ = worker.run([curr_atoms])
         worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs() == 0:
-            curr_atoms: Atoms = worker.retrieve()[0][-1]
+            curr_atoms: Atoms = worker.retrieve(include_retrieved=True)[0][-1]
             curr_atoms.set_tags(curr_tags)
 
             self.energy_operated = curr_atoms.get_potential_energy()
@@ -194,6 +212,9 @@ class HybridMonteCarlo(MonteCarlo):
 
             self.energy_stored = self.energy_operated
             self.atoms = curr_atoms
+            data.update(energy=self.energy_stored, resolved=True)
+            _store_pending(pending_path, self.atoms, data)
+            self._resume_context = None
 
             step_state = self._check_earlystop(self.atoms)
         else:
@@ -203,11 +224,12 @@ class HybridMonteCarlo(MonteCarlo):
 
     def _irun_metropolis(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
         """Run a sequence of proposals, resuming a pending attempt without redrawing."""
-        worker.directory = self.directory / f"step.{step:>04d}" / "mcmove"
+        directory = self._procedure_directory(step)
         context = getattr(self, "_resume_context", None)
         start = context["index"] if context else 0
         for i in range(start, self.num_mcmoves):
-            worker.wdir_name = f"{self.WDIR_PREFIX}{i}"
+            worker.directory = directory / f"proposal.{i:04d}"
+            worker.wdir_name = "cand0"
             result = run_worker_move(
                 self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
                 worker, self.directory / "pending-hybrid",
@@ -227,31 +249,7 @@ class HybridMonteCarlo(MonteCarlo):
             state = self._check_earlystop(self.atoms)
             if state == MCStepState.EARLYSTOPPED:
                 return state
-        write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
         return MCStepState.FINISHED
-
-    def get_workers(self):
-        """Get all workers used by this exploration."""
-        # This function can be called without running the exploration,
-        # so we need to check if _protype_workers is None.
-        if not hasattr(self, "_protype_workers"):
-            _, self._protype_workers = self._parse_procedure()
-
-        target_worker = self._protype_workers[0]  # dynamics
-        potential = target_worker.runtime.provider_potential
-        if hasattr(potential, "remove_loaded_models"):
-            potential.remove_loaded_models()
-
-        # Find all directories start with step
-        working_directories = sorted(self.directory.glob("step.*"), key=lambda x: int(x.name.split(".")[1]))
-
-        workers = []
-        for directory in working_directories:
-            worker = copy.deepcopy(target_worker)
-            worker.directory = directory / "excurs"
-            workers.append(worker)
-
-        return workers
 
     def as_dict(self) -> dict:
         """Return a dictionary representation of the object."""

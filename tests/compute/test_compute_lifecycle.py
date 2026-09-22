@@ -40,7 +40,7 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
 
     assert config == original
     assert plan.config["potential"] == original["potential"]
-    assert plan.schema_version == 5
+    assert plan.schema_version == 6
     assert plan.path.exists()
     assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
     assert len(list((tmp_path / "_meta" / "jobscripts").glob("run-*.script"))) == 1
@@ -242,8 +242,14 @@ def test_saved_job_corruption_is_rejected_before_resolving_runtime(tmp_path, mon
     from gdpx.cli.compute import run_computation
     from gdpx.execution import factory
 
-    path = tmp_path / "job.json"
-    path.write_text(json.dumps({"input": {"version": 1, "runtime": {}}, "job_digest": "invalid"}))
+    from ase.io.jsonio import decode, encode
+
+    plan = prepare_compute(_emt_config(), [_cu()], tmp_path)
+    path = plan.path
+    data = decode(path.read_text())
+    uid = next(iter(data["jobs"]))
+    data["jobs"][uid]["job_digest"] = "invalid"
+    path.write_text(encode(data))
     monkeypatch.setattr(factory, "create_worker", lambda *a, **k: pytest.fail("resolved corrupt input"))
     with pytest.raises(ValueError, match="Job fingerprint mismatch"):
-        run_computation(["run"], None, job=path, directory=tmp_path)
+        run_computation(["run"], None, job=uid, directory=tmp_path)

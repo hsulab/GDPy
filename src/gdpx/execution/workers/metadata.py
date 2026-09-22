@@ -23,7 +23,7 @@ class Catalog:
 
     def empty(self):
         if self.kind == "inputs":
-            return dict(format="gdpx-inputs", version=1, structures={}, workers={}, jobs={})
+            return dict(format="gdpx-inputs", version=2, structures={}, workers={}, jobs={})
         return dict(format="gdpx-scheduler", version=1, providers={}, _default={}, results={})
 
     def read(self):
@@ -31,9 +31,14 @@ class Catalog:
             return self.empty()
         data = decode(self.path.read_text())
         required = ("structures", "workers", "jobs") if self.kind == "inputs" else ("providers", "_default", "results")
-        if (data.get("format") != f"gdpx-{self.kind}" or data.get("version") != 1
+        if self.kind == "inputs" and data.get("format") == "gdpx-inputs" and data.get("version") == 1:
+            raise ValueError("Legacy driver metadata has no frozen calculation set; use a new working directory.")
+        if (data.get("format") != f"gdpx-{self.kind}" or data.get("version") != (2 if self.kind == "inputs" else 1)
                 or any(not isinstance(data.get(key), dict) for key in required)):
             raise ValueError(f"Invalid {self.kind} catalog: {self.path}")
+        if self.kind == "inputs":
+            for worker in data["workers"]:
+                WorkerMetadata.calculation_set(data, worker)
         return data
 
     @contextmanager
@@ -63,6 +68,8 @@ class WorkerMetadata:
 
     @property
     def compact(self):
+        if (self.root / "_data").exists() or any(self.root.glob("_*_jobs.json")):
+            raise RuntimeError(f"Legacy driver worker layout at {self.root}; use a new working directory.")
         if self.inputs.path.exists() or self.state.path.exists():
             self.inputs.read()
             self.state.read()
@@ -70,9 +77,11 @@ class WorkerMetadata:
                 raise ValueError("Missing inputs.json for compact driver metadata.")
             return True
         legacy = ("_scheduler.json", "compute-plan.json", "task_plan.json")
-        return not (any((self.directory / name).exists() for name in legacy)
+        if (any((self.directory / name).exists() for name in legacy)
                     or any(self.directory.glob("*.atoms.json"))
-                    or any(self.directory.glob("job-*.json")))
+                    or any(self.directory.glob("job-*.json"))):
+            raise ValueError("Legacy driver metadata has no frozen calculation set; use a new working directory.")
+        return True
 
     def ensure(self):
         for catalog in (self.inputs, self.state):
@@ -80,23 +89,74 @@ class WorkerMetadata:
                 with catalog.transaction():
                     pass
 
-    def put_structures(self, frames, provenance=(), retained=()):
-        frames = [frame.copy() for frame in frames]
-        for frame in frames:
-            frame.info = {}
-        digest = structure_digest(frames)
-        snapshot = decode(encode(frames))
-        if structure_digest(snapshot) != digest:
-            raise ValueError("Structure input serialization changed its fingerprint.")
+    def freeze_calculations(self, requests, *, complete=False, plan=None):
+        """Compare or publish whole calculation sets in one atomic transaction.
+
+        Requests are prepared in memory. No structure, manifest, or plan is
+        published if any worker conflicts. Returned payloads contain saved seeds.
+        """
+        self.compact
+        resolved = {}
         with self.inputs.transaction() as data:
-            if digest in data["structures"]:
-                if structure_digest(data["structures"][digest]) != digest:
-                    raise ValueError("Structure fingerprint mismatch.")
-            else:
-                data["structures"][digest] = frames
-            worker = data["workers"].setdefault(self.worker, {"provenance": {}})
-            worker["provenance"].setdefault(digest, dict(rows=list(provenance), info=list(retained)))
-        return digest
+            names = [request["worker"] for request in requests]
+            if len(set(names)) != len(names):
+                raise ValueError("Duplicate workers in calculation set.")
+            existing = set(data["workers"])
+            if existing and (not set(names).issubset(existing) or (complete and set(names) != existing)):
+                raise ValueError("Calculation set conflict: workers changed. Use a new working directory.")
+            for request in requests:
+                name = request["worker"]
+                definition = dict(version=1, batches=copy.deepcopy(request["batches"]),
+                                  machine_prefix=request["machine_prefix"])
+                previous = data["workers"].get(name)
+                if previous is not None:
+                    saved = self.calculation_set(data, name)
+                    if request["reuse_saved_seeds"] and len(definition["batches"]) == len(saved["batches"]):
+                        for batch, old in zip(definition["batches"], saved["batches"]):
+                            batch["random_seeds"] = old["random_seeds"]
+                    if payload_digest(definition) != payload_digest(saved):
+                        changed = [key for key in ("structure_digest", "runtime", "indices", "structure_indices",
+                                   "wdir_names", "driver_indices", "random_seeds", "share_random_seed")
+                                   if [b.get(key) for b in definition["batches"]] != [b.get(key) for b in saved["batches"]]]
+                        category = ", ".join(changed) or "batch mapping or machine prefix"
+                        raise ValueError(f"Calculation set conflict: {category} changed. Use a new working directory.")
+                else:
+                    frames = [frame.copy() for frame in request["frames"]]
+                    for frame in frames:
+                        frame.info = {}
+                    digest = structure_digest(frames)
+                    if structure_digest(decode(encode(frames))) != digest:
+                        raise ValueError("Structure input serialization changed its fingerprint.")
+                    data["structures"].setdefault(digest, frames)
+                    data["workers"][name] = dict(
+                        calculation_set=definition, calculation_digest=payload_digest(definition),
+                        provenance={digest: dict(rows=request["provenance"], info=request["retained"])})
+                    for payload in definition["batches"]:
+                        uid = str(uuid.uuid4())
+                        data["jobs"][uid] = dict(worker=name, input=payload, job_digest=payload_digest(payload),
+                                                 machine_prefix=definition["machine_prefix"])
+                resolved[name] = definition["batches"]
+            if plan is not None:
+                if "plan" in data and data["plan"] != plan:
+                    raise ValueError("An immutable compute plan already exists. Use a new working directory.")
+                data["plan"] = plan
+        return resolved
+
+    @staticmethod
+    def calculation_set(data, worker):
+        record = data["workers"].get(worker, {})
+        definition = record.get("calculation_set")
+        if definition is None or definition.get("version") != 1:
+            raise ValueError("Missing frozen calculation set; use a new working directory.")
+        if payload_digest(definition) != record.get("calculation_digest"):
+            raise ValueError("Calculation set fingerprint mismatch.")
+        return definition
+
+    def validate_payload(self, payload, machine_prefix):
+        definition = self.calculation_set(self.inputs.read(), self.worker)
+        if (machine_prefix != definition["machine_prefix"] or
+                payload_digest(payload) not in {payload_digest(batch) for batch in definition["batches"]}):
+            raise ValueError("Job is not in the frozen calculation set. Use a new working directory.")
 
     def frames(self, digest):
         frames = self.inputs.read()["structures"][digest]
@@ -108,18 +168,13 @@ class WorkerMetadata:
         return self.inputs.read()["workers"].get(self.worker, {}).get("provenance", {})
 
     def prepare_job(self, payload, machine_prefix):
+        self.validate_payload(payload, machine_prefix)
         digest = payload_digest(payload)
-        with self.inputs.transaction() as data:
-            for uid, saved in data["jobs"].items():
-                if saved["worker"] == self.worker and saved["job_digest"] == digest:
-                    self.validate_manifest(saved)
-                    if saved["machine_prefix"] != machine_prefix:
-                        raise ValueError("Machine prefix changed for an existing job.")
-                    return uid
-            uid = str(uuid.uuid4())
-            data["jobs"][uid] = dict(worker=self.worker, input=payload, job_digest=digest,
-                                     machine_prefix=machine_prefix)
-        return uid
+        for uid, saved in self.inputs.read()["jobs"].items():
+            if saved["worker"] == self.worker and saved["job_digest"] == digest:
+                self.manifest(uid)
+                return uid
+        raise ValueError("Missing manifest for frozen calculation.")
 
     @staticmethod
     def validate_manifest(saved):
@@ -131,13 +186,8 @@ class WorkerMetadata:
         saved = self.validate_manifest(self.inputs.read()["jobs"][str(uid)])
         if saved["worker"] != self.worker:
             raise ValueError("Job belongs to a different worker.")
+        self.validate_payload(saved["input"], saved["machine_prefix"])
         return saved
-
-    def put_plan(self, plan):
-        with self.inputs.transaction() as data:
-            if "plan" in data and data["plan"] != plan:
-                raise ValueError("An immutable compute plan already exists.")
-            data["plan"] = plan
 
     def results(self, uid):
         records = self.state.read()["results"].get(str(uid), {})

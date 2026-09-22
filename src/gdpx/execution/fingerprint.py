@@ -131,7 +131,7 @@ def write_structure_inputs(path, frames):
 
 def read_structure_inputs(path, expected_digest=None):
     data = decode(pathlib.Path(path).read_text(encoding="utf-8"))
-    if data.get("version") != FINGERPRINT_VERSION:
+    if data.get("version") != (2 if data.get("format") == "gdpx-inputs" else FINGERPRINT_VERSION):
         raise ValueError("Unsupported structure fingerprint version; prepare a new run.")
     if data.get("format") == "gdpx-inputs":
         if expected_digest is None:

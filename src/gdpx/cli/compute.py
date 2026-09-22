@@ -48,7 +48,6 @@ def run_computation(
     if job is not None:
         if action != "run" or plan is not None:
             raise ValueError("--job requires compute run and cannot be combined with --plan.")
-        from ase.io.jsonio import decode
         from gdpx.execution.factory import create_worker
         from gdpx.execution.fingerprint import FINGERPRINT_VERSION, payload_digest
 
@@ -58,8 +57,9 @@ def run_computation(
         by_uuid = pathlib.Path(str(job)).suffix != ".json"
         if by_uuid:
             saved = metadata.validate_manifest(metadata.inputs.read()["jobs"][str(job)])
+            saved = WorkerMetadata(directory, saved["worker"]).manifest(str(job))
         else:
-            saved = decode(pathlib.Path(job).read_text())
+            raise ValueError("Legacy job manifests are not supported; use a new working directory.")
         if (saved["input"].get("version") != FINGERPRINT_VERSION
                 or payload_digest(saved["input"]) != saved["job_digest"]):
             raise ValueError(f"Job fingerprint mismatch: {job}")

@@ -311,7 +311,8 @@ def test_mc_restart_matches_uninterrupted_run(tmp_path):
     expected = {name: a.copy() for name, a in engine.atoms.arrays.items()}
     rng_state = copy.deepcopy(engine.rng.bit_generator.state)
     engine._load_checkpoint()
-    assert engine.start_step == 1 and engine.worker.rewound == 1
+    assert engine.start_step == 1
+    assert not hasattr(engine.worker, "rewound")
     assert engine._irun(2) == MCStepState.FINISHED
     assert_arrays(engine.atoms, expected)
     assert engine.rng.bit_generator.state == rng_state
@@ -582,3 +583,118 @@ def test_rattle_checkpoint_replay(tmp_path):
     assert engine._irun(2) == MCStepState.FINISHED
     np.testing.assert_array_equal(engine.atoms.positions, expected)
     assert engine.rng.bit_generator.state == rng_state
+
+
+def real_mc_engine(directory, cls=MonteCarlo):
+    from ase.calculators.emt import EMT
+    from ase.io import write
+    from gdpx.execution.factory import create_worker
+
+    engine = mc_engine(directory, cls)
+    engine.atoms = Atoms("Cu2", positions=[[5, 5, 5], [7, 5, 5]], cell=[20] * 3, tags=[1, 2])
+    engine.atoms.calc = EMT()
+    engine.energy_stored = engine.atoms.get_potential_energy()
+    engine.worker = create_worker(dict(
+        potential=dict(provider="emt", parameters={}),
+        executor=dict(provider="ase", method="spc", parameters=dict(random_seed=9)),
+        options=dict(worker="single")), directory=directory)
+    engine.operators = [operator(particles=["Cu"])]
+    engine.operators[0].bond_distance_dict = get_bond_distance_dict([29], ratio=1.0)
+    engine.operators[0].blmin = get_bond_distance_dict([29], ratio=0.8)
+    write(directory / "mc.xyz", engine.atoms)
+    write(directory / "mc_attempts.xyz", engine.atoms)
+    return engine
+
+
+def test_real_mc_steps_have_independent_frozen_sets_and_recover(tmp_path):
+    engine = real_mc_engine(tmp_path / "mc")
+    engine._irun(1)
+    engine._save_checkpoint(1)
+    first = engine.directory / "calculations" / "step.0001" / "_meta" / "inputs.json"
+    original_inputs = first.read_bytes()
+    engine._irun(2)
+    expected = engine.atoms.positions.copy()
+    expected_rng = copy.deepcopy(engine.rng.bit_generator.state)
+    assert len(engine.get_workers()) == 2
+    engine._load_checkpoint()
+    assert not (engine.directory / "calculations" / "step.0002").exists()
+    engine._irun(2)
+    np.testing.assert_array_equal(engine.atoms.positions, expected)
+    assert engine.rng.bit_generator.state == expected_rng
+    assert first.read_bytes() == original_inputs
+    assert all(len(worker.metadata.inputs.read()["jobs"]) == 1 for worker in engine.get_workers())
+
+
+def test_real_hybrid_repeated_procedures_have_distinct_folders(tmp_path):
+    engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
+    engine.num_mcmoves = 2
+    engine._protype_workers = [engine.worker] * 4
+    for index in range(4):
+        engine._procedure_index = index
+        if index % 2:
+            assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.FINISHED
+        else:
+            assert engine._irun_dynamics(1, "md", engine.worker) == MCStepState.FINISHED
+    workers = engine.get_workers()
+    assert len(workers) == 6
+    assert len({worker.directory for worker in workers}) == 6
+    assert all(len(worker.metadata.inputs.read()["jobs"]) == 1 for worker in workers)
+    assert all(worker.retrieve(include_retrieved=True) for worker in workers)
+    engine._save_checkpoint(1)
+    expected = engine.atoms.positions.copy()
+    engine._procedure_index = 0
+    engine._irun_dynamics(2, "md", engine.worker)
+    engine._load_checkpoint()
+    np.testing.assert_array_equal(engine.atoms.positions, expected)
+    assert not (engine.directory / "calculations" / "step.0002").exists()
+
+
+def test_hybrid_pending_dynamics_remembers_procedure(tmp_path, monkeypatch):
+    from gdpx.exploration.move_step import read_pending
+
+    engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
+    engine._procedure_index = 2
+    worker = engine.worker
+    actual_count = worker.get_number_of_running_jobs
+    monkeypatch.setattr(worker, "get_number_of_running_jobs", lambda: 1)
+    assert engine._irun_dynamics(1, "md", worker) == MCStepState.UNFINISHED
+    path = worker.directory
+    before = worker.metadata.inputs.path.read_bytes()
+    engine.atoms, saved = read_pending(engine.directory / "pending-hybrid", engine.rng)
+    engine._resume_context = saved["context"]
+    assert engine._resume_context["procedure_index"] == 2
+    monkeypatch.setattr(worker, "get_number_of_running_jobs", actual_count)
+    assert engine._irun_dynamics(1, "md", worker) == MCStepState.FINISHED
+    assert worker.directory == path
+    assert worker.metadata.inputs.path.read_bytes() == before
+    assert len(worker.job_store) == 1
+
+
+@pytest.mark.parametrize("cls", [MonteCarlo, HybridMonteCarlo])
+def test_old_exploration_layout_rejected_before_checkpoint_changes(tmp_path, cls):
+    engine = mc_engine(tmp_path / "old", cls)
+    engine._save_checkpoint(1)
+    (engine.directory / "_meta").mkdir()
+    before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
+    with pytest.raises(ValueError, match="Legacy append-based exploration"):
+        engine._load_checkpoint()
+    assert {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()} == before
+
+
+def test_hybrid_full_cycles_count_steps_once_with_repeated_procedures(tmp_path):
+    from ase.io import read
+
+    engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
+    engine.ignore_atoms_tags = False
+    engine.num_mcmoves = 2
+    engine.procedure = ["worker_md", ["monte_carlo", "worker_mc"],
+                        "worker_md", ["monte_carlo", "worker_mc"]]
+    engine.extra_workers = {"md": engine.worker.as_dict(), "mc": engine.worker.as_dict()}
+    engine.convergence = {"steps": 2}
+    engine._run()
+    assert engine.read_convergence()
+    assert len(read(engine.directory / "mc.xyz", ":")) == 3  # initial + two complete cycles
+    assert len(engine.get_workers()) == 13  # initial + (two excursions + four proposals) per cycle
+    before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
+    engine._run()
+    assert {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()} == before

@@ -205,10 +205,10 @@ def test_runtime_and_seed_changes_do_not_reuse_jobs(mock_sched, fake_driver, fak
     assert len(record.job_digest) == 64
     assert not record.md5
     before = worker.job_store.path.read_bytes()
-    with pytest.raises(ValueError, match="Job input conflict"):
+    with pytest.raises(ValueError, match="Calculation set conflict"):
         worker.run([fake_structure], rng_states=[124])
     worker._share_wdir = True
-    with pytest.raises(ValueError, match="Job input conflict"):
+    with pytest.raises(ValueError, match="Calculation set conflict"):
         worker.run([fake_structure], rng_states=[123])
     assert worker.job_store.path.read_bytes() == before
     assert mock_sched.submit_count == 1
@@ -230,17 +230,18 @@ def test_resubmit_uses_exact_saved_batch_and_rng_state(mock_sched, fake_driver, 
     assert mock_sched.submit_count == 2
 
 
-def test_same_structure_in_different_single_workdirs_has_distinct_jobs(
+def test_same_structure_in_different_single_workdirs_is_rejected(
         mock_sched, fake_driver, fake_structure, tmp_path):
+    import pytest
     worker = SingleWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     worker.wdir_name = "cand0"
     worker.run([fake_structure])
+    before = worker.metadata.inputs.path.read_bytes()
     worker.wdir_name = "cand1"
-    worker.run([fake_structure])
-    records = worker.job_store.get_running()
-    assert len(records) == 2
-    assert records[0].structure_digest == records[1].structure_digest
-    assert records[0].job_digest != records[1].job_digest
+    with pytest.raises(ValueError, match="wdir_names changed"):
+        worker.run([fake_structure])
+    assert worker.metadata.inputs.path.read_bytes() == before
+    assert len(worker.job_store.get_running()) == 1
 
 
 def test_legacy_md5_records_rejected_without_modification(mock_sched, fake_driver, tmp_path):
@@ -253,6 +254,6 @@ def test_legacy_md5_records_rejected_without_modification(mock_sched, fake_drive
     content = json.dumps({"_default": {"1": {"md5": "a" * 32, "queued": True}}})
     path.write_text(content)
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
-    with pytest.raises(RuntimeError, match="Legacy driver fingerprints"):
+    with pytest.raises(ValueError, match="Legacy driver metadata"):
         worker.inspect()
     assert path.read_text() == content

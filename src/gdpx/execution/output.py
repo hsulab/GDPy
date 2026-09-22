@@ -89,11 +89,20 @@ class WorkerReporter:
         self.total = sum(len(batch[1]) for batch in batches)
 
     def counts(self):
-        jobs = self.worker.job_store.get_queued()
-        finished = {job.gdir for job in self.worker.job_store.get_finished()}
-        names = {str(name) for job in jobs for name in job.wdir_names}
+        metadata = getattr(self.worker, 'metadata', None)
+        if metadata is not None:
+            # Reporting must not initialize scheduler state after a rejected run.
+            jobs = [row for row in metadata.state.read()['_default'].values()
+                    if row['worker'] == metadata.worker and row.get('queued')]
+            names = {str(name) for job in jobs for name in job['wdir_names']}
+            done = {str(name) for job in jobs if job.get('finished') for name in job['wdir_names']}
+        else:
+            jobs = self.worker.job_store.get_queued()
+            finished = {job.gdir for job in self.worker.job_store.get_finished()}
+            names = {str(name) for job in jobs for name in job.wdir_names}
+            done = {str(name) for job in jobs if job.gdir in finished for name in job.wdir_names}
         selected = self.selected if self.selected is not None else names
-        done = {str(name) for job in jobs if job.gdir in finished for name in job.wdir_names} & selected
+        done &= selected
         failed = {name for name, success in self.outcomes.items() if not success} & selected
         done |= {name for name, success in self.outcomes.items() if success} & selected
         done -= failed
