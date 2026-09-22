@@ -11,10 +11,12 @@ from ase.build import niggli_reduce
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
+from gdpx import config
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.structures.geometry.ga import CellBounds
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
+from gdpx.core.output import quiet_logging
 
 from ..exploration import BaseExploration
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
@@ -27,6 +29,8 @@ from .operators import instantiate_a_genetic_operator
 from .core import OperationSelector, RandomStreamRegistry
 from .generation import GeneticGenerationManager
 from .selection import GeneticParentSelector
+from .output import GenerationReporter, report_setup
+from .files import write_candidate_results, write_generation_history, write_search_files
 from ..population import Population
 from ..population.config import PopulationConfig
 from ..population.comparators import create_population_comparator
@@ -358,6 +362,24 @@ class GeneticAlgorithmEngine(BaseExploration):
         return
 
     def run(self) -> None:
+        with quiet_logging():
+            try:
+                self._run()
+            except BaseException:
+                # Recover partial committed results without masking the search error.
+                try:
+                    self._write_search_files()
+                except Exception:
+                    pass
+                raise
+            self._write_search_files()
+
+    def _write_search_files(self):
+        if getattr(self, 'da', None) is not None:
+            write_search_files(self.da, self.directory, self.directory / self.CALC_DIRNAME,
+                               self.generator.use_tags)
+
+    def _run(self) -> None:
         """Run the GA procedure several steps.
 
         Default setting would run the algorithm many times until its convergence.
@@ -388,17 +410,9 @@ class GeneticAlgorithmEngine(BaseExploration):
         self.worker.directory = self.directory / self.CALC_DIRNAME
 
         if self.generator.name == "random_bulk" and self.worker.driver.setting.task != "cmin":
-            content = "*" * 50 + "\n"
-            content += "*    " + f"{'':<44s}" + "*\n"
-            content += "*    " + f"{'YOU ARE EXPLORING RANDOM BULK STRUCTURES':<44s}" + "*\n"
-            content += "*    " + f"{'BETTER USE `task: cmin` IN THE DRIVER':<44s}" + "*\n"
-            content += "*    " + f"{'OTHERWISE THE CELL WILL NOT BE CHANGED':<44s}" + "*\n"
-            content += "*    " + f"{'':<44s}" + "*\n"
-            content += "*" * 50 + "\n"
-            for l in content.split("\n"):
-                self._print(l)
-        else:
-            self._print("")
+            config.logger.warning(
+                "Exploring random bulk structures without task: cmin; the cell will not be changed."
+            )
 
         # Check database existence and generation number to determine restart
         self._print("===== register database =====")
@@ -413,6 +427,7 @@ class GeneticAlgorithmEngine(BaseExploration):
         # Register mutation and comparassion operators
         self._print("===== register operators =====")
         self._register_operators()
+        report_setup(self.population_config, self.operators, self.target)
 
         # Run genetic
         gen_info = None
@@ -422,7 +437,26 @@ class GeneticAlgorithmEngine(BaseExploration):
                 self._print("The search reaches maximum generation or extinction...")
                 self.report()
                 break
-            gen_state = self._irun(gen_info)
+            reporter = GenerationReporter(
+                self.da, gen_info.num, self.conv_dict["generation"],
+                self.population_config.init_size if gen_info.num == 0 else self.population_config.gen_size,
+                self.target, resumed=self.da.get_generation_plan(gen_info.num) is not None)
+            try:
+                with reporter.as_parent():
+                    gen_state = self._irun(gen_info)
+                write_candidate_results(self.da, self.directory, self.generator.use_tags)
+                if gen_state is EvaluationStatus.PENDING:
+                    reporter.finish("waiting", "waiting for generation evaluations")
+                else:
+                    extinct = self.da.get_generation_info(gen_info.num).state is GenerationState.EXTINCTED
+                    reporter.finish("extinct" if extinct else "complete")
+            except BaseException as error:
+                # Reporting must not obscure the original calculation failure.
+                try:
+                    reporter.finish("failed", f"{type(error).__name__}: {error}")
+                except Exception:
+                    pass
+                raise
             if gen_state == EvaluationStatus.PENDING:
                 self._print("The optimisation has not finished yet.")
                 break
@@ -452,6 +486,7 @@ class GeneticAlgorithmEngine(BaseExploration):
         else:
             current_candidates = self._get_candidates_for_the_other_generation(gen_num)
 
+        write_generation_history(self.da, self.directory / self.CALC_DIRNAME, gen_num)
         self._print(">>>>> Optimisation >>>>>")
         generation_directory = self.directory / self.CALC_DIRNAME / f"gen{gen_num}"
         self.worker.directory = generation_directory

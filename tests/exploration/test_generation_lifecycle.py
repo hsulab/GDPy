@@ -138,6 +138,9 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
     db = GlobalOptimisationDatabase(path)
     assert db.get_generation_number() == 0
     assert db.get_generation_info().state is GenerationState.MID_OF_GEN
+    if method == "ga":
+        assert (engine.directory / "candidates.log").read_text().count(" - INFO: ") == 1
+        assert (engine.directory / "tmp_folder/gen0/history.log").exists()
     resumed = make_engine(config, runtime, engine.directory)
     monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
     resumed.run()
@@ -147,6 +150,13 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
     assert resumed.read_convergence()
     if method == "ga":
         assert db.connection.count(substrate=True) == 1
+        results = (engine.directory / "candidates.log").read_text()
+        assert results.count(" - INFO: ") == engine.population_config.init_size
+        history = (engine.directory / "tmp_folder/gen0/history.log").read_text()
+        assert history.count(" - INFO: ") == engine.population_config.init_size
+        resumed.run()
+        assert (engine.directory / "candidates.log").read_text() == results
+        assert (engine.directory / "tmp_folder/gen0/history.log").read_text() == history
 
 
 @pytest.mark.parametrize("method", ["bh", "ga"])
