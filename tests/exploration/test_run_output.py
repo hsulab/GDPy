@@ -64,7 +64,7 @@ def test_direct_and_spawned_runs(tmp_path, monkeypatch, output, spawn, complete,
     assert f'expeditions: {int(complete)} complete | {int(not complete)} pending' in text
     assert 'input: explore.yaml' in text
     assert 'random seed: 12345' in text
-    assert expedition.directory == (tmp_path if spawn else tmp_path / 'expedition-0')
+    assert expedition.directory == tmp_path
     assert expedition.runs == 1
 
 
@@ -82,7 +82,7 @@ def test_worker_diagnostics_require_debug(tmp_path, monkeypatch, output, debug):
     explore.run_expedition({}, runtime={}, directory=tmp_path)
     text = output.getvalue()
     assert_pair(text, 'complete')
-    for diagnostic in ('<<-- ExpeditionBasedWorker+run -->>', 'expedition-0: direct',
+    for diagnostic in ('<<-- ExpeditionBasedWorker+run -->>', '.: direct',
                        'exp_index=0', 'progress: 1/1'):
         assert (f'DEBUG: {diagnostic}' in text) == debug
         assert f'INFO: {diagnostic}' not in text
@@ -126,7 +126,7 @@ def test_multiple_spawned_directories_and_polling(tmp_path, monkeypatch, output)
     monkeypatch.setattr(explore, 'create_expedition', lambda params: expeditions)
     explore.run_expedition({}, runtime={}, directory=tmp_path, spawn='2,5', wait=0.01)
     assert_pair(output.getvalue(), 'complete')
-    assert [exp.directory for exp in expeditions] == [tmp_path / 'expedition-2', tmp_path / 'expedition-5']
+    assert [exp.directory for exp in expeditions] == [tmp_path / 'expo.02', tmp_path / 'expo.05']
     assert [exp.runs for exp in expeditions] == [3, 2]
     assert sleeps == [0.01] * 3
 

@@ -1,6 +1,7 @@
 """Construction of adaptive exploration strategies."""
 
 import copy
+import itertools
 from collections.abc import Iterable, Mapping
 
 import numpy as np
@@ -62,7 +63,65 @@ def create_expedition(config):
         raise ValueError("Exploration configuration requires a top-level 'method'.") from error
     if method == "concurrent_hopping":
         raise ValueError("concurrent_hopping was renamed to basin_hopping; keep the concurrent-hopping recipe.")
+    broadcast = parameters.pop('broadcast', None)
+    if 'broadcast' in config:
+        if method not in RECIPE_METHODS:
+            raise ValueError(f'Broadcast is only supported for recipe-based explorations, not {method!r}.')
+        if not isinstance(broadcast, Mapping) or not broadcast:
+            raise ValueError('broadcast must be a nonempty mapping of recipe paths to value lists.')
     parameters = _recipe_parameters(method, parameters)
+    if broadcast is None:
+        return _create_expedition(method, parameters)
+    expeditions = []
+    for recipe in _broadcast_recipes(parameters, broadcast):
+        result = _create_expedition(method, recipe)
+        expeditions.extend(result if isinstance(result, list) else [result])
+    return expeditions
+
+
+def _broadcast_target(recipe, parts):
+    """Resolve a recipe path; only a final mapping key may be absent."""
+    parent = recipe
+    for position, part in enumerate(parts):
+        last = position == len(parts) - 1
+        if isinstance(parent, Mapping):
+            key = part
+            if not last and key not in parent:
+                raise ValueError(f'Unknown broadcast parent: {".".join(parts)}')
+        elif isinstance(parent, list):
+            if not part.isdecimal() or str(int(part)) != part or int(part) >= len(parent):
+                raise ValueError(f'Invalid broadcast list index: {".".join(parts)}')
+            key = int(part)
+        else:
+            raise ValueError(f'Broadcast path crosses a non-container: {".".join(parts)}')
+        if last:
+            return parent, key
+        parent = parent[key]
+
+
+def _broadcast_recipes(recipe, broadcast):
+    paths, alternatives = [], []
+    for path, values in broadcast.items():
+        if not isinstance(path, str) or not path or any(not part for part in path.split('.')):
+            raise ValueError(f'Invalid broadcast recipe path: {path!r}')
+        parts = path.split('.')
+        if any(parts[:len(other)] == other or other[:len(parts)] == parts for other in paths):
+            raise ValueError(f'Overlapping broadcast recipe path: {path}')
+        if not isinstance(values, list) or not values:
+            raise ValueError(f'Broadcast values for {path} must be a nonempty list.')
+        _broadcast_target(recipe, parts)
+        paths.append(parts)
+        alternatives.append(values)
+    for combination in itertools.product(*alternatives):
+        expanded = copy.deepcopy(recipe)
+        for parts, value in zip(paths, combination):
+            parent, key = _broadcast_target(expanded, parts)
+            parent[key] = copy.deepcopy(value)
+        yield expanded
+
+
+def _create_expedition(method, parameters):
+    """Construct one resolved recipe, preserving method-specific broadcasting."""
     if method == "basin_hopping" and "population" not in parameters:
         raise ValueError("basin_hopping now uses the concurrent-hopping population recipe; "
                          "for the former MC alias use method: monte_carlo.")
