@@ -40,7 +40,7 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
 
     assert config == original
     assert plan.config["potential"] == original["potential"]
-    assert plan.schema_version == 3
+    assert plan.schema_version == 4
     assert plan.path.exists()
     assert not (tmp_path / "_meta" / "_scheduler.json").exists()
     assert (tmp_path / "_meta" / "scripts" / "run-w0-b0.script").exists()
@@ -159,3 +159,91 @@ def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
     assert inspect_compute(load_compute_plan(tmp_path)).state == "finished"
     assert collect_compute(load_compute_plan(tmp_path)).number_of_trajectories == 1
     assert not (tmp_path / "_data").exists()
+
+
+def test_canonical_inputs_are_shared_and_lossless(tmp_path):
+    import numpy as np
+    import pytest
+    from ase.constraints import FixAtoms
+    from gdpx.execution.fingerprint import read_structure_inputs, structure_digest
+
+    atoms = _cu()
+    atoms.positions[0, 0] = 0.12345678901234567
+    atoms.set_constraint(FixAtoms(indices=[0]))
+    atoms.set_initial_charges([0.25])
+    atoms.set_initial_magnetic_moments([1])
+    atoms.set_momenta([[0.1, 0.2, 0.3]], apply_constraint=False)
+    plan = prepare_compute(_emt_config(), [atoms], tmp_path)
+    assert plan.structure_digest == plan.workers[0].structure_digest == structure_digest([atoms])
+    restored = read_structure_inputs(tmp_path / plan.structure_file, plan.structure_digest)
+    assert np.array_equal(restored[0].positions, atoms.positions)
+    assert len(restored[0].constraints) == 1
+    atoms.positions[0, 0] = np.nextafter(atoms.positions[0, 0], np.inf)
+    with pytest.raises(PlanConflictError):
+        prepare_compute(_emt_config(), [atoms], tmp_path)
+
+
+def test_modified_snapshot_and_plan_are_rejected_before_submission(tmp_path):
+    import dataclasses
+    import pytest
+    from ase.io.jsonio import decode, encode
+    from gdpx.execution.lifecycle.service import ComputeLifecycleError
+
+    plan = prepare_compute(_emt_config(), [_cu()], tmp_path)
+    with pytest.raises(ComputeLifecycleError, match="fingerprint mismatch"):
+        submit_compute(dataclasses.replace(plan, structure_digest="modified"))
+    path = tmp_path / plan.structure_file
+    data = decode(path.read_text())
+    data["frames"][0].positions[0, 0] = 0.01
+    path.write_text(encode(data))
+    with pytest.raises(ValueError, match="fingerprint mismatch"):
+        submit_compute(plan)
+    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
+
+
+def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
+    from gdpx.execution.factory import create_worker
+    from gdpx.cli.compute import run_computation
+    from ase.io.jsonio import decode
+
+    config = _emt_config()
+    config["scheduler"] = {"provider": "slurm", "parameters": {"is_dry_run": True}}
+    source = tmp_path / "source"
+    staged = tmp_path / "staged"
+    worker = create_worker(config, directory=source)
+    worker.run([_cu()], rng_states=[876])
+    manifest = next((source / "_meta").glob("job-*.json"))
+    saved = decode(manifest.read_text())
+    assert saved["input"]["random_seeds"] == [876]
+    shutil.copytree(source, staged)
+    records = staged / "_meta" / "_scheduler.json"
+    before = records.read_bytes()
+    run_computation(["run"], None, job=staged / "_meta" / manifest.name, directory=staged)
+    assert records.read_bytes() == before
+    assert (staged / "cand0").exists()
+    assert not (source / "cand0").exists()
+
+
+def test_old_plan_schema_is_rejected_before_parsing_workers(tmp_path):
+    import pytest
+    from gdpx.execution.lifecycle.service import ComputeLifecycleError
+
+    path = tmp_path / "_meta" / "compute-plan.json"
+    path.parent.mkdir()
+    path.write_text(json.dumps({"schema_version": 3, "workers": [{"identifier": "old-md5"}]}))
+    before = path.read_bytes()
+    with pytest.raises(ComputeLifecycleError, match="Unsupported compute plan schema"):
+        load_compute_plan(tmp_path)
+    assert path.read_bytes() == before
+
+
+def test_saved_job_corruption_is_rejected_before_resolving_runtime(tmp_path, monkeypatch):
+    import pytest
+    from gdpx.cli.compute import run_computation
+    from gdpx.execution import factory
+
+    path = tmp_path / "job.json"
+    path.write_text(json.dumps({"input": {"version": 1, "runtime": {}}, "job_digest": "invalid"}))
+    monkeypatch.setattr(factory, "create_worker", lambda *a, **k: pytest.fail("resolved corrupt input"))
+    with pytest.raises(ValueError, match="Job fingerprint mismatch"):
+        run_computation(["run"], None, job=path, directory=tmp_path)

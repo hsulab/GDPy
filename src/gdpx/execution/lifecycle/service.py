@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import dataclasses
-import hashlib
 import json
 import pathlib
 import shlex
@@ -18,7 +17,7 @@ import time
 from typing import Iterable, Optional, Union
 
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 
 from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.execution.factory import create_worker, create_workers
@@ -26,8 +25,11 @@ from gdpx.providers import RuntimeConfig
 from gdpx.execution.workers.drive import DriverBasedWorker
 
 from gdpx.execution.output import get_reporter, reporting_session
+from gdpx.execution.fingerprint import (
+    normalise_value, payload_digest, structure_digest, read_structure_inputs, write_structure_inputs,
+)
 
-PLAN_SCHEMA_VERSION = 3
+PLAN_SCHEMA_VERSION = 4
 DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "compute-plan.json"
 
 
@@ -58,7 +60,7 @@ class ComputeBatch:
 class WorkerPlan:
     index: int
     directory: str
-    identifier: str
+    structure_digest: str
     batches: tuple[ComputeBatch, ...]
 
 
@@ -92,7 +94,7 @@ class ComputePlan:
                 WorkerPlan(
                     index=worker_data["index"],
                     directory=worker_data["directory"],
-                    identifier=worker_data["identifier"],
+                    structure_digest=worker_data["structure_digest"],
                     batches=tuple(batches),
                 )
             )
@@ -157,7 +159,7 @@ def _normalise_config(config: Union[str, pathlib.Path, dict, list]) -> Union[dic
     # Plans are JSON artifacts. Convert pathlib and scalar-like configuration
     # values once here so an in-memory plan and a reloaded plan compare equally.
     value = normalised if isinstance(parsed, list) else normalised[0]
-    return json.loads(json.dumps(value, default=str))
+    return normalise_value(value)
 
 
 def _load_structures(structures: Iterable[Union[str, pathlib.Path, Atoms]]) -> list[Atoms]:
@@ -177,15 +179,17 @@ def _load_structures(structures: Iterable[Union[str, pathlib.Path, Atoms]]) -> l
     return frames
 
 
-def _structure_digest(frames: list[Atoms]) -> str:
-    with tempfile.NamedTemporaryFile(suffix=".xyz") as handle:
-        write(handle.name, frames, columns=["symbols", "positions", "move_mask"])
-        return hashlib.sha256(pathlib.Path(handle.name).read_bytes()).hexdigest()
-
-
 def _plan_digest(payload: dict) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
-    return hashlib.sha256(canonical).hexdigest()
+    return payload_digest(payload)
+
+
+def _plan_payload(plan):
+    return {
+        "schema_version": plan.schema_version,
+        "structure_digest": plan.structure_digest,
+        "config": plan.config,
+        "workers": [dataclasses.asdict(worker) for worker in plan.workers],
+    }
 
 
 def _create_workers(config: Union[dict, list]):
@@ -252,11 +256,11 @@ def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePla
         raise ComputeLifecycleError(f"Compute plan does not exist: {path}")
     with open(path, "r") as handle:
         data = json.load(handle)
-    plan = ComputePlan.from_dict(data)
-    if plan.schema_version != PLAN_SCHEMA_VERSION:
+    if data.get("schema_version") != PLAN_SCHEMA_VERSION:
         raise ComputeLifecycleError(
-            f"Unsupported compute plan schema {plan.schema_version}; expected {PLAN_SCHEMA_VERSION}."
+            f"Unsupported compute plan schema {data.get('schema_version')}; expected {PLAN_SCHEMA_VERSION}. Prepare a new run."
         )
+    plan = ComputePlan.from_dict(data)
     # The plan travels with its working tree when staged over SSH.
     # Resolve its root from the standard plan location, not the originating
     # machine's absolute directory stored in the JSON artifact.
@@ -274,12 +278,15 @@ def prepare_compute(
     directory = pathlib.Path(directory).resolve()
     normalised_config = _normalise_config(config)
     frames = _load_structures(structures)
-    digest = _structure_digest(frames)
+    digest = structure_digest(frames)
 
     plan_path = directory / DEFAULT_PLAN_RELPATH
     if plan_path.exists():
         existing = load_compute_plan(plan_path)
         if existing.config == normalised_config and existing.structure_digest == digest:
+            if _plan_digest(_plan_payload(existing)) != existing.plan_id:
+                raise PlanConflictError("Compute plan fingerprint mismatch.")
+            read_structure_inputs(directory / existing.structure_file, digest)
             return existing
         raise PlanConflictError(f"A different compute plan already exists at {plan_path}.")
 
@@ -288,9 +295,9 @@ def prepare_compute(
             f"Legacy driver worker layout at {directory}; use a new working directory."
         )
     directory.mkdir(parents=True, exist_ok=True)
-    input_path = directory / "_meta" / "input.xyz"
+    input_path = directory / "_meta" / "input.atoms.json"
     input_path.parent.mkdir(parents=True, exist_ok=True)
-    write(input_path, frames)
+    write_structure_inputs(input_path, frames)
 
     workers = _create_workers(normalised_config)
     worker_plans = []
@@ -305,7 +312,7 @@ def prepare_compute(
         worker_plan = WorkerPlan(
             index=worker_index,
             directory=str(worker_directory.relative_to(directory)) if worker_directory != directory else ".",
-            identifier=identifier,
+            structure_digest=identifier,
             batches=_serialise_batches(worker, batches),
         )
         worker_plans.append(worker_plan)
@@ -355,10 +362,14 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
 
 
 def _restore(plan: ComputePlan):
+    if plan.schema_version != PLAN_SCHEMA_VERSION or _plan_digest(_plan_payload(plan)) != plan.plan_id:
+        raise ComputeLifecycleError("Compute plan fingerprint mismatch; prepare a new run.")
     workers = _create_workers(plan.config)
     if len(workers) != len(plan.workers):
         raise ComputeLifecycleError("Saved plan and reconstructed worker counts differ.")
-    frames = read(pathlib.Path(plan.directory) / plan.structure_file, ":")
+    frames = read_structure_inputs(
+        pathlib.Path(plan.directory) / plan.structure_file, plan.structure_digest
+    )
     restored = []
     for worker, worker_plan in zip(workers, plan.workers):
         worker.directory = pathlib.Path(plan.directory) / worker_plan.directory
@@ -396,7 +407,7 @@ def submit_compute(
         get_reporter(worker).configure([worker_batches[index] for index in selected])
         for batch_index in _selected_batches(worker_plan, batches):
             before = {record.gdir for record in worker.job_store.get_queued()}
-            worker._run_by_scheduler(worker_plan.identifier, frames, worker_batches, target_batch=batch_index)
+            worker._run_by_scheduler(worker_plan.structure_digest, frames, worker_batches, target_batch=batch_index)
             after = {record.gdir for record in worker.job_store.get_queued()}
             if after - before:
                 submitted.append(f"w{worker_plan.index}/b{batch_index}")
@@ -415,7 +426,7 @@ def run_compute_batch(
     _selected_batches(worker_plan, [batch])
     worker.is_spawned = True
     get_reporter(worker).configure([batches[batch]])
-    worker._run_by_commandline(worker_plan.identifier, [], batches, target_batch=batch)
+    worker._run_by_commandline(worker_plan.structure_digest, [], batches, target_batch=batch)
     get_reporter(worker).summary("finished")
     return BatchResult(plan.plan_id, worker_index, batch, True)
 

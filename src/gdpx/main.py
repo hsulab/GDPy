@@ -128,6 +128,7 @@ def main():
         help="archive computation folders to cand.tar.zst when retrieving",
     )
     parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_meta/compute-plan.json)")
+    parser_compute.add_argument("--job", default=None, help=argparse.SUPPRESS)
     parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)
 
     # --- exploration interface
@@ -272,6 +273,7 @@ def main():
             archive=args.archive,
             directory=args.directory,
             plan=args.plan,
+            job=args.job,
             worker_index=args.worker,
         )
     elif args.subcommand == "validate":

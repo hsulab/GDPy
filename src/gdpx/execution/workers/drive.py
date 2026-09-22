@@ -6,14 +6,12 @@ import os
 import pathlib
 import shlex
 import shutil
-import tempfile
 import time
 import traceback
 import uuid
 from typing import Optional, Union
 
 import numpy as np
-import omegaconf
 from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
@@ -29,7 +27,12 @@ from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driv
 from gdpx.utils.profiler import CustomTimer
 
 from .store import JobRecord, JobStore
-from .utils import copy_minimal_frames, get_file_md5, split_batches
+from .utils import copy_minimal_frames, split_batches
+from gdpx.execution.fingerprint import (
+    FINGERPRINT_VERSION, atomic_write_text, normalise_value, payload_digest, structure_digest,
+    read_structure_inputs, write_structure_inputs,
+)
+from ase.io.jsonio import decode, encode
 from .worker import BaseWorker
 
 # ---------------------------------------------------------------------------
@@ -79,7 +82,7 @@ def run_computation_in_commandline(
     """Run computations directly in the commandline.
 
     Args:
-        identifier: MD5 identifier of the input structures.
+        identifier: SHA-256 fingerprint of the input structures.
         structures: A batch of structures.
         computation_dirnames: Working directories for each structure.
         rng_states: Random seeds for each structure.
@@ -276,6 +279,9 @@ class DriverBasedWorker(BaseWorker):
         path = self.metadata_directory / "_scheduler.json"
         if self._job_store is None:
             with TinyDB(path, indent=2) as database:
+                if any(not record.get("structure_digest") or not record.get("job_digest")
+                       for record in database.all()):
+                    raise RuntimeError("Legacy driver fingerprints; prepare a new working directory.")
                 table = database.table("scheduler")
                 records = table.all()
                 if records and records[0]["provider"] != self.scheduler.name:
@@ -296,6 +302,7 @@ class DriverBasedWorker(BaseWorker):
             }
 
     def _prepare_scheduler_for_job(self, job: JobRecord):
+        self._validate_job(job)
         self.scheduler.job_name = job.gdir
         self.scheduler.script = self.metadata_directory / f"run-{job.uid}.script"
         self._configure_scheduler_paths()
@@ -325,7 +332,7 @@ class DriverBasedWorker(BaseWorker):
         return [(0, index) for index in range(num_structures)]
 
     # ------------------------------------------------------------------
-    # Preprocessing (MD5 caching, seed generation)
+    # Preprocessing (canonical structure caching, seed generation)
     # ------------------------------------------------------------------
 
     def _read_cached_info(self):
@@ -351,12 +358,9 @@ class DriverBasedWorker(BaseWorker):
         return info_keys, _info_data
 
     def _preprocess(self, builder, *args, **kwargs):
-        frames = []
-        if isinstance(builder, StructureBuilder):
-            frames = builder.run()
-        else:
-            assert all(isinstance(x, Atoms) for x in frames), "Input should be a list of atoms."
-            frames = builder
+        frames = builder.run() if isinstance(builder, StructureBuilder) else list(builder)
+        if not frames or not all(isinstance(frame, Atoms) for frame in frames):
+            raise ValueError("Input should be a non-empty list of atoms.")
         prev_frames = frames
 
         processed_dpath = self.metadata_directory
@@ -364,10 +368,7 @@ class DriverBasedWorker(BaseWorker):
 
         curr_frames, curr_info = copy_minimal_frames(prev_frames)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz") as tmp:
-            write(tmp.name, curr_frames, columns=["symbols", "positions", "move_mask"])
-            with open(tmp.name, "rb") as fopen:
-                curr_md5 = get_file_md5(fopen)
+        fingerprint = structure_digest(curr_frames)
 
         # Generate random seeds from the first driver's seed
         first_driver = self._drivers[0] if self._drivers else None
@@ -384,17 +385,16 @@ class DriverBasedWorker(BaseWorker):
 
         _info_data = self._read_cached_info()
 
-        stored_fname = f"{curr_md5}.xyz"
+        stored_fname = f"{fingerprint}.atoms.json"
         if (processed_dpath / stored_fname).exists():
-            self._print(f"Found file with md5 {curr_md5}")
+            read_structure_inputs(processed_dpath / stored_fname, fingerprint)
+            self._print(f"Found structures with fingerprint {fingerprint}")
             self._info_data = _info_data
             start_confid = 0
             for x in self._info_data:
-                if x[1] == curr_md5:
+                if x[1] == fingerprint:
                     break
                 start_confid += 1
-            if len(_info_data) > 0 and len(_info_data[0]) > 5:
-                random_seeds = [int(x[-1]) for x in _info_data]
         else:
             if self._retain_info:
                 info_keys = []
@@ -405,24 +405,24 @@ class DriverBasedWorker(BaseWorker):
                 for i, a in enumerate(prev_frames):
                     line = f"{i:<24d}  " + "  ".join([f"{str(a.info.get(k)):<24s}" for k in info_keys]) + "\n"
                     content += line
-                with open(processed_dpath / f"{curr_md5}_xinfo.txt", "w") as fopen:
+                with open(processed_dpath / f"{fingerprint}_xinfo.txt", "w") as fopen:
                     fopen.write(content)
-            write(processed_dpath / stored_fname, curr_frames)
+            write_structure_inputs(processed_dpath / stored_fname, curr_frames)
             start_confid = len(_info_data)
-            content = "{:<12s}  {:<32s}  {:<12s}  {:<12s}  {:<s}  {:>24s}\n".format(
-                "#id", "MD5", "confid", "step", "wdir", "rs"
+            content = "{:<12s}  {:<64s}  {:<12s}  {:<12s}  {:<s}  {:>24s}\n".format(
+                "#id", "structure_digest", "confid", "step", "wdir", "rs"
             )
             for i, ((confid, step, wdir), rs) in enumerate(zip(curr_info, random_seeds)):
                 line = "{:<12d}  {:<32s}  {:<12d}  {:<12d}  {:<s}  {:>24d}\n".format(
-                    i + start_confid, curr_md5, confid, step, wdir, rs
+                    i + start_confid, fingerprint, confid, step, wdir, rs
                 )
                 content += line
                 _info_data.append(line.strip().split())
             self._info_data = _info_data
-            with open(processed_dpath / f"{curr_md5}_info.txt", "w") as fopen:
+            with open(processed_dpath / f"{fingerprint}_info.txt", "w") as fopen:
                 fopen.write(content)
 
-        return curr_md5, curr_frames, start_confid, random_seeds
+        return fingerprint, curr_frames, start_confid, random_seeds
 
     def _prepare_batches(
         self,
@@ -543,7 +543,11 @@ class DriverBasedWorker(BaseWorker):
         get_reporter(self).configure(selected)
 
         if not self.is_spawned:
-            self._run_by_scheduler(identifier, frames, batches, target_batch=target_batch)
+            implicit_seed = self.runtime.config.executor.parameters.get("random_seed") is None
+            self._run_by_scheduler(
+                identifier, frames, batches, target_batch=target_batch,
+                reuse_saved_seeds=not rng_states and implicit_seed,
+            )
         else:
             self._run_by_commandline(identifier, frames, batches, target_batch=target_batch)
 
@@ -566,7 +570,64 @@ class DriverBasedWorker(BaseWorker):
             error_func=config.logger.error,
         )
 
-    def _run_by_scheduler(self, identifier: str, frames: list[Atoms], batches, target_batch: Optional[int] = None):
+    def _job_payload(self, identifier, batch, group_number):
+        indices, wdirs, driver_indices, seeds, frames = batch
+        return {
+            "version": FINGERPRINT_VERSION,
+            "structure_digest": identifier,
+            "batch_structure_digest": structure_digest(frames),
+            "runtime": normalise_value(self.as_dict()),
+            "group_number": group_number,
+            "indices": indices,
+            "structure_indices": [self._task_plan[index][1] for index in indices],
+            "wdir_names": wdirs,
+            "driver_indices": driver_indices,
+            "random_seeds": seeds,
+            "share_random_seed": self._share_random_seed,
+        }
+
+    def _read_job_input(self, path, expected_digest=None):
+        saved = decode(pathlib.Path(path).read_text())
+        payload = saved["input"]
+        digest = payload_digest(payload)
+        if (payload.get("version") != FINGERPRINT_VERSION or digest != saved["job_digest"]
+                or (expected_digest is not None and digest != expected_digest)):
+            raise ValueError(f"Job fingerprint mismatch: {path}")
+        if payload_digest(payload["runtime"]) != payload_digest(self.as_dict()):
+            raise ValueError("Runtime configuration changed for an existing job.")
+        frames = read_structure_inputs(
+            self.metadata_directory / f'{payload["structure_digest"]}.atoms.json',
+            payload["structure_digest"],
+        )
+        batch_frames = [frames[index].copy() for index in payload["structure_indices"]]
+        if structure_digest(batch_frames) != payload["batch_structure_digest"]:
+            raise ValueError("Batch structure fingerprint mismatch.")
+        for frame, wdir in zip(batch_frames, payload["wdir_names"]):
+            frame.info.update(wdir=wdir, group=payload["group_number"])
+        batch = [payload["indices"], payload["wdir_names"], payload["driver_indices"],
+                 payload["random_seeds"], batch_frames]
+        return payload, batch
+
+    def _validate_job(self, job):
+        payload, batch = self._read_job_input(
+            self.metadata_directory / f"job-{job.uid}.json", job.job_digest
+        )
+        if (payload["structure_digest"] != job.structure_digest
+                or payload["group_number"] != job.group_number
+                or payload["wdir_names"] != job.wdir_names):
+            raise ValueError("Job record does not match its saved input.")
+        return payload, batch
+
+    def run_saved_job(self, path):
+        """Execute an immutable batch on a staged host without submitting jobs."""
+        payload, batch = self._read_job_input(path)
+        get_reporter(self).configure([batch])
+        self._run_by_commandline(payload["structure_digest"], [], [batch], target_batch=0)
+
+    def _run_by_scheduler(
+        self, identifier: str, frames: list[Atoms], batches,
+        target_batch: Optional[int] = None, *, reuse_saved_seeds: bool = False,
+    ):
         database_path = self.job_store.path.resolve()
         try:
             db_rel = database_path.relative_to(pathlib.Path.cwd())
@@ -574,48 +635,47 @@ class DriverBasedWorker(BaseWorker):
             db_rel = database_path
         self._print(f"database_path: {db_rel}")
 
+        read_structure_inputs(self.metadata_directory / f"{identifier}.atoms.json", identifier)
         queued_jobs = self.job_store.get_queued()
-        queued_pairs = {(q.gdir[self.UUIDLEN + 1 :], q.md5) for q in queued_jobs}
-
-        for ig, batch in enumerate(batches):
-            batch_name = f"group-{ig}"
-            uid = str(uuid.uuid1())
-            job_name = uid + "-" + batch_name
-
-            if (batch_name, identifier) in queued_pairs:
-                self._print(f"{batch_name} at {self.directory.name} was submitted.")
-                continue
-
-            if isinstance(target_batch, int):
-                if ig != target_batch:
-                    self._print(
-                        f"{time.asctime(time.localtime(time.time()))} {self.directory.name} batch {ig} is skipped..."
+        selected = [(ig, batch) for ig, batch in enumerate(batches)
+                    if target_batch is None or ig == target_batch]
+        prepared = []
+        # Validate every requested batch before submitting any of them.
+        for ig, batch in selected:
+            payload = self._job_payload(identifier, batch, ig)
+            digest = payload_digest(payload)
+            overlap = [job for job in queued_jobs if set(job.wdir_names) & set(batch[1])]
+            if overlap:
+                if len(overlap) == 1 and reuse_saved_seeds:
+                    saved, _ = self._validate_job(overlap[0])
+                    # An omitted seed means resume the original random choices.
+                    # All other inputs must still match exactly.
+                    digest = payload_digest(dict(payload, random_seeds=saved["random_seeds"]))
+                if len(overlap) != 1 or overlap[0].job_digest != digest:
+                    raise ValueError(
+                        f"Job input conflict for {batch[1]}: structures, runtime, or seeds changed. "
+                        "Use a new working directory."
                     )
-                    continue
+                self._validate_job(overlap[0])
+                self._print(f"group-{ig} at {self.directory.name} was submitted.")
+                continue
+            prepared.append((ig, batch, payload, digest))
 
+        for ig, batch, payload, digest in prepared:
+            uid = str(uuid.uuid1())
+            batch_name = f"group-{ig}"
+            job_name = uid + "-" + batch_name
+            atomic_write_text(
+                self.metadata_directory / f"job-{uid}.json",
+                encode({"job_digest": digest, "input": payload}),
+            )
             self.job_store.insert(
-                uid=uid,
-                md5=identifier,
-                gdir=job_name,
-                group_number=ig,
-                wdir_names=batch[1],
+                uid=uid, md5="", structure_digest=identifier, job_digest=digest,
+                gdir=job_name, group_number=ig, wdir_names=batch[1],
             )
-            worker_input_fpath = self.metadata_directory / f"worker-{identifier}.json"
-            if not worker_input_fpath.exists():
-                worker_input_dict = omegaconf.OmegaConf.create(self.as_dict())
-                worker_input_dict = omegaconf.OmegaConf.to_container(worker_input_dict)
-                with open(worker_input_fpath, "w") as fopen:
-                    json.dump(worker_input_dict, fopen, indent=2)
-                with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as fopen:
-                    fopen.write(self.scheduler.machine_prefix)
-
-            self._irun(
-                batch_name,
-                uid,
-                identifier,
-                frames,
-                batch,
-            )
+            with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as handle:
+                handle.write(self.scheduler.machine_prefix)
+            self._irun(batch_name, uid, identifier, frames, batch)
 
     def _irun(
         self,
@@ -626,9 +686,6 @@ class DriverBasedWorker(BaseWorker):
         batch,
     ) -> None:
         batch_number = int(batch_name.split("-")[-1])
-        worker_input_fpath = str((self.metadata_directory / f"worker-{identifier}.json").relative_to(self.directory))
-        dataset_path = str((self.metadata_directory / f"{identifier}.xyz").relative_to(self.directory))
-
         jobscript_fname = f"run-{uid}.script"
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self.metadata_directory / jobscript_fname
@@ -648,11 +705,8 @@ class DriverBasedWorker(BaseWorker):
                 f"--worker {worker_index} --batch {batch_number}\n"
             )
         else:
-            self.scheduler.user_commands = "gdp -r {} compute {} --batch {} --spawn\n".format(
-                shlex.quote(worker_input_fpath),
-                shlex.quote(dataset_path),
-                batch_number,
-            )
+            job_path = pathlib.Path("_meta") / f"job-{uid}.json"
+            self.scheduler.user_commands = f"gdp compute run --job {shlex.quote(str(job_path))}\n"
 
         submit_variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
                            "lsf": "LS_SUBCWD"}.get(self.scheduler.name)
@@ -718,7 +772,7 @@ class DriverBasedWorker(BaseWorker):
         else:
             # share_wdir: check cache file
             # Find the identifier from the job
-            cache_fpath = self.metadata_directory / f"{job.md5}_cache.xyz"
+            cache_fpath = self.metadata_directory / f"{job.structure_digest}_cache.xyz"
             if cache_fpath.exists():
                 cache_frames = read(cache_fpath, ":")
                 cache_wdirs = [a.info["wdir"] for a in cache_frames]
@@ -731,15 +785,8 @@ class DriverBasedWorker(BaseWorker):
 
     def _resubmit_job(self, job: JobRecord):
         self._print(f"RESUBMIT: {str(job.gdir)}")
-        identifier = job.md5
-        curr_batch = job.group_number
-
-        frames = read(self.metadata_directory / f"{identifier}.xyz", ":")
-        cache_identifier, cache_frames, cache_batches = self.prepare_batches(frames)
-        assert cache_identifier == identifier, "Inconsistent identifiers for the input structure."
-
-        batch = cache_batches[curr_batch]
-        self._irun(f"group-{curr_batch}", job.uid, identifier, cache_frames, batch)
+        payload, batch = self._validate_job(job)
+        self._irun(f"group-{job.group_number}", job.uid, payload["structure_digest"], [], batch)
 
     # ------------------------------------------------------------------
     # Retrieve
@@ -765,7 +812,8 @@ class DriverBasedWorker(BaseWorker):
 
         unretrieved_identifiers = []
         for job in unretrieved_jobs:
-            unretrieved_identifiers.append(job.md5)
+            self._validate_job(job)
+            unretrieved_identifiers.append(job.structure_digest)
             unretrieved_wdirs_.extend(self.directory / w for w in job.wdir_names)
 
         unretrieved_wdirs = []

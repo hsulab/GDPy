@@ -39,10 +39,26 @@ def run_computation(
     directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
     plan: Optional[Union[str, pathlib.Path]] = None,
     worker_index: int = 0,
+    job: Optional[Union[str, pathlib.Path]] = None,
 ):
     """Prepare or advance one explicit schema-v3 compute lifecycle."""
     action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
     plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
+
+    if job is not None:
+        if action != "run" or plan is not None:
+            raise ValueError("--job requires compute run and cannot be combined with --plan.")
+        from ase.io.jsonio import decode
+        from gdpx.execution.factory import create_worker
+        from gdpx.execution.fingerprint import FINGERPRINT_VERSION, payload_digest
+
+        saved = decode(pathlib.Path(job).read_text())
+        if (saved["input"].get("version") != FINGERPRINT_VERSION
+                or payload_digest(saved["input"]) != saved["job_digest"]):
+            raise ValueError(f"Job fingerprint mismatch: {job}")
+        worker = create_worker(saved["input"]["runtime"], directory=directory)
+        worker.run_saved_job(job)
+        return
 
     if spawn and action is None:
         if runtime is None or batch is None:

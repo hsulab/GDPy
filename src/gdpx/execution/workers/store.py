@@ -7,7 +7,7 @@ from tinydb import Query, TinyDB
 class JobRecord:
     """A single job record from the job store."""
 
-    __slots__ = ("doc_id", "uid", "md5", "gdir", "group_number", "wdir_names", "scheduler_job_id", "attempt")
+    __slots__ = ("doc_id", "uid", "md5", "gdir", "group_number", "wdir_names", "scheduler_job_id", "attempt", "structure_digest", "job_digest")
 
     def __init__(
         self,
@@ -19,10 +19,14 @@ class JobRecord:
         wdir_names: list[str],
         scheduler_job_id: str = "",
         attempt: int = 0,
+        structure_digest: str = "",
+        job_digest: str = "",
     ):
         self.doc_id = doc_id
         self.uid = uid
         self.md5 = md5
+        self.structure_digest = structure_digest
+        self.job_digest = job_digest
         self.gdir = gdir
         self.group_number = group_number
         self.wdir_names = wdir_names
@@ -61,6 +65,8 @@ class JobStore:
                 wdir_names=d.get("wdir_names", []),
                 scheduler_job_id=d.get("scheduler_job_id", ""),
                 attempt=d.get("attempt", 0),
+                structure_digest=d.get("structure_digest", ""),
+                job_digest=d.get("job_digest", ""),
             )
             for d in docs
         ]
@@ -94,12 +100,14 @@ class JobStore:
     # Mutations
     # ------------------------------------------------------------------
 
-    def insert(self, uid: str, md5: str, gdir: str, group_number: int, wdir_names: list[str]) -> None:
+    def insert(self, uid: str, md5: str, gdir: str, group_number: int, wdir_names: list[str],
+               *, structure_digest: str = "", job_digest: str = "") -> None:
         with TinyDB(self._db_path, indent=2) as db:
             db.insert(
                 dict(
                     uid=uid,
-                    md5=md5,
+                    **({"structure_digest": structure_digest, "job_digest": job_digest}
+                       if structure_digest else {"md5": md5}),
                     gdir=gdir,
                     group_number=group_number,
                     wdir_names=wdir_names,

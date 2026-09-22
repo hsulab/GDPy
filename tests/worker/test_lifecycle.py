@@ -78,7 +78,7 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     metadata = tmp_path / "_meta"
     assert set(p.name for p in tmp_path.iterdir()) == {"_meta"}
     assert worker.job_store.path == metadata / "_scheduler.json"
-    assert list(metadata.glob("worker-*.json"))
+    assert list(metadata.glob("job-*.json"))
     assert list(metadata.glob("*_info.txt"))
     assert list(metadata.glob("MACHINE_*"))
     original = worker.job_store.get_running()[0]
@@ -114,7 +114,7 @@ def test_generated_driver_script_launches_from_worker_root(mock_sched, fake_driv
     subprocess.run(["bash", str(mock_sched.script)], cwd=mock_sched.script.parent, check=True)
     assert (root / "launch-cwd").read_text().strip() == str(root)
     args = (root / "launch-args").read_text().splitlines()
-    assert (root / args[1]).is_file()
+    assert args[:3] == ["compute", "run", "--job"]
     assert (root / args[3]).is_file()
 
 
@@ -193,3 +193,66 @@ def test_remote_driver_sync_preserves_jobs_and_updates_cache(tmp_path):
     assert (local / "_meta" / "test_cache.xyz").read_text() == "cached results"
     assert (local / "cand0" / "result").read_text() == "new"
     assert not (local / "cand0" / "obsolete").exists()
+
+
+def test_runtime_and_seed_changes_do_not_reuse_jobs(mock_sched, fake_driver, fake_structure, tmp_path):
+    import pytest
+
+    worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
+    worker.run([fake_structure], rng_states=[123])
+    record = worker.job_store.get_running()[0]
+    assert len(record.structure_digest) == 64
+    assert len(record.job_digest) == 64
+    assert not record.md5
+    before = worker.job_store.path.read_bytes()
+    with pytest.raises(ValueError, match="Job input conflict"):
+        worker.run([fake_structure], rng_states=[124])
+    worker._share_wdir = True
+    with pytest.raises(ValueError, match="Job input conflict"):
+        worker.run([fake_structure], rng_states=[123])
+    assert worker.job_store.path.read_bytes() == before
+    assert mock_sched.submit_count == 1
+
+
+def test_resubmit_uses_exact_saved_batch_and_rng_state(mock_sched, fake_driver, fake_structure, tmp_path):
+    import numpy as np
+
+    state = np.random.default_rng(765).bit_generator.state
+    worker = SingleWorker(_runtime(fake_driver, mock_sched, worker="single"), directory=tmp_path)
+    worker.wdir_name = "cand7"
+    worker.run([fake_structure], rng_states=[state])
+    restarted = SingleWorker(_runtime(fake_driver, mock_sched, worker="single"), directory=tmp_path)
+    mock_sched.finish()
+    restarted.inspect(resubmit=True)
+    arguments = mock_sched.submitted_jobs[-1]["func"].keywords
+    assert arguments["rng_states"] == [state]
+    assert arguments["computation_dirnames"] == ["cand7"]
+    assert mock_sched.submit_count == 2
+
+
+def test_same_structure_in_different_single_workdirs_has_distinct_jobs(
+        mock_sched, fake_driver, fake_structure, tmp_path):
+    worker = SingleWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
+    worker.wdir_name = "cand0"
+    worker.run([fake_structure])
+    worker.wdir_name = "cand1"
+    worker.run([fake_structure])
+    records = worker.job_store.get_running()
+    assert len(records) == 2
+    assert records[0].structure_digest == records[1].structure_digest
+    assert records[0].job_digest != records[1].job_digest
+
+
+def test_legacy_md5_records_rejected_without_modification(mock_sched, fake_driver, tmp_path):
+    import json
+    import pytest
+
+    metadata = tmp_path / "_meta"
+    metadata.mkdir()
+    path = metadata / "_scheduler.json"
+    content = json.dumps({"_default": {"1": {"md5": "a" * 32, "queued": True}}})
+    path.write_text(content)
+    worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
+    with pytest.raises(RuntimeError, match="Legacy driver fingerprints"):
+        worker.inspect()
+    assert path.read_text() == content

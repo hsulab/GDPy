@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-import copy
 from typing import List
 
 import numpy as np
@@ -26,23 +25,14 @@ def get_file_md5(f):
 def copy_minimal_frames(prev_frames: List[Atoms]):
     """Copy atoms without extra information.
 
-    Do not copy atoms.info since it is a dict and does not maitain order.
+    Keep calculation inputs; exclude bookkeeping and attached calculators.
 
     """
     curr_frames, curr_info = [], []
     for prev_atoms in prev_frames:
-        # - copy geometry
-        curr_atoms = Atoms(
-            symbols=copy.deepcopy(prev_atoms.get_chemical_symbols()),
-            positions=copy.deepcopy(prev_atoms.get_positions()),
-            cell=copy.deepcopy(prev_atoms.get_cell(complete=True)),
-            pbc=copy.deepcopy(prev_atoms.get_pbc()),
-            tags=prev_atoms.get_tags(),  # retain this for molecules
-        )
-        if prev_atoms.get_kinetic_energy() > 0.0:  # retain this for MD
-            curr_atoms.set_momenta(prev_atoms.get_momenta())
-        if np.any(np.fabs(prev_atoms.get_initial_charges()) > 0.0):
-            curr_atoms.set_initial_charges(prev_atoms.get_initial_charges())
+        # Preserve all calculation inputs, including constraints and custom arrays.
+        curr_atoms = prev_atoms.copy()
+        curr_atoms.info = {}
         curr_frames.append(curr_atoms)
         # - save info
         confid = prev_atoms.info.get("confid", -1)
