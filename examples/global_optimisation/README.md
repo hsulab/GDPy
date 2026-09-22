@@ -62,12 +62,15 @@ runtimes can be substituted without changing the exploration.
 | `explorations/genetic_algorithm/cuxoy_cu111.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/genetic_algorithm/cu4_alumina111.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/genetic_algorithm/cu4_co_alumina111.yaml` | `runtimes/mattersim.yaml` |
-| `explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/basin_hopping/cu8.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu_ni_compositions.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu6_nix.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu4o4.yaml` | `runtimes/tace.yaml` |
 | `explorations/basin_hopping/cu4o4_thanos.yaml` | `runtimes/mattersim.yaml` |
+
+The CO–Cu₄/alumina example combines `random` and `site_insertion` initialization
+in one population (four candidates each). Its family tree labels both initial
+groups so their relaxed energies and descendants can be compared.
 
 There is one runtime per potential: `emt.yaml` allows up to 1,000 relaxation
 steps; `mattersim.yaml` and `tace.yaml` allow up to 20. All use `fmax: 0.05`

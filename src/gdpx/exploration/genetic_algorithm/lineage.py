@@ -57,7 +57,8 @@ def _layout(nodes):
     for row, (generation, identifiers) in enumerate(sorted(generations.items())):
         def order(identifier):
             parents = [positions[parent][0] for parent in nodes[identifier]['parents'] if parent in positions]
-            return (np.mean(parents) if parents else width / 2, identifier)
+            return (np.mean(parents) if parents else width / 2,
+                    nodes[identifier].get('builder') or '', identifier)
         identifiers.sort(key=order)
         for column, identifier in enumerate(identifiers):
             positions[identifier] = ((column + 0.5) * width / len(identifiers), -row)
@@ -87,6 +88,15 @@ def plot_lineage(connection, directory, objective='energy'):
             spine.set_visible(False)
         for row in range(len(generations)):
             ax.axhline(-row, color='#e4e8ed', linewidth=0.8, zorder=0)
+        initial_builders = defaultdict(list)
+        for identifier, node in nodes.items():
+            if node['generation'] == generations[0] and node.get('builder'):
+                initial_builders[node['builder']].append(positions[identifier][0])
+        if len(initial_builders) > 1:
+            for builder, xs in initial_builders.items():
+                ax.text(np.mean(xs), 0.35, builder, ha='center', va='bottom',
+                        fontsize=8, color='#123b68')
+                ax.plot([min(xs), max(xs)], [0.3, 0.3], color='#123b68', linewidth=0.6)
         # Keep the raster fixed; scale markers and IDs to both population size
         # and generation count. Twenty candidates across eleven rows retain IDs.
         spacing = min(12 * 0.815 * 72 / (width + 1),

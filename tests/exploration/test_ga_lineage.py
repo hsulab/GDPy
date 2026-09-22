@@ -92,3 +92,25 @@ def test_production_size_keeps_all_nodes_and_readable_ids(tmp_path, monkeypatch)
     paths = module.plot_lineage(None, tmp_path)
     with Image.open(paths[0]) as image:
         assert image.size == (1200, 600)
+
+
+def test_mixed_builders_are_grouped_and_labeled_without_a_legend(tmp_path, monkeypatch):
+    from matplotlib.figure import Figure
+    from gdpx.exploration.genetic_algorithm.lineage import _layout
+    db = connect(tmp_path / 'candidates.db')
+    for identifier, builder in enumerate(['random', 'site_insertion', 'random', 'site_insertion'], 1):
+        db.write(Atoms('Cu'), confid=identifier, relaxed=0, generation=0,
+                 origin=f'InitialBuilder:{builder}', data={'builder': builder})
+        db.write(Atoms('Cu'), confid=identifier, relaxed=1, generation=0,
+                 target=-float(identifier))
+    nodes = collect_lineage(db)
+    positions, _, _ = _layout(nodes)
+    assert max(positions[i][0] for i in (1, 3)) < min(positions[i][0] for i in (2, 4))
+    original = Figure.savefig
+    def check(figure, *args, **kwargs):
+        assert not figure.legends and not figure.texts
+        labels = [text.get_text() for text in figure.axes[0].texts]
+        assert set(labels) == {'random', 'site_insertion', '1', '2', '3', '4'}
+        return original(figure, *args, **kwargs)
+    monkeypatch.setattr(Figure, 'savefig', check)
+    assert plot_lineage(db, tmp_path)[0].exists()

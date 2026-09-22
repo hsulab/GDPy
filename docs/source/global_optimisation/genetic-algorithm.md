@@ -45,6 +45,8 @@ Completed searches also write a compact 1200 × 600 `results/family_tree.png`.
 The family tree places candidates in generation rows
 and connects parents to offspring. Only candidate IDs, generation numbers, and
 the objective color bar are labeled, with the same `coolwarm` palette as BH.
+When initialization uses multiple builders, the initial row is grouped and
+directly labeled by builder name to compare their energies and descendants.
 Candidate IDs are shown
 when space permits, including 20 candidates per generation across an initial
 population and 10 evolved generations. Larger searches use smaller markers and

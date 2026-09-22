@@ -36,6 +36,42 @@ def make_generation_manager(params):
     return GeneticGenerationManager(params, config, population, selector, rng)
 
 
+def test_fragment_atom_order_is_canonical_without_changing_geometry():
+    from gdpx.utils.atoms_tags import reassign_tags_by_species
+    # The substrate keeps its original order. CO arrives as OC, with custom
+    # per-atom data that must follow the corresponding physical atoms.
+    atoms = Atoms('OCuOC', positions=np.arange(12).reshape(4, 3), tags=[0, 0, 7, 7])
+    atoms.set_array('original_index', np.arange(4))
+    atoms.info['nested'] = {'value': 1}
+    reordered = reassign_tags_by_species(atoms)
+    assert reordered.get_chemical_symbols() == ['O', 'Cu', 'C', 'O']
+    np.testing.assert_array_equal(reordered.get_tags(), [0, 0, 1, 1])
+    np.testing.assert_array_equal(reordered.arrays['original_index'], [0, 1, 3, 2])
+    np.testing.assert_array_equal(reordered.positions, atoms.positions[[0, 1, 3, 2]])
+    assert reordered.get_distance(2, 3) == atoms.get_distance(2, 3)
+    np.testing.assert_array_equal(atoms.get_tags(), [0, 0, 7, 7])
+    reordered.info['nested']['value'] = 2
+    assert atoms.info['nested']['value'] == 1
+
+
+def test_two_builder_co_example_has_compatible_fragment_order(tmp_path, monkeypatch):
+    from pathlib import Path
+    import yaml
+    from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
+    root = Path(__file__).resolve().parents[2]
+    monkeypatch.chdir(root)
+    recipe = yaml.safe_load((root / 'examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml').read_text())['recipe']
+    population = PopulationConfig(recipe['population'])
+    builders = population.initialise_builders(recipe['population'], RandomStreamRegistry(recipe['random_seed']))
+    for name, builder in builders.items():
+        builder.directory = tmp_path / name
+    frames = population._prepare_initial_population(builders)
+    assert [frame.info['data']['builder'] for frame in frames] == ['random'] * 4 + ['site_insertion'] * 4
+    assert all(len(frame) == 186 for frame in frames)
+    assert all(np.array_equal(frame.numbers, frames[0].numbers) for frame in frames)
+    assert all(np.array_equal(frame.get_tags(), frames[0].get_tags()) for frame in frames)
+
+
 class Serializable:
     def __init__(self, value):
         self.value = value

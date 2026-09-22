@@ -37,8 +37,7 @@ and guide.
 | Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | MatterSim | |
 | Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | MatterSim | Variable composition |
 | Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | MatterSim | |
-| Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | MatterSim | Random generation |
-| Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-adsorbate-insertion-example>` | MatterSim | Site insertion |
+| Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | MatterSim | Two initial builders: random and site insertion |
 
 ```{toctree}
 :maxdepth: 1
@@ -52,5 +51,4 @@ surface-oxide
 variable-surface-oxide
 supported-nanoparticle
 supported-cluster-adsorbate
-adsorbate-insertion
 ```
