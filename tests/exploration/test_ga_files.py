@@ -23,7 +23,7 @@ def test_history_preserves_production_steps_and_rebuilds_without_duplicates(tmp_
                                'mutation_attempts': 2})
     # Queue markers have no structure and must not appear as production events.
     db.connection.write(Atoms(), relaxed=0, confid=2, queued=1)
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=True)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=True)
     path = tmp_path / 'tmp_folder/gen1/history.log'
     history = path.read_text()
     assert 'reproduction attempts: 3 | mutation attempts: 2' in history
@@ -35,7 +35,7 @@ def test_history_preserves_production_steps_and_rebuilds_without_duplicates(tmp_
     assert 'operation=random parents=[] origin=CompletionBuilder:random builder=random' in history
     assert 'InitialBuilder' not in history
     assert 'builder=seed' in (tmp_path / 'tmp_folder/gen0/history.log').read_text()
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=True)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=True)
     assert path.read_text() == history
 
 
@@ -50,7 +50,7 @@ def test_candidate_results_use_committed_fitness_species_and_stable_timestamps(t
     # A historical duplicate relaxation still produces just one candidate line.
     db.connection.write(atoms, relaxed=1, confid=3, generation=1,
                         raw_score=-10.3699, target=10.3699, extinct=1)
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=True)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=True)
     path = tmp_path / 'candidates.log'
     result = path.read_text()
     assert '# Generation 0' in result and '# Generation 1' in result
@@ -58,16 +58,29 @@ def test_candidate_results_use_committed_fitness_species_and_stable_timestamps(t
     assert 'confid 5' not in result
     assert '-10.3166 extinct 0' in result and '-10.3699 extinct 1' in result
     assert result.count('Cu: 2') == 2
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=True)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=True)
     assert path.read_text() == result
     # Untagged searches show atom counts rather than one combined fragment.
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=False)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=False)
     assert path.read_text().count('Cu: 2') == 2
 
 
 def test_empty_failed_generation_still_has_history(tmp_path):
     db = GlobalOptimisationDatabase(tmp_path / 'candidates.db')
     db.set_generation_plan(0, {'stage': 'initial'})
-    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', use_tags=False)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=False)
     assert '# stage: initial' in (tmp_path / 'tmp_folder/gen0/history.log').read_text()
     assert ' - INFO: ' not in (tmp_path / 'candidates.log').read_text()
+
+
+def test_crossover_tags_are_not_fragments_in_atomic_searches(tmp_path):
+    db = GlobalOptimisationDatabase(tmp_path / 'candidates.db')
+    atoms = Atoms('Cu13', tags=[1] * 7 + [2] * 6)
+    db.connection.write(atoms, relaxed=1, confid=14, generation=1,
+                        raw_score=-9.3623, extinct=0)
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=False)
+    result = (tmp_path / 'candidates.log').read_text()
+    assert 'Cu: 13' in result
+    assert 'Cu7' not in result and 'Cu6' not in result
+    write_search_files(db, tmp_path, tmp_path / 'tmp_folder', preserve_fragments=True)
+    assert 'Cu7: 1 Cu6: 1' in (tmp_path / 'candidates.log').read_text()

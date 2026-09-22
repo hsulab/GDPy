@@ -377,7 +377,7 @@ class GeneticAlgorithmEngine(BaseExploration):
     def _write_search_files(self):
         if getattr(self, 'da', None) is not None:
             write_search_files(self.da, self.directory, self.directory / self.CALC_DIRNAME,
-                               self.generator.use_tags)
+                               self.preserve_fragments)
 
     def _run(self) -> None:
         """Run the GA procedure several steps.
@@ -444,7 +444,7 @@ class GeneticAlgorithmEngine(BaseExploration):
             try:
                 with reporter.as_parent():
                     gen_state = self._irun(gen_info)
-                write_candidate_results(self.da, self.directory, self.generator.use_tags)
+                write_candidate_results(self.da, self.directory, self.preserve_fragments)
                 if gen_state is EvaluationStatus.PENDING:
                     reporter.finish("waiting", "waiting for generation evaluations")
                 else:
@@ -711,7 +711,7 @@ class GeneticAlgorithmEngine(BaseExploration):
         if op_dict is None:
             op_dict = {
                 "mobile": {
-                    "crossover": {"method": "periodic_cut_and_splice"},
+                    "crossover": {"method": "cut_and_splice"},
                 }
             }
         else:

@@ -3,7 +3,7 @@ import inspect
 from typing import Any
 
 from ..population.comparators import COMPARATORS
-from .crossover import ClusterCutAndSpliceCrossover, PeriodicCutAndSpliceCrossover
+from .crossover import PeriodicCutAndSpliceCrossover
 from .mutation.bounce import BounceMutation
 from .mutation.cluster import ClusterRattleMutation
 from .mutation.cluster_rotation import ClusterRotationMutation
@@ -16,9 +16,7 @@ from .mutation.strain import StrainMutation
 from .mutation.swap import SwapMutation
 
 CROSSOVERS: dict[str, Any] = dict(
-    # GDPy implementations of ASE-GA-compatible crossovers
-    periodic_cut_and_splice=PeriodicCutAndSpliceCrossover,
-    cluster_cut_and_splice=ClusterCutAndSpliceCrossover,
+    cut_and_splice=PeriodicCutAndSpliceCrossover,
 )
 
 MUTATIONS: dict[str, Any] = dict(
@@ -66,14 +64,13 @@ def instantiate_a_genetic_operator(
     method = op_params.pop("method", None)
     if category == "mutation" and method == "rattle_buffer":
         raise ValueError("Mutation 'rattle_buffer' was renamed to 'group_rattle'.")
-    if category == "crossover" and method == "cut_and_splice":
+    if category == "crossover" and method in {
+        "periodic_cut_and_splice", "cluster_cut_and_splice", "cut_and_splice_cluster"
+    }:
         raise ValueError(
-            "Crossover 'cut_and_splice' was renamed to 'periodic_cut_and_splice'."
-        )
-    if category == "crossover" and method == "cut_and_splice_cluster":
-        raise ValueError(
-            "Crossover 'cut_and_splice_cluster' was renamed to "
-            "'cluster_cut_and_splice'."
+            f"Crossover {method!r} is no longer supported; use 'cut_and_splice' "
+            "with population.periodic=true and population.preserve_fragments=true "
+            "for isolated clusters."
         )
     if method is None:
         raise Exception(f"There is no operator {method}.")

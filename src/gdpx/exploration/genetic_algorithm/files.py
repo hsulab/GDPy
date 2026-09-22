@@ -70,7 +70,7 @@ def write_generation_history(database, directory, generation):
     _write_atomic(Path(directory) / f'gen{generation}' / 'history.log', lines)
 
 
-def write_candidate_results(database, directory, use_tags):
+def write_candidate_results(database, directory, preserve_fragments):
     """One row per evaluated candidate, grouped by generation, including extincts."""
     candidates = {}
     for row in database.connection.select(
@@ -85,7 +85,7 @@ def write_candidate_results(database, directory, use_tags):
         lines.append(f'# Generation {generation}')
         for index, row in enumerate(sorted(rows, key=lambda row: row.confid)):
             atoms = Atoms(numbers=row.numbers, tags=row.get('tags'))
-            if use_tags:
+            if preserve_fragments:
                 species = {name: len(groups) for name, groups in get_tags_per_species(atoms).items()}
             else:
                 species = Counter(atoms.get_chemical_symbols())
@@ -96,8 +96,8 @@ def write_candidate_results(database, directory, use_tags):
     _write_atomic(Path(directory) / 'candidates.log', lines)
 
 
-def write_search_files(database, directory, calculation_directory, use_tags):
-    write_candidate_results(database, directory, use_tags)
+def write_search_files(database, directory, calculation_directory, preserve_fragments):
+    write_candidate_results(database, directory, preserve_fragments)
     generations = {row.generation for row in database.connection.select(
         'generation', columns=['id', 'key_value_pairs'])}
     # Plans can exist even when production failed before the first candidate.

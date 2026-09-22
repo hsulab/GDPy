@@ -4,7 +4,6 @@ from ase import Atoms
 
 from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
 from gdpx.exploration.genetic_algorithm.crossover import (
-    ClusterCutAndSpliceCrossover,
     PeriodicCutAndSpliceCrossover,
 )
 from gdpx.exploration.genetic_algorithm.mutation.group_rattle import GroupRattleMutation
@@ -62,17 +61,15 @@ def test_rattle_names_are_unambiguous():
 
 
 def test_crossover_names_are_explicit():
-    assert CROSSOVERS["cluster_cut_and_splice"] is ClusterCutAndSpliceCrossover
-    assert CROSSOVERS["periodic_cut_and_splice"] is PeriodicCutAndSpliceCrossover
-    assert "cut_and_splice" not in CROSSOVERS
-    assert "cut_and_splice_cluster" not in CROSSOVERS
+    assert CROSSOVERS == {"cut_and_splice": PeriodicCutAndSpliceCrossover}
 
 
 @pytest.mark.parametrize(
     ("old_name", "new_name"),
     [
-        ("cut_and_splice", "periodic_cut_and_splice"),
-        ("cut_and_splice_cluster", "cluster_cut_and_splice"),
+        ("periodic_cut_and_splice", "cut_and_splice"),
+        ("cluster_cut_and_splice", "cut_and_splice"),
+        ("cut_and_splice_cluster", "cut_and_splice"),
     ],
 )
 def test_renamed_crossovers_report_the_replacement(old_name, new_name):
