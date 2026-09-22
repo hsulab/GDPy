@@ -43,13 +43,21 @@ start
 ```
 
 ```{toctree}
-:caption: 'Potentials:'
+:caption: 'Define Potentials:'
 :maxdepth: 2
 :titlesonly:
 
 overview <potentials/index>
 potentials <potentials/providers>
-training <trainers/index>
+```
+
+```{toctree}
+:caption: 'Train Potentials:'
+:maxdepth: 2
+:titlesonly:
+
+command: gdp train <trainers/index>
+potentials <trainers/potentials>
 ```
 
 ```{toctree}
