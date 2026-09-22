@@ -1,6 +1,6 @@
 # provider plugins
 
-GDPy integrations are stateless providers. A provider may expose potentials,
+gdpx integrations are stateless providers. A provider may expose potentials,
 materializers, executors, trainers, dataset codecs, modifiers, collective
 variables, schedulers, transports, or exploration strategies through a
 capability map. A transport factory receives the resolved scheduler in its

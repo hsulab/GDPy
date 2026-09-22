@@ -1,6 +1,6 @@
 # about
 
-GDPy stands for **Generating Deep Potential with Python**, including
+gdpx stands for **Generating Deep Potential with Python**, including
 a set of tools and Python modules to automate the structure exploration
 and the model training for **machine learning interatomic potentials** (MLIPs).
 It is developed and maintained by [Jiayan Xu] under supervision of Prof. [P. Hu]
@@ -17,7 +17,7 @@ at Queen's University Belfast.
 The modules are:
 
 ```{image} ../../assets/workflow.png
-:alt: GDPy workflow
+:alt: gdpx workflow
 :width: 800
 ```
 

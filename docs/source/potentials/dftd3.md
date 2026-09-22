@@ -6,7 +6,7 @@ The `dftd3` provider wraps the `DFTD3` ASE dispersion calculator.
 
 ## Requirements
 
-Install the package providing `dftd3.ase` and its native dispersion library in the GDPy environment.
+Install the package providing `dftd3.ase` and its native dispersion library in the gdpx environment.
 
 ## Configuration
 

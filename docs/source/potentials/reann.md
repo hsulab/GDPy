@@ -2,11 +2,11 @@
 
 # reann
 
-The `reann` provider loads REANN TorchScript models with GDPy’s ASE calculator.
+The `reann` provider loads REANN TorchScript models with gdpx’s ASE calculator.
 
 ## Requirements
 
-Install PyTorch and supply exported REANN TorchScript checkpoints. GDPy’s calculator uses ASE neighbour lists rather than the upstream Fortran neighbour-list extension.
+Install PyTorch and supply exported REANN TorchScript checkpoints. gdpx’s calculator uses ASE neighbour lists rather than the upstream Fortran neighbour-list extension.
 
 ## Configuration
 

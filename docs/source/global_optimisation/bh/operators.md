@@ -125,7 +125,7 @@ operator index/name. Invocation headers contain full resolved operator settings;
 fields that do not apply to a header use `-`.
 
 Routine operator messages are written at normal verbosity. Detailed DEBUG
-messages are included only when GDPy's DEBUG logging is enabled. Move details
+messages are included only when gdpx's DEBUG logging is enabled. Move details
 stay out of the normal console, while setup and progress boxes remain visible.
 
 Logs distinguish uncommitted proposal diagnostics from committed outcomes.

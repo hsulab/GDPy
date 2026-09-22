@@ -6,7 +6,7 @@ The `bias` provider exposes a built-in bias as a standalone ASE calculator.
 
 ## Requirements
 
-The built-in distance restraint uses GDPy and its base scientific dependencies; no external model is required.
+The built-in distance restraint uses gdpx and its base scientific dependencies; no external model is required.
 
 ## Configuration
 
@@ -23,7 +23,7 @@ potential:
 The example applies a harmonic distance restraint to two zero-based atom
 indices. `center` is the target distance in Å and `kspring` is the spring
 constant in eV/Å². These values must be floating-point numbers.
-`parameters.method` selects an entry from GDPy’s bias registry.
+`parameters.method` selects an entry from gdpx’s bias registry.
 
 As a potential, this evaluates only the bias contribution. See
 {doc}`../computations/index` for adding restraints to a physical potential.

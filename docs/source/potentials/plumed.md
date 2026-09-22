@@ -2,7 +2,7 @@
 
 # plumed
 
-The `plumed` provider exposes GDPy’s PLUMED bias calculator through the ASE materializer.
+The `plumed` provider exposes gdpx’s PLUMED bias calculator through the ASE materializer.
 
 ## Requirements
 

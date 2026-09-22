@@ -71,6 +71,6 @@ molecular formula. Exchange counts and removes particles using their positive
 ASE tags, so a tagged molecule is inserted or removed as one fragment. Tag 0
 remains reserved for the substrate.
 
-GDPy obtains the bond-distance dictionary and random-number stream from the
+gdpx obtains the bond-distance dictionary and random-number stream from the
 population's reference builder. These managed settings should not be repeated
 in the mutation configuration.

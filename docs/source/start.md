@@ -1,7 +1,7 @@
 # getting started
 
 This section introduces the schema-v3 **potential**, **executor**, and
-**scheduler** components used to calculate structures with GDPy.
+**scheduler** components used to calculate structures with gdpx.
 
 The related commands are
 
@@ -126,9 +126,9 @@ configurations.
 
 A runtime is the complete executable unit: one potential, one executor,
 optional modifiers, and one scheduler. Use explicit lists for independent
-runtimes and explicit nested lists for runtime chains; GDPy does not infer a
+runtimes and explicit nested lists for runtime chains; gdpx does not infer a
 Cartesian product between components.
 
 :::{note}
-If **scheduler** is omitted, GDPy uses direct execution with local transport.
+If **scheduler** is omitted, gdpx uses direct execution with local transport.
 :::

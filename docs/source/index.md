@@ -1,11 +1,11 @@
-% GDPy documentation master file, created by
+% gdpx documentation master file, created by
 % sphinx-quickstart on Mon Aug 22 14:06:51 2022.
 % You can adapt this file completely to your liking, but it should at least
 % contain the root `toctree` directive.
 
-# gdpy documentation
+# gdpx documentation
 
-GDPy stands for **Generating Deep Potential with Python**, including
+gdpx stands for **Generating Deep Potential with Python**, including
 a set of tools and Python modules to automate the structure exploration
 and the model training for **machine learning interatomic potentials** (MLIPs).
 It is developed and maintained by [Jiayan Xu] under supervision of Prof. [P. Hu]
@@ -13,7 +13,7 @@ at Queen's University Belfast.
 
 :::{figure} ../../assets/logo.png
 :align: center
-:alt: GPDy LOGO
+:alt: gdpx logo
 :width: 400
 :::
 

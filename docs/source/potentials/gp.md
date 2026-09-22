@@ -2,11 +2,11 @@
 
 # gp
 
-The `gp` provider loads GDPy’s full or sparse Gaussian-process models into an ASE calculator.
+The `gp` provider loads gdpx’s full or sparse Gaussian-process models into an ASE calculator.
 
 ## Requirements
 
-Use a model archive written by GDPy’s Gaussian-process trainer or `gdpx.providers.gp.save_model`. This calculator uses GDPy’s NumPy-based implementation.
+Use a model archive written by gdpx’s Gaussian-process trainer or `gdpx.providers.gp.save_model`. This calculator uses gdpx’s NumPy-based implementation.
 
 ## Configuration
 

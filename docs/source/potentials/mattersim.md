@@ -6,14 +6,14 @@ The `mattersim` provider loads MatterSim pretrained models and local checkpoints
 
 ## Installation
 
-Install MatterSim in the same environment as GDPy, from the repository root:
+Install MatterSim in the same environment as gdpx, from the repository root:
 
 ```shell
 python -m pip install '.[mattersim]'
 ```
 
 PyTorch is also required and is installed by the standard MatterSim package.
-GDPy automatically uses CUDA when it is available and otherwise uses the CPU.
+gdpx automatically uses CUDA when it is available and otherwise uses the CPU.
 
 ## Configuration
 
@@ -35,7 +35,7 @@ local checkpoint path:
 
 | Model | Use |
 | --- | --- |
-| `MatterSim-v1.0.0-1M` | Smallest and fastest pretrained model; GDPy's default. |
+| `MatterSim-v1.0.0-1M` | Smallest and fastest pretrained model; gdpx's default. |
 | `MatterSim-v1.0.0-5M` | Larger pretrained model with greater computational cost. |
 | `/path/to/model.pth` | A local MatterSim checkpoint. |
 
@@ -47,7 +47,7 @@ named checkpoint automatically on first use; local paths must already exist.
 - Use a sufficiently large periodic vacuum box for an isolated molecule or
   cluster. This avoids interactions with periodic images while following the
   periodic representation expected by materials-oriented models.
-- MatterSim relaxes every atomic coordinate; molecular tags guide GDPy's
+- MatterSim relaxes every atomic coordinate; molecular tags guide gdpx's
   genetic operations but do not constrain intramolecular geometry during
   minimisation.
 - Validate the selected checkpoint for the target chemistry and property before

@@ -6,7 +6,7 @@
 ![](https://anaconda.org/conda-forge/gdpx/badges/downloads.svg)
 ![](https://anaconda.org/conda-forge/gdpx/badges/latest_release_date.svg)
 
-<font size=36>**NOTE: `GDPy` is the name of this repository and the corresponding python package name is `gdpx`.**</font>
+**The Python package and documentation use the name `gdpx`.**
 
 <font size=36>**NOTE: `gdpx` is under active development and has not been released. The APIs are frequently changed and we cannot ensure any 
   backward compatibility.**</font>
@@ -35,9 +35,9 @@ $ conda install gdpx -c conda-forge
 - [License](#license)
 
 # Overview
-**Documentation**: https://gdpx.readthedocs.io (Changed from gdpyx)
+**Documentation**: https://gdpx.readthedocs.io
 
-GDPy stands for Generating Deep Potential with Python (GDPy/GDP¥), including a set of tools and Python modules to automate the structure exploration and the training for machine learning interatomic potentials (MLIPs).
+gdpx stands for Generating Deep Potential with Python, including a set of tools and Python modules to automate the structure exploration and the training for machine learning interatomic potentials (MLIPs).
 
 It mainly focuses on the applications in heterogeneous catalysis. The target systems are metal oxides, supported clusters, and solid-liquid interfaces.
 
@@ -84,15 +84,15 @@ Some potentials besides MLIPs are supported. Force fields or semi-empirical pote
 | CP2K        | Density Functional Theory            | CP2K    |                   |
 
 ## Expedition
-We take advantage of codes in well-established packages (ASE and LAMMPS) to perform basic minimisation and dynamics. Meanwhile, we have implemented several complicated alogirthms in GDPy itself.
+We take advantage of codes in well-established packages (ASE and LAMMPS) to perform basic minimisation and dynamics. Meanwhile, we have implemented several complicated alogirthms in gdpx itself.
 | Name                                       | Current Algorithm                          | Backend     |
 | ------------------------------------------ | ------------------------------------------ | ----------- |
 | Molecular Dynamics (md)                    | Brute-Force/Biased Dynamics                | ASE, LAMMPS |
-| Evolutionary Global Optimisation (evo)     | Genetic Algorithm                          | ASE/GDPy    |
-| Basin Hopping                              | Monte Carlo like Global Optimisation       | GDPy        |
-| Adsorbate Configuration (ads)              | Adsorbate Configuration Graph Search       | GDPy        |
-| Reaction Event Exploration (rxn)           | Artificial Force Induced Reaction (AFIR)   | GDPy        |
-| Grand Cononical Monte Carlo (gcmc)         | Monte Carlo with Variable Composition      | GDPy        |
+| Evolutionary Global Optimisation (evo)     | Genetic Algorithm                          | ASE/gdpx    |
+| Basin Hopping                              | Monte Carlo like Global Optimisation       | gdpx        |
+| Adsorbate Configuration (ads)              | Adsorbate Configuration Graph Search       | gdpx        |
+| Reaction Event Exploration (rxn)           | Artificial Force Induced Reaction (AFIR)   | gdpx        |
+| Grand Cononical Monte Carlo (gcmc)         | Monte Carlo with Variable Composition      | gdpx        |
 
 ## Workflow
 There are two kinds of workflows according to the way they couple the expedition and the training. Offline workflow as the major category separates the expedition and the training, which collects structures from several expeditions and then trains the MLIP with the collective dataset. This process is highly parallelised and is usually aimed at a general dataset. Online workflow, a really popular one, adopts an on-the-fly strategy to build a dataset during the expedition, where a new MLIP is trained to continue exploration once new candidates are selected (sometimes only one structure every time!). Thus, it is mostly used to train an MLIP for a particular system.
@@ -109,4 +109,4 @@ There are two kinds of workflows according to the way they couple the expedition
 under the supervision of [Prof. P. Hu](https://scholar.google.com/citations?user=GNuXfeQAAAAJ&hl=en) at Queen's University Belfast.
 
 # License
-GDPy project is under the GPL-3.0 license.
+gdpx project is under the GPL-3.0 license.

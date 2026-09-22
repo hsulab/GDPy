@@ -43,7 +43,7 @@ This is a short execution demo, not an equilibrated production trajectory.
 
 ## Other ensembles
 
-For NVE, set `ensemble: nve` and remove `controller`; GDPy uses velocity Verlet.
+For NVE, set `ensemble: nve` and remove `controller`; gdpx uses velocity Verlet.
 `temp` then controls initial velocities, not a thermostat target.
 
 The registered ASE NPT configuration has this shape:

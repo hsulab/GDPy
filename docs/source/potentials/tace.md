@@ -6,7 +6,7 @@ The `tace` provider loads TACE checkpoints and foundation models.
 
 ## Installation
 
-From the GDPy repository root, in the environment used to run GDPy:
+From the gdpx repository root, in the environment used to run gdpx:
 
 ```shell
 conda activate catorch3
@@ -19,7 +19,7 @@ python -m pip check
 The TACE extra pins upstream GitHub commit
 `90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896` (0.2.2), which uses
 `TACEAseCalc(model=...)`. Git and network access are required for installation.
-The base GDPy installation does not require TACE, MatterSim, or PyTorch.
+The base gdpx installation does not require TACE, MatterSim, or PyTorch.
 
 ## Configuration
 
@@ -40,13 +40,13 @@ named checkpoints on first use into `~/.cache/tace/`. Subsequent runs reuse them
 For an offline run, supply a previously downloaded checkpoint path.
 
 `precision` defaults to `float32`; an explicit upstream `dtype` takes precedence.
-An explicit `device` is respected. When omitted, GDPy uses CUDA if available,
+An explicit `device` is respected. When omitted, gdpx uses CUDA if available,
 otherwise CPU. `fidelity_idx` selects the checkpoint's fidelity head; omission
 retains its stored default. The example explicitly selects head 0.
 Other upstream calculator options, including `neighborlist_backend`, pass through
 to TACE. CUDA acceleration packages are not part of this extra.
 
-With multiple models, `estimate_uncertainty: true` enables GDPy's committee
+With multiple models, `estimate_uncertainty: true` enables gdpx's committee
 calculator; otherwise only the first model is evaluated. Checkpoint loading
 uses upstream's EMA policy. Invalid checkpoints and download errors retain
 their original exception rather than being reported as missing installations.

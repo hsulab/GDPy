@@ -48,7 +48,7 @@ that fragment rigidly without changing its internal geometry. An independently
 tagged atom behaves as a one-atom fragment. Set fragment preservation to
 `false` only when the intended search is atom-wise.
 
-Atoms belonging to the GA substrate are not rattled. GDPy obtains the
+Atoms belonging to the GA substrate are not rattled. gdpx obtains the
 substrate, number of mobile atoms, minimum bond distances, fragment mode, and
 random-number stream from the population and its reference builder. These are
 managed settings and should not be repeated in the mutation configuration.

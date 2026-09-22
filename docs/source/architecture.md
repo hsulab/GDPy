@@ -1,6 +1,6 @@
-# gdpy architecture
+# gdpx architecture
 
-GDPy separates integration ownership from runtime responsibility. Dependencies
+gdpx separates integration ownership from runtime responsibility. Dependencies
 flow in one direction:
 
 ```

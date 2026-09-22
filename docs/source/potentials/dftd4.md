@@ -6,7 +6,7 @@ The `dftd4` provider wraps the `DFTD4` ASE dispersion calculator.
 
 ## Requirements
 
-Install the package providing `dftd4.ase` and its native dispersion library in the GDPy environment.
+Install the package providing `dftd4.ase` and its native dispersion library in the gdpx environment.
 
 ## Configuration
 

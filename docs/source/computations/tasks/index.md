@@ -2,7 +2,7 @@
 
 These examples separate the calculation task from machine-resource settings.
 The first four use ASE’s bundled EMT calculator, so no model download or
-external simulator is needed. Run them in the environment where GDPy is installed.
+external simulator is needed. Run them in the environment where gdpx is installed.
 
 From the repository root, generate the input structures once:
 

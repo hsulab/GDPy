@@ -2,11 +2,11 @@
 
 # nnp
 
-The `nnp` provider exposes GDPy’s element-wise ACSF neural-network calculator through ASE.
+The `nnp` provider exposes gdpx’s element-wise ACSF neural-network calculator through ASE.
 
 ## Requirements
 
-Use a version-2 model archive produced by the current GDPy NNP trainer. Inference uses GDPy’s NumPy implementation.
+Use a version-2 model archive produced by the current gdpx NNP trainer. Inference uses gdpx’s NumPy implementation.
 
 ## Configuration
 

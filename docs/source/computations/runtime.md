@@ -58,7 +58,7 @@ executor:
 
 ## Native and LAMMPS execution
 
-With `executor.provider: vasp`, GDPy uses the file-based VASP interface.
+With `executor.provider: vasp`, gdpx uses the file-based VASP interface.
 With `executor.provider: ase`, the default is `vasp_interactive`; the optional
 potential `interface` parameter can select `vasp_interactive_disp` to include
 DFT-D3. Interactive execution sets defaults for externally driven ionic steps.
@@ -66,7 +66,7 @@ DFT-D3. Interactive execution sets defaults for externally driven ionic steps.
 Native CP2K execution always uses the `cp2k` interface. ASE-driven CP2K can
 instead use `interface: cp2k_shell` with a shell-capable command. ABACUS input
 templates must use `calculation scf` even though its native executor declares
-additional methods. Quantum ESPRESSO has no native executor in GDPy.
+additional methods. Quantum ESPRESSO has no native executor in gdpx.
 
 LAMMPS requires a binary with the selected model’s pair style. DeepMD uses
 `metal` units and writes model-deviation output for a committee. MACE uses

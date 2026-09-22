@@ -1,6 +1,6 @@
 /* Self-hosted JetBrains Mono v2.304; license in ../fonts/jetbrains-mono/OFL.txt. */
 @font-face {
-  font-family: "GDPy JetBrains Mono";
+  font-family: "gdpx JetBrains Mono";
   src: url("../fonts/jetbrains-mono/JetBrainsMono-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
@@ -8,7 +8,7 @@
 }
 
 @font-face {
-  font-family: "GDPy JetBrains Mono";
+  font-family: "gdpx JetBrains Mono";
   src: url("../fonts/jetbrains-mono/JetBrainsMono-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
@@ -16,7 +16,7 @@
 }
 
 @font-face {
-  font-family: "GDPy JetBrains Mono";
+  font-family: "gdpx JetBrains Mono";
   src: url("../fonts/jetbrains-mono/JetBrainsMono-Italic.woff2") format("woff2");
   font-weight: 400;
   font-style: italic;
@@ -24,7 +24,7 @@
 }
 
 @font-face {
-  font-family: "GDPy JetBrains Mono";
+  font-family: "gdpx JetBrains Mono";
   src: url("../fonts/jetbrains-mono/JetBrainsMono-BoldItalic.woff2") format("woff2");
   font-weight: 700;
   font-style: italic;
@@ -32,7 +32,7 @@
 }
 
 :root {
-  --docs-font: "GDPy JetBrains Mono", monospace;
+  --docs-font: "gdpx JetBrains Mono", monospace;
 }
 
 body,

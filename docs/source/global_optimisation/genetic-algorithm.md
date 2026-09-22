@@ -76,9 +76,9 @@ A typical GA search repeats the following steps:
 The shared {ref}`global-optimisation-population` reference defines population
 sizes, builders, and comparison for both GA and BH.
 
-## Components in GDPy
+## Components in gdpx
 
-GDPy separates the search policy from candidate construction and evaluation:
+gdpx separates the search policy from candidate construction and evaluation:
 
 - A builder generates the initial population and any fresh random candidates.
 - Crossover combines parts of two parent structures.
@@ -94,5 +94,5 @@ features from being retained.
 
 ## Running a GA search
 
-The {ref}`genetic-algorithm` guide contains GDPy's YAML configuration reference,
+The {ref}`genetic-algorithm` guide contains gdpx's YAML configuration reference,
 available operators, command-line example, and application links.

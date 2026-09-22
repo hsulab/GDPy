@@ -20,6 +20,6 @@ potential:
 ```
 
 `model` accepts a path or list of existing files. When the number of models
-matches `type_list`, GDPy maps files to elements in that order. Otherwise the
+matches `type_list`, gdpx maps files to elements in that order. Otherwise the
 first model file is assigned to every element, so use that form only for a
 file that covers all requested species.

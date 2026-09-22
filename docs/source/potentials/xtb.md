@@ -6,7 +6,7 @@ The `xtb` provider exposes the xTB Python ASE calculator for semiempirical calcu
 
 ## Requirements
 
-Install the Python package exposing `xtb.ase.calculator.XTB` and its native library in the GDPy environment.
+Install the Python package exposing `xtb.ase.calculator.XTB` and its native library in the gdpx environment.
 
 ## Configuration
 

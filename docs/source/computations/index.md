@@ -31,7 +31,7 @@ executor:
 ```
 
 The potential supplies energies and forces. The executor controls the
-calculation. With no scheduler configured, GDPy runs directly on the current
+calculation. With no scheduler configured, gdpx runs directly on the current
 machine. A queue scheduler and transport change where and how it runs without
 changing the task settings.
 

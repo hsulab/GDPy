@@ -11,4 +11,4 @@ inputs, then pass one complete runtime for candidate relaxation. Downstream
 trajectories.
 
 Multiple evaluation levels must be represented as an explicit runtime chain.
-GDPy does not infer pairings between lists of potentials and executors.
+gdpx does not infer pairings between lists of potentials and executors.

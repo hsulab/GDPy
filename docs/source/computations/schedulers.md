@@ -2,7 +2,7 @@
 
 # machine resources
 
-GDPy separates **how** work is dispatched from **where** the dispatch command
+gdpx separates **how** work is dispatched from **where** the dispatch command
 runs. The scheduler provider is `direct`, `slurm`, `lsf`, `pbs`, or a
 third-party queue scheduler. Its nested transport is `local` or `ssh`.
 
@@ -13,7 +13,7 @@ third-party queue scheduler. Its nested transport is `local` or `ssh`.
 | Submit to a queue on this machine | `slurm`, `lsf`, or `pbs` | `local` |
 | Submit to a queue over SSH | `slurm`, `lsf`, or `pbs` | `ssh` |
 
-If the entire `scheduler` section is omitted, GDPy uses direct execution with
+If the entire `scheduler` section is omitted, gdpx uses direct execution with
 the local transport. If only `transport` is omitted, the transport is local.
 
 ## Local CPU and GPU runs
@@ -65,8 +65,8 @@ scheduler:
     parameters: {}
 ```
 
-GDPy calls the calculation in the current process and waits for it to finish.
-Activate the required environment before starting GDPy; `environs` contains
+gdpx calls the calculation in the current process and waits for it to finish.
+Activate the required environment before starting gdpx; `environs` contains
 shell commands for generated scripts and does not modify an in-process callback.
 
 ## Direct execution over SSH
@@ -84,10 +84,10 @@ scheduler:
       remote_wdir: /scratch/user/gdpx
 ```
 
-Install SSH support with `pip install gdpx[remote]`. GDPy stages the working
+Install SSH support with `pip install gdpx[remote]`. gdpx stages the working
 tree, runs the generated script over SSH, and keeps the SSH command open until
 the calculation finishes. A later status or collection operation synchronizes
-the results back to the initiating machine. GDPy must be installed and
+the results back to the initiating machine. gdpx must be installed and
 available on the remote command's `PATH`.
 
 SSH uses Paramiko's normal local username, key-file, and agent discovery. The
@@ -134,7 +134,7 @@ scheduler:
       remote_wdir: /scratch/user/gdpx
 ```
 
-GDPy stages the working tree and runs submission and status commands on the
+gdpx stages the working tree and runs submission and status commands on the
 remote host. Completed files are synchronized before convergence is checked.
 
 `options.batch_size` controls how many structures are assigned to a queued
@@ -211,7 +211,7 @@ options:
 The queue normally sets device visibility. Do not override its assigned GPU
 IDs with the workstation example’s `CUDA_VISIBLE_DEVICES=0`. Select a suitable
 calculator device under the potential parameters. This allocation supplies
-one GPU per job; GDPy does not automatically split a model across multiple GPUs.
+one GPU per job; gdpx does not automatically split a model across multiple GPUs.
 
 ## PBS and LSF
 

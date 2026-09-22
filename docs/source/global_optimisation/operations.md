@@ -2,7 +2,7 @@
 
 # operations
 
-GA operations control how GDPy recognises duplicate structures, combines
+GA operations control how gdpx recognises duplicate structures, combines
 parents, and modifies offspring. Population comparison is configured under
 `population.comparator`; `operators` contains crossover and mutation. See the
 shared {ref}`global-optimisation-population` reference.
@@ -29,9 +29,9 @@ automatically. Periodicity and fragment preservation are configured once as
 `true`; set either value explicitly to `false` when the searched system or its
 operations require it.
 
-The standard GA operation interfaces are GDPy-owned implementations inspired
+The standard GA operation interfaces are gdpx-owned implementations inspired
 by the algorithms and configuration surface in ASE-GA 1.0.3. They use explicit
-NumPy `Generator` streams; GDPy does not import the legacy `ase.ga` package at
+NumPy `Generator` streams; gdpx does not import the legacy `ase.ga` package at
 runtime.
 
 ```{toctree}

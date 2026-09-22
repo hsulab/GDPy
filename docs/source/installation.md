@@ -40,17 +40,17 @@ $ pip install gdpx
 
 # Install the latest development version
 # 1. download the MAIN branch
-$ git clone https://github.com/hsulab/GDPy.git
+$ git clone https://github.com/hsulab/GDPy.git gdpx
 #    or the DEV branch
-$ git clone -b dev https://github.com/hsulab/GDPy.git
+$ git clone -b dev https://github.com/hsulab/GDPy.git gdpx
 
 # 2. Use pip to install the an editable version to
 #    the current environment
-$ cd GDPy
+$ cd gdpx
 $ pip install -e ./
 
 # 3. Update the source code
-$ cd GDPy
+$ cd gdpx
 $ git fetch
 $ git pull
 ```

@@ -26,7 +26,7 @@ fi
 conda run --no-capture-output -n catorch3 \
     make -C "$docs_dir" clean
 
-echo "Serving GDPy documentation with live reload at http://127.0.0.1:$port"
+echo "Serving gdpx documentation with live reload at http://127.0.0.1:$port"
 exec conda run --no-capture-output -n catorch3 \
     sphinx-autobuild \
     --host 127.0.0.1 \

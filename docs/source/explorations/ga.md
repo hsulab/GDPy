@@ -5,7 +5,7 @@
 ## Overview
 
 Genetic algorithm is a popular global optimisation method to find stable structures.
-GA in gdpy makes use of functionalities in `ase` package and provides a user-friendly
+GA in gdpx makes use of functionalities in `ase` package and provides a user-friendly
 interface by YAML.
 
 The workflow of a GA-based global optimisation is
@@ -78,7 +78,7 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
   > can be found in {ref}`region-definitions`. More specific, Cu atoms will have
   > arbitrary x- and y-coordiantes but z-coordinate within the range [7,7+6].
 
-GDPy stores explored structures and restart metadata in `candidates.db` inside
+gdpx stores explored structures and restart metadata in `candidates.db` inside
 the exploration directory; its name is not configurable. The remaining entries
 below are in the `recipe` section:
 

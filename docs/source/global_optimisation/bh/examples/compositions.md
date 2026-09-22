@@ -32,7 +32,7 @@ OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
 ```
 
 The searches execute sequentially in one process with independent calculation
-workers. To run both within one Slurm allocation, activate your GDPy environment,
+workers. To run both within one Slurm allocation, activate your gdpx environment,
 adapt account/partition settings in the supplied script, and submit:
 
 ```shell
