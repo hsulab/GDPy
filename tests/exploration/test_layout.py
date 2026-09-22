@@ -8,12 +8,12 @@ from types import SimpleNamespace
 import pytest
 from tinydb import TinyDB
 
-from gdpx.exploration.layout import expedition_directories, exploration_layout
-from gdpx.execution.workers.explore import ExpeditionBasedWorker
+from gdpx.exploration.layout import exploration_directories, exploration_layout
+from gdpx.execution.workers.explore import ExplorationBasedWorker
 from gdpx.execution.schedulers.direct import DirectScheduler
 
 
-class Expedition:
+class Exploration:
     def __init__(self, complete=True):
         self.complete = complete
         self.runs = 0
@@ -52,7 +52,7 @@ class Queue(DirectScheduler):
 @pytest.mark.parametrize('count,width', [(2, 2), (9, 2), (10, 2), (99, 2), (100, 4),
                                        (9999, 4), (10000, 6)])
 def test_even_width(count, width):
-    names = expedition_directories(count)
+    names = exploration_directories(count)
     assert names[0] == 'expo.' + '0' * width
     assert names[-1] == f'expo.{count-1:0{width}d}'
     assert len(names) == count
@@ -60,10 +60,10 @@ def test_even_width(count, width):
 
 @pytest.mark.parametrize('count', [1, 2])
 def test_layout_resume_and_retrieval(tmp_path, count):
-    worker = ExpeditionBasedWorker([Expedition() for _ in range(count)], DirectScheduler(), directory=tmp_path)
+    worker = ExplorationBasedWorker([Exploration() for _ in range(count)], DirectScheduler(), directory=tmp_path)
     worker.run()
     worker.inspect()
-    names = expedition_directories(count)
+    names = exploration_directories(count)
     assert (tmp_path / '_meta' / '_scheduler.json').exists()
     assert not (tmp_path / '_direct_jobs.json').exists()
     assert len(list((tmp_path / '_meta').glob('exp-*.json'))) == count
@@ -73,14 +73,14 @@ def test_layout_resume_and_retrieval(tmp_path, count):
         assert not (tmp_path / name / '_data').exists()
         if name != '.':
             assert not (tmp_path / name / '_meta').exists()
-    restarted = ExpeditionBasedWorker([Expedition() for _ in range(count)], DirectScheduler(), directory=tmp_path)
+    restarted = ExplorationBasedWorker([Exploration() for _ in range(count)], DirectScheduler(), directory=tmp_path)
     restarted.run()
-    assert all(exp.runs == 0 for exp in restarted.expeditions)
+    assert all(exp.runs == 0 for exp in restarted.explorations)
     assert restarted.retrieve() == [(tmp_path / name).resolve() for name in names]
     assert restarted.retrieve() == []
     assert restarted.retrieve(include_retrieved=True) == [(tmp_path / name).resolve() for name in names]
     before = (tmp_path / '_meta' / '_scheduler.json').read_bytes()
-    changed = ExpeditionBasedWorker([Expedition() for _ in range(count+1)], DirectScheduler(), directory=tmp_path)
+    changed = ExplorationBasedWorker([Exploration() for _ in range(count+1)], DirectScheduler(), directory=tmp_path)
     with pytest.raises(ValueError, match='count changed'):
         changed.run()
     assert (tmp_path / '_meta' / '_scheduler.json').read_bytes() == before
@@ -93,7 +93,7 @@ def test_legacy_rejected_without_metadata(tmp_path, legacy):
         path.write_text('{}')
     else:
         path.mkdir()
-    worker = ExpeditionBasedWorker(Expedition(), DirectScheduler(), directory=tmp_path)
+    worker = ExplorationBasedWorker(Exploration(), DirectScheduler(), directory=tmp_path)
     with pytest.raises(RuntimeError, match='Legacy exploration layout'):
         worker.run()
     assert not (tmp_path / '_meta').exists()
@@ -102,7 +102,7 @@ def test_legacy_rejected_without_metadata(tmp_path, legacy):
 
 def test_shuffled_records_and_resubmit_after_restart(tmp_path):
     scheduler = Queue()
-    worker = ExpeditionBasedWorker([Expedition(), Expedition()], scheduler, directory=tmp_path)
+    worker = ExplorationBasedWorker([Exploration(), Exploration()], scheduler, directory=tmp_path)
     worker.run()
     store = worker.job_store.path
     with TinyDB(store) as db:
@@ -111,7 +111,7 @@ def test_shuffled_records_and_resubmit_after_restart(tmp_path):
         db.insert_multiple(reversed(records))
     restarted_scheduler = Queue()
     restarted_scheduler.finished = True
-    restarted = ExpeditionBasedWorker([Expedition(), Expedition()], restarted_scheduler, directory=tmp_path)
+    restarted = ExplorationBasedWorker([Exploration(), Exploration()], restarted_scheduler, directory=tmp_path)
     restarted.run()
     assert not restarted_scheduler.calls
     restarted.inspect(resubmit=True)
@@ -124,7 +124,7 @@ def test_shuffled_records_and_resubmit_after_restart(tmp_path):
         assert record['uid'] in script.name
         assert command in script.read_text()
     assert all(record.attempt == 2 for record in restarted.job_store.get_running())
-    for name in expedition_directories(2):
+    for name in exploration_directories(2):
         (tmp_path / name / 'done').write_text('done')
     restarted.inspect()
     assert set(restarted.retrieve()) == {tmp_path / 'expo.00', tmp_path / 'expo.01'}
@@ -135,11 +135,11 @@ def test_generated_script_launch_directory_and_input(tmp_path, count):
     root = tmp_path / 'run with spaces'
     scheduler = Queue()
     scheduler.environs = 'gdp() { pwd > launch-cwd; printf "%s\\n" "$@" > launch-args; }'
-    worker = ExpeditionBasedWorker([Expedition() for _ in range(count)], scheduler, directory=root)
+    worker = ExplorationBasedWorker([Exploration() for _ in range(count)], scheduler, directory=root)
     worker.run()
     for _, script, _ in scheduler.calls:
         subprocess.run(['bash', str(script)], cwd=script.parent, check=True)
-    for index, name in enumerate(expedition_directories(count)):
+    for index, name in enumerate(exploration_directories(count)):
         wdir = root / name
         assert (wdir / 'launch-cwd').read_text().strip() == str(wdir.resolve())
         args = (wdir / 'launch-args').read_text().splitlines()
@@ -199,17 +199,17 @@ def test_ssh_selective_sync_preserves_metadata_and_siblings(tmp_path, name):
 
 @pytest.mark.parametrize('count', [1, 2])
 def test_active_workflow_uses_previous_layout(tmp_path, count):
-    from gdpx.workflow.nodes.expedition import explore
+    from gdpx.workflow.nodes.exploration import explore
     from gdpx.workflow.session.variable import Variable
     previous = tmp_path / 'iter.0000' / 'search'
     current = tmp_path / 'iter.0001' / 'search'
     names = exploration_layout(previous, count, create=True)
     updates = []
-    expeditions = [Expedition() for _ in range(count)]
-    for expedition in expeditions:
-        expedition.update_active_params = updates.append
-    operation = explore(Variable(expeditions), active=True, directory=current)
-    results = operation.forward(expeditions, None, DirectScheduler())
+    explorations = [Exploration() for _ in range(count)]
+    for exploration in explorations:
+        exploration.update_active_params = updates.append
+    operation = explore(Variable(explorations), active=True, directory=current)
+    results = operation.forward(explorations, None, DirectScheduler())
     assert updates == [previous / name for name in names]
     assert results == [(current / name).resolve() for name in names]
     assert operation.status == 'finished'
@@ -218,13 +218,13 @@ def test_active_workflow_uses_previous_layout(tmp_path, count):
 def test_multi_spawn_uses_saved_padding(tmp_path, monkeypatch):
     from gdpx.cli import explore
     exploration_layout(tmp_path, 100, create=True)
-    expeditions = [Expedition(), Expedition()]
+    explorations = [Exploration(), Exploration()]
     # The CLI normally creates these directories through worker submission.
     for index in (2, 5):
         (tmp_path / f'expo.{index:04d}').mkdir()
-    monkeypatch.setattr(explore, 'create_expedition', lambda params: expeditions)
-    explore.run_expedition({}, runtime={}, directory=tmp_path, spawn='2,5')
-    assert [exp.directory for exp in expeditions] == [tmp_path / 'expo.0002', tmp_path / 'expo.0005']
+    monkeypatch.setattr(explore, 'create_exploration', lambda params: explorations)
+    explore.run_exploration({}, runtime={}, directory=tmp_path, spawn='2,5')
+    assert [exp.directory for exp in explorations] == [tmp_path / 'expo.0002', tmp_path / 'expo.0005']
     assert not (tmp_path / 'expo.02').exists()
 
 
@@ -255,7 +255,7 @@ def test_pbs_script_recovers_submission_directory(tmp_path):
     root = tmp_path / 'run with spaces'
     scheduler = PbsScheduler(is_dry_run=True)
     scheduler.environs = 'gdp() { pwd > launch-cwd; }'
-    worker = ExpeditionBasedWorker(Expedition(), scheduler, directory=root)
+    worker = ExplorationBasedWorker(Exploration(), scheduler, directory=root)
     worker.run()
     environment = dict(os.environ, PBS_O_WORKDIR=str(root / '_meta'))
     subprocess.run(['bash', str(scheduler.script)], cwd=tmp_path, env=environment, check=True)
@@ -292,7 +292,7 @@ def test_consolidate_scheduler_records_without_resubmission(tmp_path, manifest_n
     original = {'_default': {'7': record}}
     old_store.write_text(json.dumps(original))
     scheduler = Queue()
-    worker = ExpeditionBasedWorker(Expedition(), scheduler, directory=tmp_path)
+    worker = ExplorationBasedWorker(Exploration(), scheduler, directory=tmp_path)
     with pytest.raises(ValueError, match='count changed'):
         exploration_layout(tmp_path, 2, create=True, scheduler='queue')
     assert old_store.exists() and (metadata / manifest_name).exists()

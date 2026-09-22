@@ -21,7 +21,7 @@ from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 
-from ..expedition import BaseExpedition
+from ..exploration import BaseExploration
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from ..sampling import parse_operators
@@ -159,7 +159,7 @@ def canonical_candidates_from_worker_results(
     return relaxed_candidates
 
 
-class BasinHopping(BaseExpedition):
+class BasinHopping(BaseExploration):
     def __init__(
         self,
         operators: list[dict],
@@ -253,7 +253,7 @@ class BasinHopping(BaseExpedition):
 
     @property
     def database_path(self) -> pathlib.Path:
-        """Return the fixed candidate database path for this expedition."""
+        """Return the fixed candidate database path for this exploration."""
         return self.directory / CANDIDATES_DATABASE_FILENAME
 
     def register_worker(self, worker, *args, **kwargs) -> None:
@@ -274,7 +274,7 @@ class BasinHopping(BaseExpedition):
     def _run(self):
         """"""
         self._print(f"===== Basin Hopping =====")
-        # Make sure we have everything for the expedition
+        # Make sure we have everything for the exploration
         # assert isinstance(self.worker, DriverBasedWorker)
 
         # Try to connect to a database
@@ -359,7 +359,7 @@ class BasinHopping(BaseExpedition):
                     break
             else:
                 self.report(database)
-                break  # The expedition is converged.
+                break  # The exploration is converged.
 
         return
 
@@ -575,7 +575,7 @@ class BasinHopping(BaseExpedition):
         return
 
     def get_workers(self):
-        """Get all workers used by this expedition.
+        """Get all workers used by this exploration.
 
         This should always be called after the convergence is confirmed.
 

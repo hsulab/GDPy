@@ -231,8 +231,8 @@ class HybridMonteCarlo(MonteCarlo):
         return MCStepState.FINISHED
 
     def get_workers(self):
-        """Get all workers used by this expedition."""
-        # This function can be called without running the expedition,
+        """Get all workers used by this exploration."""
+        # This function can be called without running the exploration,
         # so we need to check if _protype_workers is None.
         if not hasattr(self, "_protype_workers"):
             _, self._protype_workers = self._parse_procedure()

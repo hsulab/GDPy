@@ -30,7 +30,7 @@ class ExplorationReporter:
             box.line(f'input: {self.input_path}')
         box.line(f'directory: {self.directory}')
         if total is not None:
-            box.line(f'expeditions: {total}   scheduler: {scheduler}')
+            box.line(f'explorations: {total}   scheduler: {scheduler}')
         seed = f'random seed: {self.random_seed}   ' if self.random_seed is not None else ''
         box.line(f'{seed}processors: {config.NJOBS}')
         box.border('bottom')
@@ -43,7 +43,7 @@ class ExplorationReporter:
         box = Box('exploration')
         box.line(f'status: {status}')
         if self.total is not None and self.pending is not None:
-            box.line(f'expeditions: {self.total - self.pending} complete | {self.pending} pending')
+            box.line(f'explorations: {self.total - self.pending} complete | {self.pending} pending')
         if error is not None:
             detail = ' '.join(str(error).split())
             box.line(f'error: {type(error).__name__}: {detail[:300]}')
@@ -55,7 +55,7 @@ class ExplorationReporter:
 
 @contextmanager
 def exploration_output(directory, input_path=None, random_seed=None):
-    """Share one report across CLI input loading and expedition execution."""
+    """Share one report across CLI input loading and exploration execution."""
     current = _RUN.get()
     if current is not None:
         yield current

@@ -130,7 +130,7 @@ def main():
     parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_data)")
     parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)
 
-    # --- expedition interface
+    # --- exploration interface
     parser_explore = subparsers.add_parser(
         "explore",
         help="explore structures with advanced methods (GA, MC, and ...)",
@@ -218,14 +218,14 @@ def main():
         state_print(l)
 
     if args.subcommand == "explore":
-        from .cli.explore import run_expedition
+        from .cli.explore import run_exploration
         from .exploration.output import exploration_output
 
         try:
             with exploration_output(args.directory, args.CONFIG, random_seed):
                 params = parse_input_file(args.CONFIG)
                 runtime = parse_input_file(args.runtime) if args.runtime else None
-                run_expedition(params, args.wait, args.directory, runtime, spawn=args.spawn)
+                run_exploration(params, args.wait, args.directory, runtime, spawn=args.spawn)
         finally:
             config._debug(f"GLOBAL RANDOM SEED : {random_seed}")
             for line in dictionary_to_string(config.GRNG.bit_generator.state).split("\n"):

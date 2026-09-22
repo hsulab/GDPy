@@ -118,6 +118,6 @@ objective:
 ## Global-optimisation database
 
 Population-based global-optimisation methods now store candidates and restart
-metadata in `candidates.db` inside each expedition directory. Remove the former
+metadata in `candidates.db` inside each exploration directory. Remove the former
 GA `database` and concurrent-hopping `population.database_fname` settings;
 custom database filenames are no longer accepted.

@@ -60,7 +60,7 @@ OMP_NUM_THREADS=1 gdp -d run-cu6-nix \
   explore examples/global_optimisation/explorations/basin_hopping/cu6_nix.yaml
 ```
 
-This is one expedition, so its outputs are directly under `run-cu6-nix/`.
+This is one exploration, so its outputs are directly under `run-cu6-nix/`.
 Rerun the same command to resume. Use a fresh directory when changing the
 chemical potentials, recipe, or runtime.
 

@@ -1,4 +1,4 @@
-(expeditions)=
+(explorations)=
 
 # Exploration
 

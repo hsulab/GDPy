@@ -77,7 +77,7 @@ class SingleWorker(DriverBasedWorker):
     def rewind_to_step(self, step: int):
         """Remove computation folders from the database after *step*.
 
-        Used in MC expeditions when restarting from a checkpoint.
+        Used in MC explorations when restarting from a checkpoint.
         """
         def test_func(wdir_names, step: int) -> bool:
             if not wdir_names:

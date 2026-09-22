@@ -11,7 +11,7 @@ from gdpx.utils.strconv import integers_to_string
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
-from ..expedition import BaseExpedition
+from ..exploration import BaseExploration
 from ..move_step import read_pending, run_worker_move
 from ..accepted_state import load_accepted_state, save_accepted_state
 from ..checkpoint import load_data, save_data, publish_snapshot, read_snapshot, prune_snapshots
@@ -53,7 +53,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
     return content
 
 
-class MonteCarlo(BaseExpedition):
+class MonteCarlo(BaseExploration):
     restart = False
 
     #: Prefix of the working directory.
@@ -523,7 +523,7 @@ class MonteCarlo(BaseExpedition):
         return converged
 
     def get_workers(self):
-        """Get all workers used by this expedition."""
+        """Get all workers used by this exploration."""
         potential = self.worker.runtime.provider_potential
         if hasattr(potential, "remove_loaded_models"):
             potential.remove_loaded_models()

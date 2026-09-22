@@ -9,7 +9,7 @@ import numpy as np
 from gdpx.structures.builders import canonicalise_builder
 
 from . import REGISTER
-from .expedition import BaseExpedition
+from .exploration import BaseExploration
 
 
 RECIPE_METHODS = {
@@ -51,11 +51,11 @@ def _recipe_parameters(method: str, parameters: dict) -> dict:
     return copy.deepcopy(dict(recipe))
 
 
-def create_expedition(config):
-    if isinstance(config, BaseExpedition):
+def create_exploration(config):
+    if isinstance(config, BaseExploration):
         return config
     if not isinstance(config, Mapping):
-        raise TypeError("Exploration configuration must be a mapping or BaseExpedition.")
+        raise TypeError("Exploration configuration must be a mapping or BaseExploration.")
     parameters = copy.deepcopy(dict(config))
     try:
         method = parameters.pop("method")
@@ -71,12 +71,12 @@ def create_expedition(config):
             raise ValueError('broadcast must be a nonempty mapping of recipe paths to value lists.')
     parameters = _recipe_parameters(method, parameters)
     if broadcast is None:
-        return _create_expedition(method, parameters)
-    expeditions = []
+        return _create_exploration(method, parameters)
+    explorations = []
     for recipe in _broadcast_recipes(parameters, broadcast):
-        result = _create_expedition(method, recipe)
-        expeditions.extend(result if isinstance(result, list) else [result])
-    return expeditions
+        result = _create_exploration(method, recipe)
+        explorations.extend(result if isinstance(result, list) else [result])
+    return explorations
 
 
 def _broadcast_target(recipe, parts):
@@ -120,7 +120,7 @@ def _broadcast_recipes(recipe, broadcast):
         yield expanded
 
 
-def _create_expedition(method, parameters):
+def _create_exploration(method, parameters):
     """Construct one resolved recipe, preserving method-specific broadcasting."""
     if method == "basin_hopping" and "population" not in parameters:
         raise ValueError("basin_hopping now uses the concurrent-hopping population recipe; "
@@ -132,7 +132,7 @@ def _create_expedition(method, parameters):
     if parameters.get("builder") is not None:
         parameters["builder"] = canonicalise_builder(parameters["builder"])
         parameters["builder"].set_rng(seed=random_seed)
-    expedition = REGISTER[method](**parameters)
-    if isinstance(expedition, Iterable) and not isinstance(expedition, BaseExpedition):
-        return list(expedition)
-    return expedition
+    exploration = REGISTER[method](**parameters)
+    if isinstance(exploration, Iterable) and not isinstance(exploration, BaseExploration):
+        return list(exploration)
+    return exploration

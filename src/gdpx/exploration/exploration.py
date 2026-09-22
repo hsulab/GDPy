@@ -11,10 +11,10 @@ from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.execution.service import ExecutionWorker, WorkerExecutionService
 
 
-class BaseExpedition(BaseComponent):
+class BaseExploration(BaseComponent):
 
-    #: Name of the expedition.
-    name: str = "expedition"
+    #: Name of the exploration.
+    name: str = "exploration"
 
     @abc.abstractmethod
     def read_convergence(self) -> bool: ...

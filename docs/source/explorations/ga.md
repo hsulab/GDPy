@@ -79,7 +79,7 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
   > arbitrary x- and y-coordiantes but z-coordinate within the range [7,7+6].
 
 GDPy stores explored structures and restart metadata in `candidates.db` inside
-the expedition directory; its name is not configurable. The remaining entries
+the exploration directory; its name is not configurable. The remaining entries
 below are in the `recipe` section:
 
 - objective: Optional search target. It defaults to `energy`, so the section can

@@ -155,7 +155,7 @@ with the same Ni reference. These are illustrative chemical potentials for a
 short EMT demonstration. The initial composition range is not a constraint on
 later moves: Ni can disappear or exceed three atoms, while Cu remains fixed.
 
-This single expedition writes directly into `run-cu6-nix/`. Inspect
+This single exploration writes directly into `run-cu6-nix/`. Inspect
 `candidates.db` for initial and trial compositions, acceptance flags, and parent
 IDs, and `tmp_folder/gen1/rounds/events.jsonl` for committed chain history.
 See the basin-hopping documentation's **Variable-composition Cu₆Niₓ clusters**

@@ -13,7 +13,7 @@ WORKFLOW_MODULES = (
     "dataset",
     "describer",
     "driver",
-    "expedition",
+    "exploration",
     "runtime",
     "reactor",
     "region",

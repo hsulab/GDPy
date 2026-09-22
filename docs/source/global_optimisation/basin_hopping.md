@@ -10,7 +10,7 @@ and select another suitable runtime in a new output directory.
 `method: basin_hopping` runs the population-based search formerly named
 `concurrent_hopping`. It selects starting structures for hopping chains,
 evaluates candidates using execution workers, and ranks them using the search
-objective. It inherits directly from `BaseExpedition`, independently of MC.
+objective. It inherits directly from `BaseExploration`, independently of MC.
 
 ```{toctree}
 :maxdepth: 2

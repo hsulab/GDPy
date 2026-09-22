@@ -10,7 +10,7 @@ from ase.io import read, write
 
 from gdpx.exploration.generation import GenerationInfo, GenerationState, EvaluationStatus
 from gdpx.exploration.persist.database import GlobalOptimisationDatabase
-from gdpx.exploration.factory import create_expedition
+from gdpx.exploration.factory import create_exploration
 from gdpx.execution.factory import create_worker
 from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
 from gdpx.exploration.sampling import parse_operators
@@ -81,7 +81,7 @@ def bh_config(tmp_path, initial=2, generations=0):
 
 
 def make_engine(config, runtime, directory):
-    engine = create_expedition(copy.deepcopy(config))
+    engine = create_exploration(copy.deepcopy(config))
     if isinstance(engine, list):
         engine = engine[0]
     engine.directory = directory
@@ -251,7 +251,7 @@ def test_bh_rejects_removed_mcworker_and_serial_checkpoints(tmp_path):
     legacy = copy.deepcopy(config)
     legacy["recipe"]["mcworker"] = runtime
     with pytest.raises(ValueError, match="mcworker.*top-level runtime"):
-        create_expedition(legacy)
+        create_exploration(legacy)
     engine = make_engine(config, runtime, tmp_path / "search")
     db = GlobalOptimisationDatabase(engine.database_path)
     db.set_generation_plan(1, dict(stage="hopping", parents=[1, 1]))
@@ -374,7 +374,7 @@ def test_bh_default_generation_and_serialization(tmp_path, convergence):
     serialized = engine.as_dict()
     assert serialized["recipe"]["convergence"] == {"generation": 1}
     serialized.pop("runtime")
-    assert create_expedition(serialized).convergence == {"generation": 1}
+    assert create_exploration(serialized).convergence == {"generation": 1}
     engine.run()
     db = GlobalOptimisationDatabase(engine.database_path)
     assert db.get_generation_number() == 2
@@ -389,7 +389,7 @@ def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
     config, _ = bh_config(tmp_path)
     config["recipe"]["convergence"] = {"generation": generation}
     with pytest.raises(ValueError, match="convergence.generation.*non-negative integer"):
-        create_expedition(config)
+        create_exploration(config)
 
 
 def test_bh_default_generation_resumes_without_reselecting_starts(tmp_path, monkeypatch):

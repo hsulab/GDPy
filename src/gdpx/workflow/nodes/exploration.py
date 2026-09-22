@@ -10,18 +10,18 @@ from typing import Union
 import omegaconf
 
 from gdpx.workflow.session.registry import workflow_registers as registers
-from gdpx.workflow.factory import create_expedition
-from gdpx.exploration.expedition import BaseExpedition
+from gdpx.workflow.factory import create_exploration
+from gdpx.exploration.exploration import BaseExploration
 from gdpx.exploration.layout import exploration_layout
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.variable import DummyVariable, Variable
-from gdpx.execution.workers.explore import ExpeditionBasedWorker
+from gdpx.execution.workers.explore import ExplorationBasedWorker
 
 from .scheduler import SchedulerVariable
 
 
 @registers.variable.register
-class ExpeditionVariable(Variable):
+class ExplorationVariable(Variable):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
         """"""
@@ -40,14 +40,14 @@ class ExpeditionVariable(Variable):
                 }
         if isinstance(kwargs.get("builder"), Variable):
             kwargs["builder"] = kwargs["builder"].value
-        expedition = create_expedition(kwargs)
+        exploration = create_exploration(kwargs)
 
-        super().__init__(initial_value=expedition, directory=directory)
+        super().__init__(initial_value=exploration, directory=directory)
 
         return
 
     @property
-    def value(self) -> BaseExpedition:
+    def value(self) -> BaseExploration:
         """"""
 
         return self._value  # type: ignore
@@ -60,7 +60,7 @@ class explore(Operation):
 
     def __init__(
         self,
-        expedition,
+        exploration,
         worker=DummyVariable(),
         scheduler=None,
         wait_time=60,
@@ -80,7 +80,7 @@ class explore(Operation):
         else:
             raise Exception(f"Unknown {scheduler} for the scheduler.")
 
-        input_nodes = [expedition, worker, scheduler]
+        input_nodes = [exploration, worker, scheduler]
         super().__init__(input_nodes, directory)
 
         self.wait_time = wait_time
@@ -89,8 +89,8 @@ class explore(Operation):
 
         return
 
-    def forward(self, expedition, dyn_worker, scheduler):
-        """Explore an expedition and forward results for further analysis.
+    def forward(self, exploration, dyn_worker, scheduler):
+        """Explore an exploration and forward results for further analysis.
 
         Returns:
             Workers that store structures.
@@ -98,28 +98,28 @@ class explore(Operation):
         """
         super().forward()
 
-        if isinstance(expedition, list):
-            expeditions = expedition
+        if isinstance(exploration, list):
+            explorations = exploration
         else:
-            expeditions = [expedition]
+            explorations = [exploration]
 
-        num_expeditions = len(expeditions)
+        num_explorations = len(explorations)
         if self._active:
             curr_iter = int(self.directory.parent.name.split(".")[-1])
             if curr_iter > 0:
                 self._print("    >>> Update seed_file...")
                 previous = self.directory.parent.parent / f"iter.{curr_iter-1:04d}" / self.directory.name
-                directories = exploration_layout(previous, num_expeditions)
-                for i, current in enumerate(expeditions):
+                directories = exploration_layout(previous, num_explorations)
+                for i, current in enumerate(explorations):
                     if hasattr(current, "update_active_params"):
                         current.update_active_params(previous / directories[i])
 
         self._print(f"{dyn_worker=}")
-        for expedition in expeditions:
-            if hasattr(expedition, "register_worker"):
-                expedition.register_worker(dyn_worker)
+        for exploration in explorations:
+            if hasattr(exploration, "register_worker"):
+                exploration.register_worker(dyn_worker)
 
-        worker = ExpeditionBasedWorker(expeditions, scheduler)
+        worker = ExplorationBasedWorker(explorations, scheduler)
         worker.directory = self.directory
         worker.timewait = self.wait_time
 

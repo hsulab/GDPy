@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from gdpx.exploration.factory import create_expedition
+from gdpx.exploration.factory import create_exploration
 from gdpx.exploration.genetic_algorithm.mutation.swap import SwapMutation
 
 
@@ -19,7 +19,7 @@ EXAMPLE_PATH = (
 def test_cu7ni6_example_generates_tagged_clusters_and_swaps_species():
     config = yaml.safe_load(EXAMPLE_PATH.read_text())
     config.pop("scheduler", None)
-    engine = create_expedition(config)[0]
+    engine = create_exploration(config)[0]
 
     candidates = engine.builders["random"].run(size=4)
     for atoms in candidates:

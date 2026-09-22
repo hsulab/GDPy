@@ -4,7 +4,7 @@ import pytest
 from ase import Atoms
 
 from gdpx.exploration import REGISTER
-from gdpx.exploration.factory import create_expedition
+from gdpx.exploration.factory import create_exploration
 from gdpx.exploration.genetic_algorithm.engine import (
     GeneticAlgorithmBroadcaster,
     GeneticAlgorithmEngine,
@@ -62,15 +62,15 @@ class SerializableBuilder(Serializable):
 )
 def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
     captured = {}
-    expedition = object()
+    exploration = object()
 
     def create(**kwargs):
         captured.update(kwargs)
-        return expedition
+        return exploration
 
     monkeypatch.setitem(REGISTER._dict, method, create)
 
-    result = create_expedition(
+    result = create_exploration(
         {
             "method": method,
             "recipe": {
@@ -82,7 +82,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
         }
     )
 
-    assert result is expedition
+    assert result is exploration
     assert captured == {
         "random_seed": 17,
         "operators": [],
@@ -111,7 +111,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
 )
 def test_factory_rejects_legacy_global_optimisation_shapes(config, message):
     with pytest.raises((TypeError, ValueError), match=message):
-        create_expedition(config)
+        create_exploration(config)
 
 
 def test_ga_broadcaster_uses_named_recipe_fields():
@@ -199,14 +199,14 @@ def test_searches_reject_configurable_database_names():
 
 def test_population_searches_use_fixed_database_path(tmp_path):
     ga = object.__new__(GeneticAlgorithmEngine)
-    ga.directory = tmp_path / "expedition-0"
+    ga.directory = tmp_path / "exploration-0"
 
     concurrent = object.__new__(BasinHopping)
-    concurrent._directory = (tmp_path / "expedition-1").resolve()
+    concurrent._directory = (tmp_path / "exploration-1").resolve()
 
-    assert ga.db_path == (tmp_path / "expedition-0" / CANDIDATES_DATABASE_FILENAME).resolve()
+    assert ga.db_path == (tmp_path / "exploration-0" / CANDIDATES_DATABASE_FILENAME).resolve()
     assert concurrent.database_path == (
-        tmp_path / "expedition-1" / CANDIDATES_DATABASE_FILENAME
+        tmp_path / "exploration-1" / CANDIDATES_DATABASE_FILENAME
     ).resolve()
     assert ga.db_path != concurrent.database_path
 
@@ -679,14 +679,14 @@ def test_other_global_optimisers_serialize_the_recipe():
 
 
 def test_basin_hopping_replaces_the_old_alias_and_registration():
-    from gdpx.exploration.expedition import BaseExpedition
+    from gdpx.exploration.exploration import BaseExploration
     assert REGISTER["basin_hopping"] is BasinHopping
-    assert BasinHopping.__bases__ == (BaseExpedition,)
+    assert BasinHopping.__bases__ == (BaseExploration,)
     assert "concurrent_hopping" not in REGISTER
     with pytest.raises(ValueError, match="renamed to basin_hopping"):
-        create_expedition({"method": "concurrent_hopping", "recipe": {}})
+        create_exploration({"method": "concurrent_hopping", "recipe": {}})
     with pytest.raises(ValueError, match="former MC alias use method: monte_carlo"):
-        create_expedition({"method": "basin_hopping", "recipe": {"convergence": {"steps": 2}}})
+        create_exploration({"method": "basin_hopping", "recipe": {"convergence": {"steps": 2}}})
 
 
 def test_basin_hopping_accepts_a_constructed_cli_worker():

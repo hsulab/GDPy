@@ -6,9 +6,9 @@ import tempfile
 from pathlib import Path
 
 
-def expedition_directories(count):
+def exploration_directories(count):
     if count < 1:
-        raise ValueError('Exploration requires at least one expedition.')
+        raise ValueError('Exploration requires at least one exploration.')
     if count == 1:
         return ['.']
     width = 2 * ((len(str(count)) + 1) // 2)
@@ -76,7 +76,7 @@ def exploration_layout(directory, count=None, *, create=False, scheduler=None):
     layout = layouts[0] if layouts else None
     if layout is not None:
         saved_count = layout['count']
-        if (layout.get('version') != 1 or layout.get('directories') != expedition_directories(saved_count)
+        if (layout.get('version') != 1 or layout.get('directories') != exploration_directories(saved_count)
                 or any(other != layout for other in layouts)):
             raise ValueError(f'Invalid or conflicting exploration layouts in {metadata}')
         if count is not None and count != saved_count:
@@ -84,7 +84,7 @@ def exploration_layout(directory, count=None, *, create=False, scheduler=None):
     elif databases:
         raise ValueError(f'Missing exploration layout in {metadata}; cannot safely resume job records.')
     elif count is not None:
-        layout = dict(version=1, count=count, directories=expedition_directories(count))
+        layout = dict(version=1, count=count, directories=exploration_directories(count))
     else:
         return None
 

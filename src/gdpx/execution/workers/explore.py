@@ -11,7 +11,7 @@ import time
 import uuid
 from typing import Optional, Union
 
-from gdpx.exploration.expedition import BaseExpedition
+from gdpx.exploration.exploration import BaseExploration
 from gdpx.exploration.layout import exploration_layout
 from gdpx.execution.schedulers.scheduler import BaseScheduler
 
@@ -20,40 +20,40 @@ from .registry import WORKER_REGISTRY
 from .worker import BaseWorker
 from .store import JobStore
 
-"""Worker that manages expeditions.
+"""Worker that manages explorations.
 
-Since an expedition is made up of several basic workers, this worker is a monitor that 
+Since an exploration is made up of several basic workers, this worker is a monitor that
 tracks its progress.
 
 """
 
 
-def run_expedition_in_commandline(wdir, expedition, timewait: Optional[float] = None, print_func=print) -> None:
+def run_exploration_in_commandline(wdir, exploration, timewait: Optional[float] = None, print_func=print) -> None:
     """"""
-    expedition.directory = wdir
+    exploration.directory = wdir
     if timewait is not None:
         for _ in range(1000):
-            expedition.run()
-            if expedition.read_convergence():
+            exploration.run()
+            if exploration.read_convergence():
                 break
             print_func(f"wait {timewait} seconds...")
             time.sleep(timewait)
         else:
             ...
     else:
-        expedition.run()
+        exploration.run()
 
     return
 
 
-def get_expedition_function(
-    expedition, working_directory: pathlib.Path, timewait: Optional[float] = None, print_func=print
+def get_exploration_function(
+    exploration, working_directory: pathlib.Path, timewait: Optional[float] = None, print_func=print
 ):
     """"""
     exp_func = functools.partial(
-        run_expedition_in_commandline,
+        run_exploration_in_commandline,
         wdir=working_directory,
-        expedition=expedition,
+        exploration=exploration,
         timewait=timewait,
         print_func=print_func,
     )
@@ -61,9 +61,9 @@ def get_expedition_function(
     return exp_func
 
 
-def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
+def save_exploration_input_parameters(inp_fpath: pathlib.Path, exploration):
     """"""
-    exp_params = expedition.as_dict()
+    exp_params = exploration.as_dict()
     with open(inp_fpath, "w") as fopen:
         json.dump(exp_params, fopen, indent=2)
 
@@ -71,7 +71,7 @@ def save_expedition_input_parameters(inp_fpath: pathlib.Path, expedition):
 
 
 @WORKER_REGISTRY.register
-class ExpeditionBasedWorker(BaseWorker):
+class ExplorationBasedWorker(BaseWorker):
 
     batchsize: int = 1
 
@@ -79,7 +79,7 @@ class ExpeditionBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        expedition: Union[BaseExpedition, list[BaseExpedition]],
+        exploration: Union[BaseExploration, list[BaseExploration]],
         scheduler: BaseScheduler,
         batchsize: int = 1,
         timewait: Optional[float] = 60.0,
@@ -88,20 +88,20 @@ class ExpeditionBasedWorker(BaseWorker):
         """"""
         super().__init__(directory=directory)
 
-        self.expedition = expedition
+        self.exploration = exploration
         self.scheduler = scheduler
 
         self.batchsize = batchsize
         self.timewait = timewait
 
         if self.batchsize != 1:
-            raise Exception("Currently, expedition worker only supports batchsize of 1.")
+            raise Exception("Currently, exploration worker only supports batchsize of 1.")
 
         return
 
     @property
-    def expeditions(self):
-        return self.expedition if isinstance(self.expedition, list) else [self.expedition]
+    def explorations(self):
+        return self.exploration if isinstance(self.exploration, list) else [self.exploration]
 
     @property
     def metadata_directory(self):
@@ -116,13 +116,13 @@ class ExpeditionBasedWorker(BaseWorker):
 
     def _initialise(self, *args, **kwargs):
         self.output_directories = exploration_layout(
-            self.directory, len(self.expeditions), create=True, scheduler=self.scheduler.name
+            self.directory, len(self.explorations), create=True, scheduler=self.scheduler.name
         )
         super()._initialise(*args, **kwargs)
 
     def _prepare_job(self, index, uid, job_name, wdir_names):
         if not 0 <= index < len(self.output_directories):
-            raise ValueError(f'Job {job_name} has an invalid expedition index: {index}.')
+            raise ValueError(f'Job {job_name} has an invalid exploration index: {index}.')
         expected = self.output_directories[index]
         if wdir_names != [expected]:
             raise ValueError(f'Job {job_name} has an inconsistent exploration directory.')
@@ -151,7 +151,7 @@ class ExpeditionBasedWorker(BaseWorker):
     def run(self, *args, **kwargs) -> None:
         super().run(*args, **kwargs)
         queued = {job.group_number: job for job in self.job_store.get_queued()}
-        for index, expedition in enumerate(self.expeditions):
+        for index, exploration in enumerate(self.explorations):
             if index in queued:
                 self._debug(f'{queued[index].gdir} at {self.directory.name} was submitted.')
                 continue
@@ -160,10 +160,10 @@ class ExpeditionBasedWorker(BaseWorker):
             names = [self.output_directories[index]]
             wdir = self._prepare_job(index, uid, job_name, names)
             wdir.mkdir(parents=True, exist_ok=True)
-            save_expedition_input_parameters(self.metadata_directory / f'exp-{uid}.json', expedition)
+            save_exploration_input_parameters(self.metadata_directory / f'exp-{uid}.json', exploration)
             # Persist scripts for direct runs too, so each job remains reproducible.
             self.scheduler.write()
-            callback = get_expedition_function(expedition, wdir, self.timewait, self._print)
+            callback = get_exploration_function(exploration, wdir, self.timewait, self._print)
             status = self.scheduler.submit(func_to_execute=callback)
             self._debug(f'{names[0]}: {status}')
             self.job_store.insert(uid, '', job_name, index, names)
@@ -182,16 +182,16 @@ class ExpeditionBasedWorker(BaseWorker):
                 self.scheduler.sync(job.wdir_names, root_relative=True)
             else:
                 self.scheduler.sync(job.wdir_names)
-            expedition = self.expeditions[index]
-            expedition.directory = wdir
+            exploration = self.explorations[index]
+            exploration.directory = wdir
             self._debug(f'exp_index={index}')
             self._debug(f'progress: {int(wdir.exists())}/1')
-            if wdir.exists() and expedition.read_convergence():
+            if wdir.exists() and exploration.read_convergence():
                 self.job_store.mark_finished(job.gdir)
             elif resubmit:
                 wdir.mkdir(parents=True, exist_ok=True)
                 self.scheduler.write()
-                callback = get_expedition_function(expedition, wdir, self.timewait, self._print)
+                callback = get_exploration_function(exploration, wdir, self.timewait, self._print)
                 job_id = self.scheduler.submit(func_to_execute=callback)
                 self.job_store.mark_submitted(job.gdir, job_id)
                 self._print(f'{job.gdir} is re-submitted with JOBID: {job_id}...')
@@ -205,8 +205,8 @@ class ExpeditionBasedWorker(BaseWorker):
         workers = []
         for job in jobs:
             wdir = self._prepare_job(job.group_number, job.uid, job.gdir, job.wdir_names)
-            expedition = self.expeditions[job.group_number]
-            expedition.directory = wdir
-            workers.extend(expedition.get_workers())
+            exploration = self.explorations[job.group_number]
+            exploration.directory = wdir
+            workers.extend(exploration.get_workers())
             self.job_store.mark_retrieved(job.gdir)
         return workers

@@ -438,7 +438,7 @@ def test_hopping_with_actual_emt_driver(tmp_path):
 
 def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     from ase.io import write
-    from gdpx.exploration.factory import create_expedition
+    from gdpx.exploration.factory import create_exploration
 
     atoms = Atoms("Cu2", positions=[[5, 5, 5], [7.4, 5, 5]], tags=[1, 2], cell=[20] * 3)
     source = tmp_path / "seed.xyz"
@@ -448,7 +448,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
         "options": {"worker": "single"},
     }
-    engine = create_expedition({"method": "basin_hopping", "recipe": {
+    engine = create_exploration({"method": "basin_hopping", "recipe": {
         "population": {"periodic": False, "retained_size": 1,
                        "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
                        "generation": {"total_size": 3},
@@ -485,7 +485,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         start = read(trajectory, 0)
         np.testing.assert_allclose(start.positions, atoms.positions)
     serialized.pop("runtime")
-    assert create_expedition(serialized).population_config.gen_size == 3
+    assert create_exploration(serialized).population_config.gen_size == 3
 
 
 def test_mc_portable_checkpoint_retention_and_fallback(tmp_path):

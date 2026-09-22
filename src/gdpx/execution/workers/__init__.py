@@ -1,7 +1,7 @@
 """Worker public API.
 
 Exports are loaded lazily so importing one worker implementation does not pull
-in expeditions, trainers, workflow nodes, and every optional backend.
+in explorations, trainers, workflow nodes, and every optional backend.
 """
 
 from importlib import import_module
@@ -13,13 +13,13 @@ __all__ = [
     "DriverBatchError",
     "DriverFailure",
     "SingleWorker",
-    "ExpeditionBasedWorker",
+    "ExplorationBasedWorker",
     "TrainerBasedWorker",
     "ReactorBasedWorker",
     "JobRecord",
     "JobStore",
     "run_computation_in_commandline",
-    "run_expedition_in_commandline",
+    "run_exploration_in_commandline",
 ]
 
 _EXPORTS = {
@@ -29,8 +29,8 @@ _EXPORTS = {
     "DriverFailure": (".drive", "DriverFailure"),
     "run_computation_in_commandline": (".drive", "run_computation_in_commandline"),
     "SingleWorker": (".single", "SingleWorker"),
-    "ExpeditionBasedWorker": (".explore", "ExpeditionBasedWorker"),
-    "run_expedition_in_commandline": (".explore", "run_expedition_in_commandline"),
+    "ExplorationBasedWorker": (".explore", "ExplorationBasedWorker"),
+    "run_exploration_in_commandline": (".explore", "run_exploration_in_commandline"),
     "TrainerBasedWorker": (".train", "TrainerBasedWorker"),
     "ReactorBasedWorker": (".react", "ReactorBasedWorker"),
     "JobRecord": (".store", "JobRecord"),

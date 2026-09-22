@@ -16,7 +16,7 @@ from gdpx.structures.geometry.ga import CellBounds
 from gdpx.utils.atoms_tags import get_tags_per_species
 from gdpx.utils.strconv import integers_to_string
 
-from ..expedition import BaseExpedition
+from ..exploration import BaseExploration
 from ..objective import is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import (
     CANDIDATES_DATABASE_FILENAME,
@@ -163,7 +163,7 @@ class GeneticAlgorithmBroadcaster:
         return new_params_list
 
 
-class GeneticAlgorithmEngine(BaseExpedition):
+class GeneticAlgorithmEngine(BaseExploration):
     """The genetic algorithm engine for structure search.
 
     The systems include bulk, surface, cluster, and surface with adsorbates.
@@ -279,7 +279,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
 
         return
 
-    @BaseExpedition.directory.setter
+    @BaseExploration.directory.setter
     def directory(self, directory: Union[str, pathlib.Path]) -> None:
         """"""
         self._directory = pathlib.Path(directory).resolve()
@@ -632,7 +632,7 @@ class GeneticAlgorithmEngine(BaseExpedition):
         return current_candidates
 
     def get_workers(self, gen_info: Optional[GenerationInfo] = None) -> list:
-        """Get all workers used by this expedition."""
+        """Get all workers used by this exploration."""
         if gen_info is None:
             da = self.da if hasattr(self, "da") else GODB(self.db_path)
             gen_info = da.get_generation_info()

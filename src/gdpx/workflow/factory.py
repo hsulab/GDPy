@@ -38,7 +38,7 @@ def create_trainer(config):
     return get_provider_manager().create_training(component)
 
 
-def create_expedition(config):
-    from gdpx.exploration.factory import create_expedition as create
+def create_exploration(config):
+    from gdpx.exploration.factory import create_exploration as create
 
     return create(config)

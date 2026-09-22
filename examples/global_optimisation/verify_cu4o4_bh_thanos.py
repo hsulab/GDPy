@@ -74,6 +74,6 @@ def verify(directory):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('directory', type=Path, help='BH expedition directory containing candidates.db')
+    parser.add_argument('directory', type=Path, help='BH exploration directory containing candidates.db')
     args = parser.parse_args()
     print(json.dumps(verify(args.directory), indent=2))

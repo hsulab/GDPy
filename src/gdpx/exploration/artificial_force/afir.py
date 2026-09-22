@@ -13,7 +13,7 @@ from gdpx.structures.groups import evaluate_group_expression
 from gdpx.execution.factory import create_worker
 from gdpx.providers import ComponentConfig
 
-from ..expedition import BaseExpedition
+from ..exploration import BaseExploration
 
 
 def convert_index_to_formula(atoms, group_indices: list[list[int]]):
@@ -100,7 +100,7 @@ class ReactionSpace:
         return is_possible
 
 
-class AFIRSearch(BaseExpedition):
+class AFIRSearch(BaseExploration):
     def __init__(
         self,
         builder,
@@ -151,7 +151,7 @@ class AFIRSearch(BaseExpedition):
 
         atoms = structures[0]
 
-        # start expedition
+        # start exploration
         self._print("---------------------------")
         self._print("| AFIRSearch starts...... |")
         self._print("---------------------------")

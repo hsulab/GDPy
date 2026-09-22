@@ -174,14 +174,14 @@ def test_generation_accounting_uses_generation_size_not_retained(tmp_path, legac
 def test_example_population_round_trip_and_config_immutability(example, runtime_name):
     from pathlib import Path
     import yaml
-    from gdpx.exploration.factory import create_expedition
+    from gdpx.exploration.factory import create_exploration
     from gdpx.execution.factory import create_worker
 
     source = Path(__file__).resolve().parents[2] / "examples/global_optimisation" / example
     config = yaml.safe_load(source.read_text())
     runtime = yaml.safe_load((source.parents[2] / "runtimes" / runtime_name).read_text())
     original = copy.deepcopy(config)
-    engine = create_expedition(copy.deepcopy(config))
+    engine = create_exploration(copy.deepcopy(config))
     if isinstance(engine, list):
         engine = engine[0]
     engine.register_worker(create_worker(runtime))
@@ -190,7 +190,7 @@ def test_example_population_round_trip_and_config_immutability(example, runtime_
     assert saved["recipe"]["population"]["retained_size"] == 2
     assert saved["recipe"]["population"]["comparator"] == {"method": "interatomic_distance"}
     saved.pop("runtime")
-    rebuilt = create_expedition(saved)
+    rebuilt = create_exploration(saved)
     if isinstance(rebuilt, list):
         rebuilt = rebuilt[0]
     assert type(rebuilt.population) is Population

@@ -21,7 +21,7 @@ at Queen's University Belfast.
 
 `deepmd`, `eann`, `lasp`, `MatterSim`, `nequip` / `allegro`
 
-## Supported **Expeditions**
+## Supported **Explorations**
 
 `molecular dynamics`, `genetic algorithm`, `grand canonical monte carlo`,
 `graph-theory adsorbate configuration`, `artificial force induced reaction`
@@ -43,7 +43,7 @@ trainers/index
 computations/index
 builders/index
 selections/index
-expeditions/index
+explorations/index
 tutorials/index
 ```
 

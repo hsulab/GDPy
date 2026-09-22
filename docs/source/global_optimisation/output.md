@@ -2,15 +2,15 @@
 
 # Exploration output layout
 
-For a single expedition, `gdp -d work explore ...` writes algorithm outputs,
+For a single exploration, `gdp -d work explore ...` writes algorithm outputs,
 checkpoints, calculation directories, and `gdp.out` directly under `work/`.
 There is no enclosing `expedition-0` directory.
 
-When a recipe creates multiple expeditions, each has its own `expo.<index>`
-directory. Indices start at zero. The number of decimal digits in the expedition
+When a recipe creates multiple explorations, each has its own `expo.<index>`
+directory. Indices start at zero. The number of decimal digits in the exploration
 count is rounded up to the next even width:
 
-| Expeditions | Output directories |
+| Explorations | Output directories |
 | ---: | --- |
 | 2 | `expo.00`, `expo.01` |
 | 10 | `expo.00` through `expo.09` |
@@ -19,12 +19,12 @@ count is rounded up to the next even width:
 
 The exploration worker keeps its bookkeeping in one shared `work/_meta/`:
 
-- `_scheduler.json`: scheduler provider, saved expedition count, relative output
+- `_scheduler.json`: scheduler provider, saved exploration count, relative output
   directories, and submission/completion records in one file for every provider.
   Its `scheduler` table records `provider` (for example, `direct` or `slurm`),
   its `layout` table records directories, and TinyDB’s `_default` table holds jobs.
-- `exp-<uuid>.json`: generated expedition inputs, including the calculation runtime.
-- `run.script-<uuid>`: scripts that launch each expedition in its output directory.
+- `exp-<uuid>.json`: generated exploration inputs, including the calculation runtime.
+- `run.script-<uuid>`: scripts that launch each exploration in its output directory.
 
 Runs using separate `_meta/layout.json` (or `exploration.json`) and
 `_<scheduler>_jobs.json` files, or the interim `_<scheduler>.json` files, remain
@@ -32,14 +32,14 @@ resumable. The worker validates and merges them into `_scheduler.json`,
 preserving job identifiers and status, then removes
 the old files. Read-only layout inspection does not migrate files.
 
-Expeditions do not need separate metadata directories for the exploration
+Explorations do not need separate metadata directories for the exploration
 worker. Calculation workers inside them retain their own caches and job records.
 Default scheduler artifacts are written beside the submission scripts; explicit
 scheduler output settings remain in effect. The main `gdp.out` stays in the
-working directory, and separately launched expeditions log in their output
+working directory, and separately launched explorations log in their output
 directories.
 
-Resume with the same working directory, scheduler provider, and expedition count. Changing the count
+Resume with the same working directory, scheduler provider, and exploration count. Changing the count
 requires a fresh directory. Existing layouts with root-level job records or
 `expedition-*` directories are detected and rejected; they are not automatically
 moved or resumed by the new layout.
@@ -84,7 +84,7 @@ combinations. Values in `broadcast` override the base recipe. Ordinary recipe
 lists are unchanged. GA's existing chemical-potential expansion is applied
 within each explicit broadcast combination.
 
-Generated expedition inputs contain only resolved recipes. Rerun unchanged
+Generated exploration inputs contain only resolved recipes. Rerun unchanged
 settings to resume; use a fresh directory when changing sweep values or order.
 Direct scheduling executes the searches sequentially. Selecting a queue
-scheduler retains its usual separate submission per expedition.
+scheduler retains its usual separate submission per exploration.

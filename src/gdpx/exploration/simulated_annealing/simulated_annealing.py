@@ -9,10 +9,10 @@ from typing import Union
 
 from gdpx.structures.builders.factory import canonicalise_builder
 
-from ..expedition import BaseExpedition
+from ..exploration import BaseExploration
 
 
-class SimulatedAnnealing(BaseExpedition):
+class SimulatedAnnealing(BaseExploration):
 
     name: str = "simulated_annealing"
 
@@ -90,7 +90,7 @@ class SimulatedAnnealing(BaseExpedition):
             else:
                 ...
         else:
-            self._print("SlicedExpedition is converged.")
+            self._print("SlicedExploration is converged.")
             with open(self.directory / "FINISHED", "w") as fopen:
                 fopen.write(f"FINISHED AT {time.asctime( time.localtime(time.time()) )}.")
 
@@ -98,7 +98,7 @@ class SimulatedAnnealing(BaseExpedition):
 
     def _irun(self, istep: int, structures, temperature: float, rng_states: list):
         """"""
-        self._print(f"===== SlicedExpedition Step {istep} =====")
+        self._print(f"===== SlicedExploration Step {istep} =====")
         self._print(f"{temperature =}")
 
         # - We need a copy of self.worker as we may change some
