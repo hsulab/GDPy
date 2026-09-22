@@ -169,7 +169,7 @@ def test_generation_accounting_uses_generation_size_not_retained(tmp_path, legac
 
 @pytest.mark.parametrize("example, runtime_name", [
     ("explorations/basin_hopping/cu8.yaml", "emt.yaml"),
-    ("explorations/genetic_algorithm/cu13.yaml", "emt.yaml"),
+    ("explorations/genetic_algorithm/cu8.yaml", "emt.yaml"),
 ])
 def test_example_population_round_trip_and_config_immutability(example, runtime_name):
     from pathlib import Path

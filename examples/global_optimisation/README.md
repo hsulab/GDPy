@@ -38,12 +38,23 @@ search is for the same exploration and runtime. MatterSim and TACE both use a 20
 
 ## Suggested pairings
 
+Examples share baseline systems across methods while covering different chemistry
+and search capabilities. The GA and BH `cu8.yaml` recipes use the same Cu₈
+composition, builder settings, random seed, initial population size, and EMT
+runtime. Their method-specific operators and search budgets differ; these are
+comparable workflow demonstrations, not equal-cost performance benchmarks.
+
+Additional examples cover alloys, molecular clusters, bulk, supported clusters,
+and variable composition. Reuse the same system and runtime when demonstrating
+another method on an existing case; add a new system when it demonstrates a
+distinct capability.
+
 Paths below are relative to this directory. Other chemically appropriate
 runtimes can be substituted without changing the exploration.
 
 | Exploration | Runtime |
 | --- | --- |
-| `explorations/genetic_algorithm/cu13.yaml` | `runtimes/emt.yaml` |
+| `explorations/genetic_algorithm/cu8.yaml` | `runtimes/emt.yaml` |
 | `explorations/genetic_algorithm/cu7ni6.yaml` | `runtimes/emt.yaml` |
 | `explorations/genetic_algorithm/cu4_bulk.yaml` | `runtimes/emt.yaml` |
 | `explorations/genetic_algorithm/water4.yaml` | `runtimes/mattersim.yaml` |

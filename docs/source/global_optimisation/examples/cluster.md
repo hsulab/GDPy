@@ -2,19 +2,24 @@
 
 # Cluster
 
-This minimal example searches for low-energy structures of a 13-atom copper
-cluster. Random Cu13 candidates are generated inside a spherical region, then
+This minimal example searches for low-energy structures of an 8-atom copper
+cluster. Random Cu8 candidates are generated inside a spherical region, then
 relaxed with ASE's Effective Medium Theory (EMT) calculator. The example uses
 four candidates in the initial population and two offspring in one subsequent
 generation, so it is intended as a quick demonstration rather than a converged
 global optimisation.
 
+This is the same Cu₈ system and EMT runtime used by the
+{ref}`BH cluster example <bh-cu8-example>`, with matching builder settings, seed,
+and initial population size. The reproduction and hopping budgets are specific
+to each method.
+
 ## Input
 
 The complete example is available at
-`examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml`:
+`examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml`:
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml
+```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml
 :language: yaml
 ```
 
@@ -36,19 +41,19 @@ can move and recombine while retaining consistent species tags.
 From the repository root, run:
 
 ```shell
-gdp -d ./run-cu13-emt \
+gdp -d ./run-cu8-emt \
     --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml
+    ./examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml
 ```
 
-The search is stored under `run-cu13-emt`. When it completes,
+The search is stored under `run-cu8-emt`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by the GA
 score, while `results/pop.png` summarises the population energies by
-generation. The example produces six relaxed Cu13 candidates: four initial
+generation. The example produces six relaxed Cu8 candidates: four initial
 structures and two offspring.
 
 :::{note}
 EMT is inexpensive and convenient for demonstrating the workflow, but this
 small population and single-generation search are not sufficient for a
-scientific Cu13 global optimisation.
+scientific Cu8 global optimisation.
 :::

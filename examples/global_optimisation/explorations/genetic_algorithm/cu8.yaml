@@ -8,7 +8,7 @@ recipe:
       random:
         method: random_structure_improved
         composition:
-          Cu: 13
+          Cu: 8
         box: [20.0, 20.0, 20.0]
         region:
           method: sphere

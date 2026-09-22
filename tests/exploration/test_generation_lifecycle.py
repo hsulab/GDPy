@@ -119,7 +119,7 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
         config, runtime = bh_config(tmp_path)
     else:
         import yaml
-        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml"
+        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
         config["recipe"].update(convergence={"generation": 0}, use_archive=False)
@@ -165,7 +165,7 @@ def test_restart_between_generations_preserves_search_trajectory(tmp_path, monke
         config, runtime = bh_config(tmp_path, generations=2)
     else:
         import yaml
-        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml"
+        path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
         config["recipe"].update(convergence={"generation": 2}, use_archive=False)

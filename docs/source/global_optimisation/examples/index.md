@@ -30,7 +30,7 @@ and guide.
 
 | Main system | Specific system | Potential | Notes |
 | --- | --- | --- | --- |
-| Cluster | {ref}`Cu₁₃ <ga-cluster-example>` | EMT | |
+| Cluster | {ref}`Cu₈ <ga-cluster-example>` | EMT | |
 | Cluster | {ref}`Cu₇Ni₆ <ga-alloy-cluster-example>` | EMT | Swap mutation |
 | Cluster | {ref}`(H₂O)₄ <ga-water-cluster-example>` | MatterSim | |
 | Bulk | {ref}`Cu₄ <ga-bulk-example>` | EMT | |
