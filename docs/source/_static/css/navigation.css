@@ -1,0 +1,35 @@
+/* Primary sections use the theme's blue accent. */
+.wy-menu-vertical .nav-exploration > .caption {
+  color: #55a5d9;
+}
+
+/* Secondary sections use orange and sit one level inside the blue heading. */
+.wy-menu-vertical p.caption.nav-secondary-caption {
+  color: #f0ad66;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.5;
+  height: auto;
+  margin: 0.85rem 0 0.3rem;
+  padding: 0 1rem 0 2rem;
+  border: 0;
+  letter-spacing: 0.035em;
+  white-space: normal;
+}
+
+/* Keep page links and expanded descendants inside their secondary section. */
+.wy-menu-vertical .nav-subsection > ul > li > a {
+  padding-left: 2.75rem;
+}
+
+.wy-menu-vertical .nav-subsection li.toctree-l2 > a {
+  padding-left: 3.25rem;
+}
+
+.wy-menu-vertical .nav-subsection li.toctree-l3 > a {
+  padding-left: 3.75rem;
+}
+
+.wy-menu-vertical .nav-subsection li.toctree-l4 > a {
+  padding-left: 4.25rem;
+}

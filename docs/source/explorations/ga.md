@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 (genetic-algorithm)=
 
 # genetic algorithm (ga)

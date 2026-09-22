@@ -40,7 +40,6 @@ installation.md
 :maxdepth: 2
 
 start
-explorations/index
 ```
 
 ```{toctree}
@@ -84,6 +83,22 @@ regions <builders/region>
 
 overview <selections/index>
 descriptor <selections/descriptor>
+```
+
+```{toctree}
+:caption: 'Exploring Structures:'
+:maxdepth: 1
+:titlesonly:
+
+overview <explorations/index>
+```
+
+```{toctree}
+:caption: 'Canonical Sampling:'
+:maxdepth: 2
+:titlesonly:
+
+monte carlo <explorations/mc>
 ```
 
 ```{toctree}

@@ -1,6 +1,6 @@
 (explorations)=
 
-# exploration
+# exploring structures
 
 Exploration proposes and selects candidate structures. Execution evaluates
 those candidates through a complete runtime. This keeps Monte Carlo, genetic
@@ -47,11 +47,19 @@ runtime: {}
 Omitting the top-level `scheduler` also runs the exploration itself directly
 on the current machine.
 
-## List of exploration methods
+## canonical sampling
 
-```{toctree}
-:maxdepth: 2
+See {doc}`monte carlo <mc>` for proposals, acceptance rules, and restart
+behaviour. Canonical sampling targets fixed-composition equilibrium at a
+specified temperature. The current MC guide also covers exchange moves and
+minimised trial structures: those examples are grand-canonical or optimisation
+workflows, rather than validated canonical-ensemble sampling.
 
-mc.md
-ga.md
-```
+## global optimisation
+
+Use {doc}`genetic algorithms <../global_optimisation/genetic-algorithm>` or
+{doc}`basin hopping <../global_optimisation/basin_hopping>` to search for low-energy
+structures. These methods share {doc}`population configuration
+<../global_optimisation/population>` and {doc}`output conventions
+<../global_optimisation/output>`. The older {doc}`GA configuration discussion
+<ga>` remains available as supplementary material.
