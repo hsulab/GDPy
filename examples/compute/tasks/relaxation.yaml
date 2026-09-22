@@ -1,0 +1,10 @@
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 100
+    dump_period: 1

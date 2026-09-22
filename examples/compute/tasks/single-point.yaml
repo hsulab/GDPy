@@ -1,0 +1,7 @@
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: spc
+  parameters: {}

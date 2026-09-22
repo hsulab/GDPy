@@ -1,0 +1,14 @@
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: cmin
+  parameters:
+    fmax: 0.02
+    steps: 100
+    controller:
+      name: bfgs
+      params:
+        isotropic: true
+        pressure: 0.0

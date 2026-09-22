@@ -1,0 +1,18 @@
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: md
+  parameters:
+    ensemble: nvt
+    temp: 300
+    timestep: 1.0
+    steps: 100
+    dump_period: 10
+    velocity_seed: 7
+    random_seed: 7
+    controller:
+      name: berendsen
+      params:
+        Tdamp: 100.0

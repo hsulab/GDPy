@@ -1,0 +1,15 @@
+potential:
+  provider: emt
+  parameters: {}
+executor:
+  provider: ase
+  method: neb
+  parameters:
+    nimages: 5
+    interpolation:
+      mic: false
+    climb: false
+    fmax: 0.08
+    steps: 100
+    dump_period: 5
+    constraint: "1:8"

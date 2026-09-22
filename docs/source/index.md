@@ -40,7 +40,6 @@ installation.md
 :maxdepth: 2
 
 start
-computations/index
 builders/index
 selections/index
 explorations/index
@@ -55,6 +54,18 @@ tutorials/index
 Overview <potentials/index>
 Potentials <potentials/providers>
 Training <trainers/index>
+```
+
+```{toctree}
+:caption: 'Batch Simulations:'
+:maxdepth: 2
+:titlesonly:
+
+Overview <computations/index>
+gdp compute <computations/compute>
+Tasks <computations/tasks/index>
+Runtime and executors <computations/runtime>
+Machine resources <computations/schedulers>
 ```
 
 ```{toctree}
