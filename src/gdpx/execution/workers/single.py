@@ -88,7 +88,7 @@ class SingleWorker(DriverBasedWorker):
                 return False
             return cand_index > step
 
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+        with TinyDB(self.job_store.path, indent=2) as database:
             doc_data = database.search(Query().wdir_names.test(test_func, step))
             doc_ids = [doc.doc_id for doc in doc_data]
             if doc_ids:

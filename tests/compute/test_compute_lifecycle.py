@@ -42,8 +42,8 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
     assert plan.config["potential"] == original["potential"]
     assert plan.schema_version == 3
     assert plan.path.exists()
-    assert not (tmp_path / "_direct_jobs.json").exists()
-    assert (tmp_path / "_data" / "scripts" / "run-w0-b0.script").exists()
+    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
+    assert (tmp_path / "_meta" / "scripts" / "run-w0-b0.script").exists()
 
     loaded = load_compute_plan(tmp_path)
     assert loaded.plan_id == plan.plan_id
@@ -78,7 +78,7 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
     assert result.number_of_trajectories == 1
     assert (tmp_path / "results" / "end_frames.xyz").exists()
 
-    records = json.loads((tmp_path / "_direct_jobs.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "_scheduler.json").read_text())["_default"]
     record = next(iter(records.values()))
     assert record["scheduler_job_id"] == "direct"
     assert record["attempt"] == 1
@@ -95,7 +95,7 @@ def test_submit_all_dry_run_scheduler_batches(tmp_path):
     result = submit_compute(plan)
 
     assert result.submitted_batches == ("w0/b0", "w0/b1")
-    records = json.loads((tmp_path / "_slurm_jobs.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "_scheduler.json").read_text())["_default"]
     assert len(records) == 2
     assert {record["group_number"] for record in records.values()} == {0, 1}
 
@@ -124,4 +124,38 @@ def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
         [str(inputs)], _emt_config(), batch=0, spawn=True, directory=tmp_path
     )
     assert (tmp_path / "cand0").exists()
-    assert not (tmp_path / "_direct_jobs.json").exists()
+    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
+
+
+def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
+    import os
+    import subprocess
+
+    config = _emt_config()
+    config["scheduler"] = {"provider": "pbs", "parameters": {"is_dry_run": True}}
+    source = tmp_path / "source"
+    staged = tmp_path / "staged with spaces"
+    plan = prepare_compute(config, [_cu()], source)
+    submit_compute(plan)
+    script = next((source / "_meta").glob("run-*.script"))
+    script.write_text(script.read_text().replace(
+        "cd ", 'gdp() { pwd > launch-cwd; printf "%s\\n" "$@" > launch-args; }\ncd ', 1
+    ))
+    shutil.copytree(source, staged)
+    script = staged / "_meta" / script.name
+    subprocess.run(["bash", str(script)], cwd=tmp_path,
+                   env=dict(os.environ, PBS_O_WORKDIR=str(script.parent)), check=True)
+    assert (staged / "launch-cwd").read_text().strip() == str(staged)
+    args = (staged / "launch-args").read_text().splitlines()
+    assert (staged / args[args.index("--plan") + 1]).resolve() == staged / "_meta" / "compute-plan.json"
+
+
+def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
+    config = _emt_config()
+    config["options"] = {"share_workdir": True}
+    plan = prepare_compute(config, [_cu()], tmp_path)
+    submit_compute(plan)
+    assert list((tmp_path / "_meta").glob("*_cache.xyz"))
+    assert inspect_compute(load_compute_plan(tmp_path)).state == "finished"
+    assert collect_compute(load_compute_plan(tmp_path)).number_of_trajectories == 1
+    assert not (tmp_path / "_data").exists()

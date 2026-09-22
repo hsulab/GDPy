@@ -28,7 +28,7 @@ from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.output import get_reporter, reporting_session
 
 PLAN_SCHEMA_VERSION = 3
-DEFAULT_PLAN_RELPATH = pathlib.Path("_data") / "compute-plan.json"
+DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "compute-plan.json"
 
 
 class ComputeLifecycleError(RuntimeError):
@@ -283,8 +283,12 @@ def prepare_compute(
             return existing
         raise PlanConflictError(f"A different compute plan already exists at {plan_path}.")
 
+    if (directory / "_data").exists() or list(directory.glob("_*_jobs.json")):
+        raise ComputeLifecycleError(
+            f"Legacy driver worker layout at {directory}; use a new working directory."
+        )
     directory.mkdir(parents=True, exist_ok=True)
-    input_path = directory / "_data" / "input.xyz"
+    input_path = directory / "_meta" / "input.xyz"
     input_path.parent.mkdir(parents=True, exist_ok=True)
     write(input_path, frames)
 
@@ -341,7 +345,7 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
             scheduler.user_commands = command + "\n"
             script_path = (
                 pathlib.Path(plan.directory)
-                / "_data"
+                / "_meta"
                 / "scripts"
                 / (f"run-w{worker_plan.index}-b{batch.index}.script")
             )

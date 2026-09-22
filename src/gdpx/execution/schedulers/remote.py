@@ -301,7 +301,7 @@ class SshTransport(BaseScheduler):
     def sync(self, wdir_names: Iterable[str] = (), *, root_relative: bool = False) -> None:
         """Retrieve outputs; root-relative mode protects shared exploration metadata."""
         local_root, remote_root, _ = self._roots()
-        skipped = [f"_{self.name}_jobs.json"]
+        skipped = [f"_{self.name}_jobs.json", "_scheduler.json"]
         client = self._client()
         sftp = None
         try:
@@ -328,11 +328,14 @@ class SshTransport(BaseScheduler):
             count = _sync_latest_recursive(sftp, str(remote_root), str(local_root), skipped)
             self._print(f"synced {count} files from {remote_root}.")
             removed = 0
+            output_root = self.script.parent
+            if output_root.name == "_meta":
+                output_root = output_root.parent
             for item_name in wdir_names:
                 local_item = (
-                    self.script.parent
-                    if self.script.parent.name == item_name
-                    else self.script.parent / item_name
+                    output_root
+                    if output_root.name == item_name
+                    else output_root / item_name
                 ).resolve()
                 relative_item = local_item.relative_to(local_root)
                 remote_item = remote_root.joinpath(*relative_item.parts)
