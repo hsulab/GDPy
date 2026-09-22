@@ -95,8 +95,10 @@ below are in the `recipe` section:
   >
   >   > Both booleans default to `true`. The default makes the searched system
   >   > periodic in all three directions and requires compatible operations to
-  >   > keep atoms sharing an ASE tag together as one fragment. Set either value
-  >   > explicitly to `false` for a nonperiodic or atom-wise search.
+  >   > keep atoms sharing an ASE tag together as one fragment. For isolated
+  >   > clusters, always keep both `true` and use a periodic cell with vacuum.
+  >   > Give independent atoms distinct positive tags and molecular fragments
+  >   > shared positive tags.
   >
   > - builders and reference_builder:
   >
@@ -165,7 +167,7 @@ recipe:
             proportion: 1.0
   operators:
     crossover:
-      method: periodic_cut_and_splice
+      method: cut_and_splice
     mutation:
     - method: rattle
       probability: 1.0

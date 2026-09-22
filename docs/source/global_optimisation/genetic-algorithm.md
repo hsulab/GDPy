@@ -16,6 +16,31 @@ examples/index
 
 See {ref}`exploration-output-layout` for output directories and restart metadata.
 
+GA prints a setup box and a box for each generation, with worker output nested
+inside. Each generation ends with its status, committed evaluation and extinction
+counts, best eligible objective, and elapsed time for the current invocation.
+Resumed generations show the number of evaluations already committed. Routine
+diagnostics remain available at DEBUG level, and warnings remain visible.
+
+Two text files retain the candidate details outside the console boxes:
+
+- `tmp_folder/genN/history.log` lists committed reproduction, mutation, and
+  random/builder steps, including intermediate mutations, candidate IDs, parents,
+  origins, builder names, and operation descriptions. The header includes the
+  production stage and reproduction/mutation attempt totals. Individual failed
+  attempt diagnostics are not stored in the database and cannot be reconstructed.
+- `candidates.log` in the exploration directory collects evaluated candidates
+  across all generations, with timestamp, candidate ID, fitness (`raw_score`),
+  extinction flag, and species counts. Fitness is maximised; it is distinct from
+  the minimised objective shown in the generation box. Searches with
+  `population.preserve_fragments: true` report fragment/species counts; other
+  searches report elemental atom counts, regardless of crossover provenance tags.
+
+These files are regenerated from committed database records at generation and
+invocation boundaries, including partial results when an invocation fails.
+Timestamps come from the original database records. Resuming a search refreshes
+the files without duplicating entries and also reconstructs history for older runs.
+
 ## Search cycle
 
 A typical GA search repeats the following steps:

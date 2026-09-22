@@ -6,8 +6,13 @@ Crossovers create an offspring from two selected parents.
 
 | Method | Description |
 | --- | --- |
-| `periodic_cut_and_splice` | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
-| `cluster_cut_and_splice` | Applies cut-and-splice crossover to isolated particles or clusters. It preserves composition by default and separates halves when atoms would otherwise be too close. |
+| `cut_and_splice` | Divides two parents with a random plane and joins material from opposite sides. It supports fixed or variable cells and can preserve tagged molecular fragments. |
 
-Use `periodic_cut_and_splice` for supported structures and periodic systems. Use
-`cluster_cut_and_splice` for free clusters where there is no substrate.
+`cut_and_splice` is the only supported crossover method, including for isolated
+clusters, supported structures, and bulk systems.
+
+For isolated clusters, always set `population.periodic: true` and
+`population.preserve_fragments: true`, using a periodic cell with sufficient
+vacuum. Give each independent atom its own positive tag; atoms in a molecular
+fragment share a positive tag. This preserves fragment identity without grouping
+atoms by their parent of origin.

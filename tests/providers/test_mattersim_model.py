@@ -50,8 +50,8 @@ def test_water_cluster_example_and_small_mattersim_runtime():
 
     builder = config["recipe"]["population"]["builders"]["random"]
     assert builder["composition"] == {"H2O": 4}
-    assert config["recipe"]["population"]["periodic"] is True
-    assert config["recipe"]["population"]["preserve_fragments"] is True
+    assert config["recipe"]["population"].get("periodic", True) is True
+    assert config["recipe"]["population"].get("preserve_fragments", True) is True
     assert config["recipe"]["operators"]["crossover"]["method"] == (
         "cut_and_splice"
     )

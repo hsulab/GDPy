@@ -24,7 +24,8 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 :language: yaml
 ```
 
-The periodic cut-and-splice implementation preserves tagged molecular
+As for all isolated clusters, use `population.periodic: true` and
+`population.preserve_fragments: true`. The `cut_and_splice` crossover preserves tagged molecular
 fragments and their inherited orientations, while rattle translates whole
 water molecules. The MatterSim relaxation may change intramolecular coordinates
 because the model evaluates and relaxes all atoms.

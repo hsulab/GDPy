@@ -24,11 +24,12 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 :language: yaml
 ```
 
-The search uses interatomic-distance comparison, cluster cut-and-splice
+The search uses interatomic-distance comparison, `cut_and_splice`
 crossover, and rattle mutation. A fixed random seed makes candidate generation
-reproducible. The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell for the
-cluster. `population.preserve_fragments: false` permits the atom-wise cluster
-crossover.
+reproducible. Isolated clusters always use `population.periodic: true` and
+`population.preserve_fragments: true`. This example uses a 20 × 20 × 20 Å periodic
+vacuum cell and assigns each Cu atom its own positive tag, so individual atoms
+can move and recombine while retaining consistent species tags.
 
 ## Run
 

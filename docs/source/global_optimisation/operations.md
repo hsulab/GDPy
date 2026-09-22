@@ -13,7 +13,7 @@ population:
     method: interatomic_distance
 operators:
   crossover:
-    method: periodic_cut_and_splice
+    method: cut_and_splice
   mutation:
     - method: rattle
       probability: 1.0

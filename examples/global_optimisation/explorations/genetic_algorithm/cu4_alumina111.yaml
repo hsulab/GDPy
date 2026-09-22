@@ -33,7 +33,7 @@ recipe:
             proportion: 1.0
   operators:
     crossover:
-      method: periodic_cut_and_splice
+      method: cut_and_splice
     mutation:
       method: rattle
   convergence:
