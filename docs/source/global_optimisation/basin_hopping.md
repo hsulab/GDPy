@@ -15,6 +15,7 @@ objective. It inherits directly from `BaseExpedition`, independently of MC.
 ```{toctree}
 :maxdepth: 2
 
+bh/operators
 bh/examples/index
 ```
 
@@ -23,7 +24,7 @@ configuration. The recipe uses these settings:
 
 - `population`: `retained_size`, named `builders`, `initial` allocations,
   `generation.total_size`, comparator, and extinction settings.
-- `operators`: weighted move configurations shared with MC.
+- `operators`: weighted moves; see {ref}`bh-operators` for configuration and move logs.
 - `num_mcmoves`: number of proposals per candidate chain.
 - `selection.replace`: sample chain starts with replacement; defaults to `false`.
 - `convergence.generation`: final generation number; defaults to `1`.
@@ -39,6 +40,8 @@ values add population reselection between search generations.
 This self-contained Cu₈ example generates four random structures using
 `random_structure_improved` and launches two chains of ten proposals. Its
 calculation runtime minimizes initial structures and every valid trial batch.
+It uses only {doc}`bh/operators/move` for a simple fixed-composition search.
+The {ref}`bh-operators` reference links to a detailed page for each operator.
 
 ```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 :language: yaml
@@ -49,17 +52,6 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 ```{literalinclude} ../../../examples/global_optimisation/runtimes/emt.yaml
 :language: yaml
 ```
-
-Each movable atom needs its own tag; atoms sharing a tag are treated as one
-particle. For the default automatic region, provide a nonzero simulation cell.
-
-Moves temporarily borrow and edit a candidate. Local moves record only the
-affected coordinates or properties for rollback; deletion records the removed
-rows and their original indices. Execution owns the relaxed result. A rejection
-restores the candidate without trying to reverse its relaxation.
-
-BH owns population selection and search objectives. Shared acceptance formulas
-and biased proposals do not imply that its population is an equilibrium sample.
 
 See {ref}`exploration-output-layout` for output directories and restart metadata.
 
@@ -133,34 +125,7 @@ Exported trajectories include replacement structures marked with `event: restart
 `segment`, and `source_confid`. Rejected and extinct trial geometries remain
 available in the database and worker outputs.
 
-## Operator summary and move logs
-
-Each BH invocation prints a compact setup box with operator indices and names,
-normalized selection probabilities, particles, temperatures, and move-specific
-settings.
-
-Detailed move diagnostics are saved automatically in one file per hopping
-generation: `tmp_folder/gen1/mcmoves.log`, `tmp_folder/gen2/mcmoves.log`, and so
-on, alongside each generation's `rounds/` and `evaluations/` folders. Every line has
-a timestamp, level, generation, round, chain, segment, parent candidate, and
-operator index/name. Invocation headers contain full resolved operator settings;
-fields that do not apply to a header use `-`.
-
-Routine operator messages are written at normal verbosity. Detailed DEBUG
-messages are included only when GDPy's DEBUG logging is enabled. Move details
-stay out of the normal console, while setup and progress boxes remain visible.
-
-Logs distinguish uncommitted proposal diagnostics from committed outcomes.
-Outcome lines include acceptance/rejection, energies, extinction, and restart
-candidate IDs where applicable. Invalid proposals are logged without an
-evaluation. Resume appends an invocation marker and identifies reused pending
-proposals; it does not regenerate them for logging. An interruption can leave
-uncommitted or replayed diagnostics, so `events.jsonl` and checkpoints remain the
-authoritative scientific history. These logs survive checkpoint cleanup.
-
-Logging uses existing results and scalar metadata: it does not copy atoms,
-evaluate calculators, or consume random numbers. Canonical MC logging is
-unchanged.
+See {ref}`bh-operator-logs` for operator setup output and detailed proposal logs.
 
 ## Execution and checkpoints
 
