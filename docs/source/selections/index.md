@@ -1,4 +1,4 @@
-# selections
+# selecting structures
 
 This section gives more details how to run basic selections with different selectors
 using a unified input file.
@@ -85,11 +85,7 @@ Remove output files before selection if necessary.
 
 ## List of Selectors
 
-```{toctree}
-:maxdepth: 2
-
-descriptor.md
-```
+- {doc}`descriptor <descriptor>`
 
 ## Property
 

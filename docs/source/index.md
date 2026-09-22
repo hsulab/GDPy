@@ -40,9 +40,7 @@ installation.md
 :maxdepth: 2
 
 start
-selections/index
 explorations/index
-tutorials/index
 ```
 
 ```{toctree}
@@ -77,6 +75,15 @@ dimer <builders/dimer>
 random <builders/random>
 graph <builders/graph>
 regions <builders/region>
+```
+
+```{toctree}
+:caption: 'Selecting Structures:'
+:maxdepth: 1
+:titlesonly:
+
+overview <selections/index>
+descriptor <selections/descriptor>
 ```
 
 ```{toctree}
