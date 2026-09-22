@@ -95,7 +95,7 @@ image sequence.
 
 ### Pairing potentials with executors
 
-The {doc}`provider guides <../potentials/providers>` describe only the
+The {doc}`potential guides <../potentials/providers>` describe only the
 `potential` component. In a runtime file, add `executor` alongside it, as in
 the example at the top of this page. Session and workflow configurations may
 place these components inside a `runtime` mapping.
@@ -103,7 +103,7 @@ place these components inside a `runtime` mapping.
 The executor selects the materialization interface. A registered pairing does
 not guarantee that every calculation method is supported by the calculator:
 for example, cell relaxation needs stress, which the `nnp` calculator does not
-provide. Provider guides record model-specific limitations.
+provide. Potential guides record model-specific limitations.
 
 | Potential provider | Executor provider |
 | --- | --- |

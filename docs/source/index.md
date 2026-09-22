@@ -40,7 +40,6 @@ installation.md
 :maxdepth: 2
 
 start
-trainers/index
 computations/index
 builders/index
 selections/index
@@ -54,7 +53,8 @@ tutorials/index
 :titlesonly:
 
 Overview <potentials/index>
-Providers <potentials/providers>
+Potentials <potentials/providers>
+Training <trainers/index>
 ```
 
 ```{toctree}

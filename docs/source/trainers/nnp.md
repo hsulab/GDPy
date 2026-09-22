@@ -1,4 +1,4 @@
-# NumPy NNP
+# nnp
 
 The `nnp` trainer is a lightweight Behler--Parrinello-style potential using
 ACSF descriptors and one atomic-energy network for each central element. It

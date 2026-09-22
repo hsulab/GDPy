@@ -63,7 +63,7 @@ require their corresponding optional scientific package. External provider
 distributions can add capabilities through the `gdpx.providers` entry-point
 group; see {doc}`../extensions/index`.
 
-## Provider guides
+## Potential guides
 
 See {doc}`providers` for potential configuration examples and requirements.
 Runtime setup and executor compatibility are covered in {doc}`../computations/index`.

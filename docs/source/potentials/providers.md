@@ -1,6 +1,6 @@
-# Providers
+# Potentials
 
-The guides below describe the potential providers shown in the navigation.
+The guides below describe the available potential configurations.
 An interface listed here reflects the provider registry; individual guides
 identify legacy or experimental implementations that are not yet runnable.
 Allegro is a flavour of `nequip`.
