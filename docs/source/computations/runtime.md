@@ -1,4 +1,4 @@
-# Runtime and executors
+# runtime and executors
 
 Use `spc` for single-point evaluation, `min` for minimization, and `md`
 for molecular dynamics. Executor parameters are flat settings such as

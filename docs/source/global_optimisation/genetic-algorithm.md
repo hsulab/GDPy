@@ -1,6 +1,6 @@
 (global-optimisation-ga)=
 
-# Genetic Algorithm (GA)
+# genetic algorithm (ga)
 
 A genetic algorithm searches for low-energy structures by evolving a population
 of candidates. It is useful when the configuration space is too large for

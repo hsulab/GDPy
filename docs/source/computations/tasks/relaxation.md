@@ -1,4 +1,4 @@
-# Fixed-cell relaxation
+# fixed-cell relaxation
 
 Use `min` to relax atomic positions while holding the simulation cell fixed.
 

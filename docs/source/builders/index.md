@@ -1,6 +1,6 @@
 (builders)=
 
-# Builders
+# builders
 
 Builders are several classes that generate structures. They can be defined in two
 categories as Builder and Modifier.

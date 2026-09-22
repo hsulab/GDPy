@@ -1,6 +1,6 @@
 (ga-supported-nanoparticle-example)=
 
-# Supported nanoparticle
+# supported nanoparticle
 
 This example searches for low-energy Cu4 nanoparticles supported on
 α-Al₂O₃(0001), which is the basal surface corresponding to `(111)` in the

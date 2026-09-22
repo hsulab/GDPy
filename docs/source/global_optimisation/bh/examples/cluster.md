@@ -1,6 +1,6 @@
 (bh-cu8-example)=
 
-# Gas-phase Cu₈
+# gas-phase cu₈
 
 This example searches for low-energy structures of an isolated eight-atom
 copper cluster using population-based basin hopping and ASE's EMT potential.

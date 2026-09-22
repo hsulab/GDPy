@@ -1,4 +1,4 @@
-# Getting Started
+# getting started
 
 This section introduces the schema-v3 **potential**, **executor**, and
 **scheduler** components used to calculate structures with GDPy.

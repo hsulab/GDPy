@@ -1,4 +1,4 @@
-# Cell relaxation
+# cell relaxation
 
 Use `cmin` to optimize both atomic positions and a periodic simulation cell.
 

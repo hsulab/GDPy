@@ -1,4 +1,4 @@
-# Explore with a Genetic Algorithm
+# explore with a genetic algorithm
 
 The `explore` operation combines an exploration strategy with a runtime used
 to evaluate or relax generated candidates. The exploration strategy proposes

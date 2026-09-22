@@ -1,4 +1,4 @@
-# Workflows
+# workflows
 
 This section includes several oft-used `sessions` (workflows).
 

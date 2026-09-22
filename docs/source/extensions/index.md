@@ -1,4 +1,4 @@
-# Provider plugins
+# provider plugins
 
 GDPy integrations are stateless providers. A provider may expose potentials,
 materializers, executors, trainers, dataset codecs, modifiers, collective

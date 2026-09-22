@@ -1,6 +1,6 @@
 (exploration-output-layout)=
 
-# Exploration output layout
+# exploration output layout
 
 For a single exploration, `gdp -d work explore ...` writes algorithm outputs,
 checkpoints, calculation directories, and `gdp.out` directly under `work/`.

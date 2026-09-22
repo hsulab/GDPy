@@ -1,6 +1,6 @@
 (operations)=
 
-# Operations
+# operations
 
 Operations consume variables or earlier operation results. Computation-facing
 operations accept a complete `runtime` or `runtime_chain` variable rather

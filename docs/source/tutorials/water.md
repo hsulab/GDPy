@@ -1,3 +1,3 @@
-# Build a Potential for Pt/H2O with On-the-Fly Molecular Dynamics
+# build a potential for pt/h2o with on-the-fly molecular dynamics
 
 Here, we use deepmd to explore structures of platinum-water interface.

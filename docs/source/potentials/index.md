@@ -1,6 +1,6 @@
 (potential-examples)=
 
-# Potentials
+# potentials
 
 A potential component identifies a model family and its model parameters. It
 does not select the software that will execute the calculation. That choice

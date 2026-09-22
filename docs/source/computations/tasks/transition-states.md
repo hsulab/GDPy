@@ -1,4 +1,4 @@
-# Transition states and paths
+# transition states and paths
 
 ## NEB: a surface-diffusion path
 

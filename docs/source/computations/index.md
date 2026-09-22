@@ -1,6 +1,6 @@
 (computations)=
 
-# Batch simulations
+# batch simulations
 
 Run the same calculation on a collection of structures with `gdp compute`.
 Choose a potential, select a task, then decide where to execute it.

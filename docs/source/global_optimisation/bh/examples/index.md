@@ -1,6 +1,6 @@
 (bh-examples)=
 
-# Examples
+# examples
 
 These examples demonstrate complete basin-hopping searches, including structure
 generation, local relaxation, hopping moves, and inspection of the results.

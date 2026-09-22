@@ -1,4 +1,4 @@
-# GDPy architecture
+# gdpy architecture
 
 GDPy separates integration ownership from runtime responsibility. Dependencies
 flow in one direction:

@@ -1,6 +1,6 @@
 (graph-builders)=
 
-# Graph
+# graph
 
 ## insert
 

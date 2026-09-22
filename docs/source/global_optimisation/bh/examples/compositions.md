@@ -1,6 +1,6 @@
 (bh-composition-broadcast-example)=
 
-# Cu–Ni composition sweep
+# cu–ni composition sweep
 
 This example runs independent Cu₆Ni₂ and Cu₄Ni₄ basin-hopping searches with
 EMT. Both use seed 7, two initial candidates, and two hopping rounds. The move

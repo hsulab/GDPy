@@ -1,4 +1,4 @@
-# Transition-State and Path Searches
+# transition-state and path searches
 
 Transition-state methods are executors inside a runtime:
 

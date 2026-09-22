@@ -1,4 +1,4 @@
-# Tutorials
+# tutorials
 
 We have listed several tutorials to demonstrate how to build a potential for a
 very specific chemical system.

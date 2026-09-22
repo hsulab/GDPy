@@ -1,4 +1,4 @@
-# Single-point energy and forces
+# single-point energy and forces
 
 Use `spc` to evaluate each input structure without moving atoms or changing the cell.
 

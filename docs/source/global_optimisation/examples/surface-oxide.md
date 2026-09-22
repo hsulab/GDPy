@@ -1,6 +1,6 @@
 (ga-surface-oxide-example)=
 
-# Surface oxide
+# surface oxide
 
 This example searches Cu–O reconstructions on a two-layer Cu(111)-p(2×2)
 substrate. The right-angled surface cell contains eight substrate Cu atoms. Four

@@ -1,6 +1,6 @@
 (region-definitions)=
 
-# Regions
+# regions
 
 A region is a space defined in the Cartesian coordinate system, which help operators
 access and modify atoms in a much easier way. See its application in {ref}`monte-carlo`.

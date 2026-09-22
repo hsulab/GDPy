@@ -1,4 +1,4 @@
-# Compute and Select
+# compute and select
 
 The `compute` operation consumes structures and one runtime, or an explicit
 list of runtimes. The runtime already contains the potential, executor,

@@ -1,6 +1,6 @@
 (ga-alloy-cluster-example)=
 
-# Alloy cluster with swap mutation
+# alloy cluster with swap mutation
 
 This example searches the chemical ordering of a Cu7Ni6 alloy cluster. Four
 random cluster geometries are generated inside a spherical region and relaxed

@@ -1,6 +1,6 @@
 (trainers)=
 
-# Training
+# training
 
 Start with the overview for dataset preparation, trainer configuration, and
 training commands. The potential-specific guides describe model settings and
@@ -11,7 +11,7 @@ as a potential.
 :maxdepth: 1
 :titlesonly:
 
-Overview <overview>
+overview <overview>
 deepmd
 mace
 nnp

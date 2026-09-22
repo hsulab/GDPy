@@ -1,6 +1,6 @@
 (random-builders)=
 
-# RandomBuilders
+# randombuilders
 
 This section is about builders that generate random structures under certain geometric
 restraints.

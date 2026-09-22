@@ -1,6 +1,6 @@
 (monte-carlo)=
 
-# Monte Carlo (MC)
+# monte carlo (mc)
 
 ## Overview
 

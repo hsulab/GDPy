@@ -1,6 +1,6 @@
 (sessions)=
 
-# Sessions
+# sessions
 
 A session is a declarative graph of variables and operations. Variables hold
 configuration or lightweight values; operations perform computation and pass

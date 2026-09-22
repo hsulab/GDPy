@@ -3,7 +3,7 @@
 % You can adapt this file completely to your liking, but it should at least
 % contain the root `toctree` directive.
 
-# GDPy Documentation
+# gdpy documentation
 
 GDPy stands for **Generating Deep Potential with Python**, including
 a set of tools and Python modules to automate the structure exploration
@@ -51,9 +51,9 @@ tutorials/index
 :maxdepth: 2
 :titlesonly:
 
-Overview <potentials/index>
-Potentials <potentials/providers>
-Training <trainers/index>
+overview <potentials/index>
+potentials <potentials/providers>
+training <trainers/index>
 ```
 
 ```{toctree}
@@ -61,11 +61,11 @@ Training <trainers/index>
 :maxdepth: 2
 :titlesonly:
 
-Overview <computations/index>
+overview <computations/index>
 gdp compute <computations/compute>
-Tasks <computations/tasks/index>
-Runtime and executors <computations/runtime>
-Machine resources <computations/schedulers>
+tasks <computations/tasks/index>
+runtime and executors <computations/runtime>
+machine resources <computations/schedulers>
 ```
 
 ```{toctree}

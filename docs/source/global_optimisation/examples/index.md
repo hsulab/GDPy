@@ -1,6 +1,6 @@
 (ga-examples)=
 
-# Examples
+# examples
 
 These examples demonstrate complete GA searches for different classes of
 atomic systems. They use small populations and inexpensive potentials where

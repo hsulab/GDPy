@@ -1,4 +1,4 @@
-# About
+# about
 
 GDPy stands for **Generating Deep Potential with Python**, including
 a set of tools and Python modules to automate the structure exploration

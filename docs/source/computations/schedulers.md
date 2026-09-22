@@ -1,6 +1,6 @@
 (scheduler-transport)=
 
-# Machine resources
+# machine resources
 
 GDPy separates **how** work is dispatched from **where** the dispatch command
 runs. The scheduler provider is `direct`, `slurm`, `lsf`, `pbs`, or a

@@ -1,4 +1,4 @@
-# Add Corrections to Computed Structures
+# add corrections to computed structures
 
 The `correct` operation evaluates a dataset with a dedicated runtime and
 merges the resulting energy and force correction into each structure.

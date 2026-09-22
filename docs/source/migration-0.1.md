@@ -1,4 +1,4 @@
-# Migrating to 0.1
+# migrating to 0.1
 
 GDPy 0.1 is a clean API break. Deprecated forwarding packages, schema-v1
 translation, implicit runtime broadcasting, and schema-1 compute plans have

@@ -1,6 +1,6 @@
 (ga-swap-mutation)=
 
-# Swap
+# swap
 
 The `swap` mutation exchanges the positions of two differently typed tagged
 particles without changing the overall composition. It is most useful for

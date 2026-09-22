@@ -1,6 +1,6 @@
 (ga-operations)=
 
-# Operations
+# operations
 
 GA operations control how GDPy recognises duplicate structures, combines
 parents, and modifies offspring. Population comparison is configured under

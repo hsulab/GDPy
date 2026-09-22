@@ -1,4 +1,4 @@
-# Potentials
+# potentials
 
 The guides below describe the available potential configurations.
 An interface listed here reflects the provider registry; individual guides

@@ -1,6 +1,6 @@
 (ga-exchange-mutation)=
 
-# Exchange
+# exchange
 
 The `exchange` mutation inserts or removes atoms or molecular fragments. Use it
 with a variable population and a composition-dependent target when the number

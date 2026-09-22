@@ -1,6 +1,6 @@
 (ga-crossovers)=
 
-# Crossovers
+# crossovers
 
 Crossovers create an offspring from two selected parents.
 

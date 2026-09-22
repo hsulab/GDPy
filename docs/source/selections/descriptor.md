@@ -1,4 +1,4 @@
-# Descriptor
+# descriptor
 
 `Select structures based on descriptors.`
 

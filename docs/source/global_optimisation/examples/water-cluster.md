@@ -1,6 +1,6 @@
 (ga-water-cluster-example)=
 
-# Molecular cluster
+# molecular cluster
 
 This example searches for low-energy structures of a four-water cluster. The
 builder inserts four intact H2O molecules in a spherical region at the centre

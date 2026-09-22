@@ -1,6 +1,6 @@
 (ga-comparators)=
 
-# Comparators
+# comparators
 
 Comparators decide whether two relaxed candidates represent the same minimum.
 This prevents duplicate structures from dominating the population.

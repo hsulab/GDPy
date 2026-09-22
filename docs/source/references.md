@@ -1,4 +1,4 @@
-# References
+# references
 
 (ref-jpcc-2022-xu)=
 ## Xu et al., J. Phys. Chem. C (2022)

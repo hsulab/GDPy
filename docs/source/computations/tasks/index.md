@@ -1,4 +1,4 @@
-# Task examples
+# task examples
 
 These examples separate the calculation task from machine-resource settings.
 The first four use ASE’s bundled EMT calculator, so no model download or

@@ -1,6 +1,6 @@
 (explorations)=
 
-# Exploration
+# exploration
 
 Exploration proposes and selects candidate structures. Execution evaluates
 those candidates through a complete runtime. This keeps Monte Carlo, genetic

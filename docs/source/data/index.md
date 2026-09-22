@@ -1,4 +1,4 @@
-# Data Array Design
+# data array design
 
 `AtomsNDArray` is an N-dimensional container for ASE `Atoms` objects
 with sparse storage, labeled axes, and selection tracking.

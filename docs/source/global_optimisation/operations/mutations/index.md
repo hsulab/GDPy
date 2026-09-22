@@ -1,6 +1,6 @@
 (ga-mutations)=
 
-# Mutations
+# mutations
 
 Mutations modify one candidate to create structural or compositional variation.
 

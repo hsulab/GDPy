@@ -1,4 +1,4 @@
-# Vibrational analysis
+# vibrational analysis
 
 Native `vasp` and `cp2k` executors provide the `freq` task. Start from a relaxed
 structure and converged electronic settings; the EMT demos do not provide a

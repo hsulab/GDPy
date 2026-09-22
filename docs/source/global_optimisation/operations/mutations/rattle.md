@@ -1,6 +1,6 @@
 (ga-rattle-mutation)=
 
-# Rattle
+# rattle
 
 The `rattle` mutation gives selected mobile atoms or tagged fragments random
 Cartesian translations. It rejects a trial when the moved particles overlap

@@ -1,4 +1,4 @@
-# Molecular dynamics
+# molecular dynamics
 
 Use `md` to propagate atomic positions and velocities. This short demo uses a periodic copper supercell and a Berendsen NVT thermostat.
 

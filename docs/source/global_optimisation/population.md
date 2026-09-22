@@ -1,6 +1,6 @@
 (global-optimisation-population)=
 
-# Population
+# population
 
 Basin hopping (BH) and genetic algorithms (GA) share the same definition of a
 population: the best distinct, eligible candidates retained from the search

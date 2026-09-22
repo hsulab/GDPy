@@ -1,6 +1,6 @@
 (bh-operators)=
 
-# Operators
+# operators
 
 Basin-hopping operators propose changes to the current accepted structure.
 Configure them as a list under `recipe.operators`. Each chain selects one

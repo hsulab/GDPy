@@ -1,4 +1,4 @@
-# Train
+# train
 
 Training is a provider capability. A trainer and the potential it produces must
 belong to the same provider. The `train` operation consumes a dataset,

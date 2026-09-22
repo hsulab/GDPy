@@ -1,6 +1,6 @@
 (genetic-algorithm)=
 
-# Genetic Algorithm (GA)
+# genetic algorithm (ga)
 
 ## Overview
 
