@@ -40,7 +40,6 @@ installation.md
 :maxdepth: 2
 
 start
-builders/index
 selections/index
 explorations/index
 tutorials/index
@@ -66,6 +65,18 @@ gdp compute <computations/compute>
 tasks <computations/tasks/index>
 runtime and executors <computations/runtime>
 machine resources <computations/schedulers>
+```
+
+```{toctree}
+:caption: 'Building Structures:'
+:maxdepth: 1
+:titlesonly:
+
+overview <builders/index>
+dimer <builders/dimer>
+random <builders/random>
+graph <builders/graph>
+regions <builders/region>
 ```
 
 ```{toctree}

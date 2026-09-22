@@ -1,6 +1,6 @@
 (builders)=
 
-# builders
+# building structures
 
 Builders are several classes that generate structures. They can be defined in two
 categories as Builder and Modifier.
@@ -47,18 +47,10 @@ $ gdp -d ./results build ./config.yaml --substrates ./sub.xyz --number 10
 
 ## List of Builders
 
-```{toctree}
-:maxdepth: 2
-
-dimer.md
-random.md
-graph.md
-```
+- {doc}`dimer <dimer>`
+- {doc}`random <random>`
+- {doc}`graph <graph>`
 
 ## Related Components
 
-```{toctree}
-:maxdepth: 2
-
-region.md
-```
+- {doc}`regions <region>`
