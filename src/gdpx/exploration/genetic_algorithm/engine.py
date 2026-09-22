@@ -19,7 +19,7 @@ from gdpx.utils.strconv import integers_to_string
 from gdpx.core.output import quiet_logging
 
 from ..exploration import BaseExploration
-from ..objective import is_default_objective, normalise_objective, reject_legacy_property
+from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import (
     CANDIDATES_DATABASE_FILENAME,
 )
@@ -556,7 +556,7 @@ class GeneticAlgorithmEngine(BaseExploration):
                     ...
                 self.population_config.validate_candidate(cand, "relaxed", ia)
                 # evaluate raw score
-                self.evaluate_candidate(cand)
+                evaluate_candidate(cand, self.target, self.objective.get("chemical_potentials"))
                 self.generation_manager._extinct_candidate(cand)
                 if whether_reduce_cell:
                     cand = reduce_cell_by_bounds(cand, self.generator.cell_bounds)
@@ -954,65 +954,6 @@ class GeneticAlgorithmEngine(BaseExploration):
         )
 
         self.da = da
-
-        return
-
-    def evaluate_candidate(self, atoms: Atoms) -> None:
-        """Evaluate the candidate's fitness.
-
-        The fitness is stored in atoms.infop['raw_score']. The candidate is better with a larger raw_score.
-
-        The supported properties are
-
-            - energy (potential energy)
-            - enthalpy (potential energy plus pressure correction)
-            - cohesive energy (grand canonical)
-            - formation_energy (grand canonical)
-            - reaction_energy (TODO)
-
-        Args:
-            atoms: The candidate with calculated properties.
-
-        Returns:
-            None.
-
-        """
-        assert atoms.info["key_value_pairs"].get("raw_score", None) is None, (
-            "candidate already has raw_score before evaluation"
-        )
-
-        # Evaluate the configured objective.
-        if self.target == "energy":
-            energy = atoms.get_potential_energy()
-            atoms.info["key_value_pairs"]["raw_score"] = -energy
-            atoms.info["key_value_pairs"]["target"] = energy
-        elif self.target == "cohesive_energy":
-            chemical_potentials = self.objective["chemical_potentials"]
-
-            energy = atoms.get_potential_energy()
-            cohesive_energy = energy - np.sum(
-                [chemical_potentials[s] for s in atoms.get_chemical_symbols()]
-            )
-            atoms.info["key_value_pairs"]["raw_score"] = -cohesive_energy
-            atoms.info["key_value_pairs"]["target"] = cohesive_energy
-        elif self.target == "formation_energy":
-            identity_stats = atoms.info.get("identity_stats", None)
-            assert identity_stats is not None, (
-                "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
-            )
-            chemical_potentials = self.objective["chemical_potentials"]
-
-            energy = atoms.get_potential_energy()
-
-            formation_energy = energy - np.sum(
-                [chemical_potentials[k] * v for k, v in identity_stats.items()]
-            )
-            atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
-            atoms.info["key_value_pairs"]["target"] = formation_energy
-        elif self.target == "reaction_energy":
-            raise NotImplementedError()
-        else:
-            raise RuntimeError(f"Unknown target {self.target}...")
 
         return
 

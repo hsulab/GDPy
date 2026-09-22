@@ -22,71 +22,12 @@ from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 from ..exploration import BaseExploration
-from ..objective import is_default_objective, normalise_objective, reject_legacy_property
+from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from ..sampling import parse_operators
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
 from .chain import evaluate_batch, run_hopping_rounds, finalize_checkpoints
 from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
-
-def evaluate_candidate(
-    atoms: Atoms,
-    objective_target: str,
-    chemical_potentials: Optional[dict] = None,
-) -> None:
-    """Evaluate the candidate's fitness.
-
-    The fitness is stored in atoms.info['raw_score'].
-    The candidate is better with a larger raw_score.
-
-    The supported properties are
-
-        1. energy (potential energy)
-        2. enthalpy (potential energy plus pressure correction)
-        3. formation_energy (grand canonical)
-        4. reaction_energy (TODO)
-
-    Args:
-        atoms: The candidate with calculated properties.
-
-    Returns:
-        None.
-
-    """
-    assert atoms.info["key_value_pairs"].get("raw_score", None) is None, (
-        "candidate already has raw_score before evaluation"
-    )
-
-    # Evaluate the configured objective.
-    target = objective_target
-    if target == "energy":
-        energy = atoms.get_potential_energy()
-        forces = atoms.get_forces()  # TODO: Make sure we have forces?
-        atoms.info["key_value_pairs"]["raw_score"] = -energy
-        atoms.info["key_value_pairs"]["target"] = energy
-        # TODO: Check bulk structure?
-    elif target == "formation_energy":
-        assert chemical_potentials is not None, (
-            "chemical_potentials must not be None for formation_energy."
-        )
-        identity_stats = atoms.info.get("identity_stats", None)
-        assert identity_stats is not None, (
-            "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
-        )
-
-        energy = atoms.get_potential_energy()
-
-        formation_energy = energy - np.sum(
-            [chemical_potentials[k] * v for k, v in identity_stats.items()]
-        )
-        atoms.info["key_value_pairs"]["raw_score"] = -formation_energy
-        atoms.info["key_value_pairs"]["target"] = formation_energy
-    elif target == "reaction_energy":
-        ...  # TODO: ...
-    else:
-        raise RuntimeError(f"Unknown target {target}...")
-
-    return
 
 
 def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:

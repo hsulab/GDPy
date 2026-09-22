@@ -1,4 +1,4 @@
-"""Shared configuration helpers for global-optimisation objectives."""
+"""Shared configuration and candidate scoring for global-optimisation objectives."""
 
 from __future__ import annotations
 
@@ -6,8 +6,48 @@ import copy
 from collections.abc import Mapping
 from typing import Optional
 
+import numpy as np
+from ase import Atoms
 
 DEFAULT_OBJECTIVE = {"target": "energy"}
+
+
+def evaluate_candidate(
+    atoms: Atoms,
+    objective_target: str,
+    chemical_potentials: Optional[Mapping] = None,
+) -> None:
+    """Store the minimised objective and its negation as maximised fitness.
+
+    Cohesive energy subtracts elemental references for every atom. Formation
+    energy subtracts references weighted by the caller's fragment/species
+    identity counts. Neither objective is normalised per atom here.
+    """
+    pairs = atoms.info["key_value_pairs"]
+    assert pairs.get("raw_score") is None, "candidate already has raw_score before evaluation"
+
+    if objective_target == "energy":
+        target = atoms.get_potential_energy()
+    elif objective_target in {"cohesive_energy", "formation_energy"}:
+        assert chemical_potentials is not None, (
+            f"chemical_potentials must not be None for {objective_target}."
+        )
+        if objective_target == "cohesive_energy":
+            references = [chemical_potentials[symbol] for symbol in atoms.get_chemical_symbols()]
+        else:
+            identity_stats = atoms.info.get("identity_stats")
+            assert identity_stats is not None, (
+                "Fail to compute `formation_energy` as no `identity_stats` is found in atoms.info."
+            )
+            references = [chemical_potentials[name] * count for name, count in identity_stats.items()]
+        target = atoms.get_potential_energy() - np.sum(references)
+    elif objective_target == "reaction_energy":
+        raise NotImplementedError("reaction_energy is not implemented.")
+    else:
+        raise RuntimeError(f"Unknown target {objective_target}...")
+
+    pairs["target"] = target
+    pairs["raw_score"] = -target
 
 
 def normalise_objective(
