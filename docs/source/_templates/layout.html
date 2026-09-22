@@ -8,7 +8,11 @@
   {% set optimisation = '<p class="caption" role="heading"><span class="caption-text">Global Optimisation:</span></p>' %}
   {% set following = '<p class="caption" role="heading"><span class="caption-text">Advanced Guides:</span></p>' %}
   {% set navigation = super() %}
-  {{ navigation
+  {% set commands = namespace(navigation=navigation) %}
+  {% for command in ['gdp compute', 'gdp build', 'gdp select', 'gdp explore', 'gdp train'] %}
+    {% set commands.navigation = commands.navigation | replace('command: ' ~ command ~ '</a>', '<span class="nav-command">command: ' ~ command ~ '</span></a>') %}
+  {% endfor %}
+  {{ commands.navigation
      | replace(primary, '<section class="nav-exploration" aria-labelledby="nav-exploration-title"><p class="caption" role="heading" aria-level="2" id="nav-exploration-title"><span class="caption-text">Exploring Structures:</span></p>')
      | replace(sampling, '<section class="nav-subsection" aria-labelledby="nav-sampling-title"><p class="caption nav-secondary-caption" role="heading" aria-level="3" id="nav-sampling-title"><span class="caption-text">Canonical Sampling</span></p>')
      | replace(optimisation, '</section><section class="nav-subsection" aria-labelledby="nav-optimisation-title"><p class="caption nav-secondary-caption" role="heading" aria-level="3" id="nav-optimisation-title"><span class="caption-text">Global Optimisation</span></p>')

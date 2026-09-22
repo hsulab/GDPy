@@ -1,11 +1,19 @@
 (explorations)=
 
-# exploring structures
+# gdp explore
 
 Exploration proposes and selects candidate structures. Execution evaluates
 those candidates through a complete runtime. This keeps Monte Carlo, genetic
 algorithms, and other search policies independent of the potential and the
 software used to run it.
+
+Run a complete exploration configuration with:
+
+```shell
+gdp -d results explore exploration.yaml
+```
+
+See the method guides below for complete input examples.
 
 ```yaml
 potential:

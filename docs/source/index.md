@@ -57,8 +57,8 @@ training <trainers/index>
 :maxdepth: 2
 :titlesonly:
 
-overview <computations/index>
-gdp compute <computations/compute>
+command: gdp compute <computations/index>
+demo and lifecycle <computations/compute>
 tasks <computations/tasks/index>
 runtime and executors <computations/runtime>
 machine resources <computations/schedulers>
@@ -69,7 +69,7 @@ machine resources <computations/schedulers>
 :maxdepth: 1
 :titlesonly:
 
-overview <builders/index>
+command: gdp build <builders/index>
 dimer <builders/dimer>
 random <builders/random>
 graph <builders/graph>
@@ -81,7 +81,7 @@ regions <builders/region>
 :maxdepth: 1
 :titlesonly:
 
-overview <selections/index>
+command: gdp select <selections/index>
 descriptor <selections/descriptor>
 ```
 
@@ -90,7 +90,7 @@ descriptor <selections/descriptor>
 :maxdepth: 1
 :titlesonly:
 
-overview <explorations/index>
+command: gdp explore <explorations/index>
 ```
 
 ```{toctree}

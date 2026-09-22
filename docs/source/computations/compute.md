@@ -1,4 +1,4 @@
-# using gdp compute
+# demo and lifecycle
 
 `gdp compute` applies a runtime to structures read from an ASE-readable file,
 such as a multi-frame extended XYZ file. Put global options before `compute`:

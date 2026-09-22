@@ -1,9 +1,13 @@
 (computations)=
 
-# batch simulations
+# gdp compute
 
 Run the same calculation on a collection of structures with `gdp compute`.
 Choose a potential, select a task, then decide where to execute it.
+
+```shell
+gdp -d results -r runtime.yaml compute structures.xyz
+```
 
 | Start here | What it covers |
 | --- | --- |

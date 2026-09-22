@@ -1,4 +1,4 @@
-# selecting structures
+# gdp select
 
 This section gives more details how to run basic selections with different selectors
 using a unified input file.

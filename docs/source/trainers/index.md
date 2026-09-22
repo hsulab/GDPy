@@ -2,7 +2,7 @@
 
 # training
 
-Start with the overview for dataset preparation, trainer configuration, and
+Start with {doc}`gdp train <overview>` for dataset preparation, trainer configuration, and
 training commands. The potential-specific guides describe model settings and
 training outputs. See {doc}`../potentials/providers` to load a trained model
 as a potential.
@@ -11,7 +11,7 @@ as a potential.
 :maxdepth: 1
 :titlesonly:
 
-overview <overview>
+command: gdp train <overview>
 deepmd
 mace
 nnp

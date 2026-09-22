@@ -1,3 +1,14 @@
+/* Command entry points stand out from regular guide links. */
+.wy-menu-vertical a .nav-command {
+  color: #8fd3c1;
+  font-weight: 700;
+}
+
+/* The active navigation branch has a light background. */
+.wy-menu-vertical li.current > a .nav-command {
+  color: #246653;
+}
+
 /* Primary sections use the theme's blue accent. */
 .wy-menu-vertical .nav-exploration > .caption {
   color: #55a5d9;
