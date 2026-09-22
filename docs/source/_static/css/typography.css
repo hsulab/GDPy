@@ -1,0 +1,75 @@
+/* Self-hosted JetBrains Mono v2.304; license in ../fonts/jetbrains-mono/OFL.txt. */
+@font-face {
+  font-family: "GDPy JetBrains Mono";
+  src: url("../fonts/jetbrains-mono/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GDPy JetBrains Mono";
+  src: url("../fonts/jetbrains-mono/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GDPy JetBrains Mono";
+  src: url("../fonts/jetbrains-mono/JetBrainsMono-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GDPy JetBrains Mono";
+  src: url("../fonts/jetbrains-mono/JetBrainsMono-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --docs-font: "GDPy JetBrains Mono", monospace;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+legend,
+.rst-content .toctree-wrapper > p.caption,
+.rst-content .sidebar .sidebar-title,
+.rst-content .admonition-title,
+.rst-versions,
+.btn,
+button,
+input[type],
+select,
+textarea {
+  font-family: var(--docs-font);
+}
+
+code,
+kbd,
+pre,
+samp,
+.rst-content code,
+.rst-content tt,
+.rst-content kbd,
+.rst-content pre,
+.rst-content samp,
+.rst-content pre.literal-block,
+.rst-content .linenodiv pre,
+.rst-content div[class^="highlight"] pre,
+footer span.commit code,
+footer span.commit tt {
+  font-family: var(--docs-font);
+}
+
+/* Theme icons and MathJax retain their own fonts. */
