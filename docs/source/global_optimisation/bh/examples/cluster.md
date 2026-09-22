@@ -21,7 +21,7 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 :language: yaml
 ```
 
-`population.periodic: true` places the cluster in a 20 × 20 × 20 Å periodic vacuum cell.
+The default periodic setting places the cluster in a 20 × 20 × 20 Å periodic vacuum cell.
 The vacuum separates neighbouring cluster images; the calculation still targets
 an isolated cluster rather than a bulk material.
 The `random_structure_improved` builder generates four initial Cu₈ candidates
@@ -53,7 +53,7 @@ gdp -d ./run-cu8-bh-emt \
     ./examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 ```
 
-Results are written under `run-cu8-bh-emt/expedition-0`:
+Results are written under `run-cu8-bh-emt`:
 
 - `results/all_candidates.xyz`: all evaluated minima (including rejected trials), ordered by score
   with the lowest-energy candidate first for the default energy objective.
@@ -67,7 +67,7 @@ Export each chain's starting structure and accepted hops when needed:
 from gdpx.exploration.basin_hopping import export_trajectories
 
 export_trajectories(
-    "run-cu8-bh-emt/expedition-0/tmp_folder/gen1/rounds",
+    "run-cu8-bh-emt/tmp_folder/gen1/rounds",
     "cu8-trajectories",
 )
 ```

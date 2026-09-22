@@ -2,7 +2,6 @@ method: genetic_algorithm
 recipe:
   random_seed: 41
   population:
-    periodic: true
     comparator:
       method: interatomic_distance
     builders:

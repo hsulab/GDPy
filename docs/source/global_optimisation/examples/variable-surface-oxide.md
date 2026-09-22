@@ -79,7 +79,7 @@ gdp -d ./run-cuxoy-cu111 \
     ./examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
 ```
 
-The search is stored under `run-cuxoy-cu111/expedition-0`. When it completes,
+The search is stored under `run-cuxoy-cu111`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by their
 grand-canonical score, and `results/pop.png` plots that target by generation.
 

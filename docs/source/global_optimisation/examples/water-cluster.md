@@ -40,7 +40,7 @@ gdp -d ./run-water4-mattersim \
     ./examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
 ```
 
-The search is stored under `run-water4-mattersim/expedition-0`. The small
+The search is stored under `run-water4-mattersim`. The small
 population and single generation keep this example quick; increase both for a
 production search.
 

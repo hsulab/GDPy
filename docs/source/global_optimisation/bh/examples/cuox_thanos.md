@@ -3,7 +3,7 @@
 # Cu₄O₄: extinguishing O–O bonds
 
 This example exercises Thanos on a gas-phase Cu₄O₄ cluster using MatterSim.
-`population.periodic: true` uses a 20 × 20 × 20 Å periodic vacuum cell, avoiding
+The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell, avoiding
 MatterSim's automatic supercell construction for nonperiodic inputs.
 It generates random structures, relaxes them, and rattles the surviving chains.
 Structures with an O–O contact shorter than 1.6 Å are stored in the database but
@@ -55,7 +55,7 @@ OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos \
     ./examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
 
 python ./examples/global_optimisation/verify_cu4o4_bh_thanos.py \
-    ./run-cu4o4-bh-thanos/expedition-0
+    ./run-cu4o4-bh-thanos
 ```
 
 The shared MatterSim runtime now limits relaxation to 20 steps; the previous
@@ -74,7 +74,7 @@ extinct candidates with O–O distances near 1.30 Å. Numerical differences betw
 model or library versions may change the trajectory; the verifier checks the
 observed events rather than assuming a particular candidate ID.
 
-Inspect these outputs under `expedition-0`:
+Inspect these outputs under the working directory:
 
 - `results/oo_extinct.xyz`: the actual relaxed structures containing forbidden
   O–O contacts, including initialization and trial structures.

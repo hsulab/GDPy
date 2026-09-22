@@ -41,7 +41,7 @@ The first calculation downloads the approximately 29 MB checkpoint to
 or CUDA extensions. Relaxations are limited to 20 steps and may not reach the
 force tolerance. Use `device: cuda` on a compatible GPU installation.
 
-Under `run-cu4o4-bh-tace/expedition-0`, inspect `candidates.db` for relaxed
+Under `run-cu4o4-bh-tace`, inspect `candidates.db` for relaxed
 structures and acceptance metadata, `results/lineage/gen0001.png` for the search
 history, and `tmp_folder/gen1/rounds/events.jsonl` for committed rounds.
 Running the same command with the same directory resumes the search; a completed

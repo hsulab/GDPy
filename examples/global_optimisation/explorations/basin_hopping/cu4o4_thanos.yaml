@@ -2,7 +2,6 @@ method: basin_hopping
 recipe:
   random_seed: 7
   population:
-    periodic: true
     thanos:
       name: restraints
       restraints:

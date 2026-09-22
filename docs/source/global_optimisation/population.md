@@ -31,7 +31,6 @@ Both methods use named `builders` and exact `initial.builder_allocations`:
 ```yaml
 population:
   retained_size: 2
-  periodic: true
   builders:
     random:
       method: random_structure_improved

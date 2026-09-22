@@ -26,7 +26,7 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 
 The search uses interatomic-distance comparison, cluster cut-and-splice
 crossover, and rattle mutation. A fixed random seed makes candidate generation
-reproducible. `population.periodic: true` uses a 20 × 20 × 20 Å periodic vacuum cell for the
+reproducible. The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell for the
 cluster. `population.preserve_fragments: false` permits the atom-wise cluster
 crossover.
 
@@ -40,7 +40,7 @@ gdp -d ./run-cu13-emt \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu13.yaml
 ```
 
-The search is stored under `run-cu13-emt/expedition-0`. When it completes,
+The search is stored under `run-cu13-emt`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by the GA
 score, while `results/pop.png` summarises the population energies by
 generation. The example produces six relaxed Cu13 candidates: four initial

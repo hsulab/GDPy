@@ -1,15 +1,17 @@
-method: genetic_algorithm
+method: basin_hopping
+broadcast:
+  population.builders.random.composition:
+    - {Cu: 6, Ni: 2}
+    - {Cu: 4, Ni: 4}
 recipe:
-  random_seed: 31
+  random_seed: 7
   population:
     comparator:
       method: interatomic_distance
     builders:
       random:
         method: random_structure_improved
-        composition:
-          Cu: 7
-          Ni: 6
+        composition: {Cu: 6, Ni: 2}
         box: [20.0, 20.0, 20.0]
         region:
           method: sphere
@@ -17,25 +19,19 @@ recipe:
           radius: 3.0
         covalent_ratio: [0.7, 2.0]
     initial:
-      total_size: 4
+      total_size: 2
       builder_allocations:
-        - builder: random
-          size: 4
+        - {builder: random, size: 2}
     generation:
       total_size: 2
-      reproduction:
-        size: 0
-      mutation:
-        size: 2
-      completion:
-        builder_proportions:
-          - builder: random
-            proportion: 1.0
   operators:
-    mutation:
-      method: swap
+    - method: move
       particles: [Cu, Ni]
-      swap_ratio: 0.2
+      temperature: 500.0
+      max_disp: 0.8
       covalent_ratio: [0.7, 2.0]
+      max_random_attempts: 100
+      probability: 1.0
+  num_mcmoves: 2
   convergence:
     generation: 1

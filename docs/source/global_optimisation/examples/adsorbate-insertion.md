@@ -67,7 +67,7 @@ gdp -d ./run-cu4-co-adsorbate-insertion \
 ```
 
 The search is stored under
-`run-cu4-co-adsorbate-insertion/expedition-0`. The initial population samples
+`run-cu4-co-adsorbate-insertion`. The initial population samples
 the graph-derived adsorption sites, while later generations apply crossover
 and mutation to the complete tagged Cu4–CO system.
 

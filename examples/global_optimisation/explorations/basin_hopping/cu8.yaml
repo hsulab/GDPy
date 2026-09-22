@@ -2,7 +2,6 @@ method: basin_hopping
 recipe:
   random_seed: 7
   population:
-    periodic: true
     initial:
       total_size: 4
       builder_allocations:

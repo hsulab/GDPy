@@ -63,6 +63,8 @@ restores the candidate without trying to reverse its relaxation.
 BH owns population selection and search objectives. Shared acceptance formulas
 and biased proposals do not imply that its population is an equilibrium sample.
 
+See {ref}`exploration-output-layout` for output directories and restart metadata.
+
 ## Chain-start selection
 
 ```yaml

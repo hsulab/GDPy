@@ -9,7 +9,7 @@ repository root so substrate paths resolve correctly.
 - `assets/`: shared substrate structures.
 - `verify_cu4o4_bh_thanos.py`: verification for the extinction demonstration.
 
-Exploration YAML files contain `method` and `recipe`; runtime YAML files contain
+Exploration YAML files contain `method`, `recipe`, and optionally `broadcast`; runtime YAML files contain
 `schema_version`, `potential`, and `executor`. The existing `--runtime` option
 joins them at execution time, so no YAML includes or copied exploration files
 are needed. Put `--runtime` before the `explore` subcommand.
@@ -53,6 +53,7 @@ runtimes can be substituted without changing the exploration.
 | `explorations/genetic_algorithm/cu4_co_alumina111.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/basin_hopping/cu8.yaml` | `runtimes/emt.yaml` |
+| `explorations/basin_hopping/cu_ni_compositions.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu4o4.yaml` | `runtimes/tace.yaml` |
 | `explorations/basin_hopping/cu4o4_thanos.yaml` | `runtimes/mattersim.yaml` |
 
@@ -71,3 +72,67 @@ TACE uses OAM-7M on CPU. Both download their model on first use. Choose a
 potential that supports the system's elements; EMT is not an oxide or water
 runtime. The Thanos verifier checks observed extinction/restart events, which
 are not guaranteed to occur with a different potential.
+
+## Different compositions in one job
+
+Broadcast a whole composition mapping to run independent Cu₆Ni₂ and Cu₄Ni₄
+basin-hopping searches with EMT:
+
+```yaml
+method: basin_hopping
+broadcast:
+  population.builders.random.composition:
+    - {Cu: 6, Ni: 2}
+    - {Cu: 4, Ni: 4}
+recipe:
+  # See the complete recipe in cu_ni_compositions.yaml.
+```
+
+Run the complete example from the repository root:
+
+```shell
+OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
+  --runtime examples/global_optimisation/runtimes/emt.yaml \
+  explore examples/global_optimisation/explorations/basin_hopping/cu_ni_compositions.yaml
+```
+
+Each search uses seed 7, two initial candidates, and two hopping rounds. Both
+species participate in the move operator. The searches run sequentially in the
+same process with independent calculation workers and checkpoints.
+
+For one Slurm allocation containing both searches:
+
+```shell
+sbatch examples/global_optimisation/two_explorations.slurm
+```
+
+Activate your GDPy environment first and adapt account/partition settings for
+your cluster. The supplied job requests one CPU and 30 minutes. Exploration and
+calculation scheduling are direct, so no additional queue jobs are submitted.
+
+```text
+run-cu-ni-compositions/
+├── _meta/
+│   ├── _scheduler.json       # provider, layout, and job records
+│   └── ...resolved inputs and scripts...
+├── gdp.out
+├── expo.00/                 # Cu6Ni2
+│   └── ...candidates.db, results, and checkpoints...
+└── expo.01/                 # Cu4Ni4
+    └── ...candidates.db, results, and checkpoints...
+```
+
+Broadcast keys are dotted paths relative to `recipe`; numeric components index
+lists, such as `operators.0.temperature`. Each alternative replaces the whole
+value at that path. Composition dictionaries therefore remain paired: splitting
+Cu and Ni counts into separate broadcast fields would generate every combination.
+
+Multiple fields form a Cartesian product in YAML field/value order, with the
+rightmost field varying fastest. For example, adding `random_seed: [7, 17]` after
+the composition field produces Cu6Ni2/7, Cu6Ni2/17, Cu4Ni4/7, Cu4Ni4/17.
+Ordinary lists inside `recipe` retain their usual meaning. Parent paths must
+exist, and broadcast paths cannot overlap.
+
+Rerun the same command to resume. Use a fresh output directory when changing
+broadcast values, their order, recipes, or runtimes. Generated inputs contain
+resolved recipes without broadcast settings, so spawned jobs run one search.

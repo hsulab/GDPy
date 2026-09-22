@@ -59,7 +59,7 @@ gdp -d ./run-cu4o4-cu111 \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
 ```
 
-The search is stored under `run-cu4o4-cu111/expedition-0`. When it completes,
+The search is stored under `run-cu4o4-cu111`. When it completes,
 `results/all_candidates.xyz` contains the relaxed structures ordered by their
 GA score, while `results/pop.png` summarises their energies by generation.
 

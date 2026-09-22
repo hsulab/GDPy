@@ -63,7 +63,7 @@ gdp -d ./run-cu4-co-alumina111 \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml
 ```
 
-The search is stored under `run-cu4-co-alumina111/expedition-0`. When it
+The search is stored under `run-cu4-co-alumina111`. When it
 completes, `results/all_candidates.xyz` contains the relaxed candidates and
 `results/pop.png` summarises their energies by generation.
 

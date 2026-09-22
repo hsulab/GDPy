@@ -23,7 +23,7 @@ Pair this exploration with the following runtime (passed with `--runtime`):
 :language: yaml
 ```
 
-`population.periodic: true` places the isolated cluster in a 20 × 20 × 20 Å periodic vacuum cell. The random
+The default periodic setting places the isolated cluster in a 20 × 20 × 20 Å periodic vacuum cell. The random
 builder assigns every Cu and Ni atom a distinct positive tag, so the default
 fragment-preserving mode treats each atom as an independently movable
 particle.
@@ -46,7 +46,7 @@ gdp -d ./run-cu7ni6-emt \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml
 ```
 
-The search is stored under `run-cu7ni6-emt/expedition-0`, with its restart state
+The search is stored under `run-cu7ni6-emt`, with its restart state
 in `candidates.db`. When it completes, `results/all_candidates.xyz` contains
 the relaxed candidates ordered by energy, and `results/pop.png` summarises the
 population energies by generation.

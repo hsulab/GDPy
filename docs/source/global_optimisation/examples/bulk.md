@@ -40,7 +40,7 @@ gdp -d ./run-cu4-bulk-emt \
     ./examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
 ```
 
-The search is stored under `run-cu4-bulk-emt/expedition-0`. When it completes,
+The search is stored under `run-cu4-bulk-emt`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by their
 GA score, and `results/pop.png` summarises the energies by generation. This
 configuration produces four initial structures and two offspring.

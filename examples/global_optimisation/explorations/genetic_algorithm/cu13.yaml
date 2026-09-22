@@ -4,7 +4,6 @@ recipe:
   population:
     comparator:
       method: interatomic_distance
-    periodic: true
     preserve_fragments: false
     builders:
       random:

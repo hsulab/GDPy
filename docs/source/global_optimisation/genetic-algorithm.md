@@ -14,6 +14,8 @@ operations
 examples/index
 ```
 
+See {ref}`exploration-output-layout` for output directories and restart metadata.
+
 ## Search cycle
 
 A typical GA search repeats the following steps:
