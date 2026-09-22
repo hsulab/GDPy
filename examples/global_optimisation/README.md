@@ -54,6 +54,7 @@ runtimes can be substituted without changing the exploration.
 | `explorations/genetic_algorithm/cu4_co_alumina111_adsorbate_insertion.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/basin_hopping/cu8.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu_ni_compositions.yaml` | `runtimes/emt.yaml` |
+| `explorations/basin_hopping/cu6_nix.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu4o4.yaml` | `runtimes/tace.yaml` |
 | `explorations/basin_hopping/cu4o4_thanos.yaml` | `runtimes/mattersim.yaml` |
 
@@ -136,3 +137,26 @@ exist, and broadcast paths cannot overlap.
 Rerun the same command to resume. Use a fresh output directory when changing
 broadcast values, their order, recipes, or runtimes. Generated inputs contain
 resolved recipes without broadcast settings, so spawned jobs run one search.
+
+## Variable composition within one search
+
+`cu6_nix.yaml` keeps six Cu atoms and exchanges Ni atoms during basin hopping:
+
+```shell
+OMP_NUM_THREADS=1 gdp -d run-cu6-nix \
+  --runtime examples/global_optimisation/runtimes/emt.yaml \
+  explore examples/global_optimisation/explorations/basin_hopping/cu6_nix.yaml
+```
+
+The builder samples one to three Ni atoms initially. An `exchange` operator
+attempts insertion/removal of Ni with chemical potential −0.5 eV, mixed with
+ordinary Cu/Ni displacement moves. The population uses formation-energy ranking
+with the same Ni reference. These are illustrative chemical potentials for a
+short EMT demonstration. The initial composition range is not a constraint on
+later moves: Ni can disappear or exceed three atoms, while Cu remains fixed.
+
+This single expedition writes directly into `run-cu6-nix/`. Inspect
+`candidates.db` for initial and trial compositions, acceptance flags, and parent
+IDs, and `tmp_folder/gen1/rounds/events.jsonl` for committed chain history.
+See the basin-hopping documentation's **Variable-composition Cu₆Niₓ clusters**
+guide for a script that identifies accepted and rejected composition changes.
