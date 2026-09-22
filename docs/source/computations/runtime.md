@@ -1,5 +1,16 @@
 # runtime and executors
 
+A runtime combines a `potential`, an `executor`, optional `modifiers`,
+and an optional `scheduler`. The executor provider selects the software;
+its method selects the calculation. Without a scheduler, execution runs
+directly on the current machine. See {doc}`schedulers` for queue and SSH execution.
+
+Omitting `schema_version` uses the current configuration schema. Explicit
+unsupported versions are rejected; serialized runtimes and saved compute plans
+still record their schema version.
+
+Use the shared {doc}`units <../units>` unless a parameter specifies otherwise.
+
 Use `spc` for single-point evaluation, `min` for minimization, and `md`
 for molecular dynamics. Executor parameters are flat settings such as
 `steps`, `fmax`, `constraint`, `ensemble`, and `dump_period`.
@@ -107,4 +118,3 @@ The `plumed` provider exposes a potential capability, not a general modifier
 factory. It cannot simply be placed in `modifiers`; combining it with a host
 calculator requires an integration that explicitly couples their energies
 and forces. Schema version 3 does not provide the removed `mixer` potential.
-
