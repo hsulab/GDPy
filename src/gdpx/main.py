@@ -127,7 +127,7 @@ def main():
         action="store_true",
         help="archive computation folders to cand.tar.zst when retrieving",
     )
-    parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_meta/compute-plan.json)")
+    parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_meta/inputs.json)")
     parser_compute.add_argument("--job", default=None, help=argparse.SUPPRESS)
     parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import errno
 import pathlib
 import shlex
 import shutil
@@ -105,6 +106,8 @@ class SshTransport(BaseScheduler):
         self.hostname = hostname
         self.remote_wdir = remote_path
         self.local_root: Optional[pathlib.Path] = None
+        self.output_root: Optional[pathlib.Path] = None
+        self.sync_excludes: set[pathlib.Path] = set()
         # Optional exact exclusions for callers sharing a staging root. The
         # default retains legacy name-based job-store exclusions.
         self.staging_excludes: Optional[set[pathlib.Path]] = None
@@ -298,6 +301,28 @@ class SshTransport(BaseScheduler):
         finally:
             client.close()
 
+    def read_remote_file(self, relative_path: str) -> Optional[str]:
+        """Read a job-owned artifact without replacing the controller's copy."""
+        _, remote_root, _ = self._roots()
+        relative = pathlib.PurePosixPath(relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("Remote artifact path must be relative to the staging root.")
+        client = self._client()
+        sftp = None
+        try:
+            sftp = client.open_sftp()
+            with sftp.open(str(remote_root / relative), "r") as handle:
+                content = handle.read()
+                return content.decode("utf-8") if isinstance(content, bytes) else content
+        except OSError as error:
+            if error.errno == errno.ENOENT:
+                return None
+            raise
+        finally:
+            if sftp is not None:
+                sftp.close()
+            client.close()
+
     def sync(self, wdir_names: Iterable[str] = (), *, root_relative: bool = False) -> None:
         """Retrieve outputs; root-relative mode protects shared exploration metadata."""
         local_root, remote_root, _ = self._roots()
@@ -325,11 +350,13 @@ class SshTransport(BaseScheduler):
                     )
                 self._debug(f'synced {count} files; removed {removed} outdated items.')
                 return
-            count = _sync_latest_recursive(sftp, str(remote_root), str(local_root), skipped)
+            count = _sync_latest_recursive(
+                sftp, str(remote_root), str(local_root), skipped, self.sync_excludes
+            )
             self._print(f"synced {count} files from {remote_root}.")
             removed = 0
-            output_root = self.script.parent
-            if output_root.name == "_meta":
+            output_root = self.output_root or self.script.parent
+            if self.output_root is None and output_root.name == "_meta":
                 output_root = output_root.parent
             for item_name in wdir_names:
                 local_item = (
@@ -340,7 +367,8 @@ class SshTransport(BaseScheduler):
                 relative_item = local_item.relative_to(local_root)
                 remote_item = remote_root.joinpath(*relative_item.parts)
                 removed += _remove_outdated_recursive(
-                    sftp, str(remote_item), str(local_item), skipped, print_func=self._print
+                    sftp, str(remote_item), str(local_item), skipped, print_func=self._print,
+                    protected_paths=self.sync_excludes,
                 )
             self._print(f"removed {removed} outdated items.")
         finally:

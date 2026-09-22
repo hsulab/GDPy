@@ -139,7 +139,7 @@ class BaseWorker(abc.ABC):
         for job in self.job_store.get_running():
             self._prepare_scheduler_for_job(job)
             if self.scheduler.is_finished():
-                self.scheduler.sync(job.wdir_names)
+                self._sync_job(job)
                 if self._check_job_convergence(job):
                     self._print(f"{job.gdir} is finished...")
                     self.job_store.mark_finished(job.gdir)
@@ -150,6 +150,9 @@ class BaseWorker(abc.ABC):
                     self._print(f"{job.gdir} should be re-submitted manually...")
             else:
                 self._print(f"{job.gdir} is running...")
+
+    def _sync_job(self, job):
+        self.scheduler.sync(job.wdir_names)
 
     def _prepare_scheduler_for_job(self, job: JobRecord):
         """Set scheduler attributes from a *JobRecord*."""

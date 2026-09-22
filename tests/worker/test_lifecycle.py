@@ -77,10 +77,10 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     worker.run([fake_structure])
     metadata = tmp_path / "_meta"
     assert set(p.name for p in tmp_path.iterdir()) == {"_meta"}
-    assert worker.job_store.path == metadata / "_scheduler.json"
-    assert list(metadata.glob("job-*.json"))
-    assert list(metadata.glob("*_info.txt"))
-    assert list(metadata.glob("MACHINE_*"))
+    assert worker.job_store.path == metadata / "scheduler.json"
+    assert {path.name for path in metadata.glob("*.json")} == {"inputs.json", "scheduler.json"}
+    assert len(worker.metadata.inputs.read()["jobs"]) == 1
+    assert len(worker.metadata.inputs.read()["structures"]) == 1
     original = worker.job_store.get_running()[0]
 
     restarted = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
@@ -93,9 +93,9 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     record = restarted.job_store.get_running()[0]
     assert record.uid == original.uid
     assert record.attempt == 2
-    assert mock_sched.script.parent == metadata
+    assert mock_sched.script.parent == metadata / "jobscripts"
     assert mock_sched.script.exists()
-    assert "cd .. && gdp" in mock_sched.user_commands
+    assert "cd ../.. && gdp" in mock_sched.user_commands
     _create_computation_dirs(restarted, tmp_path)
     restarted.inspect()
     restarted.retrieve()
@@ -115,7 +115,7 @@ def test_generated_driver_script_launches_from_worker_root(mock_sched, fake_driv
     assert (root / "launch-cwd").read_text().strip() == str(root)
     args = (root / "launch-args").read_text().splitlines()
     assert args[:3] == ["compute", "run", "--job"]
-    assert (root / args[3]).is_file()
+    assert args[3] in worker.metadata.inputs.read()["jobs"]
 
 
 def test_legacy_driver_layout_is_not_overwritten(mock_sched, fake_driver, tmp_path):
@@ -150,7 +150,7 @@ def test_scheduler_change_rejected(mock_sched, fake_driver, fake_structure, tmp_
     worker.scheduler = DirectScheduler()
     with pytest.raises(ValueError, match="provider changed"):
         worker.inspect()
-    assert (tmp_path / "_meta" / "_scheduler.json").read_bytes() == before
+    assert (tmp_path / "_meta" / "scheduler.json").read_bytes() == before
 
 
 def test_remote_driver_sync_preserves_jobs_and_updates_cache(tmp_path):

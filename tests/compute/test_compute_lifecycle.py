@@ -40,10 +40,10 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
 
     assert config == original
     assert plan.config["potential"] == original["potential"]
-    assert plan.schema_version == 4
+    assert plan.schema_version == 5
     assert plan.path.exists()
-    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
-    assert (tmp_path / "_meta" / "scripts" / "run-w0-b0.script").exists()
+    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
+    assert len(list((tmp_path / "_meta" / "jobscripts").glob("run-*.script"))) == 1
 
     loaded = load_compute_plan(tmp_path)
     assert loaded.plan_id == plan.plan_id
@@ -78,7 +78,7 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
     assert result.number_of_trajectories == 1
     assert (tmp_path / "results" / "end_frames.xyz").exists()
 
-    records = json.loads((tmp_path / "_meta" / "_scheduler.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
     record = next(iter(records.values()))
     assert record["scheduler_job_id"] == "direct"
     assert record["attempt"] == 1
@@ -95,7 +95,7 @@ def test_submit_all_dry_run_scheduler_batches(tmp_path):
     result = submit_compute(plan)
 
     assert result.submitted_batches == ("w0/b0", "w0/b1")
-    records = json.loads((tmp_path / "_meta" / "_scheduler.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
     assert len(records) == 2
     assert {record["group_number"] for record in records.values()} == {0, 1}
 
@@ -124,7 +124,7 @@ def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
         [str(inputs)], _emt_config(), batch=0, spawn=True, directory=tmp_path
     )
     assert (tmp_path / "cand0").exists()
-    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
+    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
 
 
 def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
@@ -137,17 +137,18 @@ def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
     staged = tmp_path / "staged with spaces"
     plan = prepare_compute(config, [_cu()], source)
     submit_compute(plan)
-    script = next((source / "_meta").glob("run-*.script"))
+    script = next((source / "_meta" / "jobscripts").glob("run-*.script"))
     script.write_text(script.read_text().replace(
         "cd ", 'gdp() { pwd > launch-cwd; printf "%s\\n" "$@" > launch-args; }\ncd ', 1
     ))
     shutil.copytree(source, staged)
-    script = staged / "_meta" / script.name
+    script = staged / "_meta" / "jobscripts" / script.name
     subprocess.run(["bash", str(script)], cwd=tmp_path,
                    env=dict(os.environ, PBS_O_WORKDIR=str(script.parent)), check=True)
     assert (staged / "launch-cwd").read_text().strip() == str(staged)
     args = (staged / "launch-args").read_text().splitlines()
-    assert (staged / args[args.index("--plan") + 1]).resolve() == staged / "_meta" / "compute-plan.json"
+    assert args[:3] == ["compute", "run", "--job"]
+    assert args[3] in json.loads((staged / "_meta" / "inputs.json").read_text())["jobs"]
 
 
 def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
@@ -155,7 +156,7 @@ def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
     config["options"] = {"share_workdir": True}
     plan = prepare_compute(config, [_cu()], tmp_path)
     submit_compute(plan)
-    assert list((tmp_path / "_meta").glob("*_cache.xyz"))
+    assert json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["results"]
     assert inspect_compute(load_compute_plan(tmp_path)).state == "finished"
     assert collect_compute(load_compute_plan(tmp_path)).number_of_trajectories == 1
     assert not (tmp_path / "_data").exists()
@@ -194,11 +195,11 @@ def test_modified_snapshot_and_plan_are_rejected_before_submission(tmp_path):
         submit_compute(dataclasses.replace(plan, structure_digest="modified"))
     path = tmp_path / plan.structure_file
     data = decode(path.read_text())
-    data["frames"][0].positions[0, 0] = 0.01
+    data["structures"][plan.structure_digest][0].positions[0, 0] = 0.01
     path.write_text(encode(data))
     with pytest.raises(ValueError, match="fingerprint mismatch"):
         submit_compute(plan)
-    assert not (tmp_path / "_meta" / "_scheduler.json").exists()
+    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
 
 
 def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
@@ -212,13 +213,12 @@ def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
     staged = tmp_path / "staged"
     worker = create_worker(config, directory=source)
     worker.run([_cu()], rng_states=[876])
-    manifest = next((source / "_meta").glob("job-*.json"))
-    saved = decode(manifest.read_text())
+    uid, saved = next(iter(decode((source / "_meta" / "inputs.json").read_text())["jobs"].items()))
     assert saved["input"]["random_seeds"] == [876]
     shutil.copytree(source, staged)
-    records = staged / "_meta" / "_scheduler.json"
+    records = staged / "_meta" / "scheduler.json"
     before = records.read_bytes()
-    run_computation(["run"], None, job=staged / "_meta" / manifest.name, directory=staged)
+    run_computation(["run"], None, job=uid, directory=staged)
     assert records.read_bytes() == before
     assert (staged / "cand0").exists()
     assert not (source / "cand0").exists()

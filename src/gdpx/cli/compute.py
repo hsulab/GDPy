@@ -52,11 +52,21 @@ def run_computation(
         from gdpx.execution.factory import create_worker
         from gdpx.execution.fingerprint import FINGERPRINT_VERSION, payload_digest
 
-        saved = decode(pathlib.Path(job).read_text())
+        from gdpx.execution.workers.metadata import WorkerMetadata
+
+        metadata = WorkerMetadata(directory)
+        by_uuid = pathlib.Path(str(job)).suffix != ".json"
+        if by_uuid:
+            saved = metadata.validate_manifest(metadata.inputs.read()["jobs"][str(job)])
+        else:
+            saved = decode(pathlib.Path(job).read_text())
         if (saved["input"].get("version") != FINGERPRINT_VERSION
                 or payload_digest(saved["input"]) != saved["job_digest"]):
             raise ValueError(f"Job fingerprint mismatch: {job}")
-        worker = create_worker(saved["input"]["runtime"], directory=directory)
+        worker_directory = pathlib.Path(directory) / saved["worker"] if by_uuid else directory
+        worker = create_worker(saved["input"]["runtime"], directory=worker_directory)
+        if by_uuid:
+            worker.metadata_root = pathlib.Path(directory)
         worker.run_saved_job(job)
         return
 

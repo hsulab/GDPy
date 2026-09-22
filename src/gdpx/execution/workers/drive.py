@@ -27,6 +27,7 @@ from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driv
 from gdpx.utils.profiler import CustomTimer
 
 from .store import JobRecord, JobStore
+from .metadata import WorkerMetadata, CatalogJobStore
 from .utils import copy_minimal_frames, split_batches
 from gdpx.execution.fingerprint import (
     FINGERPRINT_VERSION, atomic_write_text, normalise_value, payload_digest, structure_digest,
@@ -78,6 +79,9 @@ def run_computation_in_commandline(
     print_func=print,
     progress_func=None,
     error_func=None,
+    metadata=None,
+    job_uid=None,
+    machine_prefix=None,
 ) -> None:
     """Run computations directly in the commandline.
 
@@ -106,7 +110,9 @@ def run_computation_in_commandline(
 
     # Check machine-specific prefix
     machine_prefix_fpath = directory / "_meta" / f"MACHINE_{identifier}"
-    if machine_prefix_fpath.exists():
+    if machine_prefix is not None:
+        pass
+    elif machine_prefix_fpath.exists():
         with open(machine_prefix_fpath, "r") as fopen:
             machine_prefix = "".join(fopen.readlines()).strip()
     else:
@@ -172,7 +178,9 @@ def run_computation_in_commandline(
             else:
                 # shared working directory mode
                 cache_fpath = directory / "_meta" / f"{identifier}_cache.xyz"
-                if cache_fpath.exists():
+                if metadata is not None:
+                    cache_wdirs = [a.info["wdir"] for a in metadata.results(job_uid)]
+                elif cache_fpath.exists():
                     cache_frames = read(cache_fpath, ":")
                     cache_wdirs = [a.info["wdir"] for a in cache_frames]
                 else:
@@ -202,7 +210,10 @@ def run_computation_in_commandline(
                         curr_driver.run(atoms, read_ckpt=False, extra_info=dict(wdir=dirname))
                         new_atoms = curr_driver.read_trajectory()[-1]
                         new_atoms.info["wdir"] = dirname
-                        write(cache_fpath, new_atoms, append=True)
+                        if metadata is not None:
+                            metadata.put_result(job_uid, new_atoms)
+                        else:
+                            write(cache_fpath, new_atoms, append=True)
                         succeeded = True
                     except Exception as error:
                         _record_failure(gi, dirname, d_idx, curr_driver, error)
@@ -260,8 +271,30 @@ class DriverBasedWorker(BaseWorker):
         self._drivers: list[BaseDriver] = [runtime.executor]
 
     @property
+    def metadata(self):
+        root = pathlib.Path(getattr(self, "metadata_root", self.directory))
+        key = str(self.directory.resolve().relative_to(root.resolve()))
+        return WorkerMetadata(root, key)
+
+    @property
+    def compact_metadata(self):
+        return self.metadata.compact
+
+    @property
     def metadata_directory(self) -> pathlib.Path:
-        return self.directory / "_meta"
+        return self.metadata.directory
+
+    def _script_path(self, uid):
+        parent = self.metadata_directory / "jobscripts" if self.compact_metadata else self.metadata_directory
+        return parent / f"run-{uid}.script"
+
+    def _job_reference(self, uid):
+        return uid if self.compact_metadata else self.metadata_directory / f"job-{uid}.json"
+
+    def _input_frames(self, digest):
+        if self.compact_metadata:
+            return self.metadata.frames(digest)
+        return read_structure_inputs(self.metadata_directory / f"{digest}.atoms.json", digest)
 
     def _initialise(self, *args, **kwargs):
         # Do not silently start new jobs beside an old worker's records.
@@ -272,10 +305,16 @@ class DriverBasedWorker(BaseWorker):
             )
         super()._initialise(*args, **kwargs)
         self.metadata_directory.mkdir(parents=True, exist_ok=True)
+        if self.compact_metadata:
+            self.metadata.ensure()
 
     @property
     def job_store(self) -> JobStore:
         self._initialise()
+        if self.compact_metadata:
+            if self._job_store is None:
+                self._job_store = CatalogJobStore(self.metadata, self.scheduler.name)
+            return self._job_store
         path = self.metadata_directory / "_scheduler.json"
         if self._job_store is None:
             with TinyDB(path, indent=2) as database:
@@ -297,14 +336,28 @@ class DriverBasedWorker(BaseWorker):
             self.scheduler.local_root = (
                 pathlib.Path(plan).resolve().parent.parent if plan else self.directory.resolve()
             )
-            self.scheduler.staging_excludes = {
-                (self.metadata_directory / "_scheduler.json").resolve()
-            }
+            if self.compact_metadata:
+                self.scheduler.local_root = self.metadata.root.resolve()
+                self.scheduler.output_root = self.directory.resolve()
+                self.scheduler.staging_excludes = {
+                    self.metadata.state.path.resolve(),
+                    (self.metadata_directory / ".metadata.lock").resolve(),
+                }
+                self.scheduler.sync_excludes = {
+                    self.metadata.inputs.path.resolve(), self.metadata.state.path.resolve(),
+                    (self.metadata_directory / ".metadata.lock").resolve(),
+                }
+            else:
+                self.scheduler.output_root = None
+                self.scheduler.sync_excludes = set()
+                self.scheduler.staging_excludes = {
+                    (self.metadata_directory / "_scheduler.json").resolve()
+                }
 
     def _prepare_scheduler_for_job(self, job: JobRecord):
         self._validate_job(job)
         self.scheduler.job_name = job.gdir
-        self.scheduler.script = self.metadata_directory / f"run-{job.uid}.script"
+        self.scheduler.script = self._script_path(job.uid)
         self._configure_scheduler_paths()
 
     # ------------------------------------------------------------------
@@ -336,6 +389,8 @@ class DriverBasedWorker(BaseWorker):
     # ------------------------------------------------------------------
 
     def _read_cached_info(self):
+        if self.compact_metadata:
+            return []
         _info_data = []
         for p in (self.metadata_directory).glob("*_info.txt"):
             with open(p, "r") as fopen:
@@ -383,6 +438,12 @@ class DriverBasedWorker(BaseWorker):
         else:
             random_seeds = [0] * len(curr_frames)
 
+        if self.compact_metadata:
+            retained = [normalise_value(a.info) for a in prev_frames] if self._retain_info else []
+            self.metadata.put_structures(curr_frames, curr_info, retained)
+            self._info_data = []
+            return fingerprint, curr_frames, 0, random_seeds
+
         _info_data = self._read_cached_info()
 
         stored_fname = f"{fingerprint}.atoms.json"
@@ -396,7 +457,7 @@ class DriverBasedWorker(BaseWorker):
                     break
                 start_confid += 1
         else:
-            if self._retain_info:
+            if self._retain_info and not self.compact_metadata:
                 info_keys = []
                 for a in prev_frames:
                     info_keys.extend(list(a.info.keys()))
@@ -449,7 +510,7 @@ class DriverBasedWorker(BaseWorker):
 
         # Save the task plan for fault tolerance
         task_plan_path = self.metadata_directory / "task_plan.json"
-        if not task_plan_path.exists():
+        if not self.compact_metadata and not task_plan_path.exists():
             with open(task_plan_path, "w") as fopen:
                 json.dump(
                     dict(
@@ -553,6 +614,12 @@ class DriverBasedWorker(BaseWorker):
 
     def _run_by_commandline(self, identifier: str, frames: list[Atoms], batches, target_batch: Optional[int] = None):
         batch_data = batches[target_batch]
+        compact = self.compact_metadata
+        saved = None
+        if compact:
+            payload = self._job_payload(identifier, batch_data, target_batch)
+            job_uid = self.metadata.prepare_job(payload, self.scheduler.machine_prefix)
+            saved = self.metadata.manifest(job_uid)
         curr_indices, curr_wdirs, driver_indices, rng_states, curr_frames = batch_data
 
         run_computation_in_commandline(
@@ -568,6 +635,9 @@ class DriverBasedWorker(BaseWorker):
             print_func=self._print,
             progress_func=get_reporter(self).task_finished,
             error_func=config.logger.error,
+            metadata=self.metadata if compact else None,
+            job_uid=job_uid if compact else None,
+            machine_prefix=saved["machine_prefix"] if compact else None,
         )
 
     def _job_payload(self, identifier, batch, group_number):
@@ -587,7 +657,7 @@ class DriverBasedWorker(BaseWorker):
         }
 
     def _read_job_input(self, path, expected_digest=None):
-        saved = decode(pathlib.Path(path).read_text())
+        saved = self.metadata.manifest(str(path)) if self.compact_metadata else decode(pathlib.Path(path).read_text())
         payload = saved["input"]
         digest = payload_digest(payload)
         if (payload.get("version") != FINGERPRINT_VERSION or digest != saved["job_digest"]
@@ -595,10 +665,7 @@ class DriverBasedWorker(BaseWorker):
             raise ValueError(f"Job fingerprint mismatch: {path}")
         if payload_digest(payload["runtime"]) != payload_digest(self.as_dict()):
             raise ValueError("Runtime configuration changed for an existing job.")
-        frames = read_structure_inputs(
-            self.metadata_directory / f'{payload["structure_digest"]}.atoms.json',
-            payload["structure_digest"],
-        )
+        frames = self._input_frames(payload["structure_digest"])
         batch_frames = [frames[index].copy() for index in payload["structure_indices"]]
         if structure_digest(batch_frames) != payload["batch_structure_digest"]:
             raise ValueError("Batch structure fingerprint mismatch.")
@@ -609,8 +676,10 @@ class DriverBasedWorker(BaseWorker):
         return payload, batch
 
     def _validate_job(self, job):
+        if self.compact_metadata and self.metadata.manifest(job.uid)["machine_prefix"] != self.scheduler.machine_prefix:
+            raise ValueError("Machine prefix changed for an existing job.")
         payload, batch = self._read_job_input(
-            self.metadata_directory / f"job-{job.uid}.json", job.job_digest
+            self._job_reference(job.uid), job.job_digest
         )
         if (payload["structure_digest"] != job.structure_digest
                 or payload["group_number"] != job.group_number
@@ -622,7 +691,16 @@ class DriverBasedWorker(BaseWorker):
         """Execute an immutable batch on a staged host without submitting jobs."""
         payload, batch = self._read_job_input(path)
         get_reporter(self).configure([batch])
-        self._run_by_commandline(payload["structure_digest"], [], [batch], target_batch=0)
+        if self.compact_metadata:
+            saved = self.metadata.manifest(str(path))
+            run_computation_in_commandline(
+                payload["structure_digest"], batch[4], batch[1], batch[3], self._drivers, batch[2],
+                self.directory, self._share_wdir, print_func=self._print,
+                progress_func=get_reporter(self).task_finished, error_func=config.logger.error,
+                metadata=self.metadata, job_uid=str(path), machine_prefix=saved["machine_prefix"],
+            )
+        else:
+            self._run_by_commandline(payload["structure_digest"], [], [batch], target_batch=0)
 
     def _run_by_scheduler(
         self, identifier: str, frames: list[Atoms], batches,
@@ -635,7 +713,7 @@ class DriverBasedWorker(BaseWorker):
             db_rel = database_path
         self._print(f"database_path: {db_rel}")
 
-        read_structure_inputs(self.metadata_directory / f"{identifier}.atoms.json", identifier)
+        self._input_frames(identifier)
         queued_jobs = self.job_store.get_queued()
         selected = [(ig, batch) for ig, batch in enumerate(batches)
                     if target_batch is None or ig == target_batch]
@@ -662,19 +740,22 @@ class DriverBasedWorker(BaseWorker):
             prepared.append((ig, batch, payload, digest))
 
         for ig, batch, payload, digest in prepared:
-            uid = str(uuid.uuid1())
+            uid = (self.metadata.prepare_job(payload, self.scheduler.machine_prefix)
+                   if self.compact_metadata else str(uuid.uuid1()))
             batch_name = f"group-{ig}"
             job_name = uid + "-" + batch_name
-            atomic_write_text(
-                self.metadata_directory / f"job-{uid}.json",
-                encode({"job_digest": digest, "input": payload}),
-            )
+            if not self.compact_metadata:
+                atomic_write_text(
+                    self.metadata_directory / f"job-{uid}.json",
+                    encode({"job_digest": digest, "input": payload}),
+                )
             self.job_store.insert(
                 uid=uid, md5="", structure_digest=identifier, job_digest=digest,
                 gdir=job_name, group_number=ig, wdir_names=batch[1],
             )
-            with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as handle:
-                handle.write(self.scheduler.machine_prefix)
+            if not self.compact_metadata:
+                with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as handle:
+                    handle.write(self.scheduler.machine_prefix)
             self._irun(batch_name, uid, identifier, frames, batch)
 
     def _irun(
@@ -684,15 +765,20 @@ class DriverBasedWorker(BaseWorker):
         identifier: str,
         frames: list[Atoms],
         batch,
+        *,
+        submit=True,
     ) -> None:
         batch_number = int(batch_name.split("-")[-1])
         jobscript_fname = f"run-{uid}.script"
         self.scheduler.job_name = uid + "-" + batch_name
-        self.scheduler.script = self.metadata_directory / jobscript_fname
+        self.scheduler.script = self._script_path(uid)
+        self.scheduler.script.parent.mkdir(parents=True, exist_ok=True)
         self._configure_scheduler_paths()
 
         compute_plan_path = getattr(self, "compute_plan_path", None)
-        if compute_plan_path is not None:
+        if self.compact_metadata:
+            self.scheduler.user_commands = f"gdp compute run --job {uid}\n"
+        elif compute_plan_path is not None:
             worker_index = getattr(self, "compute_worker_index", 0)
             compute_plan_path = pathlib.Path(compute_plan_path).resolve()
             compute_root = compute_plan_path.parent.parent
@@ -711,7 +797,8 @@ class DriverBasedWorker(BaseWorker):
         submit_variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
                            "lsf": "LS_SUBCWD"}.get(self.scheduler.name)
         launch = f'cd "${{{submit_variable}:-$PWD}}" && ' if submit_variable else ""
-        self.scheduler.user_commands = launch + "cd .. && " + self.scheduler.user_commands
+        relative_root = "../.." if self.compact_metadata else ".."
+        self.scheduler.user_commands = launch + f"cd {relative_root} && " + self.scheduler.user_commands
 
         curr_indices, curr_wdirs, driver_indices, rng_states, curr_frames = batch
 
@@ -729,9 +816,14 @@ class DriverBasedWorker(BaseWorker):
             print_func=self._print,
             progress_func=get_reporter(self).task_finished,
             error_func=config.logger.error,
+            metadata=self.metadata if self.compact_metadata else None,
+            job_uid=uid if self.compact_metadata else None,
+            machine_prefix=(self.metadata.manifest(uid)["machine_prefix"] if self.compact_metadata else None),
         )
 
         self.scheduler.write()
+        if not submit:
+            return
         job_id = self.scheduler.submit(func_to_execute=func_to_execute)
         self.job_store.mark_submitted(self.scheduler.job_name, job_id)
         self._print(f"{self.directory.name} JOBID: {job_id}")
@@ -770,6 +862,8 @@ class DriverBasedWorker(BaseWorker):
                     return False
             return True
         else:
+            if self.compact_metadata:
+                return set(wdir_names).issubset(a.info["wdir"] for a in self.metadata.results(job.uid))
             # share_wdir: check cache file
             # Find the identifier from the job
             cache_fpath = self.metadata_directory / f"{job.structure_digest}_cache.xyz"
@@ -782,6 +876,17 @@ class DriverBasedWorker(BaseWorker):
                     self._print(f"Found unfinished computation at cand{len(cache_wdirs)}")
                     return False
             return False
+
+    def _sync_job(self, job):
+        self.scheduler.sync(job.wdir_names)
+        if self.compact_metadata and self._share_wdir and self.scheduler.transport_name == "ssh":
+            content = self.scheduler.read_remote_file("_meta/scheduler.json")
+            if content is None:
+                return  # The job may have failed before producing its first result.
+            remote = decode(content)
+            if remote.get("format") != "gdpx-scheduler" or remote.get("version") != 1:
+                raise ValueError("Invalid remote result catalog.")
+            self.metadata.merge_results(job.uid, remote)
 
     def _resubmit_job(self, job: JobRecord):
         self._print(f"RESUBMIT: {str(job.gdir)}")
@@ -843,12 +948,16 @@ class DriverBasedWorker(BaseWorker):
                         shutil.rmtree(w)
             else:
                 cache_frames = []
-                for identifier in unretrieved_identifiers:
-                    cache_frames.extend(read(self.metadata_directory / f"{identifier}_cache.xyz", ":"))
+                if self.compact_metadata:
+                    for job in unretrieved_jobs:
+                        cache_frames.extend(self.metadata.results(job.uid))
+                else:
+                    for identifier in unretrieved_identifiers:
+                        cache_frames.extend(read(self.metadata_directory / f"{identifier}_cache.xyz", ":"))
                 wdir_names = [x.name for x in unretrieved_wdirs]
                 results_ = [a for a in cache_frames if a.info["wdir"] in wdir_names]
                 results = [[a] for a in results_]
-                if self._retain_info:
+                if self._retain_info and not self.compact_metadata:
                     info_keys, info_data = self._read_cached_xinfo()
                     retained_keys = [k for k in info_keys if k not in self.reserved_keys]
                     for i, traj_frames in enumerate(results):
@@ -856,6 +965,26 @@ class DriverBasedWorker(BaseWorker):
                             k: v for k, v in zip(info_keys, info_data[i]) if k in retained_keys and v is not None
                         }
                         traj_frames[0].info.update(retained_dict)
+
+        if self.compact_metadata:
+            by_workdir = {}
+            provenance = self.metadata.provenance()
+            for job in unretrieved_jobs:
+                saved = self.metadata.manifest(job.uid)["input"]
+                info = provenance.get(job.structure_digest, {})
+                for name, index in zip(saved["wdir_names"], saved["structure_indices"]):
+                    by_workdir[name] = (info, index)
+            for trajectory in results:
+                if not trajectory:
+                    continue
+                info, index = by_workdir[trajectory[-1].info["wdir"]]
+                rows, retained = info.get("rows", []), info.get("info", [])
+                if rows and int(rows[index][0]) >= 0:
+                    for frame in trajectory:
+                        frame.info["confid"] = int(rows[index][0])
+                if self._retain_info and retained:
+                    trajectory[0].info.update({k: v for k, v in retained[index].items()
+                                               if k not in self.reserved_keys})
 
         for job in unretrieved_jobs:
             self.job_store.mark_retrieved(job.gdir)
@@ -878,7 +1007,7 @@ class DriverBasedWorker(BaseWorker):
                 for wdir in unretrieved_wdirs
             )
 
-            if self._retain_info:
+            if self._retain_info and not self.compact_metadata:
                 info_keys, info_data = self._read_cached_xinfo()
                 retained_keys = [k for k in info_keys if k not in self.reserved_keys]
                 for i, traj_frames in enumerate(results_):

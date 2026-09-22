@@ -133,10 +133,17 @@ def read_structure_inputs(path, expected_digest=None):
     data = decode(pathlib.Path(path).read_text(encoding="utf-8"))
     if data.get("version") != FINGERPRINT_VERSION:
         raise ValueError("Unsupported structure fingerprint version; prepare a new run.")
-    frames = data["frames"]
+    if data.get("format") == "gdpx-inputs":
+        if expected_digest is None:
+            raise ValueError("A structure digest is required for catalog lookup.")
+        frames = data["structures"][expected_digest]
+        saved_digest = expected_digest
+    else:
+        frames = data["frames"]
+        saved_digest = data["structure_digest"]
     if not isinstance(frames, list) or not all(isinstance(frame, Atoms) for frame in frames):
         raise ValueError("Invalid structure snapshot.")
     digest = structure_digest(frames)
-    if digest != data["structure_digest"] or (expected_digest is not None and digest != expected_digest):
+    if digest != saved_digest or (expected_digest is not None and digest != expected_digest):
         raise ValueError(f"Structure fingerprint mismatch: {path}")
     return frames

@@ -12,7 +12,6 @@ original :class:`SingleWorker` API for backward compatibility.
 import pathlib
 from typing import Union
 
-from tinydb import Query, TinyDB
 
 from .registry import WORKER_REGISTRY
 from gdpx.execution.runtime import Runtime
@@ -88,11 +87,8 @@ class SingleWorker(DriverBasedWorker):
                 return False
             return cand_index > step
 
-        with TinyDB(self.job_store.path, indent=2) as database:
-            doc_data = database.search(Query().wdir_names.test(test_func, step))
-            doc_ids = [doc.doc_id for doc in doc_data]
-            if doc_ids:
-                database.remove(doc_ids=doc_ids)
+        remove = {job.gdir for job in self.job_store.get_queued() if test_func(job.wdir_names, step)}
+        self.job_store.remove_where(lambda gdir: gdir in remove)
 
     def as_dict(self) -> dict:
         params = super().as_dict()
