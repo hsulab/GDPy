@@ -1,4 +1,4 @@
-(bh-operator-adsorbate-exchange)=
+(sampling-operator-adsorbate-exchange)=
 
 # `adsorbate_exchange`
 
@@ -7,20 +7,19 @@ existing tagged adsorbate.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: adsorbate_exchange
-      particles: [CO]
-      chempots: [-0.5]
-      temperature: 500.0
-      anchors:
-        group: "`symbol Cu`"
-        cutoff: 3.0
-        max_order: 2
-        surf_index: 2
+- method: adsorbate_exchange
+  particles: [CO]
+  chempots: [-0.5]
+  temperature: 500.0
+  anchors:
+    group: "`symbol Cu`"
+    cutoff: 3.0
+    max_order: 2
+    surf_index: 2
 ```
 
 ## Settings
@@ -36,7 +35,7 @@ recipe:
 | `anchors.max_order` | Site orders to include: 0 atop, 1 also bridge, 2 also hollow | 3 |
 | `anchors.surf_index` | Surface-normal axis: 0 x, 1 y, 2 z | 2 |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance

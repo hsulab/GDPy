@@ -1,4 +1,4 @@
-(bh-operator-swap-type)=
+(sampling-operator-swap-type)=
 
 # `swap_type`
 
@@ -7,15 +7,14 @@ fixed. This provides composition changes without insertion or removal.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: swap_type
-      particles: [Cu, Ni]
-      chempots: [0.0, -0.5]
-      temperature: 1000.0
+- method: swap_type
+  particles: [Cu, Ni]
+  chempots: [0.0, -0.5]
+  temperature: 1000.0
 ```
 
 ## Settings
@@ -25,7 +24,7 @@ recipe:
 | `particles` | At least two distinct atomic chemical symbols | Required |
 | `chempots` | Chemical potentials in eV, in the same order as `particles` | Required |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance
@@ -44,5 +43,4 @@ all configured elements.
 Acceptance uses the energy change with the chemical-potential offset
 `mu_before - mu_after`, at the configured temperature. The values above are
 illustrative search settings, not calibrated reservoir chemical potentials.
-When ranking by formation energy, configure the objective's chemical potentials
-consistently. For fixed-composition positional swaps, use {doc}`swap`.
+For fixed-composition positional swaps, use {doc}`swap`.

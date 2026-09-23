@@ -12,10 +12,12 @@ and select another suitable runtime in a new output directory.
 evaluates candidates using execution workers, and ranks them using the search
 objective. It inherits directly from `BaseExploration`, independently of MC.
 
+Basin hopping reuses the {ref}`sampling-operators` documented under Canonical Sampling. Configure those same moves in `recipe.operators`. With a minimization
+runtime, BH relaxes valid trials before the chain's acceptance decision.
+
 ```{toctree}
 :maxdepth: 2
 
-bh/operators
 bh/examples/index
 ```
 
@@ -24,7 +26,7 @@ configuration. The recipe uses these settings:
 
 - `population`: `retained_size`, named `builders`, `initial` allocations,
   `generation.total_size`, comparator, and extinction settings.
-- `operators`: weighted moves; see {ref}`bh-operators` for configuration and move logs.
+- `operators`: weighted moves; see {ref}`sampling-operators` for configuration and {ref}`bh-operator-logs` for move logs.
 - `num_mcmoves`: number of proposals per candidate chain.
 - `selection.replace`: sample chain starts with replacement; defaults to `false`.
 - `convergence.generation`: final generation number; defaults to `1`.
@@ -40,8 +42,8 @@ values add population reselection between search generations.
 This self-contained Cu₈ example generates four random structures using
 `random_structure_improved` and launches two chains of ten proposals. Its
 calculation runtime minimizes initial structures and every valid trial batch.
-It uses only {doc}`bh/operators/move` for a simple fixed-composition search.
-The {ref}`bh-operators` reference links to a detailed page for each operator.
+It uses only {doc}`../explorations/operators/move` for a simple fixed-composition search.
+The {ref}`sampling-operators` reference links to a detailed page for each operator.
 
 ```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 :language: yaml
@@ -77,6 +79,14 @@ search as extinct. Selection borrows candidate references without copying atoms.
 Already checkpointed starts are reused on resume. The new default can change
 future selections for the same seed; use `replace: true` to retain the previous
 sampling policy, and resume with the same configuration for reproducibility.
+
+## Acceptance and population ranking
+
+Operators use the shared {ref}`sampling-operators` reference. The population's
+ranking objective is separate from the chain acceptance rule. Keep exchange
+`chempots` and objective `chemical_potentials` consistent when using
+formation-energy ranking. BH owns population selection and search objectives;
+its population is not an equilibrium sample.
 
 ## Batched rounds and execution
 
@@ -160,6 +170,36 @@ reprinting previous round rows. Timings cover the current invocation only.
 Routine GDP worker and move messages appear with `gdp --debug`; warnings and
 errors remain visible normally. Blocks use no cursor control or colour escapes,
 so redirected and scheduler logs retain the same readable structure.
+
+(bh-operator-logs)=
+
+### Setup output and move logs
+
+Each BH invocation prints a compact setup box with operator indices and names,
+normalized selection probabilities, particles, temperatures, and move-specific
+settings.
+
+Detailed move diagnostics are saved automatically in one file per hopping
+generation: `tmp_folder/gen1/mcmoves.log`, `tmp_folder/gen2/mcmoves.log`, and so
+on, alongside each generation's `rounds/` and `evaluations/` folders. Every line has
+a timestamp, level, generation, round, chain, segment, parent candidate, and
+operator index/name. Invocation headers contain full resolved operator settings;
+fields that do not apply to a header use `-`.
+
+Routine operator messages are written at normal verbosity. Detailed DEBUG
+messages are included only when gdpx's DEBUG logging is enabled. Move details
+stay out of the normal console, while setup and progress boxes remain visible.
+
+Logs distinguish uncommitted proposal diagnostics from committed outcomes.
+Outcome lines include acceptance/rejection, energies, extinction, and restart
+candidate IDs where applicable. Invalid proposals are logged without an
+evaluation. Resume appends an invocation marker and identifies reused pending
+proposals; it does not regenerate them for logging. An interruption can leave
+uncommitted or replayed diagnostics, so `events.jsonl` and checkpoints remain the
+authoritative scientific history. These logs survive checkpoint cleanup.
+
+Logging uses existing results and scalar metadata: it does not copy atoms,
+evaluate calculators, or consume random numbers.
 
 ### Runtime and restart files
 

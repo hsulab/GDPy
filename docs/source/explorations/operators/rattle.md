@@ -1,4 +1,4 @@
-(bh-operator-rattle)=
+(sampling-operator-rattle)=
 
 # `rattle`
 
@@ -7,16 +7,15 @@ several local environments to change before relaxation.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: rattle
-      particles: [Cu, Ni]
-      rattle_strength: 0.8
-      rattle_prop: 0.4
-      temperature: 500.0
+- method: rattle
+  particles: [Cu, Ni]
+  rattle_strength: 0.8
+  rattle_prop: 0.4
+  temperature: 500.0
 ```
 
 ## Settings
@@ -27,7 +26,7 @@ recipe:
 | `rattle_strength` | Half-width of each Cartesian displacement interval, in Å; finite and positive | 0.8 |
 | `rattle_prop` | Independent selection probability per eligible particle; in `(0, 1]` | 0.4 |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance

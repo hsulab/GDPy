@@ -1,4 +1,4 @@
-(bh-operator-cavity-exchange)=
+(sampling-operator-cavity-exchange)=
 
 # `cavity_exchange`
 
@@ -7,21 +7,20 @@ cavity count in exchange acceptance.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: cavity_exchange
-      particles: [Ni]
-      chempots: [-0.5]
-      num_trials: 50
-      cavity_distance: [2.0, null]
-      temperature: 1000.0
-      region:
-        method: sphere
-        origin: [10.0, 10.0, 10.0]
-        radius: 3.0
+- method: cavity_exchange
+  particles: [Ni]
+  chempots: [-0.5]
+  num_trials: 50
+  cavity_distance: [2.0, null]
+  temperature: 1000.0
+  region:
+    method: sphere
+    origin: [10.0, 10.0, 10.0]
+    radius: 3.0
 ```
 
 ## Settings
@@ -34,7 +33,7 @@ recipe:
 | `num_trials` | Number of trial points; supply a positive integer | Required |
 | `cavity_distance` | Absolute `[minimum, maximum]` distances in Å; `null` maximum disables the isolation check | Uses `covalent_ratio` |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance

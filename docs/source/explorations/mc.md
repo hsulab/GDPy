@@ -27,6 +27,9 @@ forces insertion when no exchangeable particles remain, without correcting the
 change in insertion/deletion proposal probabilities at that boundary. Do not
 use these semi-grand/grand-canonical demos as validated equilibrium samplers.
 
+See the shared {ref}`sampling-operators` reference for available moves and
+their configuration, particle selection, and acceptance rules.
+
 ## Examples
 
 The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands

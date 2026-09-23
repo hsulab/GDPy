@@ -1,4 +1,4 @@
-(bh-operator-react)=
+(sampling-operator-react)=
 
 # `react`
 
@@ -7,22 +7,21 @@ stoichiometric reaction, allowing both forward and reverse proposals.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: react
-      reaction:
-        particles: [H2, O2, H2O]
-        chempot_0: [0.0, 0.0, 0.0]
-        coefficients: [-2, -1, 2]
-      temperature: 1000.0
-      use_bias: false
-      region:
-        method: sphere
-        origin: [10.0, 10.0, 10.0]
-        radius: 3.0
+- method: react
+  reaction:
+    particles: [H2, O2, H2O]
+    chempot_0: [0.0, 0.0, 0.0]
+    coefficients: [-2, -1, 2]
+  temperature: 1000.0
+  use_bias: false
+  region:
+    method: sphere
+    origin: [10.0, 10.0, 10.0]
+    radius: 3.0
 ```
 
 ## Settings
@@ -37,7 +36,7 @@ recipe:
 | `pressure` | Operator pressure setting in bar | 1.0 |
 | `use_bias` | Use estimated empty volume instead of geometric volume | `true` |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance

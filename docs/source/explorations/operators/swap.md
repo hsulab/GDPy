@@ -1,4 +1,4 @@
-(bh-operator-swap)=
+(sampling-operator-swap)=
 
 # `swap`
 
@@ -6,16 +6,15 @@ Rearrange two particle types while preserving their total counts.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: swap
-      particles: [Cu, Ni]
-      swap_mode: atomic
-      check_used_pairs: true
-      temperature: 500.0
+- method: swap
+  particles: [Cu, Ni]
+  swap_mode: atomic
+  check_used_pairs: true
+  temperature: 500.0
 ```
 
 ## Settings
@@ -26,7 +25,7 @@ recipe:
 | `swap_mode` | `atomic` or `cop_z` | `atomic` |
 | `check_used_pairs` | Avoid retrying the same pair within a proposal | `false` |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance

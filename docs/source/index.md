@@ -106,6 +106,7 @@ command: gdp explore <explorations/index>
 
 monte carlo <explorations/mc>
 hybrid monte carlo <explorations/hmc>
+operators <explorations/operators/index>
 ```
 
 ```{toctree}

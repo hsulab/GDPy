@@ -1,4 +1,4 @@
-(bh-operator-bounce)=
+(sampling-operator-bounce)=
 
 # `bounce`
 
@@ -7,18 +7,17 @@ atoms away when the displacement brings them too close.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: bounce
-      particles: [Cu]
-      direction: +z
-      bias_ratio: 0.8
-      max_disp: 0.8
-      repulsion_strength: 1.0
-      temperature: 500.0
+- method: bounce
+  particles: [Cu]
+  direction: +z
+  bias_ratio: 0.8
+  max_disp: 0.8
+  repulsion_strength: 1.0
+  temperature: 500.0
 ```
 
 ## Settings
@@ -31,7 +30,7 @@ recipe:
 | `max_disp` | Displacement scale in Å | 2.0 |
 | `repulsion_strength` | Scale applied to neighboring overlap corrections | 1.0 |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance
@@ -48,4 +47,4 @@ no eligible atom gives an invalid proposal.
 
 Composition is unchanged and acceptance uses energy and temperature. The
 axis bias makes this useful for directed search proposals; it does not make
-the BH population an equilibrium sample.
+a trajectory an equilibrium sample.

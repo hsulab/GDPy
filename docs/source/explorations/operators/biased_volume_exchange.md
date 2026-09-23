@@ -1,4 +1,4 @@
-(bh-operator-biased-volume-exchange)=
+(sampling-operator-biased-volume-exchange)=
 
 # `biased_volume_exchange`
 
@@ -7,19 +7,18 @@ acceptance factor.
 
 ## Configuration
 
-This is an operator fragment to place in an exploration recipe:
+Place this fragment under `recipe.operators` for MC or basin hopping,
+or under top-level `operators` for hybrid MC:
 
 ```yaml
-recipe:
-  operators:
-    - method: biased_volume_exchange
-      particles: [Ni]
-      chempots: [-0.5]
-      temperature: 1000.0
-      region:
-        method: sphere
-        origin: [10.0, 10.0, 10.0]
-        radius: 3.0
+- method: biased_volume_exchange
+  particles: [Ni]
+  chempots: [-0.5]
+  temperature: 1000.0
+  region:
+    method: sphere
+    origin: [10.0, 10.0, 10.0]
+    radius: 3.0
 ```
 
 ## Settings
@@ -30,7 +29,7 @@ recipe:
 | `chempots` | One chemical potential in eV per particle | Required |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 
-See {ref}`bh-operator-shared-settings` for temperature, relative selection
+See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance
