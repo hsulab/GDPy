@@ -1,11 +1,25 @@
 # mace
 
+## Installation
+
+Install the MACE inference and training package from the repository root:
+
+```shell
+python -m pip install -e '.[mace]'
+```
+
+This installs `mace-torch`, including the `mace_run_train` executable. Set
+`trainer.command: mace_run_train` as shown below. See {doc}`../potentials/mace`
+for CPU and GPU installation options.
+
+## Configuration
+
 **gdp** writes `./_train.xyz` and `./_test.xyz` into the training directory based on
 `dataset` and generates a command line based on `trainer`.
 
 Notice some parameters are override by **gdp** based on the `dataset` and the `trainer`
 parameters. The `trainer.config` section will be converted to a command line as
-`python ./run_train.py --name='MACE_model' ...`, which is the current training command
+`mace_run_train --name='MACE_model' ...`, which is the training command
 supported by MACE.
 
 - seed: Override by `trainer.seed`
@@ -36,7 +50,7 @@ dataset:
   random_seed: 1112
 trainer:
   name: mace
-  command: python ./run_train.py
+  command: mace_run_train
   config: # This section can be put into a separate file e.g. `./config.yaml`
     name: MACE_model
     valid_fraction: 0.05

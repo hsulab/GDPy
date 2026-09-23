@@ -61,6 +61,7 @@ From the repository root, install only the potential packages you need:
 
 ```shell
 python -m pip install -e '.[deepmd]'
+python -m pip install -e '.[mace]'
 python -m pip install -e '.[mattersim]'
 python -m pip install -e '.[reann]'
 python -m pip install -e '.[tace]'
@@ -87,6 +88,10 @@ If compatible CUDA and cuDNN libraries are already installed, use
 NVIDIA driver. The original `deepmd` extra allows either major version;
 `deepmd-gpu` and `deepmd-cu12` select DeepMD 3. See {doc}`potentials/deepmd`
 for version constraints, backend selection, and GPU verification.
+
+The `mace` extra installs `mace-torch` and PyTorch for inference and training.
+See {doc}`potentials/mace` for CPU/GPU setup and {doc}`trainers/mace` for the
+installed training command.
 
 The TACE extra uses a tested GitHub commit and requires Git. See
 {doc}`potentials/tace` and {doc}`potentials/mattersim` for model selection and
