@@ -1,18 +1,18 @@
 {% set name = "gdpx" %}
-{% set version = "0.0.10" %}
+{% set version = "0.0.11" %}
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  url: https://pypi.python.org/packages/source/g/gdpx/gdpx-0.0.10.tar.gz
-  sha256: ffd485f15bd65553f42ae365c5e70b428d38ed75dad633a7429d270a26de3051
+  url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  sha256: 8b909a8d674da1aa59af34dcabf6ee6dcb4405f27e6efc98ea9eed3c20fb8b03
 
 build:
   noarch: python
   number: 0
-  script: {{ PYTHON }} -m pip install . -vv
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
   entry_points:
     - gdp = gdpx.main:main
 
@@ -20,9 +20,10 @@ requirements:
   host:
     - python >=3.9
     - pip
+    - setuptools >=61
   run:
     - python >=3.9
-    - ase >=3.23
+    - ase >=3.24,<3.27
     - h5py >=3.7.0
     - joblib >=1.1.0
     - networkx >=2.6.3
