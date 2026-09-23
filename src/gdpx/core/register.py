@@ -1,18 +1,22 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import importlib
-import logging
 import warnings
 
 from .. import config
 
 
 class Register:
-
-    def __init__(self, registry_name):
+    def __init__(self, registry_name: str) -> None:
+        """"""
         self._dict = {}
         self._name = registry_name
+
+        return
+
+    @property
+    def name(self) -> str:
+        """The register name."""
+
+        return self._name
 
     def __setitem__(self, key, value):
         if not callable(value):
@@ -21,7 +25,8 @@ class Register:
             key = value.__name__
         if key in self._dict:
             warnings.warn(
-                "Key %s already in registry %s." % (key, self._name), UserWarning
+                "Key %s already in registry %s." % (key, self._name),
+                UserWarning,
             )
         self._dict[key] = value
 
@@ -58,9 +63,7 @@ class Register:
         ncols = 5
         nrows = int(nkeys / ncols)
         for i in range(nrows):
-            content += ("  " + "{:<24s}" * ncols + "\n").format(
-                *keys[i * ncols : i * ncols + ncols]
-            )
+            content += ("  " + "{:<24s}" * ncols + "\n").format(*keys[i * ncols : i * ncols + ncols])
 
         nrest = nkeys - nrows * ncols
         if nrest > 0:
@@ -69,8 +72,11 @@ class Register:
         return content
 
 
-class registers:
+# For compatibility,
+BaseRegister = Register
 
+
+class registers:
     #: Session operations.
     operation: Register = Register("operation")
 
@@ -80,66 +86,18 @@ class registers:
     #: Session placeholder
     placeholder: Register = Register("placeholder")
 
-    #: Schedulers.
-    scheduler: Register = Register("scheduler")
-
-    #: Managers (Potentials).
-    manager: Register = Register("manager")
-
-    #: Trainers (Potential Trainers).
-    trainer: Register = Register("trainer")
-
-    #: Dataloaders (Datasets).
-    dataloader: Register = Register("dataloader")
-
-    #: Regions.
-    region: Register = Register("region")
-
-    #: Builders.
-    builder: Register = Register("builder")
-
-    #: Bias.
-    bias: Register = Register("bias")
-
-    #: Colvars.
-    colvar: Register = Register("colvar")
-
-    #: Modifiers.
-    modifier: Register = Register("modifier")
-
-    #: Reactors.
-    reactor: Register = Register("reactor")
-
-    #: Expeditions.
-    expedition: Register = Register("expedition")
-
-    #: Selectors.
-    selector: Register = Register("selector")
-
-    #: Describers.
-    describer: Register = Register("describer")
-
-    #: Comparators.
-    comparator: Register = Register("comparator")
-
-    #: Validators.
-    validator: Register = Register("validator")
-
     def __init__(self):
-        raise RuntimeError("Registries is not intended to be instantiated")
+        raise RuntimeError("The registers is not intended to be instantiated")
 
     @staticmethod
-    def get(mod_name: str, cls_name: str, convert_name: bool = True, *args, **kwargs):
+    def get(mod_name: str, cls_name: str, convert_name: bool = True):
         """Acquire the target class from modules."""
-        # - convert the cls_name by the internal convention
+        # Convert the cls_name by the internal convention
         if convert_name:
             # cls_name = cls_name.capitalize() + mod_name.capitalize()
-            cls_name = (
-                "".join([x.capitalize() for x in cls_name.strip().split("_")])
-                + mod_name.capitalize()
-            )
+            cls_name = "".join([x.capitalize() for x in cls_name.strip().split("_")]) + mod_name.capitalize()
 
-        # - get the class
+        # Get the class
         curr_register = getattr(registers, mod_name)
         target_cls = curr_register[cls_name]
 
@@ -147,56 +105,37 @@ class registers:
 
     @staticmethod
     def create(
-        mode_name: str, cls_name: str, convert_name: bool = True, *args, **kwargs
+        mode_name: str,
+        cls_name: str,
+        convert_name: bool = True,
+        *args,
+        **kwargs,
     ):
         """"""
-        target_cls = registers.get(mode_name, cls_name, convert_name, *args, **kwargs)
+        target_cls = registers.get(mode_name, cls_name, convert_name)
         instance = target_cls(*args, **kwargs)
 
         return instance
 
 
 ALL_MODULES = [
-    # - working components.
-    # -- schedulers
-    ("gdpx", ["scheduler"]),
-    # -- managers (potentials)
-    ("gdpx.potential", ["managers"]),
-    # -- dataloaders (datasets)
-    ("gdpx.data", ["dataset"]),
-    # -- bias
-    ("gdpx", ["bias"]),
-    # -- builders
-    ("gdpx", ["builder"]),
-    # -- genetic-algorithm-related
-    ("gdpx.builder", ["crossover", "mutation"]),
-    # -- colvar
-    ("gdpx", ["colvar"]),
-    # -- selectors
-    ("gdpx", ["selector"]),
-    # -- describer
-    ("gdpx", ["describer"]),
-    # -- comparators
-    ("gdpx", ["comparator"]),
-    # -- expeditions
-    ("gdpx.expedition", ["interface"]),
-    # -- reactors
-    # -- validators
-    ("gdpx", ["validator"]),
-    # - session operations + variables.
-    ("gdpx.builder", ["interface"]),
-    ("gdpx.computation", ["interface"]),
-    ("gdpx", ["data"]),
-    ("gdpx.data", ["interface"]),
-    ("gdpx.describer", ["interface"]),
-    ("gdpx.potential", ["interface"]),
-    ("gdpx.reactor", ["interface"]),
-    ("gdpx.comparator", ["interface"]),
-    ("gdpx.trainer", ["interface"]),
-    ("gdpx.selector", ["interface"]),
-    ("gdpx.scheduler", ["interface"]),
-    ("gdpx.validator", ["interface"]),
-    ("gdpx.worker", ["interface"]),
+    (
+        "gdpx.nodes",
+        [
+            "region",
+            "trainer",
+            "validator",
+            "dataset",
+            "selector",
+            "describer",
+            "driver",
+            "computer",
+            "scheduler",
+            "expedition",
+            "comparator",
+            "potential",
+        ],
+    ),
 ]
 
 
@@ -214,67 +153,70 @@ def _handle_errors(errors):
     return names, reasons
 
 
-def show_failed_modules_in_rows(names):
+def show_failed_modules_in_rows_with_reasons(names, reasons) -> list[str]:
     """"""
-    keys = sorted(names)
-    nkeys = len(keys)
-    ncols = 3
-    nrows = int(nkeys / ncols)
-
-    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
-    for i in range(nrows):
-        lines.append(
-            ("  " + "{:<48s}" * ncols + "").format(*keys[i * ncols : i * ncols + ncols])
-        )
-
-    nrest = nkeys - nrows * ncols
-    if nrest > 0:
-        lines.append(("  " + "{:<48s}" * nrest + "").format(*keys[nrows * ncols :]))
-
-    return lines
-
-def show_failed_modules_in_rows_with_reasons(names, reasons):
-    """"""
-    lines = ["FAILED TO IMPORT OPTIONAL MODULES: "]
+    lines = []
     for name, err in zip(names, reasons):
-        lines.append(f"{name:<24} -> ({err})")
+        lines.append(f"  {name:<33s} -> require `{err.name}`.")
 
     return lines
 
-def import_all_modules_for_register(custom_module_paths=None) -> str:
+
+def import_all_modules_for_register(custom_module_paths=None, disable_import_info: bool = False) -> None:
     """Import all modules for register."""
+    if not disable_import_info:
+        config._print("FAILED TO IMPORT OPTIONAL MODULES: ")
+
+    # Add standard modules
     modules = []
     for base_dir, submodules in ALL_MODULES:
         for name in submodules:
             full_name = base_dir + "." + name
             modules.append(full_name)
+
+    # Add custom plugins
     if isinstance(custom_module_paths, list):
         modules += custom_module_paths
-    # print("ALL MODULES: ", modules)
+
+    # Load all modules
     errors = []
     for module in modules:
         try:
             importlib.import_module(module)
         except ImportError as error:
             errors.append((module, error))
+
     names, reasons = _handle_errors(errors)
 
-    # - some imported packages change `logging.basicConfig`
-    #   and accidently add a StreamHandler to logging.root
-    #   so remove it...
-    for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(
-            h, logging.FileHandler
-        ):
-            logging.root.removeHandler(h)
+    # Try loading local registers
+    local_module_pairs = (
+        ("bias", "bias"),
+        ("builder", "builder"),
+        ("colvar", "colvar"),
+        ("comparator", "comparator"),
+        ("dataloader", "dataloader"),
+        ("describer", "describer"),
+        ("expedition", "expedition"),
+        ("manager", "potential"),  # use alias
+        ("region", "region"),
+        ("scheduler", "scheduler"),
+        ("selector", "selector"),
+        ("trainer", "trainer"),
+        ("validator", "validator"),
+    )
 
-    # lines = show_failed_modules_in_rows(names)
-    lines = show_failed_modules_in_rows_with_reasons(names, reasons)
-    for line in lines:
-        config._print(line)
+    for register_name, module_name in local_module_pairs:
+        setattr(registers, module_name, Register(module_name))  # add an empty register that can be used in main
+        try:
+            module = importlib.import_module("gdpx" + "." + module_name)
+            local_register = getattr(module, "REGISTER")
+            setattr(registers, register_name, local_register)
+        except ImportError as error:
+            errors.append((module_name, error))
+
+    if not disable_import_info:
+        lines = show_failed_modules_in_rows_with_reasons(names, reasons)
+        for line in lines:
+            config._print(line)
 
     return
-
-
-if __name__ == "__main__":
-    ...

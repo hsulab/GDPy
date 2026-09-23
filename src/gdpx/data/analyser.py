@@ -23,7 +23,7 @@ from joblib import Parallel, delayed
 
 from collections import Counter
 
-from gdpx.utils.command import parse_input_file
+from gdpx.utils.parser import parse_input_file
 
 # global settings
 from gdpx import config

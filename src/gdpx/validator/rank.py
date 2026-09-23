@@ -4,10 +4,12 @@
 
 from typing import Mapping
 
-from ..data.array import AtomsNDArray
-from .validator import AbstractValidator
+from gdpx.data.array import AtomsNDArray
 
-class RankValidator(AbstractValidator):
+from .validator import BaseValidator
+
+
+class RankValidator(BaseValidator):
 
     def run(self, dataset: Mapping[str, AtomsNDArray], *args, **kwargs):
         """"""
@@ -24,3 +26,4 @@ class RankValidator(AbstractValidator):
 
 if __name__ == "__main__":
     ...
+

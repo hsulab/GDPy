@@ -4,41 +4,32 @@
 
 import itertools
 
-
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 try:
     plt.style.use("presentation")
 except Exception as e:
     ...
 
-from .selector import AbstractSelector
-from ..utils.geometry import wrap_traj
+from gdpx.data.array import AtomsNDArray
+from gdpx.geometry.align import wrap_traj
+
+from .selector import BaseSelector
 
 
-class BasinSelector(AbstractSelector):
+class BasinSelector(BaseSelector):
 
     name: str = "basin"
 
     default_parameters: dict = dict(dispintv=0.4)  # angstrom per atom
 
-    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray) -> None:
         """"""
-        super().__init__(directory, axis, *args, **kwargs)
-
-        return
-
-    def _mark_structures(self, data, *args, **kwargs) -> None:
-        """"""
-        super()._mark_structures(data, *args, **kwargs)
-
-        print(f"data: {data}")
-
-        if self.axis is None:
+        if self.group_by is None:
             axis = 0
         else:
-            axis = self.axis
+            axis = self.group_by
 
         if data.ndim >= 1:
             # assume a single trajectory
@@ -109,7 +100,10 @@ class BasinSelector(AbstractSelector):
         posmat = np.array([a.positions.flatten() for a in structures])
         disps = np.sqrt(
             np.sum(
-                (np.take(posmat, pairs[0], axis=0) - np.take(posmat, pairs[1], axis=0))
+                (
+                    np.take(posmat, pairs[0], axis=0)
+                    - np.take(posmat, pairs[1], axis=0)
+                )
                 ** 2,
                 axis=1,
             )

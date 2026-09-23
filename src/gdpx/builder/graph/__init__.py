@@ -4,10 +4,9 @@
 
 from .insert import GraphInsertModifier
 from .remove import GraphRemoveModifier
-from .exchange import GraphExchangeModifier
+from .swap import GraphSwapModifier
 
-
-__all__ = [GraphInsertModifier, GraphRemoveModifier, GraphExchangeModifier]
+__all__ = ["GraphInsertModifier", "GraphRemoveModifier", "GraphSwapModifier"]
 
 
 if __name__ == "__main__":

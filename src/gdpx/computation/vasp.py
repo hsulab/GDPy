@@ -1,176 +1,348 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import dataclasses
 import io
-import os
 import pathlib
 import re
 import shutil
 import tarfile
 import traceback
-from typing import List, Optional, Tuple, Union
+from typing import Optional
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.vasp import Vasp
-from ase.io import read, write
 from ase.geometry import find_mic
+from ase.io import read, write
 
-from ..data.extatoms import ScfErrAtoms
-from ..utils.cmdrun import run_ase_calculator
-from ..utils.strucopy import read_sort, resort_atoms_with_spc
-from .driver import AbstractDriver, Controller, DriverSetting
+from gdpx.backend.vasp import read_oszicar, read_outcar_scf, read_report, write_vasp
+from gdpx.data.extatoms import ScfErrAtoms
+from gdpx.utils.cmdrun import run_ase_calculator
+from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
+
+from .driver import BaseDriver, Controller, DriverSetting
 
 """Driver for VASP."""
 #: Ase-vasp resort fname.
 ASE_VASP_SORT_FNAME: str = "ase-sort.dat"
 
 
-def read_outcar_scf(lines: List[str]) -> Tuple[int, float]:
-    """"""
-    nelm, ediff = None, None
-    for line in lines:
-        if line.strip().startswith("NELM"):
-            nelm = int(line.split()[2][:-1])
-        if line.strip().startswith("EDIFF"):
-            ediff = float(line.split()[2])
-        if nelm is not None and ediff is not None:
-            break
-    else:
-        ...  # TODO: raise an error?
+@dataclasses.dataclass
+class SinglePointController(Controller):
+    name: str = "spc"
 
-    return nelm, ediff
+    def __post_init__(self):
+        """"""
 
+        self.conv_params = dict(nsw=0)
 
-def read_oszicar(lines: List[str], nelm: int, ediff: float) -> List[bool]:
-    """"""
-    convergence = []
-    content = ""
-    for line in lines:
-        start = line.strip().split()[0]
-        if start == "N":
-            content = ""
-            continue
-        if start.isdigit():
-            scfsteps = [int(s.split()[1]) for s in content.strip().split("\n")]
-            num_scfsteps = len(scfsteps)
-            assert num_scfsteps == scfsteps[-1], f"{num_scfsteps =}, {scfsteps[-1] =}"
-            enediffs = [float(s.split()[3]) for s in content.strip().split("\n")]
-            is_converged = num_scfsteps < nelm or np.fabs(enediffs[-1]) <= ediff
-            convergence.append(is_converged)
-        content += line
-
-    # If the last SCF is not finished,
-    # there is no content to check
-
-    return convergence
-
-def read_report(lines: List[str]):
-    """Read VASP-REPORT and find RANDOM_SEED."""
-    pattern = re.compile(r"RANDOM_SEED =\s*(\d+)\s+(\d+)\s+(\d+)")
-    random_seeds = []
-    for line in lines:
-        match = pattern.search(line)
-        if match:
-            random_seeds.append([match.group(1), match.group(2), match.group(3)])
-        else:
-            ...
-    random_seeds = np.array(random_seeds, dtype=np.int32)
-
-    return random_seeds
+        return
 
 
 @dataclasses.dataclass
-class LangevinThermostat(Controller):
+class FrequencyController(Controller):
+    #: Controller name.
+    name: str = "frequency"
 
+    #: The finite difference.
+    maxstep: float = 0.015
+
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", self.maxstep)
+
+        self.conv_params = dict(
+            ibrion=5,
+            nfree=2,
+            potim=maxstep,  # angstrom, vasp5 default
+            nsw=1,  # cannot be zero
+        )
+
+        return
+
+
+@dataclasses.dataclass
+class BFGSMinimiser(Controller):
+    name: str = "bfgs"  # RMM-DIIS
+
+    def __post_init__(self):
+        """"""
+
+        maxstep = self.params.get("maxstep", 0.1)
+
+        self.conv_params = dict(ibrion=1, potim=maxstep)
+
+        return
+
+
+@dataclasses.dataclass
+class CGMinimiser(Controller):
+    name: str = "cg"
+
+    def __post_init__(self):
+        """"""
+
+        maxstep = self.params.get("maxstep", 0.1)
+
+        self.conv_params = dict(ibrion=2, potim=maxstep)
+
+        return
+
+
+@dataclasses.dataclass
+class CellBFGSMinimiser(BFGSMinimiser):
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(isif=3)
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class CellCGMinimiser(CGMinimiser):
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(isif=3)
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class MDController(Controller):
+    #: Controller name.
+    name: str = "md"
+
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Temperature in Kelvin.
+    temperature_end: Optional[float] = None
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Pressure in Kelvin.
+    pressure_end: Optional[float] = None
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+        basic_params = dict(
+            ibrion=0,
+            isif=0,
+            potim=self.timestep,
+            random_seed=None,  # init later in driver run
+            tebeg=self.temperature,
+        )
+        # We need keywords: TEBEG and TEEND.
+        if self.temperature_end is not None:
+            basic_params.update(teend=self.temperature_end)
+
+        self.conv_params = basic_params
+
+        return
+
+
+@dataclasses.dataclass
+class Verlet(MDController):
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        more_params = dict(
+            mdalgo=2,
+            smass=3,
+        )
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class LangevinThermostat(MDController):
     name: str = "langevin"
 
     def __post_init__(
         self,
     ):
         """"""
+        super().__post_init__()
+
         friction = self.params.get("friction", None)  # fs^-1
+        friction *= 1e3  # ps^-1
         assert friction is not None
 
-        self.conv_params = dict(langevin_gamma=friction * 1e3)  # ps^-1
+        # MDALGO, LANGEVIN_GAMMA
+        more_params = dict(
+            mdalgo=3,
+            langevin_gamma=friction,
+        )
+
+        self.conv_params.update(**more_params)
 
         return
 
 
 @dataclasses.dataclass
-class NoseHooverThermostat(Controller):
-
+class NoseHooverThermostat(MDController):
     name: str = "nose_hoover"
 
-    def __post_init__(
-        self,
-    ):
+    def __post_init__(self):
         """"""
+        super().__post_init__()
+
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0)  # or smass?
+        smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, "NoseHoover-NVT needs positive SMASS."
 
-        self.conv_params = dict(smass=smass)
+        # MDALGO, SMASS
+        more_params = dict(mdalgo=2, smass=smass)
+
+        self.conv_params.update(**more_params)
 
         return
 
 
 @dataclasses.dataclass
-class ParrinelloRahmanBarostat(Controller):
+class NoseHooverChainThermostat(MDController):
+    name: str = "nose_hoover_chain"
 
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        # Only supports in vasp6
+        nhc_period = self.params.get("Tdamp", 0.0)
+        assert nhc_period >= 0, "NoseHoover-NVT needs positive SMASS."
+
+        nhc_chains = self.params.get("tchain", 3)
+
+        # MDALGO, SMASS
+        more_params = dict(
+            mdalgo=4,
+            nhc_nchains=nhc_chains,
+            nhc_period=nhc_period,
+        )
+
+        self.conv_params.update(**more_params)
+
+        return
+
+
+@dataclasses.dataclass
+class ParrinelloRahmanBarostat(MDController):
     name: str = "parrinello_rahman"
 
-    def __post_init__(
-        self,
-    ):
+    def __post_init__(self):
         """"""
+        super().__post_init__()
+
         # FIXME: convert taut to smass
-        smass = self.params.get("taut", 0.0)  # or smass?
+        smass = self.params.get("Tdamp", 0.0)  # or smass?
         assert smass >= 0, f"{self.name} needs positive SMASS."
 
-        friction = self.params.get("friction", None)  # fs^-1
+        friction = self.params.get("friction", 0.01)  # fs^-1
+        friction *= 1e3  # array, ps^-1
         assert friction is not None
 
-        friction_lattice = self.params.get("friction_lattice", None)  # fs^-1
+        # FIXME: convert taut to pmass [a.m.u.]
+        pmass = self.params.get("Pdamp", 1000.0)  # or smass?
+        assert pmass >= 0, f"{self.name} needs positive PMASS."
+
+        friction_lattice = self.params.get("friction_lattice", 0.01)  # fs^-1
+        friction_lattice *= 1e3  # real, ps^-1
         assert friction_lattice is not None
 
-        pmass = self.params.get("pmass", None)  # a.m.u
-        assert pmass > 0.0
+        isotropic = self.params.get("isotropic", False)  # Ang
+        # assert isotropic is not None
+        if isotropic:
+            raise RuntimeError("VASP does not fixed-shape NPT for now.")
 
-        self.conv_params = dict(
+        more_params = dict(
+            mdalgo=3,
+            isif=4 if isotropic else 3,
             smass=smass,
-            langevin_gamma=friction * 1e3,  # array, ps^-1
-            langevin_gamma_l=friction_lattice * 1e3,  # real, ps^-1
-            pmass=1000.0,
+            langevin_gamma=friction,
+            langevin_gamma_l=friction_lattice,
+            pmass=pmass,
+            # pressure unit 1 GPa  = 10 kBar
+            #               1 kBar = 1000 bar = 10^8 Pa
+            pstress=1e-3 * self.pressure,  # vasp uses kB
         )
+        if self.pressure_end is not None:
+            raise RuntimeError("VASP does not support NPT with changing pressure.")
+
+        self.conv_params.update(**more_params)
 
         return
 
 
 controllers = dict(
+    # - spc
+    single_point_spc=SinglePointController,
+    # - freq
+    finite_difference_freq=FrequencyController,
+    # - min
+    bfgs_min=BFGSMinimiser,
+    cg_min=CGMinimiser,
+    # - cmin
+    bfgs_cmin=CellBFGSMinimiser,
+    cg_cmin=CellCGMinimiser,
+    # - md
     langevin_nvt=LangevinThermostat,
     nose_hoover_nvt=NoseHooverThermostat,
+    nose_hoover_chain_nvt=NoseHooverChainThermostat,
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+default_controllers = dict(
+    spc=SinglePointController,
+    min=CGMinimiser,
+    cmin=CGMinimiser,
+    nve=Verlet,
+    nvt=LangevinThermostat,
+    npt=ParrinelloRahmanBarostat,
+    freq=FrequencyController,
 )
 
 
 @dataclasses.dataclass
 class VaspDriverSetting(DriverSetting):
+    #: Simulation task.
+    task: str = "spc"
 
-    # - md setting
+    #: MD ensemble.
     ensemble: str = "nve"
 
-    # - driver detailed controller setting
+    #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
-    # TODO: move below to controller?
-    # fix_cm: bool = False
+    #: Whether initialise velocities by VASP itself.
+    use_vasp_vinit: bool = True
 
-    # - min setting
-    etol: float = None
-    fmax: float = 0.05
+    #: Whether fix com to the its initial position.
+    fix_com: bool = False
+
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = None
+
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = 0.05
 
     def __post_init__(self):
         """Convert parameters into driver-specific ones.
@@ -179,109 +351,43 @@ class VaspDriverSetting(DriverSetting):
 
         """
         # - update internals that are specific for each calculator...
-        if self.task == "min":
-            # minimisation
-            if self.min_style == "bfgs":
-                ibrion = 1
-            elif self.min_style == "cg":
-                ibrion = 2
-            else:
-                # raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
-                ...
 
-            self._internals.update(ibrion=ibrion, potim=self.maxstep)
-
-        # -- cmin: cell minimisation
-        if self.task == "cmin":
-            if self.min_style == "bfgs":
-                ibrion = 1
-            elif self.min_style == "cg":
-                ibrion = 2
-            else:
-                # raise ValueError(f"Unknown minimisation {self.min_style} for vasp".)
-                ...
-
-            self._internals.update(isif=3, ibrion=ibrion, potim=self.maxstep)
-
-        if self.task == "md":
+        _init_params = {}
+        if self.task == "spc":
+            suffix = self.task
+        elif self.task == "min":
+            suffix = self.task
+        elif self.task == "cmin":
+            suffix = self.task
+        elif self.task == "md":
             # NOTE: Always use Selective Dynamics and MDALAGO
             #       since it properly treats the DOF and velocities
-            # some general
-            # if self.velocity_seed is None:
-            #     self.velocity_seed = np.random.randint(0, 10000)
-            # random_seed = [self.velocity_seed, 0, 0]
-            self._internals.update(
-                # -- Some shared parameters, every MD needs these!!
-                velocity_seed=self.velocity_seed,
-                ignore_atoms_velocities=self.ignore_atoms_velocities,
-                ibrion=0,
-                isif=0,
-                potim=self.timestep,  # fs
-                random_seed=None,  # NOTE: init later in driver run
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep,
+                temperature=self.temp,
+                temperature_end=self.temp,
+                pressure=self.press,
+                pressure_end=self.pend,
             )
+        elif self.task == "freq":
+            suffix = "freq"
+        else:
+            raise RuntimeError(f"Unknown VASP task `{self.task}`.")
 
-            if self.ensemble == "nve":
-                _init_md_params = dict()
-                _init_md_params.update(
-                    mdalgo=2,
-                    smass=-3,
-                )
-            elif self.ensemble == "nvt":
-                # We need keywords: TEBEG and TEEND.
-                # Also, only consistent-temperature simulation is supported.
-                _init_md_params = dict(tebeg=self.temp, teend=self.temp)
-
-                if self.controller is not None:
-                    thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                    thermo_cls = controllers[thermo_cls_name]
-                else:
-                    thermo_cls = LangevinThermostat
-                thermostat = thermo_cls(**self.controller)
-
-                if thermostat.name == "langevin":
-                    # MDALGO, LANGEVIN_GAMMA
-                    _init_md_params.update(
-                        mdalgo=3,
-                    )
-                    _init_md_params.update(**thermostat.conv_params)
-                elif thermostat.name == "nose_hoover":
-                    # MDALGO, SMASS
-                    _init_md_params.update(
-                        mdalgo=2,
-                    )
-                    _init_md_params.update(**thermostat.conv_params)
-                else:
-                    raise RuntimeError(f"Unknown {thermostat =}.")
-            elif self.ensemble == "npt":
-                # We need keywords: TEBEG, TEEND, PSTRESS
-                _init_md_params = dict(
-                    tebeg=self.temp,
-                    teend=self.temp,
-                    # pressure unit 1 GPa  = 10 kBar
-                    #               1 kBar = 1000 bar = 10^8 Pa
-                    pstress=1e-3 * self.press,  # vasp uses kB
-                )
-
-                if self.controller is not None:
-                    baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                    baro_cls = controllers[baro_cls_name]
-                else:
-                    baro_cls = ParrinelloRahmanBarostat
-                barostat = baro_cls(**self.controller)
-
-                if barostat.name == "parrinello_rahman":
-                    _init_md_params.update(mdalgo=3)
-                    _init_md_params.update(**barostat.conv_params)
-                else:
-                    raise RuntimeError(f"Unknown {barostat =}.")
+        if self.controller:
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
             else:
-                raise NotImplementedError(f"{self.md_style} is not supported yet.")
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
+        else:
+            cont_cls = default_controllers[suffix]
 
-            self._internals.update(**_init_md_params)
+        _init_params.update(**self.controller)
+        cont = cont_cls(**_init_params)
 
-        if self.task == "freq":
-            # ibrion, nfree, potim
-            raise NotImplementedError("")
+        self._internals.update(**cont.conv_params)
 
         return
 
@@ -289,59 +395,33 @@ class VaspDriverSetting(DriverSetting):
         """"""
         # convergence criteria
         fmax_ = kwargs.get("fmax", self.fmax)
-        etol_ = kwargs.get("etol", self.etol)
+        emax_ = kwargs.get("emax", self.emax)
 
-        # etol is prioritised
-        if etol_ is not None:
-            ediffg = etol_
+        # emax is prioritised
+        if emax_ is not None:
+            ediffg = emax_
         else:
             if fmax_ is not None:
                 ediffg = -1.0 * fmax_
             else:
-                ediffg = -5e-2
+                raise RuntimeError(f"VASP fmax should not be `{fmax_}`.")
 
         steps_ = kwargs.get("steps", self.steps)
         nsw = steps_
 
-        run_params = dict(
-            constraint=kwargs.get("constraint", self.constraint), ediffg=ediffg, nsw=nsw
-        )
+        run_params = dict(constraint=kwargs.get("constraint", self.constraint), ediffg=ediffg, nsw=nsw)
 
         return run_params
 
 
-class VaspDriver(AbstractDriver):
-
+class VaspDriver(BaseDriver):
     name = "vasp"
 
-    # - defaults
     default_task = "min"
     supported_tasks = ["min", "cmin", "md", "freq"]
 
-    # - system depandant params
-    syswise_keys: List[str] = ["system", "kpts", "kspacing"]
-
-    # - file names would be copied when continuing a calculation
-    saved_fnames = [
-        "ase-sort.dat",
-        "INCAR",
-        "POSCAR",
-        "KPOINTS",
-        "POTCAR",
-        "OSZICAR",
-        "OUTCAR",
-        "CONTCAR",
-        "vasprun.xml",
-        "REPORT",
-    ]
-
-    def __init__(self, calc: Vasp, params: dict, directory="./", *args, **kwargs):
-        """"""
-        super().__init__(calc, params, directory=directory, *args, **kwargs)
-
-        self.setting = VaspDriverSetting(**params)
-
-        return
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = VaspDriverSetting
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
@@ -351,13 +431,28 @@ class VaspDriver(AbstractDriver):
             if not prev_wdirs:  # no previous checkpoints
                 vasprun = self.directory / "vasprun.xml"
                 if vasprun.exists() and vasprun.stat().st_size != 0:
-                    temp_frames = read(vasprun, ":")
                     try:
-                        _ = temp_frames[0].get_forces()
-                    except:  # `RuntimeError: Atoms object has no calculator.`
+                        # `xml.etree.ElementTree.ParseError`
+                        # if vasprun.xml does not have a complete finshed single-point-calculation
+                        temp_atoms = read(vasprun, "0")
+                        # `RuntimeError: Atoms object has no calculator.`
+                        _ = temp_atoms.get_forces()
+                    except:
                         verified = False
                 else:
                     verified = False
+                # check if vasp refuses to start
+                outcar = self.directory / "OUTCAR"
+                with open(outcar, "r") as fopen:
+                    outcar_lines = fopen.readlines()
+                is_bad_geometry = False
+                for line in outcar_lines:
+                    if "|       ---->  I REFUSE TO CONTINUE WITH THIS SICK JOB ... BYE!!! <----       |" in line:
+                        self._print(f"VASP refused to start at `{str(self.directory)}` due to bad geometry.")
+                        is_bad_geometry = True
+                        break
+                if is_bad_geometry:
+                    verified = True  # There is one valid calculation but it refuses to start then gives nothing.
             else:  # TODO: verify the previous checkpoint?
                 verified = True
         else:
@@ -369,100 +464,153 @@ class VaspDriver(AbstractDriver):
         self,
         atoms: Atoms,
         ckpt_wdir=None,
-        cache_traj: Optional[List[Atoms]] = None,
+        cache_traj: Optional[list[Atoms]] = None,
         *args,
         **kwargs,
     ):
         """"""
-        try:
-            if ckpt_wdir is None:  # start from the scratch
-                # - merge params
-                run_params = self.setting.get_run_params(**kwargs)
-                run_params.update(**self.setting.get_init_params())
-                run_params["system"] = self.directory.name
+        assert isinstance(self.calc, Vasp), "VaspDriver should use ase.calculators.vasp.Vasp."
+        if ckpt_wdir is None:  # start from the scratch
+            # merge params
+            run_params = self.setting.get_run_params(**kwargs)
+            run_params.update(**self.setting.get_init_params())
+            run_params["system"] = self.directory.name
 
-                # FIXME: Init velocities?
-                prev_ignore_atoms_velocities = run_params.pop(
-                    "ignore_atoms_velocities", False
+            # update some system-dependant params
+            if "langevin_gamma" in run_params:
+                ntypes = len(set(atoms.get_chemical_symbols()))
+                run_params["langevin_gamma"] = [run_params["langevin_gamma"]] * ntypes
+
+            # FIXME: LDA+U
+            if hasattr(self.calc, "dft_plus_u") and self.calc.dft_plus_u is not None:
+                self.calc.set(ldau=True)
+                self.calc.set(ldautype=2)
+                self.calc.set(ldauprint=1)
+                chemical_symbols = atoms.get_chemical_symbols()
+                ldau_luj = {}
+                for sym in chemical_symbols:
+                    ldau_params = self.calc.dft_plus_u.get(sym, {"L": -1, "U": 0.0, "J": 0.0})
+                    ldau_luj[sym] = ldau_params
+                self.calc.set(ldau_luj=ldau_luj)
+
+            # FIXME: spin-polarised for noncollinear?
+            if hasattr(self.calc, "magmom_settings") and self.calc.magmom_settings is not None:
+                # the order will be taken care by ase vasp
+                chemical_symbols = atoms.get_chemical_symbols()
+                magmoms = [self.calc.magmom_settings.get(sym, 1.0) for sym in chemical_symbols]
+                self.calc.set(magmom=magmoms)
+
+            # parse constraint
+            self._preprocess_constraints(atoms, run_params)
+
+            # Check velocities before write_input, thus,
+            # we have veloties in atoms_sorted as well.
+            if self.setting.task == "md":
+                vasp_random_seed = [self.random_seed, 0, 0]
+                self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
+                run_params["random_seed"] = vasp_random_seed
+                self._prepare_velocities(
+                    atoms,
+                    self.setting.velocity_seed,
+                    self.setting.ignore_atoms_velocities,
                 )
-                velocity_seed = run_params.pop("velocity_seed", None)
 
-                if self.setting.task == "md":
-                    vasp_random_seed = [self.random_seed, 0, 0]
-                    self._print(f"MD Driver's velocity_seed: vasp-{vasp_random_seed}")
-                    self._print(f"MD Driver's rng: vasp-{vasp_random_seed}")
-                    run_params["random_seed"] = vasp_random_seed
-                    # TODO: use external velocities?
+            self.calc.set(**run_params)
+
+            # check dipole correction and set dipole as COM if enabled
+            use_dipole_correction = self.calc.int_params["idipol"]
+            if use_dipole_correction is not None and use_dipole_correction in [
+                1,
+                2,
+                3,
+                4,
+            ]:
+                assert self.calc.bool_params["ldipol"], (
+                    f"Use dipole correction {use_dipole_correction} but LDIPOL is False."
+                )
+                # TODO: Check whether the scaled COM is wrapped?
+                dipole_centre = atoms.get_center_of_mass(scaled=True)
+                self.calc.set(dipol=dipole_centre)
+
+            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+            #       thus we manually call the function to write input files and
+            #       run the calculation
+            atoms.calc = self.calc
+            self.calc.write_input(atoms)
+
+            # Check velocities
+            if self.setting.task == "md":
+                if self.setting.use_vasp_vinit:  # type: ignore
+                    if not self.setting.ignore_atoms_velocities:
+                        raise RuntimeError(
+                            "Cannot use atoms' velocties (ignore_atoms_velocities is false) when use_vasp_vinit is true."
+                        )
                 else:
-                    ...
+                    # use custom write_vasp to forward ase atoms' velocties to vasp
+                    write_vasp(
+                        self.directory / "POSCAR",
+                        self.calc.atoms_sorted,
+                        symbol_count=self.calc.symbol_count,
+                        # write_velocities=not self.setting.ignore_atoms_velocities,
+                        write_velocities=True,
+                    )
 
-                # - update some system-dependant params
-                if "langevin_gamma" in run_params:
-                    ntypes = len(set(atoms.get_chemical_symbols()))
-                    run_params["langevin_gamma"] = [
-                        run_params["langevin_gamma"]
-                    ] * ntypes
-
-                # FIXME: LDA+U
-
-                # - constraint
-                self._preprocess_constraints(atoms, run_params)
-
-                self.calc.set(**run_params)
-                atoms.calc = self.calc
-                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
-                #       thus we manually call the function to write input files and
-                #       run the calculation
-                self.calc.write_input(atoms)
+            if self.setting.task == "cmin":  # TODO: NPT simulation
+                # We need POSCAR in direct coordinates to deal with constraints
+                write(
+                    self.directory / "POSCAR",
+                    self.calc.atoms_sorted,
+                    symbol_count=self.calc.symbol_count,
+                    direct=True,
+                )
+        else:
+            self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
+            if cache_traj is None:
+                traj = self.read_trajectory()
             else:
-                self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
-                if cache_traj is None:
-                    traj = self.read_trajectory()
+                traj = cache_traj
+            nframes = len(traj)
+            assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
+            dump_period = 1  # since we read vasprun.xml, every frame is dumped
+            target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
+            if target_steps > 0:  # not a spc
+                # NOTE: vasp md is not consecutive, see read_trajectory
+                if self.setting.task == "min":
+                    steps = target_steps + dump_period - nframes * dump_period
+                elif self.setting.task == "md":
+                    steps = target_steps + dump_period - nframes * dump_period - 1
                 else:
-                    traj = cache_traj
-                nframes = len(traj)
-                assert nframes > 0, "VaspDriver restarts with a zero-frame trajectory."
-                dump_period = 1  # since we read vasprun.xml, every frame is dumped
-                target_steps = self.setting.get_run_params(*args, **kwargs)["nsw"]
-                if target_steps > 0:  # not a spc
-                    # NOTE: vasp md is not consecutive, see read_trajectory
-                    if self.setting.task == "min":
-                        steps = target_steps + dump_period - nframes * dump_period
-                    elif self.setting.task == "md":
-                        steps = target_steps + dump_period - nframes * dump_period - 1
-                    else:
-                        ...
-                    assert (
-                        steps > 0
-                    ), f"Steps should be greater than 0. (steps = {steps})"
-                    self.calc.set(nsw=steps)
-                # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
-                #       thus we manually call the function to write input files and
-                #       run the calculation
-                # FIXME: Read random_seed in REPORT!!!
-                if self.setting.task == "md":
-                    # read random_seed from REPORT
-                    with open(ckpt_wdir/"REPORT", "r") as fopen:
-                        lines = fopen.readlines()
-                        report_random_seeds = read_report(lines)
-                    self._print(f"{report_random_seeds.shape =}")
-                    assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
-                    self.calc.set(random_seed=report_random_seeds[-1].tolist())
-                else:
-                    ...
-                self.calc.write_input(atoms)
-                # To restart, velocities are always retained
-                # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
-                #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-                shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
+                    raise Exception(f"Task {self.setting.task} does not support updating `steps`.")
+                assert steps > 0, f"Steps should be greater than 0. (steps = {steps})"
+                self.calc.set(nsw=steps)
+            # NOTE: ASE VASP does not write velocities and thermostat to POSCAR
+            #       thus we manually call the function to write input files and
+            #       run the calculation
+            if self.setting.task == "md":
+                # read random_seed from REPORT
+                with open(ckpt_wdir / "REPORT", "r") as fopen:
+                    lines = fopen.readlines()
+                    report_random_seeds = read_report(lines)
+                self._print(f"{report_random_seeds.shape =}")
+                # FIXME: The nframes is the number of frames of the entire trajectory.
+                # assert report_random_seeds.shape[0] == nframes+1, "Inconsistent number of frames and number of random_seeds."
+                self.calc.set(random_seed=report_random_seeds[-1].tolist())
+            else:
+                ...
+            # FIXME: magmoms from outcar?
+            self.calc.write_input(atoms)
+            # To restart, velocities are always retained
+            # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
+            #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
+            shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
 
+        # TODO: Make gdpx process exists when calculation failed,
+        #       which maybe due to machine error and should be checked by users manually
+        try:
             run_ase_calculator("vasp", self.calc.command, self.directory)
-
         except Exception as e:
             self._debug(f"Exception of {self.__class__.__name__} is {e}.")
-            self._debug(
-                f"Exception of {self.__class__.__name__} is {traceback.format_exc()}."
-            )
+            self._debug(f"Exception of {self.__class__.__name__} is {traceback.format_exc()}.")
             # TODO: Deal with different exceptions...
             # If CalculationFailed and no outputs, it may not have an appropriate
             # caculation environment...
@@ -470,106 +618,160 @@ class VaspDriver(AbstractDriver):
         return
 
     def _read_a_single_trajectory(self, wdir, archive_path=None, *args, **kwargs):
-        """"""
-        oszicar_lines, outcar_lines = None, None
+        """Read vasp output files to get a list of Atoms.
+
+        The positions, energy, free_energy, and forces are read from `vasprun.xml`.
+        If necessary, the total and atomic magnetic moments are read from `OUTCAR`
+        as they are not stored in `vasprun.xml`.
+
+        """
+        self._print(wdir)
+        oszicar_fobj, outcar_fobj = None, None
         if archive_path is None:
             # - read trajectory
             vasprun = wdir / "vasprun.xml"
-            if vasprun.exists():
-                frames = read(vasprun, ":")
-                with open(wdir / "OUTCAR") as fopen:
-                    outcar_lines = fopen.readlines()
-                with open(wdir / "OSZICAR") as fopen:
-                    oszicar_lines = fopen.readlines()
+            if vasprun.exists() and vasprun.stat().st_size != 0:
+                try:  # Sometimes there are some outputs in vasprun but not a complete structure.
+                    frames = read(vasprun, ":")
+                    oszicar_fobj = open(wdir / "OSZICAR", "r")
+                    outcar_fobj = open(wdir / "OUTCAR", "r")
+                except:
+                    frames = []
             else:
                 frames = []
         else:
+            frames = []
             flags = [False, False, False]
-            vasprun_name = str(
-                (wdir / "vasprun.xml").relative_to(self.directory.parent)
-            )
+            vasprun_name = str((wdir / "vasprun.xml").relative_to(self.directory.parent))
             oszicar_name = str((wdir / "OSZICAR").relative_to(self.directory.parent))
             outcar_name = str((wdir / "OUTCAR").relative_to(self.directory.parent))
             with tarfile.open(archive_path, "r:gz") as tar:
                 for tarinfo in tar:
                     if tarinfo.name == vasprun_name:
-                        fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
+                        fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         frames = read(fobj, ":", format="vasp-xml")
                         fobj.close()
                         flags[0] = True
                     if tarinfo.name == oszicar_name:
-                        fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
-                        oszicar_lines = fobj.readlines()
-                        fobj.close()
+                        oszicar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         flags[1] = True
                     if tarinfo.name == outcar_name:
-                        fobj = io.StringIO(
-                            tar.extractfile(tarinfo.name).read().decode()
-                        )
-                        outcar_lines = fobj.readlines()
-                        fobj.close()
+                        outcar_fobj = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         flags[2] = True
                     if all(flags):
                         break
-                else:  
+                else:
                     if not flags[0]:  # check if vasprun exists
                         frames = []
                     else:
                         self._print(f"FILE FLAG AT {str(wdir)} IS {flags}.")
 
-        # - read oszicar and outcar
-        if outcar_lines is not None and oszicar_lines is not None:
-            nelm, ediff = read_outcar_scf(outcar_lines)
-            scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
-            num_scfconvs, num_frames = len(scf_convergences), len(frames)
-            self._debug(f"{num_scfconvs =} {num_frames =}")
-            if num_scfconvs == num_frames:
-                # assert len(scf_convergences) == len(
-                #     frames
-                # ), f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
-                ...
-            elif num_scfconvs == num_frames - 1:
-                # The LAST SCF failed due to some error, for example, too small distance
-                # So we manually set conv to false for the last step and also
-                # we set frames energy and forces to a very large value...
-                # FIXME: We need check whether the last step unfinished is due to exceed wall time
-                #        or some other errors... Othwise, a normal structure will be considered as an error.
-                scf_convergences.append(False)
-                # FIXME: Use a new CustomAtoms object to deal with this?
-                from ase.calculators.singlepoint import SinglePointCalculator
+        # number of frames from vasprun.xml
+        num_frames = len(frames)
 
+        # check if vasp actually starts from outcar,
+        # sometimes it refuses to start due to bad geometry, then we need return scferror instead of restarting it.
+        is_bad_geometry = False
+        vasp_params_from_outcar = {}
+        if outcar_fobj is not None:
+            outcar_lines = outcar_fobj.readlines()
+            for line in outcar_lines:
+                if "|       ---->  I REFUSE TO CONTINUE WITH THIS SICK JOB ... BYE!!! <----       |" in line:
+                    self._print(f"VASP refused to start at `{str(wdir)}` due to bad geometry.")
+                    is_bad_geometry = True
+                    break
+
+            # read magmom and magmoms if possible
+            if not is_bad_geometry:
+                vasp_params_from_outcar = read_outcar_scf(outcar_lines)
+                assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
+                if vasp_params_from_outcar["ispin"] == 2:
+                    outcar_fobj.seek(0)
+                    outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
+                    num_outcar_frames = len(outcar_frames)
+                    if num_frames != num_outcar_frames:
+                        self._print(f"Find vasprun {num_frames} != outcar {num_outcar_frames}.")
+                    else:
+                        for i in range(num_frames):
+                            frames[i].calc.results.update(
+                                magmom=outcar_frames[i].calc.results["magmom"],
+                                magmoms=outcar_frames[i].calc.results["magmoms"],
+                            )
+                else:
+                    ...
+            outcar_fobj.close()
+        else:
+            self._print(f"Cannot read OUTCAR at `{str(wdir)}`.")
+
+        if is_bad_geometry:
+            frames = [ScfErrAtoms.from_atoms(frames[i]) for i in range(num_frames)]
+            for atoms in frames:
                 calc = SinglePointCalculator(
                     frames[-1],
                     energy=1e8,
                     free_energy=1e8,
                     forces=1e8 * np.ones(frames[-1].positions.shape),
                 )
-                frames[-1].calc = calc
+                atoms.calc = calc
+        else:
+            # read oszicar and outcar to check scf convergence
+            if oszicar_fobj is not None:
+                assert "nelm" in vasp_params_from_outcar, "OUTCAR must have NELM information."
+                nelm = vasp_params_from_outcar["nelm"]
+                assert "ediff" in vasp_params_from_outcar, "OUTCAR must have EDIFF information."
+                ediff = vasp_params_from_outcar["ediff"]
+                oszicar_lines = oszicar_fobj.readlines()
+                scf_convergences = read_oszicar(oszicar_lines, nelm, ediff)
+                num_scfconvs, num_frames = len(scf_convergences), len(frames)
+                self._debug(f"{num_scfconvs =} {num_frames =}")
+                if num_scfconvs == num_frames:
+                    # assert len(scf_convergences) == len(
+                    #     frames
+                    # ), f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
+                    ...
+                elif num_scfconvs == num_frames - 1:
+                    if num_frames != 1:
+                        # The LAST SCF failed due to some error, for example, too small distance.
+                        # So we manually set conv to false for the last step and also set frames energy and forces
+                        # to a very large value for the future selection.
+                        # We need check whether the last step unfinished is due to exceed wall time or some other errors,
+                        # Otherwise, a normal structure will be considered as an error.
+                        scf_convergences.append(False)
+                        # FIXME: Use a new CustomAtoms object to deal with this?
+                        calc = SinglePointCalculator(
+                            frames[-1],
+                            energy=1e8,
+                            free_energy=1e8,
+                            forces=1e8 * np.ones(frames[-1].positions.shape),
+                        )
+                        frames[-1].calc = calc
+                    else:
+                        # For SPC, vasprun has a structure even when SCF is unfinished.
+                        # We clear frames to make calculation restart from scratch if the unfinished SCF is not due to
+                        # some fatal errors.
+                        frames = []
+                        scf_convergences = []
+                else:
+                    raise RuntimeError(f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}.")
+
+                for i, is_converged in enumerate(scf_convergences):
+                    if not is_converged:
+                        frames[i] = ScfErrAtoms.from_atoms(frames[i])
+                        self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
+
+                oszicar_fobj.close()
             else:
-                raise RuntimeError(
-                    f"Failed to read OUTCAR in {str(self.directory)}. OSZICAR {oszicar_lines}."
-                )
-            for i, is_converged in enumerate(scf_convergences):
-                if not is_converged:
-                    frames[i] = ScfErrAtoms.from_atoms(frames[i])
-                    self._print(f"ScfErrAtoms Step {i} @ {str(wdir)}")
+                self._print(f"Cannot read OSZICAR at `{str(wdir)}`.")
 
         return frames
 
-    def read_trajectory(
-        self, add_step_info=True, archive_path=None, *args, **kwargs
-    ) -> List[Atoms]:
+    def read_trajectory(self, add_step_info=True, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory.
 
         If the calculation failed, an empty atoms with errof info would be returned.
 
         """
-        # - read structures
-        # -- read backups
+        # Read trajectories from all previous calculations
         prev_wdirs = []
         if archive_path is None:
             prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
@@ -579,9 +781,7 @@ class VaspDriver(AbstractDriver):
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
-            prev_wdirs = [
-                self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
-            ]
+            prev_wdirs = [self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)]
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         traj_list = []
@@ -593,57 +793,67 @@ class VaspDriver(AbstractDriver):
         # If the latest calculation is not finished/converged, the ouputs will be moved to
         # a new folder 000x.run and an empty trajectory should be return.
         # Even though vasprun file may be empty, the read can give a empty list...
-        curr_frames = self._read_a_single_trajectory(
-            self.directory, archive_path=archive_path
-        )
-        if not curr_frames:  # empty trajectory
-            ...
+        # Check if all files under self.directory are just 0xxx.run directories
+        is_all_calc_dir = all([
+            f.is_dir() and re.match(r"[0-9][0-9][0-9][0-9][.]run", f.name) for f in self.directory.iterdir()
+        ])
+        if not is_all_calc_dir:
+            curr_frames = self._read_a_single_trajectory(self.directory, archive_path=archive_path)
+            if not curr_frames:  # empty trajectory
+                ...
+            else:
+                traj_list.append(curr_frames)
         else:
-            traj_list.append(curr_frames)
+            ...
 
-        # -- concatenate
-        # NOTE: Some spin systems may give different scf convergence on the same
-        #       structure. Sometimes, the preivous failed but the next run converged,
-        #       The concat below uses the previous one...
-        traj_frames_, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
+        # Concatenate trajectories
+        # Some spin-polarised systems may give different total energies even on the same structure due to the SCF
+        # convergence. Sometimes, the preivous failed but the next run converged. Thus, no energy is compared.
+        # Here, we always use the previous structure to concatenate.
+        traj_frames_, num_trajs = [], len(traj_list)
+        if num_trajs > 0:
             traj_frames_.extend(traj_list[0])
-            if self.setting.task == "min":
-                for i in range(1, ntrajs):
-                    # FIXME: ase complete_cell bug?
-                    prev_box = traj_list[i-1][-1].get_cell(complete=True)
+            if self.setting.task == "spc":
+                # SPC should not have any previous calculations.
+                assert num_trajs == 1, f"SPC should not have more than one trajectory but got `{num_trajs}`."
+            elif self.setting.task == "min" or self.setting.task == "cmin":
+                for i in range(1, num_trajs):
+                    # FIXME: ase does not always give a 3x3 array for the box?
+                    prev_box = traj_list[i - 1][-1].get_cell(complete=True)
                     curr_box = traj_list[i][0].get_cell(complete=True)
-                    assert np.allclose(prev_box, curr_box), f"Traj {i-1} and traj {i} are not consecutive in cell."
+                    assert np.allclose(prev_box, curr_box), (
+                        f"Traj {i - 1} and traj {i} are not consecutive in cell at {str(self.directory)}."
+                    )
 
-                    prev_pos = traj_list[i-1][-1].positions
+                    prev_pos = traj_list[i - 1][-1].positions
                     curr_pos = traj_list[i][0].positions
-                    pos_vec, _ = find_mic(prev_pos-curr_pos, traj_list[i-1][-1].get_cell())
-                    assert np.allclose(
-                        pos_vec, np.zeros(pos_vec.shape)
-                    ), f"Traj {i-1} and traj {i} are not consecutive."
+                    pos_vec, _ = find_mic(prev_pos - curr_pos, traj_list[i - 1][-1].get_cell())
+                    assert np.allclose(pos_vec, np.zeros(pos_vec.shape)), (
+                        f"Traj {i - 1} and traj {i} are not consecutive at {str(self.directory)}."
+                    )
                     traj_frames_.extend(traj_list[i][1:])
             elif self.setting.task == "md":
-                # NOTE: vasp md restart is not from the last frame
-                #       as it addes the velocities in contcar to get a new frame to restart.
-                for i in range(1, ntrajs):
+                # Vasp md does restart from the last frame as the velocities in CONTCAR will give a new structure
+                # for the first SCF calculation. Thus, we do not skip the first frame of the next trajectory.
+                for i in range(1, num_trajs):
                     traj_frames_.extend(traj_list[i][:])
             else:
-                ...
+                raise Exception(f"Task {self.setting.task} does not support concatenating trajectories.")
         else:
             ...
 
-        nframes = len(traj_frames_)
+        num_frames = len(traj_frames_)
 
-        # - sort frames
+        # Sort frames based on the sort file if it exists
         traj_frames = []
-        if nframes > 0:
+        if num_frames > 0:
             num_atoms = len(traj_frames_[0])
             if (self.directory / ASE_VASP_SORT_FNAME).exists():
                 sort, resort = read_sort(self.directory)
             else:  # without sort file, use default order
                 sort, resort = list(range(num_atoms)), list(range(num_atoms))
             for i, sorted_atoms in enumerate(traj_frames_):
-                # NOTE: calculation with only one unfinished step does not have forces
+                # The calculation with only one unfinished step does not have forces
                 input_atoms = resort_atoms_with_spc(
                     sorted_atoms,
                     resort,
@@ -662,7 +872,3 @@ class VaspDriver(AbstractDriver):
             ...
 
         return traj_frames
-
-
-if __name__ == "__main__":
-    ...

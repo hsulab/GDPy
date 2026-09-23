@@ -2,117 +2,103 @@
 # -*- coding: utf-8 -*-
 
 
-import warnings
+from gdpx import config
+from gdpx.core.register import BaseRegister
 
-from .. import config
-from ..core.register import registers
-from ..utils.command import CustomTimer
-from ..utils.strconv import str2array
+REGISTER = BaseRegister("builder")
 
-# - regions
-from .region import (
-    AutoRegion,
-    CubeRegion,
-    CylinderRegion,
-    IntersectRegion,
-    LatticeRegion,
-    SphereRegion,
-    SurfaceLatticeRegion,
-    SurfaceRegion,
-)
+# Basic builders and modifiers
+from .direct import DirectBuilder, ReadStruBuilder
 
-registers.region.register(AutoRegion)
-registers.region.register(CubeRegion)
-registers.region.register(SphereRegion)
-registers.region.register(CylinderRegion)
-registers.region.register(LatticeRegion)
-registers.region.register(SurfaceLatticeRegion)  # BUG?
-registers.region.register(SurfaceRegion)  # BUG?
-registers.region.register(IntersectRegion)
-
-
-# - basic builders and modifiers
-from .direct import DirectBuilder, ReadBuilder
-
-registers.builder.register("direct")(DirectBuilder)
-registers.builder.register("reader")(ReadBuilder)
+REGISTER.register("direct")(DirectBuilder)
+REGISTER.register("read_stru")(ReadStruBuilder)
 
 from .dimer import DimerBuilder
 
-registers.builder.register("dimer")(DimerBuilder)
+REGISTER.register("dimer")(DimerBuilder)
+
+from .trimer import TrimerBuilder
+
+REGISTER.register("trimer")(TrimerBuilder)
 
 from .species import MoleculeBuilder
 
-registers.builder.register("molecule")(MoleculeBuilder)
+REGISTER.register("molecule")(MoleculeBuilder)
 
 from .wulff import WulffConstructionBuilder
 
-registers.builder.register("wulff_construction")(WulffConstructionBuilder)
+REGISTER.register("wulff_construction")(WulffConstructionBuilder)
 
 from .perturbator import PerturbatorBuilder
 
-registers.builder.register("perturb")(PerturbatorBuilder)
+REGISTER.register("perturb")(PerturbatorBuilder)
 
 from .packer import PackerBuilder
 
-registers.builder.register("pack")(PackerBuilder)
+REGISTER.register("pack")(PackerBuilder)
 
-from .insert import InsertModifier
+from .graph import GraphSwapModifier, GraphInsertModifier, GraphRemoveModifier
 
-registers.builder.register("insert")(InsertModifier)
+REGISTER.register("graph_insert")(GraphInsertModifier)
+REGISTER.register("graph_remove")(GraphRemoveModifier)
+REGISTER.register("graph_swap")(GraphSwapModifier)
 
-from ..graph.comparison import (
-    get_unique_environments_based_on_bonds,
-    paragroup_unique_chem_envs,
-)
-from ..graph.creator import StruGraphCreator, extract_chem_envs
+from .random_bulk import RandomBulkBuilder, RandomClusterBuilder, RandomSurfaceBuilder
 
-# --
-from ..graph.sites import SiteFinder
-from ..graph.utils import unpack_node_name
-from .graph import GraphExchangeModifier, GraphInsertModifier, GraphRemoveModifier
+REGISTER.register("random_bulk")(RandomBulkBuilder)
+REGISTER.register("random_cluster")(RandomClusterBuilder)
+REGISTER.register("random_surface")(RandomSurfaceBuilder)
 
-registers.builder.register("graph_insert")(GraphInsertModifier)
-registers.builder.register("graph_remove")(GraphRemoveModifier)
-registers.builder.register("graph_exchange")(GraphExchangeModifier)
+from .random_structure import RandomStructureImprovedModifier
 
-# --
-from .randomBuilder import BulkBuilder, ClusterBuilder, SurfaceBuilder
+REGISTER.register("random_structure_improved")(RandomStructureImprovedModifier)
 
-registers.builder.register("random_bulk")(BulkBuilder)
-registers.builder.register("random_cluster")(ClusterBuilder)
-registers.builder.register("random_surface")(SurfaceBuilder)
+from .adsorb import AdsorbateInsertionModifier
 
-from .cleave_surface import CleaveSurfaceModifier
+REGISTER.register("adsorbate_insertion")(AdsorbateInsertionModifier)
 
-registers.builder.register("cleave_surface")(CleaveSurfaceModifier)
+from .cleave_surface import AddVacuumModifier, CleaveSurfaceModifier
+
+REGISTER.register("cleave_surface")(CleaveSurfaceModifier)
+REGISTER.register("add_vacuum")(AddVacuumModifier)
 
 from .repeat import RepeatModifier
 
-registers.builder.register("repeat")(RepeatModifier)
+REGISTER.register("repeat")(RepeatModifier)
 
-# - extra modifiers
-from .zoom import ZoomModifier
+# Extra modifiers
+from .deform import DeformModifier
 
-registers.builder.register("zoom")(ZoomModifier)
+REGISTER.register("deform")(DeformModifier)
 
+from .scale import ScaleModifier
 
-# - optional
+REGISTER.register("scale")(ScaleModifier)
+
+from .roulette import RouletteBuilder
+
+REGISTER.register("roulette")(RouletteBuilder)
+
+from .change_element import RemoveElementModifier, ReplaceElementModifier
+
+REGISTER.register("replace_element")(ReplaceElementModifier)
+REGISTER.register("remove_element")(RemoveElementModifier)
+
+from .composed import ComposedModifier
+
+REGISTER.register("composed")(ComposedModifier)
+
 try:
     from .scan.angle import ScanAngleModifier
 
-    registers.builder.register("scan_angle")(ScanAngleModifier)
+    REGISTER.register("scan_angle")(ScanAngleModifier)
+
     from .scan.hypercube import HypercubeBuilder
 
-    registers.builder.register("hypercube")(HypercubeBuilder)
+    REGISTER.register("hypercube")(HypercubeBuilder)
+
 except ImportError as e:
-    config._print(f"Builder {'hypercube'} import failed: {e}")
-
-# - extra utilities
-from .utils import remove_vacuum, reset_cell
-
-registers.operation.register(remove_vacuum)
-registers.operation.register(reset_cell)
+    config._print(f"  {'Builder':<16s} {'`hypercube`':<16s} -> require `{e.name}`.")
 
 
 if __name__ == "__main__":

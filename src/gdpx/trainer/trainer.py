@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*
+
+
+import abc
+import copy
+import os
+import pathlib
+import subprocess
+from typing import List, Optional, Union
+
+from gdpx.core.component import BaseComponent
+
+
+class TrainingFailed(RuntimeError):
+    """Training unexpectedly fails."""
+
+    ...
+
+
+class FreezingFailed(RuntimeError):
+    """Freezing unexpectedly fails."""
+
+    ...
+
+
+class BasePotentialTrainer(BaseComponent):
+
+    #: Name of this trainer.
+    name: str = "trainer"
+
+    #: The path of the command executable.
+    command: Optional[str] = None
+
+    #: Command to freeze/deploy.
+    freeze_command: Optional[str] = None
+
+    #: Type list e.g. [C, H, O].
+    _type_list: Optional[List[str]] = None
+
+    #: Prefix of input file.
+    prefix: str = "config"
+
+    def __init__(
+        self,
+        config: dict,
+        type_list: Optional[List[str]] = None,
+        train_epochs: int = 200,
+        train_batches: int = 200000,
+        print_epochs: int = 5,
+        directory: Union[str, pathlib.Path] = ".",
+        command: str = "train",
+        freeze_command: Optional[str] = "freeze",
+        random_seed: Optional[Union[int, dict]] = None,
+    ) -> None:
+        """Potential Trainer.
+
+        Args:
+            train_epochs: Number of training epochs.
+            train_bacthes: Number of training batches.
+
+        """
+        super().__init__(directory=directory, random_seed=random_seed)
+        self.command = command
+        if freeze_command is None:
+            self.freeze_command = self.command
+        else:
+            self.freeze_command = freeze_command
+
+        self.directory = directory
+        self.config = config  # train model parameters
+
+        self.train_epochs = train_epochs
+        self.train_batches = train_batches
+        self.print_epochs = print_epochs
+
+        return
+
+    @property
+    def type_list(self):
+        """"""
+
+        return self._type_list
+
+    @abc.abstractmethod
+    def _resolve_train_command(self, *args, **kwargs) -> str:
+        """"""
+
+        ...
+
+    @abc.abstractmethod
+    def _resolve_freeze_command(self, *args, **kwargs) -> str:
+        """"""
+
+        ...
+
+    @property
+    @abc.abstractmethod
+    def frozen_name(self) -> str:
+        """"""
+        ...
+
+    def _train_from_the_scratch(self, dataset, init_model):
+        """Train from the scratch."""
+        command = self._resolve_train_command(init_model)
+        if command is None:
+            raise TrainingFailed(f"Please supply the command keyword for {self.name.upper()}.")
+
+        if not self.directory.exists():
+            self.directory.mkdir(parents=True, exist_ok=True)
+        self.write_input(dataset)
+
+        return command
+
+    def _train_from_the_restart(self, dataset, init_model):
+        """Train from the restart."""
+
+        raise NotImplementedError()
+
+    def train(self, dataset, init_model=None, *args, **kwargs):
+        """"""
+        if not hasattr(self, "_train_from_the_restart"):
+            command = self._train_from_the_scratch(dataset, init_model)
+        else:
+            command = self._train_from_the_restart(dataset, init_model)
+        self._print(f"TRAINING COMMAND: {command}")
+
+        try:
+            proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+        except OSError as err:
+            msg = "Failed to execute `{}`".format(command)
+            raise TrainingFailed(msg) from err
+
+        errorcode = proc.wait()
+
+        if errorcode:
+            path = os.path.abspath(self.directory)
+            msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+                self.name, command, path, errorcode
+            )
+            raise TrainingFailed(msg)
+
+        return
+
+    def freeze(self):
+        """Freeze trained model and return the model path."""
+        frozen_model = (self.directory / self.frozen_name).resolve()
+        if not frozen_model.exists():
+            command = self._resolve_freeze_command()
+            try:
+                proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+            except OSError as err:
+                msg = "Failed to execute `{}`".format(command)
+                raise FreezingFailed(msg) from err
+
+            errorcode = proc.wait()
+
+            if errorcode:
+                path = os.path.abspath(self.directory)
+                msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
+                    self.name, command, path, errorcode
+                )
+                raise FreezingFailed(msg)
+        else:
+            ...
+
+        return self.directory / self.frozen_name
+
+    @abc.abstractmethod
+    def write_input(self, dataset, *args, **kwargs):
+        """Convert dataset to the target format and write the configuration file if it has."""
+
+        return
+
+    @abc.abstractmethod
+    def read_convergence(self) -> bool:
+        """"""
+
+        ...
+
+    def as_dict(self) -> dict:
+        """"""
+        trainer_params = {}
+        trainer_params["name"] = self.name
+        trainer_params["type_list"] = self.type_list
+        trainer_params["config"] = self.config
+        trainer_params["command"] = self.command
+        trainer_params["freeze_command"] = self.freeze_command
+        trainer_params["train_batches"] = self.train_batches
+        trainer_params["train_epochs"] = self.train_epochs
+        trainer_params["print_epochs"] = self.print_epochs
+
+        # We better save the init one as self.random_seed may be changed
+        trainer_params["random_seed"] = self.init_random_seed
+
+        trainer_params = copy.deepcopy(trainer_params)
+
+        return trainer_params
+
+
+if __name__ == "__main__":
+    ...

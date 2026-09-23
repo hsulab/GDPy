@@ -1,33 +1,37 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import copy
 import dataclasses
 import io
-import itertools
 import os
 import pathlib
 import pickle
-import shutil
 import tarfile
 import traceback
-from collections.abc import Iterable
-from typing import Dict, List, Mapping, NoReturn, Optional, Tuple
+from typing import Optional
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.calculators.calculator import FileIOCalculator, all_changes
 from ase.calculators.lammps import Prism, unitconvert
 from ase.calculators.mixing import LinearCombinationCalculator
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_masses, atomic_numbers
-from ase.io import read, write
+from ase.io import read
 from ase.io.lammpsdata import write_lammps_data
 
-from .. import config
-from ..builder.constraints import parse_constraint_info, convert_indices
-from ..builder.group import create_a_group
-from .driver import AbstractDriver, Controller, DriverSetting
+from gdpx import config
+from gdpx.backend.lammps import add_model_deviation_to_atoms_info, parse_thermo_data_by_pattern
+from gdpx.backend.plumed import (
+    add_colvar_to_atoms_info,
+    clap_plumed_file_by_number,
+    clap_plumed_file_by_simulations,
+    find_input_key_value,
+    write_plumed_input_file,
+)
+from gdpx.group import evaluate_constraint_expression, evaluate_group_expression
+from gdpx.utils.strconv import integers_to_string
+
+from .driver import BaseDriver, Controller, DriverSetting
+from .observer import create_an_observer
 
 
 @dataclasses.dataclass(frozen=True)
@@ -56,185 +60,267 @@ def parse_type_list(atoms):
     return type_list
 
 
-def parse_thermo_data(lines) -> dict:
-    """Read energy ... results from log.lammps file."""
-    # - parse input lines
-    found_error = False
-    start_idx, end_idx = None, None
-    for idx, line in enumerate(lines):
-        # - get the line index at the start of the thermo infomation
-        #   test with 29Oct2020 and 23Jun2022
-        if line.strip().startswith("Step"):
-            start_idx = idx
-        # - NOTE: find line index at the end
-        if line.strip().startswith("ERROR: "):
-            found_error = True
-            end_idx = idx
-        if line.strip().startswith("Loop time"):
-            end_idx = idx
-        if start_idx is not None and end_idx is not None:
-            break
-    else:
-        end_idx = idx
-    config._debug(f"INITIAL LAMMPS LOG INDEX: {start_idx} {end_idx}")
+@dataclasses.dataclass
+class CGMinimiser(Controller):
+    name: str = "cg"
 
-    # - check valid lines
-    #   sometimes the line may not be complete
-    ncols = len(lines[start_idx].strip().split())
-    for i in range(end_idx, start_idx, -1):
-        curr_data = lines[i].strip().split()
-        curr_ncols = len(curr_data)
-        config._debug(f"  LAMMPS LINE: {lines[i].strip()}")
-        if curr_ncols == ncols:  # The Line has the full thermo info...
-            try:
-                step = int(curr_data[0])
-                end_idx = i + 1
-            except ValueError:
-                ...
-            finally:
-                end_info = lines[i].strip()
-                config._debug(f"  LAMMPS STEP: {end_info}")
-                break
-        else:
-            ...
-    else:
-        end_idx = None  # even not one single complete line
-    config._debug(f"FINAL   LAMMPS LOG INDEX: {start_idx} {end_idx}")
+    def __post_init__(self):
+        """"""
+        maxstep = self.params.get("maxstep", 0.2)  # Ang
+        maxstep = unitconvert.convert(maxstep, "distance", "metal", self.units)
 
-    if start_idx is None or end_idx is None:
-        raise RuntimeError(f"ERROR   LAMMPS LOG INDEX {start_idx} {end_idx}.")
+        input_line = "min_style  cg\n"
+        input_line += f"min_modify dmax {maxstep}"
 
-    # -- parse index of PotEng
-    # TODO: save timestep info?
-    thermo_keywords = lines[start_idx].strip().split()
-    if "PotEng" not in thermo_keywords:
-        raise RuntimeError(f"Cant find PotEng in lammps output.")
-    thermo_data = []
-    for x in lines[start_idx + 1 : end_idx]:
-        x_data = x.strip().split()
-        if x_data[0].isdigit():  # There may have some extra warnings... such as restart
-            thermo_data.append(x_data)
-    # thermo_data = np.array([line.strip().split() for line in thermo_data], dtype=float).transpose()
-    thermo_data = np.array(thermo_data, dtype=float).transpose()
-    # config._debug(thermo_data)
-    thermo_dict = {}
-    for i, k in enumerate(thermo_keywords):
-        thermo_dict[k] = thermo_data[i]
+        self.conv_params = dict(
+            input_line=input_line,
+        )
 
-    return thermo_dict, end_info
+        return
 
 
 @dataclasses.dataclass
 class FireMinimizer(Controller):
-
     name: str = "fire"
 
     def __post_init__(self):
         """"""
+        integrator = self.params.get("integrator", "verlet")
+        tmax = self.params.get("tmax", 4)
+
+        input_line = "min_style  fire\n"
+        input_line += f"min_modify integrator {integrator} tmax {tmax}"
+
         self.conv_params = dict(
-            min_style="fire",
-            min_modify=self.params.get("min_modify", "integrator verlet tmax 4"),
+            input_line=input_line,
         )
 
         return
 
 
 @dataclasses.dataclass
-class LangevinThermostat(Controller):
+class MDController(Controller):
+    #: Controller name.
+    name: str = "md"
 
+    #: Timestep in fs.
+    timestep: float = 1.0
+
+    #: Temperature in Kelvin.
+    temperature: float = 300.0
+
+    #: Temperature at end in Kelvin.
+    temperature_end: Optional[float] = None
+
+    #: Pressure in bar.
+    pressure: float = 1.0
+
+    #: Pressure in bar.
+    pressure_end: Optional[float] = None
+
+    #: Whether fix center of mass.
+    fix_com: bool = True
+
+    def __post_init__(self):
+        """"""
+        # convert timestep from fs to units
+        self.timestep = unitconvert.convert(self.timestep, "time", "real", self.units)
+
+        # convert temperature from Kelvin to units
+        self.temperature = unitconvert.convert(self.temperature, "temperature", "real", self.units)
+
+        if self.temperature_end is not None:
+            self.temperature_end = unitconvert.convert(self.temperature_end, "temperature", "real", self.units)
+        else:
+            self.temperature_end = self.temperature
+
+        if not (self.temperature > 0.0):
+            raise Exception(f"MDController temperature `{self.temperature}` must be greater than 0.")
+
+        assert self.temperature_end is not None
+        if not (self.temperature_end > 0.0):
+            raise Exception(f"MDController temperature_end `{self.temperature_end}` must be greater than 0.")
+
+        # convert pressure from bar to units
+        self.pressure = unitconvert.convert(self.pressure, "pressure", "metal", self.units)
+
+        if self.pressure_end is not None:
+            self.pressure_end = unitconvert.convert(self.pressure_end, "pressure", "metal", self.units)
+        else:
+            self.pressure_end = self.pressure
+
+        input_line = ""
+        if self.fix_com:
+            input_line += "fix  fix_com {group} recenter INIT INIT INIT\n"
+        input_line += f"\ntimestep {self.timestep}\n"
+        self.conv_params = dict(input_line=input_line)
+
+        return
+
+
+@dataclasses.dataclass
+class Verlet(MDController):
+    name: str = "verlet"
+
+    def __post_init__(self):
+        """"""
+        super().__post_init__()
+
+        input_line = "fix {fix_id:>24s} {group} nve"
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
+
+        return
+
+
+@dataclasses.dataclass
+class LangevinThermostat(MDController):
     name: str = "langevin"
 
     def __post_init__(self):
         """"""
+        super().__post_init__()
+
         friction = self.params.get("friction", 0.01)  # fs^-1
         assert friction is not None
+        # Lammps uses the reciprocal of the friction coefficient
+        # with the time unit.
+        damp = unitconvert.convert(1.0 / friction, "time", "real", self.units)
 
         friction_seed = self.params.get("friction_seed", None)
 
-        self.conv_params = dict(
-            damp=unitconvert.convert(1.0 / friction, "time", "real", self.units)
-        )
+        input_line = "fix {fix_id:>24s}0 {group} nve\n"
+        input_line += "fix {fix_id:>24s}1 {group} langevin "
+        input_line += f"{self.temperature} {self.temperature_end} {damp} "
+
         if friction_seed is not None:
-            self.conv_params.update(seed=friction_seed)
+            input_line += f"{friction_seed}"
+        else:
+            input_line += "{seed}"
+
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
 
 @dataclasses.dataclass
-class NoseHooverChainThermostat(Controller):
-
+class NoseHooverChainThermostat(MDController):
     name: str = "nose_hoover_chain"
 
     def __post_init__(self):
         """"""
-        Tdamp = self.params.get("Tdamp", 100.0)
-        assert Tdamp is not None
+        super().__post_init__()
 
-        self.conv_params = dict(
-            Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units)
-        )
+        Tdamp = self.params.get(
+            "Tdamp",
+            unitconvert.convert(self.timestep * 100.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
+        assert Tdamp is not None
+        Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
+
+        input_line = "fix {fix_id:>24s} {group} nvt temp "
+        input_line += f"{self.temperature} {self.temperature_end} {Tdamp}"
+
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
 
 @dataclasses.dataclass
-class ParrinelloRahmanBarostat(Controller):
-
+class ParrinelloRahmanBarostat(MDController):
     name: str = "parrinello_rahman"
 
     def __post_init__(self):
         """"""
-        Tdamp = self.params.get("Tdamp", 100.0)
+        super().__post_init__()
+
+        Tdamp = self.params.get(
+            "Tdamp",
+            unitconvert.convert(self.timestep * 100.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
         assert Tdamp is not None
+        Tdamp = unitconvert.convert(Tdamp, "time", "real", self.units)
 
-        Pdamp = self.params.get("Pdamp", 100.0)
+        Pdamp = self.params.get(
+            "Pdamp",
+            unitconvert.convert(self.timestep * 1000.0, "time", self.units, "real"),
+        )  # fs, timestep have been converted previously
         assert Pdamp is not None
+        Pdamp = unitconvert.convert(Pdamp, "time", "real", self.units)
 
-        self.conv_params = dict(
-            Tdamp=unitconvert.convert(Tdamp, "time", "real", self.units),
-            Pdamp=unitconvert.convert(Pdamp, "time", "real", self.units),
-        )
+        isotropic = self.params.get("isotropic", True)
+        assert isotropic is not None
+        isotropic = "iso" if isotropic else "aniso"
+
+        input_line = "fix {fix_id:>24s} {group} npt temp "
+        input_line += f"{self.temperature} {self.temperature_end} {Tdamp} "
+        input_line += f"{isotropic} {self.pressure} {self.pressure_end} {Pdamp}"
+
+        self.conv_params["input_line"] = input_line + self.conv_params["input_line"]
 
         return
 
 
 controllers = dict(
+    # min
+    cg_min=CGMinimiser,
+    fire_min=FireMinimizer,
+    # nve
+    verlet_nve=Verlet,
     # nvt
     langevin_nvt=LangevinThermostat,
     nose_hoover_chain_nvt=NoseHooverChainThermostat,
+    # npt
     parrinello_rahman_npt=ParrinelloRahmanBarostat,
+)
+
+default_controllers = dict(
+    min=FireMinimizer,
+    nve=Verlet,
+    nvt=LangevinThermostat,
+    npt=ParrinelloRahmanBarostat,
 )
 
 
 @dataclasses.dataclass
 class LmpDriverSetting(DriverSetting):
-
+    #: LAMMPS units.
     units: str = "metal"
 
+    #: MD ensemble.
     ensemble: str = "nve"
 
+    #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
     #: Whether fix com to the its initial position.
     fix_com: bool = False
 
-    use_lmpvel: bool = True
+    #: Whether initialise velocties internally by LAMMPS.
+    use_lammps_vinit: bool = True
 
-    etol: float = 0
-    fmax: float = 0.05
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = 0.0
 
-    neighbor: str = "0.0 bin"
-    neigh_modify: Optional[str] = None
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = 0.05
 
-    extra_fix: List[str] = dataclasses.field(default_factory=list)
+    #: Neighbor list.
+    neighbor: str = "2.0 bin"
 
+    #: Neighbor list setting.
+    neigh_modify: Optional[str] = "every 10 check yes"
+
+    #: More custom LAMMPS fixes.
+    extra_fix: list[str] = dataclasses.field(default_factory=list)
+
+    #: PLUMED setting.
     plumed: Optional[str] = None
 
     def __post_init__(self):
         """"""
         if self.task == "min":
             self._internals.update(
-                etol=self.etol,
+                etol=self.emax,
                 ftol=self.fmax,
             )
 
@@ -252,130 +338,65 @@ class LmpDriverSetting(DriverSetting):
 
         return
 
-    def get_minimisation_inputs(self, random_seed, group: str = "mobile") -> List[str]:
-        """"""
+    def get_simulation_inputs(self, random_seed: int, group: str = "mobile") -> list[str]:
         """Convert parameters into lammps input lines."""
-        MIN_FIX_ID: str = "controller"
-        _init_min_params = dict(
-            fix_id=MIN_FIX_ID,
-            group=group,
-        )
+        _init_params = {}
+
+        if self.task == "min":
+            suffix = self.task
+        elif self.task == "md":
+            suffix = self.ensemble
+            _init_params.update(
+                timestep=self.timestep,
+                temperature=self.temp,
+                temperature_end=self.tend if self.tend is not None else self.temp,
+                pressure=self.press,
+                pressure_end=self.pend if self.pend is not None else self.press,
+                fix_com=self.fix_com,
+            )
+        else:
+            suffix = self.task
+
         if self.controller:
-            min_cls_name = self.controller["name"] + "_min"
-            min_cls = controllers[min_cls_name]
+            cont_cls_name = self.controller["name"] + "_" + suffix
+            if cont_cls_name in controllers:
+                cont_cls = controllers[cont_cls_name]
+            else:
+                raise RuntimeError(f"Unknown controller {cont_cls_name}.")
         else:
-            min_cls = FireMinimizer
+            cont_cls = default_controllers[suffix]
 
-        minimiser = min_cls(units=self.units, **self.controller)
-        _init_min_params.update(**minimiser.conv_params)
+        _init_params.update(**self.controller)
+        controller = cont_cls(units=self.units, **_init_params)
 
-        if minimiser.name == "fire":
-            min_line = "min_style  {min_style}\nmin_modify {min_modify}".format(
-                **_init_min_params
-            )
-        else:
-            raise RuntimeError(f"Unknown minimiser {minimiser}.")
-
-        lines = [min_line]
-
-        return lines
-
-    def get_molecular_dynamics_inputs(
-        self, random_seed, group: str = "mobile"
-    ) -> List[str]:
-        """Convert parameters into lammps input lines."""
-        MD_FIX_ID: str = "controller"
-        _init_md_params = dict(
-            fix_id=MD_FIX_ID,
+        # The input inline should be a f-string with placeholders that accept system-specific parameters.
+        _init_placeholders = dict(
+            fix_id="controller",
             group=group,
-            timestep=unitconvert.convert(self.timestep, "time", "real", self.units),
+            seed=random_seed,  # langevin needs this
         )
-
-        if self.ensemble == "nve":
-            lines = [
-                "fix {fix_id:>24s} {group} nve".format(**_init_md_params),
-                f"timestep {_init_md_params['timestep']}",
-            ]
-        elif self.ensemble == "nvt":
-            _init_md_params.update(
-                Tstart=self.temp,
-                Tstop=self.tend if self.tend else self.temp,
-            )
-            if self.controller:
-                thermo_cls_name = self.controller["name"] + "_" + self.ensemble
-                thermo_cls = controllers[thermo_cls_name]
-            else:
-                thermo_cls = LangevinThermostat
-            thermostat = thermo_cls(units=self.units, **self.controller)
-            if thermostat.name == "langevin":
-                _init_md_params.update(
-                    seed=random_seed,
-                )
-                _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s}0 {group} nve\n".format(
-                    **_init_md_params
-                )
-                thermo_line += "fix {fix_id:>24s}1 {group} langevin {Tstart} {Tstop} {damp} {seed}".format(
-                    **_init_md_params
-                )
-            elif thermostat.name == "nose_hoover_chain":
-                _init_md_params.update(**thermostat.conv_params)
-                thermo_line = "fix {fix_id:>24s} {group} nvt temp {Tstart} {Tstop} {Tdamp}".format(
-                    **_init_md_params
-                )
-            else:
-                raise RuntimeError(f"Unknown thermostat {thermostat}.")
-            lines = [thermo_line, f"timestep {_init_md_params['timestep']}"]
-        elif self.ensemble == "npt":
-            _init_md_params.update(
-                Tstart=self.temp,
-                Tstop=self.tend if self.tend else self.temp,
-                Pstart=self.press,
-                Pstop=self.press,  # FIXME: end pressure??
-            )
-            if self.controller:
-                baro_cls_name = self.controller["name"] + "_" + self.ensemble
-                baro_cls = controllers[baro_cls_name]
-            else:
-                ...
-            barostat = baro_cls(units=self.units, **self.controller)
-            if barostat.name == "parrinello_rahman":
-                _init_md_params.update(**barostat.conv_params)
-                baro_line = "fix {fix_id:>24s} {group} npt temp {Tstart} {Tstop} {Tdamp} aniso {Pstart} {Pstop} {Pdamp}".format(
-                    **_init_md_params
-                )
-            else:
-                raise RuntimeError(f"Unknown barostat {barostat}.")
-            lines = [baro_line, f"timestep {_init_md_params['timestep']}"]
-        else:
-            raise RuntimeError(f"Unknown ensemble {self.ensemble}.")
-
-        if self.fix_com:
-            com_line = "fix  fix_com {group} recenter INIT INIT INIT".format(
-                **_init_md_params
-            )
-            lines.insert(0, com_line)
+        input_line = controller.conv_params["input_line"].format(**_init_placeholders)
+        lines = [input_line]
 
         return lines
 
     def get_run_params(self, *args, **kwargs):
         """"""
-        # - pop out special keywords
         # convergence criteria
-        ftol_ = kwargs.pop("fmax", self.fmax)
-        etol_ = kwargs.pop("etol", self.etol)
-        if etol_ is None:
-            etol_ = 0.0
-        if ftol_ is None:
-            ftol_ = 0.0
+        fmax_ = kwargs.pop("fmax", self.fmax)
+        emax_ = kwargs.pop("emax", self.emax)
+        if emax_ is None:
+            emax_ = 0.0
+        if fmax_ is None:
+            fmax_ = 0.0
 
         steps_ = kwargs.pop("steps", self.steps)
 
         run_params = dict(
             steps=steps_,
             constraint=kwargs.get("constraint", self.constraint),
-            etol=etol_,
-            ftol=ftol_,
+            etol=emax_,
+            ftol=fmax_,
         )
 
         # - add extra parameters
@@ -384,7 +405,7 @@ class LmpDriverSetting(DriverSetting):
         return run_params
 
 
-class LmpDriver(AbstractDriver):
+class LmpDriver(BaseDriver):
     """Use lammps to perform dynamics.
 
     Minimisation and/or molecular dynamics.
@@ -393,34 +414,32 @@ class LmpDriver(AbstractDriver):
 
     name = "lammps"
 
-    special_keywords = {}
-
     default_task = "min"
     supported_tasks = ["min", "md"]
 
-    #: List of output files would be saved when restart.
-    saved_fnames: List[str] = [
-        ASELMPCONFIG.log_filename,
-        ASELMPCONFIG.trajectory_filename,
-        ASELMPCONFIG.deviation_filename,
-    ]
+    #: Class for setting.
+    setting_cls: type[DriverSetting] = LmpDriverSetting
 
     def __init__(self, calc, params: dict, directory="./", *args, **kwargs):
         """"""
-        calc, params = self._check_plumed(calc=calc, params=params)
+        calc, params = self._canonicalise_calculator(calc=calc, params=params)
+        params.update(units=calc.units)
 
         super().__init__(calc, params, directory=directory, *args, **kwargs)
 
-        params.update(units=calc.units)
-        self.setting = LmpDriverSetting(**params)
-
         return
 
-    def _check_plumed(self, calc, params: dict):
-        """"""
+    def _canonicalise_calculator(self, calc, params: dict):
+        """Canonicalise the calculator and its parameters.
+
+        We check whether the calculator is a pure LAMMPS or a combination of LAMMPS and PLUMED.
+
+        """
         # TODO: We should better move this to potential_manager.
+        units = "metal"
         try:
             from ..potential.managers.plumed.calculators.plumed2 import Plumed
+
             new_calc, new_params = calc, params
             if isinstance(calc, LinearCombinationCalculator):
                 ncalcs = len(calc.calcs)
@@ -429,9 +448,12 @@ class LmpDriver(AbstractDriver):
                     new_calc = calc.calcs[0]
                     new_params = copy.deepcopy(params)
                     new_params["plumed"] = "".join(calc.calcs[1].input)
+                    units = calc.calcs[0].units
         except ImportError:
             new_calc = calc
             new_params = params
+            units = calc.units
+        new_params.update(units=units)
 
         return new_calc, new_params
 
@@ -439,10 +461,14 @@ class LmpDriver(AbstractDriver):
         """"""
         verified = super()._verify_checkpoint(*args, **kwargs)
         if verified:
-            checkpoints = list(self.directory.glob("restart.*"))
-            self._debug(f"checkpoints: {checkpoints}")
-            if not checkpoints:
-                verified = False
+            if self.setting.ckpt_period >= self.setting.steps:
+                # The computation may finish without saving any restart files.
+                verified = self.read_convergence_from_logfile()
+            else:
+                checkpoints = list(self.directory.glob("restart.*"))
+                self._debug(f"checkpoints: {checkpoints}")
+                if not checkpoints:
+                    verified = False
         else:
             ...
 
@@ -451,15 +477,10 @@ class LmpDriver(AbstractDriver):
     def _create_dynamics(self, atoms: Atoms, *args, **kwargs):
         """Convert parameters into lammps input lines."""
         lines = []
-        if self.setting.task == "min":
-            dynamics = self.setting.get_minimisation_inputs(
-                random_seed=self.random_seed
-            )
-            lines.extend(dynamics)
-        else:  # assume md
-            # NOTE: Velocities by ASE may lose precision as
-            #       they are first written to data file and read by lammps then
-            if self.setting.use_lmpvel:
+        if self.setting.task == "md":
+            # Velocities by ASE may lose precision as
+            # they are first written to data file and read by lammps then
+            if self.setting.use_lammps_vinit:
                 velocity_seed = self.setting.velocity_seed
                 if velocity_seed is None:
                     velocity_seed = self.random_seed
@@ -484,60 +505,181 @@ class LmpDriver(AbstractDriver):
                     self.setting.velocity_seed,
                     self.setting.ignore_atoms_velocities,
                 )
-            dynamics = self.setting.get_molecular_dynamics_inputs(
-                random_seed=self.random_seed
-            )
-            lines.extend(dynamics)
+        else:
+            ...
+
+        dynamics = self.setting.get_simulation_inputs(random_seed=self.random_seed, group="mobile")
+        lines.extend(dynamics)
 
         return lines
 
-    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
+    def _write_plumed(self, ckpt_wdir: Optional[pathlib.Path], finish_steps: int, curr_temperature: float):
         """"""
-        try:
-            run_params = self.setting.get_init_params()
-            run_params.update(**self.setting.get_run_params(**kwargs))
+        if self.calc.plumed is None:
+            return
 
-            if ckpt_wdir is None:  # start from the scratch
-                ...
-            else:
-                checkpoints = sorted(
-                    list(ckpt_wdir.glob("restart.*")),
-                    key=lambda x: int(x.name.split(".")[1]),
+        is_continue = ckpt_wdir is not None
+        if is_continue:  # clean up COLVAR and HILLS
+            assert finish_steps > 0
+            required_num_lines = int(finish_steps / self.setting.dump_period)
+            assert required_num_lines - finish_steps / self.setting.dump_period == 0, (
+                "The finished steps must be multiple of dump_period."
+            )
+            self._print(f"{required_num_lines=}")
+            # Find files with names starting with COLVAR
+            colvar_files = list(ckpt_wdir.glob("COLVAR*"))
+            for fpath in colvar_files:
+                clap_plumed_file_by_number(
+                    fpath,
+                    self.directory / fpath.name,
+                    required_num_lines,
+                    0,
                 )
-                self._debug(f"checkpoints to restart: {checkpoints}")
-                target_steps = run_params["steps"]
-                run_params.update(
-                    read_restart=str(checkpoints[-1].resolve()),
-                    steps=target_steps - int(checkpoints[-1].name.split(".")[1]),
+            # Find enhanced sampling-related files, HILLS or KERNELS
+            hills_fpath = ckpt_wdir / "HILLS"
+            if hills_fpath.exists():
+                clap_plumed_file_by_number(
+                    hills_fpath,
+                    self.directory / "HILLS",
+                    required_num_lines,
+                    0,
                 )
-                # shutil.move(
-                #     checkpoints[-1].parent / "traj.dump", self.directory / "traj.dump"
-                # )
-
-            dynamics = self._create_dynamics(atoms, *args, **kwargs)
-
-            # - check constraint
-            self.calc.set(
-                task=self.setting.task,
+            kernels_fpath = ckpt_wdir / "KERNELS"
+            if kernels_fpath.exists():
+                opes_sigma = find_input_key_value(
+                    self.calc.plumed,
+                    "OPES_METAD",
+                    "SIGMA",
+                )
+                adaptive_sigma_stride = find_input_key_value(
+                    self.calc.plumed,
+                    "OPES_METAD",
+                    "ADAPTIVE_SIGMA_STRIDE",
+                )
+                if opes_sigma is None or opes_sigma == "ADAPTIVE":
+                    adaptive_sigma_stride = (
+                        int(adaptive_sigma_stride) if adaptive_sigma_stride is not None else 10
+                    )  # opes_metad use 10xpace to estimate sigmas
+                    kernel_offset = -int(adaptive_sigma_stride / self.setting.dump_period) + 1
+                else:
+                    assert adaptive_sigma_stride is None, (
+                        "If SIGMA is initialised, ADAPTIVE_SIGMA_STRIDE should not be set."
+                    )
+                    kernel_offset = 0
+                self._print(f"{adaptive_sigma_stride=} {kernel_offset=}")
+                clap_plumed_file_by_number(
+                    kernels_fpath,
+                    self.directory / "KERNELS",
+                    required_num_lines,
+                    kernel_offset,  # opes_metd use 10xpace to estimate sigmas
+                )
+            # copy STATE if we have the exact state at the checkpoint
+            state_fpath = ckpt_wdir / "STATE"
+            if state_fpath.exists():
+                finished_time = finish_steps * self.setting.timestep / 1000.0  # in ps
+                clap_plumed_file_by_simulations(
+                    state_fpath,
+                    self.directory / "STATE",
+                    finished_time,
+                )
+        write_plumed_input_file(
+            pathlib.Path(self.directory),
+            copy.deepcopy(self.calc.plumed),
+            dict(
                 dump_period=self.setting.dump_period,
                 ckpt_period=self.setting.ckpt_period,
-                dynamics=dynamics,
-                steps=run_params["steps"],
-                constraint=run_params["constraint"],
-                etol=run_params["etol"],
-                ftol=run_params["ftol"],
-                # misc
-                read_restart=run_params.get("read_restart", None),
-                extra_fix=run_params["extra_fix"],  # e.g. fixcm
-                neighbor=run_params["neighbor"],
-                neigh_modify=run_params["neigh_modify"],
-            )
-            atoms.calc = self.calc
+                temperature=curr_temperature,
+            ),
+            is_continue=is_continue,
+        )
 
-            # - run
+        return
+
+    def _irun(self, atoms: Atoms, ckpt_wdir=None, *args, **kwargs):
+        """"""
+        run_params = self.setting.get_init_params()
+        run_params.update(**self.setting.get_run_params(**kwargs))
+
+        prev_temperature, prev_pressure = self.setting.temp, self.setting.press
+
+        is_continue = ckpt_wdir is not None
+        if not is_continue:  # start from the scratch
+            curr_temperature, curr_pressure = (
+                self.setting.temp,
+                self.setting.press,
+            )
+            finish_steps = 0  # For plumed
+        else:
+            checkpoints = sorted(
+                list(ckpt_wdir.glob("restart.*")),
+                key=lambda x: int(x.name.split(".")[1]),
+            )
+            self._debug(f"checkpoints to restart: {checkpoints}")
+            target_steps = run_params["steps"]
+            finish_steps = int(checkpoints[-1].name.split(".")[1])
+            remain_steps = target_steps - finish_steps
+            run_params.update(read_restart=str(checkpoints[-1].resolve()), steps=remain_steps)
+            if self.setting.tend is not None:
+                curr_temperature = (
+                    self.setting.temp + (self.setting.tend - self.setting.temp) / target_steps * finish_steps
+                )
+            else:
+                curr_temperature = self.setting.temp
+            if self.setting.pend is not None:
+                curr_pressure = (
+                    self.setting.press + (self.setting.pend - self.setting.press) / target_steps * finish_steps
+                )
+            else:
+                curr_pressure = self.setting.press
+
+        # In case of temperature/pressure annealing
+        self.setting.temp = curr_temperature
+        self.setting.press = curr_pressure
+
+        dynamics = self._create_dynamics(atoms, *args, **kwargs)
+
+        self._write_plumed(ckpt_wdir, finish_steps, curr_temperature)
+
+        self.setting.temp = prev_temperature
+        self.setting.press = prev_pressure
+
+        # Add early-stopping criteria
+        halt = ""
+        if self.setting.observers is not None:
+            observers = []
+            for ob_params in self.setting.observers:
+                observers.append(create_an_observer(ob_params))
+            for i, ob in enumerate(observers):
+                if hasattr(ob, "get_lammps_command"):
+                    halt += ob.get_lammps_command(f"observer_{i:>02d}", "all", dump_period=self.setting.dump_period)
+
+        # Update calculator parameters
+        self.calc.set(
+            task=self.setting.task,
+            dump_period=self.setting.dump_period,
+            ckpt_period=self.setting.ckpt_period,
+            dynamics=dynamics,
+            steps=run_params["steps"],
+            constraint=run_params["constraint"],
+            etol=run_params["etol"],
+            ftol=run_params["ftol"],
+            # misc
+            read_restart=run_params.get("read_restart", None),
+            extra_fix=run_params["extra_fix"],  # e.g. fixcm
+            neighbor=run_params["neighbor"],
+            neigh_modify=run_params["neigh_modify"],
+            halt=halt,  # for earlystop
+        )
+        atoms.calc = self.calc
+
+        # run simulation
+        try:
             _ = atoms.get_forces()
         except Exception as e:
-            config._debug(traceback.format_exc())
+            self._debug(traceback.format_exc())
+        finally:
+            # restore some temporary parameters.
+            ...
 
         return
 
@@ -546,12 +688,15 @@ class LmpDriver(AbstractDriver):
         wdir: pathlib.Path,
         mdir,
         units: str,
-        archive_path: pathlib.Path = None,
+        archive_path: Optional[pathlib.Path] = None,
+        print_func=config._print,
+        debug_func=config._debug,
         *args,
         **kwargs,
     ):
         """"""
-        # - get FileIO
+        # Get all file handles
+        traj_io, log_io = None, None
         if archive_path is None:
             traj_io = open(wdir / ASELMPCONFIG.trajectory_filename, "r")
             log_io = open(wdir / ASELMPCONFIG.log_filename, "r")
@@ -582,23 +727,15 @@ class LmpDriver(AbstractDriver):
                 for tarinfo in tar:
                     if tarinfo.name.startswith(wdir.name):
                         if tarinfo.name == traj_tarname:
-                            traj_io = io.StringIO(
-                                tar.extractfile(tarinfo.name).read().decode()
-                            )
+                            traj_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         elif tarinfo.name == prism_tarname:
                             prism_io = io.BytesIO(tar.extractfile(tarinfo.name).read())
                         elif tarinfo.name == log_tarname:
-                            log_io = io.StringIO(
-                                tar.extractfile(tarinfo.name).read().decode()
-                            )
+                            log_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         elif tarinfo.name == devi_tarname:
-                            devi_io = io.StringIO(
-                                tar.extractfile(tarinfo.name).read().decode()
-                            )
+                            devi_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         elif tarinfo.name == colvar_tarname:
-                            colvar_io = io.StringIO(
-                                tar.extractfile(tarinfo.name).read().decode()
-                            )
+                            colvar_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
                         else:
                             ...
                     else:
@@ -606,7 +743,11 @@ class LmpDriver(AbstractDriver):
                 else:  # TODO: if not find target traj?
                     ...
 
-        # - read timesteps
+        # Must have (traj, log), others (prism, devi, colvar) are optional
+        assert traj_io is not None
+        assert log_io is not None
+
+        # Get timesteps
         timesteps = []
         while True:
             line = traj_io.readline()
@@ -632,25 +773,15 @@ class LmpDriver(AbstractDriver):
         nframes_traj = len(curr_traj_frames_)
         timesteps = timesteps[:nframes_traj]  # avoid incomplete structure
 
-        # - read thermo data
-        thermo_dict, end_info = parse_thermo_data(log_io.readlines())
+        # Read thermo data
+        thermo_dict = parse_thermo_data_by_pattern(log_io.readlines(), print_func=print_func, debug_func=debug_func)
 
-        # NOTE: last frame would not be dumpped if timestep not equals multiple*dump_period
-        #       if there were any error,
-        pot_energies = [
-            unitconvert.convert(p, "energy", units, "ASE")
-            for p in thermo_dict["PotEng"]
-        ]
+        # The last frame would not be dumpped if timestep not equals multiple*dump_period
+        # or if there were any error,
+        pot_energies = [unitconvert.convert(p, "energy", units, "ASE") for p in thermo_dict["PotEng"]]
         nframes_thermo = len(pot_energies)
         nframes = min([nframes_traj, nframes_thermo])
-        config._debug(
-            f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}"
-        )
-
-        # NOTE: check whether steps in thermo and traj are consistent
-        # pot_energies = pot_energies[:nframes]
-        # curr_traj_frames = curr_traj_frames[:nframes]
-        # assert len(pot_energies) == len(curr_traj_frames), f"Number of pot energies and frames are inconsistent at {str(wdir)}."
+        debug_func(f"nframes in lammps: {nframes} traj {nframes_traj} thermo {nframes_thermo}")
 
         curr_traj_frames, curr_energies = [], []
         for i, t in enumerate(timesteps):
@@ -658,82 +789,42 @@ class LmpDriver(AbstractDriver):
                 curr_atoms = curr_traj_frames_[i]
                 curr_atoms.info["step"] = t
                 curr_traj_frames.append(curr_atoms)
-                curr_energies.append(
-                    pot_energies[thermo_dict["Step"].tolist().index(t)]
-                )
+                curr_energies.append(pot_energies[thermo_dict["Step"].tolist().index(t)])
 
         for pot_eng, atoms in zip(curr_energies, curr_traj_frames):
             forces = atoms.get_forces()
-            # NOTE: forces have already been converted in ase read, so velocities are
+            # forces have already been converted in ase read, so are velocities
             sp_calc = SinglePointCalculator(atoms, energy=pot_eng, forces=forces)
             atoms.calc = sp_calc
 
-        # - check model_devi.out
-        # TODO: convert units?
-        if devi_io is not None:
-            lines = devi_io.readlines()
-            if "#" in lines[0]:  # the first file
-                dkeys = ("".join([x for x in lines[0] if x != "#"])).strip().split()
-                dkeys = [x.strip() for x in dkeys][1:]
-            else:
-                ...
-            devi_io.seek(0)
-            data = np.loadtxt(devi_io, dtype=float)
-            ncols = data.shape[-1]
-            data = data.reshape(-1, ncols)
-            # NOTE: For some minimisers, dp gives several deviations as
-            #       multiple force evluations are performed in one step.
-            #       Thus, we only take the last occurance of the deviation in each step.
-            step_indices = []
-            steps = data[:, 0].astype(np.int32).tolist()
-            for k, v in itertools.groupby(enumerate(steps), key=lambda x: x[1]):
-                v = sorted(v, key=lambda x: x[0])
-                step_indices.append(v[-1][0])
-            data = data.transpose()[1:, step_indices[:nframes]]
-            # config._print(data)
+        # Check model_devi.out if any, frames may not have deviations as the simulation can stop in the middle
+        _ = (
+            add_model_deviation_to_atoms_info(
+                devi_io,
+                curr_traj_frames,
+                units=units,
+            )
+            if devi_io is not None
+            else None
+        )
 
-            for i, atoms in enumerate(curr_traj_frames):
-                for j, k in enumerate(dkeys):
-                    try:
-                        atoms.info[k] = data[j, i]
-                    except IndexError:
-                        # NOTE: Some potentials donot print last frames of min
-                        #       for example, lammps
-                        atoms.info[k] = 0.0
-        else:
-            ...
-
-        # - check COLVAR
-        if colvar_io is not None:
-            # - read latest COLVAR Files
-            names = colvar_io.readline().split()[2:]
-            colvar_io.seek(0)
-            colvars = np.loadtxt(colvar_io)
-            # print("colvars: ", colvars.shape)
-            curr_colvars = colvars[-nframes_traj:, :]
-            for i, atoms in enumerate(curr_traj_frames):
-                for k, v in zip(names, curr_colvars[i, :]):
-                    atoms.info[k] = v
-
-        # - Close IO
+        # Close all file handles
         traj_io.close()
         log_io.close()
         if prism_io is not None:
             prism_io.close()
         if devi_io is not None:
             devi_io.close()
-        if colvar_io is not None:
-            colvar_io.close()
 
         return curr_traj_frames
 
     def read_trajectory(
         self,
         type_list=None,
-        archive_path: pathlib.Path = None,
+        archive_path: Optional[pathlib.Path] = None,
         *args,
         **kwargs,
-    ) -> List[Atoms]:
+    ) -> list[Atoms]:
         """Read trajectory in the current working directory."""
         if type_list is not None:
             self.calc.type_list = type_list
@@ -746,17 +837,63 @@ class LmpDriver(AbstractDriver):
             archive_path=archive_path,
         )
 
+        # Since COLVAR always starts from step 0, we may add info here
+        # Add COLVAR if any, frames may not have colvars as the simulation can stop in the middle
+        colvar_io = None
+        if archive_path is None:
+            colvar_path = self.directory / "COLVAR"
+            if colvar_path.exists():
+                colvar_io = open(colvar_path, "r")
+            else:
+                ...
+        else:
+            rpath = self.directory.relative_to(self.directory.parent)
+            colvar_tarname = str(rpath / "COLVAR")
+            with tarfile.open(archive_path, "r:gz") as tar:
+                for tarinfo in tar:
+                    if tarinfo.name.startswith(self.directory.name):
+                        if tarinfo.name == colvar_tarname:
+                            colvar_io = io.StringIO(tar.extractfile(tarinfo.name).read().decode())
+                        else:
+                            ...
+                    else:
+                        continue
+                else:  # TODO: if not find target traj?
+                    ...
+
+        dump_period_in_ps = self.setting.dump_period * self.setting.timestep / 1000.0
+
+        _ = (
+            add_colvar_to_atoms_info(
+                colvar_io,
+                traj_frames,
+                dump_period_in_ps=dump_period_in_ps,
+                ignored_columns=["time"],
+            )
+            if colvar_io is not None
+            else None
+        )
+        if colvar_io is not None:
+            colvar_io.close()
+
         return traj_frames
 
     def read_convergence_from_logfile(self, *args, **kwargs):
         """"""
         converged = False
         log_fpath = self.directory / ASELMPCONFIG.log_filename
-        if log_fpath:
+        if log_fpath.exists() and log_fpath.stat().st_size != 0:
             with open(log_fpath, "r") as fopen:
                 lines = fopen.readlines()
-            if lines[-1].strip().startswith("Total wall time:"):
+            end_line = lines[-1].strip()
+            if end_line.startswith("Total wall time:"):
                 converged = True
+            elif end_line.startswith("Last command: run"):
+                with open(self.directory / "EARLYSTOP", "w") as fopen:
+                    fopen.write("")
+                converged = True
+            else:
+                self._print(f"LAMMPS ENDLINE: {end_line}")
         else:
             ...
 
@@ -764,16 +901,11 @@ class LmpDriver(AbstractDriver):
 
 
 class Lammps(FileIOCalculator):
-
     #: Calculator name.
     name: str = "Lammps"
 
     #: Implemented properties.
-    implemented_properties: List[str] = ["energy", "forces", "stress"]
-
-    #: LAMMPS command.
-    command: str = "lmp 2>&1 > lmp.out"
-    # command: str = "lmp"
+    implemented_properties: list[str] = ["energy", "forces", "stress"]
 
     #: Default calculator parameters, NOTE which have ase units.
     default_parameters: dict = dict(
@@ -786,38 +918,46 @@ class Lammps(FileIOCalculator):
         constraint=None,  # index of atoms, start from 0
         etol=0.0,
         ftol=0.05,
-        # --- lmp params ---
+        is_classic=False,
+        # lmp params ---
         read_restart=None,
         units="metal",
         atom_style="atomic",
-        processors="* * 1",
+        atom_modify=None,
+        processors=None,
         # boundary = "p p p",
         newton=None,
         pair_style=None,
         pair_coeff=None,
-        neighbor="0.0 bin",
-        neigh_modify=None,
+        pair_modify=None,
+        kspace_style=None,
+        neighbor="2.0 bin",
+        neigh_modify="every 10 check yes",
         mass="* 1.0",
-        # - extra fix
+        # extra fix
+        halt="",
         extra_fix=[],
-        # - externals
+        # externals
         plumed=None,
     )
 
     #: Symbol to integer.
-    type_list: List[str] = None
+    type_list: Optional[list[str]] = None
 
     #: Cached trajectory of the previous simulation.
-    cached_traj_frames: List[Atoms] = None
+    cached_traj_frames: Optional[list[Atoms]] = None
 
-    def __init__(self, command=None, label=name, **kwargs):
+    def __init__(self, command="lmp", label=name, **kwargs):
         """"""
         FileIOCalculator.__init__(self, command=command, label=label, **kwargs)
 
-        # check command
-        # if "-in" in self.command or ">" in self.command:
-        #     raise RuntimeError(f"LAMMPS command must not contain input or output files.")
-        # self.command = self.command + "  -in in.lammps 2>&1 > lmp.out"
+        # complete command
+        command_ = self.profile.command
+        if "-in" in command_:
+            ...
+        else:
+            command_ += f" -in in.lammps 2>&1 > lmp.out"
+        self.profile.command = command_
 
         # - check potential
         assert self.pair_style is not None, "pair_style is not set."
@@ -845,30 +985,32 @@ class Lammps(FileIOCalculator):
         """Write input file and input structure."""
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
 
-        # - check velocities
+        # Check velocities
         write_velocities = False
         if atoms.get_kinetic_energy() > 0.0:
             write_velocities = True
 
-        # write structure
-        prismobj = Prism(atoms.get_cell())  # TODO: nonpbc?
+        # Write structure
+        prismobj = Prism(atoms.get_cell())
         prism_file = os.path.join(self.directory, ASELMPCONFIG.prism_filename)
         with open(prism_file, "wb") as fopen:
             pickle.dump(prismobj, fopen)
         stru_data = os.path.join(self.directory, ASELMPCONFIG.inputstructure_filename)
+
+        assert self.type_list is not None
         write_lammps_data(
             stru_data,
             atoms,
             specorder=self.type_list,
-            force_skew=True,
+            force_skew=False,
             prismobj=prismobj,
             velocities=write_velocities,
             units=self.units,
             atom_style=self.atom_style,
         )
 
-        # write input
-        self._write_input(atoms)
+        # Write input
+        self._write_input(atoms, prismobj)
 
         return
 
@@ -880,9 +1022,7 @@ class Lammps(FileIOCalculator):
         """
 
         is_finished, end_info = False, "not finished"
-        log_filepath = pathlib.Path(
-            os.path.join(self.directory, ASELMPCONFIG.log_filename)
-        )
+        log_filepath = pathlib.Path(os.path.join(self.directory, ASELMPCONFIG.log_filename))
 
         if log_filepath.exists():
             ERR_FLAG = "ERROR: "
@@ -915,7 +1055,11 @@ class Lammps(FileIOCalculator):
         # read forces from dump file
         curr_wdir = pathlib.Path(self.directory)
         self.cached_traj_frames = LmpDriver._read_a_single_trajectory(
-            mdir=curr_wdir, wdir=curr_wdir, units=self.units
+            mdir=curr_wdir,
+            wdir=curr_wdir,
+            units=self.units,
+            print_func=lambda _: "",
+            debug_func=lambda _: "",
         )
         converged_frame = self.cached_traj_frames[-1]
 
@@ -929,150 +1073,184 @@ class Lammps(FileIOCalculator):
 
         return
 
-    def _write_input(self, atoms) -> None:
+    def _write_input(self, atoms, prismobj) -> None:
         """Write input file in.lammps"""
-        # - write in.lammps
+        # Global settings
         content = f"restart         {self.ckpt_period}  restart.*.data\n\n"
         content += "units           %s\n" % self.units
         content += "atom_style      %s\n" % self.atom_style
+        if self.atom_modify is not None:
+            content += f"atom_modify {self.atom_modify}\n"
 
-        # - mpi settings
+        # Parallel settings
         if self.processors is not None:
-            content += "processors {}\n".format(self.processors)  # if 2D simulation
+            content += f"processors  {self.processors}\n"  # if 2D simulation
 
-        # - simulation box
+        # Simulation system
         pbc = atoms.get_pbc()
         if "boundary" in self.parameters:
             content += "boundary {0} \n".format(self.parameters["boundary"])
         else:
             content += "boundary {0} {1} {2} \n".format(
-                *tuple(
-                    "fp"[int(x)] for x in pbc
-                )  # sometimes s failed to wrap all atoms
+                *tuple("fp"[int(x)] for x in pbc)  # sometimes s failed to wrap all atoms
             )
         content += "\n"
         if self.newton:
-            content += "newton {}\n".format(self.newton)
-        content += "box             tilt large\n"
+            content += f"newton  {self.newton}\n"
         if self.read_restart is None:
             content += "read_data	    %s\n" % ASELMPCONFIG.inputstructure_filename
         else:
             content += f"read_restart    {self.read_restart}\n"
-            # os.remove(ASELMPCONFIG.inputstructure_filename)
-        content += "change_box      all triclinic\n"
 
-        # - particle masses
+        if prismobj.is_skewed():
+            content += "box             tilt large\n"
+            content += "change_box      all triclinic\n"
+
+        # Particle masses
+        assert self.type_list is not None
         mass_line = "".join(
-            "mass %d %f\n" % (idx + 1, atomic_masses[atomic_numbers[elem]])
-            for idx, elem in enumerate(self.type_list)
+            "mass %d %f\n" % (idx + 1, atomic_masses[atomic_numbers[elem]]) for idx, elem in enumerate(self.type_list)
         )
         content += mass_line
         content += "\n"
 
-        # - pair, MLIP specific settings
-        potential = self.pair_style.strip().split()[0]
-        if potential == "reax/c":
-            assert self.atom_style == "charge", "reax/c should have charge atom_style"
-            content += "pair_style  {}\n".format(self.pair_style)
-            content += "pair_coeff {} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
-            content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
-        elif potential == "eann":
-            pot_data = self.pair_style.strip().split()[1:]
-            endp = len(pot_data)
-            for ip, p in enumerate(pot_data):
-                if p == "out_freq":
-                    endp = ip
-                    break
-            pot_data = pot_data[:endp]
-            if len(pot_data) > 1:
-                pair_style = "eann {} out_freq {}".format(
-                    " ".join(pot_data), self.dump_period
-                )
-            else:
-                pair_style = "eann {}".format(" ".join(pot_data))
-            content += "pair_style  {}\n".format(pair_style)
-            # NOTE: make out_freq consistent with dump_period
-            if self.pair_coeff is None:
-                pair_coeff = "double * *"
+        # Particle charges
+        if self.atom_style == "charge" and self.type_charges:
+            for itype, charge in enumerate(self.type_charges):
+                content += f"set type {itype + 1} charge {charge}\n"
+            content += "\n"
+
+        # Pair styles
+        type_list_str = " ".join(self.type_list)
+        pair_dicts = dict(
+            pair_style=dict(
+                type_list=type_list_str,
+                out_freq=self.dump_period,  # deepmd
+            ),
+            pair_coeff=dict(
+                type_list=type_list_str,
+            ),
+        )
+        if self.is_classic:
+            # assert (
+            #     self.atom_style == "charge"
+            # ), "For now, classic potentials need charge information."
+            content += f"pair_style  {self.pair_style}\n"
+            if isinstance(self.pair_coeff, str):
+                pair_coeff = [self.pair_coeff]
             else:
                 pair_coeff = self.pair_coeff
-            content += "pair_coeff	{} {}\n".format(pair_coeff, " ".join(self.type_list))
-        elif potential == "deepmd":
-            content += "pair_style  {} out_freq {}\n".format(
-                self.pair_style, self.dump_period
-            )
-            content += "pair_coeff	{} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
-        elif potential == "nequip":
-            content += "pair_style  {}\n".format(
-                self.pair_style
-            )
-            content += "pair_coeff	{} {}\n".format(
-                self.pair_coeff, " ".join(self.type_list)
-            )
+            for coeff in pair_coeff:
+                content += f"pair_coeff  {coeff}\n"
         else:
-            content += "pair_style {}\n".format(self.pair_style)
-            # content += "pair_coeff {} {}\n".format(self.pair_coeff, " ".join(self.type_list))
-            content += "pair_coeff {}\n".format(self.pair_coeff)
+            # Some potentials need system-specific information such as type_list,
+            # so we treat them separately.
+            potential = self.pair_style.strip().split()[0]
+            if potential == "reax/c":
+                assert self.atom_style == "charge", "reax/c should have charge atom_style"
+                content += f"pair_style  {self.pair_style}\n"
+                content += f"pair_coeff  {self.pair_coeff} {type_list_str}\n"
+                content += "fix             reaxqeq all qeq/reax 1 0.0 10.0 1e-6 reax/c\n"
+            elif potential == "eann":
+                pot_data = self.pair_style.strip().split()[1:]
+                endp = len(pot_data)
+                for ip, p in enumerate(pot_data):
+                    if p == "out_freq":
+                        endp = ip
+                        break
+                pot_data = pot_data[:endp]
+                if len(pot_data) > 1:
+                    pair_style = "eann {} out_freq {}".format(" ".join(pot_data), self.dump_period)
+                else:
+                    pair_style = "eann {}".format(" ".join(pot_data))
+                content += "pair_style  {}\n".format(pair_style)
+                # NOTE: make out_freq consistent with dump_period
+                if self.pair_coeff is None:
+                    pair_coeff = "double * *"
+                else:
+                    pair_coeff = self.pair_coeff
+                content += f"pair_coeff	{pair_coeff} {type_list_str}\n"
+            else:
+                # PotentialManager should give f-strings for pair_style and pair_coeff that
+                # system-specific information can be applied below.
+                content += "pair_style  " + self.pair_style.format(**pair_dicts["pair_style"]) + "\n"
+                content += "pair_coeff  " + self.pair_coeff.format(**pair_dicts["pair_coeff"]) + "\n"
+
+        if self.pair_modify is not None:
+            content += f"pair_modify {self.pair_modify}\n"
+
         content += "\n"
 
-        # - neighbor
-        content += "neighbor        {}\n".format(self.neighbor)
+        # TODO: kspace should be set with pair at the same time
+        if self.kspace_style is not None:
+            content += f"kspace_style  {self.kspace_style}\n\n"
+
+        # Neighbour list settings
+        content += f"neighbor        {self.neighbor}\n"
         if self.neigh_modify:
-            content += "neigh_modify        {}\n".format(self.neigh_modify)
+            content += f"neigh_modify    {self.neigh_modify}\n"
         content += "\n"
 
-        # - constraint
-        mobile_text, frozen_text = parse_constraint_info(atoms, self.constraint)
-        if mobile_text:  # NOTE: sometimes all atoms are fixed
-            content += "group mobile id %s\n" % mobile_text
+        # Whether fix atoms
+        mobile_indices, frozen_indices = evaluate_constraint_expression(atoms, self.constraint)
+        if mobile_indices:  # Sometimes all atoms are fixed.
+            mobile_text = integers_to_string(mobile_indices, inp_convention="ase")
+            content += f"group mobile id {mobile_text}\n"
             content += "\n"
-        if frozen_text:  # not empty string
-            # content += "region bottom block INF INF INF INF 0.0 %f\n" %zmin # unit A
-            content += "group frozen id %s\n" % frozen_text
+        if frozen_indices:  # Sometimes no atoms are fixed.
+            frozen_text = integers_to_string(frozen_indices, inp_convention="ase")
+            content += f"group frozen id {frozen_text}\n"
             content += "fix cons frozen setforce 0.0 0.0 0.0\n"
         content += "\n"
 
-        # - outputs
+        # Thermodynamics outputs
         # TODO: use more flexible notations
         if self.task == "min":
-            content += (
-                "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
-            )
+            content += "thermo_style    custom step pe ke etotal temp press vol fmax fnorm\n"
         elif self.task == "md":
             content += "compute mobileTemp mobile temp\n"
             content += "thermo_style    custom step c_mobileTemp pe ke etotal press vol lx ly lz xy xz yz\n"
         else:
             pass
-        content += "thermo          {}\n".format(self.dump_period)
+        content += f"thermo         {self.dump_period}\n"
         content += "thermo_modify   flush yes\n"
 
         # total energy is not stored in dump so we need read from log.lammps
-        content += (
-            "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
+        if self.atom_style == "atomic":
+            content += "dump		1 all custom {} {} id type element x y z fx fy fz vx vy vz\n".format(
                 self.dump_period, ASELMPCONFIG.trajectory_filename
             )
-        )
-        content += "dump_modify 1 element {} flush yes\n".format(
-            " ".join(self.type_list)
-        )
+        elif self.atom_style == "charge":
+            content += "dump		1 all custom {} {} id type element q x y z fx fy fz vx vy vz\n".format(
+                self.dump_period, ASELMPCONFIG.trajectory_filename
+            )
+        else:
+            ...
+        assert self.type_list is not None
+        content += f"dump_modify 1 element {' '.join(self.type_list)} flush yes\n"
         content += "\n"
 
-        # - add extra fix
+        # Add additional fixes
         for i, fix_info in enumerate(self.extra_fix):
             if isinstance(fix_info, str):  # fix ID command
                 content += "{:<24s}  {:<24s}  {:<s}\n".format("fix", f"extra{i}", fix_info)
             else:  # fix ID group-ID command
-                group_indices = create_a_group(atoms, fix_info[0])
-                group_text = convert_indices(group_indices, index_convention="py") # py-index -> lmp-index text
+                group_indices = evaluate_group_expression(atoms, fix_info[0])
+                group_text = integers_to_string(
+                    group_indices, inp_convention="ase"
+                )  # ase-index-list -> lmp-index-text
                 content += "{:<24s}  {:<24s}  id  {:<s}  \n".format("group", f"extra_group_{i}", group_text)
-                content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format("fix", f"extra{i}", f"extra_group_{i}", fix_info[1])
+                content += "{:<24s}  {:<24s}  {:<s}  {:<s}\n".format(
+                    "fix", f"extra{i}", f"extra_group_{i}", fix_info[1]
+                )
         content += "\n"
 
-        # --- run type
+        # Add earlystop fixes
+        if self.halt:
+            content += self.halt
+            content += "\n"
+
+        # Simulation tasks
         if self.task == "min":
             content += "\n".join(self.dynamics) + "\n"
 
@@ -1086,33 +1264,18 @@ class Lammps(FileIOCalculator):
             if self.read_restart is not None:
                 # pop up velocity line
                 self.dynamics[0] = "#  use velocities in restart"
-
             content += "\n".join(self.dynamics) + "\n"
 
             if self.plumed is not None:
-                # TODO: We should better move this to driver setting.
-                try:
-                    from ..potential.managers.plumed.calculators.plumed2 import update_stride_and_file
-                    plumed_inp = update_stride_and_file(
-                        self.plumed, wdir=str(self.directory), stride=self.dump_period
-                    )
-                    with open(os.path.join(self.directory, "plumed.inp"), "w") as fopen:
-                        fopen.write("".join(plumed_inp))
-                    content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
-                except:
-                    raise RuntimeError("Plumed Bias is included but cannot be imported.")
+                content += "fix             metad all plumed plumedfile plumed.inp outfile plumed.out\n"
             content += f"run             {self.steps}\n"
         else:
             # TODO: NEB?
             ...
 
-        # - output file
+        # Write the input file
         in_file = os.path.join(self.directory, ASELMPCONFIG.input_fname)
         with open(in_file, "w") as fopen:
             fopen.write(content)
 
         return
-
-
-if __name__ == "__main__":
-    ...

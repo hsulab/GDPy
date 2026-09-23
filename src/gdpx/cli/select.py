@@ -1,19 +1,20 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import pathlib
 from typing import Union
 
-from ..data.array import AtomsNDArray
-from ..selector.interface import SelectorVariable
-from ..selector.selector import AbstractSelector
-from .build import create_builder
+from ase.io import write
+
+from gdpx import config
+from gdpx.builder.builder import StructureBuilder
+from gdpx.data.array import AtomsNDArray
+from gdpx.factory.builder import canonicalise_builder
+from gdpx.nodes.selector import SelectorVariable
+from gdpx.selector.selector import BaseSelector
+from gdpx.utils.parser import parse_input_file
 
 
 def run_selection(
     param_file: Union[str, pathlib.Path],
-    structure: Union[str, dict],
+    structures: Union[str, dict],
     directory: Union[str, pathlib.Path] = "./",
 ) -> None:
     """Run selection with input selector and input structures.
@@ -26,29 +27,30 @@ def run_selection(
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=False)
 
-    from gdpx.utils.command import parse_input_file
-
     params = parse_input_file(param_file)
 
-    selector: AbstractSelector = SelectorVariable(directory=directory, **params).value
+    # Instantiate selector
+    selector = SelectorVariable(directory=directory, **params).value
+    assert isinstance(selector, BaseSelector)
     selector.directory = directory
 
-    # - read structures
-    builder = create_builder(structure)
-    frames = builder.run()  # -> List[Atoms]
+    # Produce structures
+    config._print("Producing structures for selection...")
+    frames_list = []
+    for structure in structures:
+        builder = canonicalise_builder(structure)
+        assert isinstance(builder, StructureBuilder)
+        frames = builder.run()  # -> List[Atoms]
+        frames_list.append(frames)
 
-    # TODO: convert to a bundle of atoms?
-    data = AtomsNDArray(frames)
+    # Convert all builders' outputs to AtomsNDArray
+    data = AtomsNDArray(frames_list)
+    config._print(f"  input_data_structure: {data}")
 
-    # -
+    # Run selection and dump results
+    config._print("Performing selection...")
     selected_frames = selector.select(data)
-
-    from ase.io import read, write
 
     write(directory / "selected_frames.xyz", selected_frames)
 
     return
-
-
-if __name__ == "__main__":
-    ...

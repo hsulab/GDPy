@@ -5,7 +5,6 @@
 from typing import List
 
 import numpy as np
-
 from ase import Atoms
 from ase.cluster import wulff_construction
 
@@ -16,14 +15,14 @@ class WulffConstructionBuilder(StructureBuilder):
 
     name = "wulff_construction"
 
-    def __init__(self, vacuum_size: float = -1, *args, **kwargs) -> None:
+    def __init__(self, vacuum_size: float = -1, params={}, *args, **kwargs) -> None:
         """"""
         super().__init__(*args, **kwargs)
 
         self.vacuum_size = vacuum_size
 
         self.parameters = dict(rounding="closest", latticeconstant=None)
-        self.parameters.update(**kwargs)
+        self.parameters.update(**params)
 
         return
 
@@ -54,7 +53,7 @@ class WulffConstructionBuilder(StructureBuilder):
             np.fill_diagonal(cell, lengths)
             atoms.pbc = True
             atoms.cell = cell
-            atoms.positions += np.sum(cell, axis=0)/2. - atoms.get_center_of_mass()
+            atoms.positions += np.sum(cell, axis=0) / 2.0 - atoms.get_center_of_mass()
 
         return [atoms]
 

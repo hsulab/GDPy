@@ -1,24 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-from typing import NoReturn
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class LocalScheduler(AbstractScheduler):
+class LocalScheduler(BaseScheduler):
     """Local scheduler."""
 
     name: str = "local"
 
-    @AbstractScheduler.job_name.setter
+    @BaseScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
-        return
-
-    def submit(self) -> NoReturn:
-        """No submit is performed."""
-
         return
 
     def is_finished(self) -> bool:
@@ -30,6 +24,22 @@ class LocalScheduler(AbstractScheduler):
         """
 
         return True
+
+    def write(self) -> None:
+        """Write self to the path of the job script.
+
+        Since the local scheduler runs everything locally in the commandline,
+        we do nothing here.
+
+        """
+
+        return
+
+    def __str__(self) -> str:
+        """Return the content of the job script."""
+
+        return f"local {self.job_name}\n"
+
 
 
 if __name__ == "__main__":

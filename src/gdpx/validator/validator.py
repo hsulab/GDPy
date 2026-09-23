@@ -1,52 +1,89 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import abc
-import logging
 import pathlib
-from typing import NoReturn, Union, Callable
+from typing import Any, Optional, Union
 
-from gdpx import config
+from gdpx.core.component import BaseComponent
+from gdpx.data.array import AtomsNDArray
+from gdpx.dataloader.dataset import AbstractDataloader
+from gdpx.factory.builder import canonicalise_builder
+from gdpx.factory.computer import canonicalise_worker
+from gdpx.worker.drive import DriverBasedWorker
 
 
-class AbstractValidator(abc.ABC):
+def canonicalise_structures_to_validate(structures) -> dict[str, Any]:
+    """Validator can accept various formats of input structures.
 
-    _print: Callable = config._print
-    _debug: Callable = config._debug
+    Note:
+        In an active session, the dataset is dynamic, thus,
+        we need load the dataset before run.
 
-    _directory = pathlib.Path.cwd()
+    Returns:
+        A dict of structures to validate.
 
-    def __init__(self, directory: Union[str,pathlib.Path]="./", *args, **kwargs):
+    """
+    if hasattr(structures, "items"):  # check if the input is a dict-like object
+        stru_dict = structures
+    else:  # assume it is just an AtomsNDArray
+        stru_dict = {}
+        stru_dict["reference"] = structures
+
+    v_dict = {}
+    for k, v in stru_dict.items():
+        if isinstance(v, dict):
+            ...
+        elif isinstance(v, list):
+            ...
+        elif isinstance(v, AtomsNDArray):
+            ...
+        elif isinstance(v, AbstractDataloader):
+            v = v.load_frames()
+        else:
+            raise Exception(f"{k} structures {type(v)} is not a dict or loader.")
+        v_dict[k] = v
+
+    return v_dict
+
+
+class BaseValidator(BaseComponent):
+    def __init__(
+        self,
+        structures: Optional[Any] = None,
+        worker: Optional[DriverBasedWorker] = None,
+        directory: Union[str, pathlib.Path] = "./",
+        random_seed: Optional[Union[int, dict]] = None,
+        n_jobs: Optional[int] = None,
+    ) -> None:
+        """Base class for validators.
+
+        Args:
+            structures: The reference structures to validate.
+
         """
-        """
-        self.directory = directory
+        super().__init__(directory=directory, random_seed=random_seed, n_jobs=n_jobs)
 
-        self.njobs = config.NJOBS
+        if structures is not None:
+            if isinstance(structures, (list, tuple)):
+                # Form a list of builders from list of str or dict
+                # The first one will be used as the reference structure,
+                # and the second one will be used as the prediction structures.
+                self.structures = [canonicalise_builder(s) for s in structures]
+                if len(self.structures) == 1:
+                    self.structures.append(None)
+                assert len(self.structures) == 2, "Validator requires two sets of structures."
+            else:
+                # Form one builder from str or dict
+                self.structures = canonicalise_builder(structures)
+        else:
+            self.structures = None
 
-        return
-    
-    @property
-    def directory(self):
-        """"""
-
-        return self._directory
-
-    @directory.setter
-    def directory(self, directory_):
-        """"""
-        directory_ = pathlib.Path(directory_)
-        self._directory = directory_
+        self.worker = canonicalise_worker(worker)
 
         return
 
     @abc.abstractmethod
-    def run(self, *args, **kwargs):
+    def run(self, *args, **kwargs) -> bool:
         """"""
         if not self.directory.exists():
             self.directory.mkdir(parents=True)
 
-        return
-
-
-if __name__ == "__main__":
-    ...
+        ...

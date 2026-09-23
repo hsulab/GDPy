@@ -1,51 +1,44 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from gdpx import config
+from gdpx.core.register import BaseRegister
 
-import warnings
-
-
-from ..core.register import registers
-
-from .basin import BasinSelector
-
-registers.selector.register(BasinSelector)
+REGISTER = BaseRegister("selector")
 
 from .compare import CompareSelector
 
-registers.selector.register(CompareSelector)
+REGISTER.register("compare")(CompareSelector)
 
 from .interval import IntervalSelector
 
-registers.selector.register(IntervalSelector)
+REGISTER.register("interval")(IntervalSelector)
 
 from .invariant import InvariantSelector
 
-registers.selector.register(InvariantSelector)
+REGISTER.register("invariant")(InvariantSelector)
 
 from .locate import LocateSelector
 
-registers.selector.register(LocateSelector)
+REGISTER.register("locate")(LocateSelector)
 
 from .property import PropertySelector
 
-registers.selector.register(PropertySelector)
+REGISTER.register("property")(PropertySelector)
 
 from .random import RandomSelector
 
-registers.selector.register(RandomSelector)
+REGISTER.register("random")(RandomSelector)
 
 from .scf import ScfSelector
 
-registers.selector.register(ScfSelector)
+REGISTER.register("scf")(ScfSelector)
+
+from .sinfo import StructureInfoSelector
+
+REGISTER.register("structure_info")(StructureInfoSelector)
 
 try:
-    # TODO: This selector depends on an external package dscribe.
+    # This selector depends on an external package dscribe.
     from .descriptor import DescriptorSelector
 
-    registers.selector.register(DescriptorSelector)
+    REGISTER.register("descriptor")(DescriptorSelector)
 except ImportError as e:
-    warnings.warn(f"Module DescriptorSelector import failed: {e}", UserWarning)
-
-
-if __name__ == "__main__":
-    ...
+    config._print(f"  {'Selector':<16s} {'`descriptor`':<16s} -> require `{e.name}`.")

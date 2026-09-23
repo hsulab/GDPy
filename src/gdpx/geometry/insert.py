@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+import copy
+import itertools
+from typing import List, Optional
+
+import numpy as np
+from ase import Atoms
+from ase.geometry import find_mic
+
+from .particle import translate_then_rotate
+from .restraints import ParsedRestraint, evaluate_restraints
+from .spatial import check_atomic_distances, check_pair_distances
+
+
+def insert_fragments_by_step(
+    substrate: Atoms,
+    fragments: List[Atoms],
+    region,
+    molecular_distances,
+    covalent_ratio,
+    bond_distance_dict,
+    random_state,
+    restraints: Optional[list[ParsedRestraint]] = None,
+    test_dist_to_substrate: bool=True,
+    max_attempts: int = 5,
+) -> Optional[Atoms]:
+    """Insert fragments by step.
+
+    Note:
+        The substrate must be a deepcopy as the below code may change the original object.
+
+    """
+    # Initialise a random number generator
+    rng = np.random.Generator(np.random.PCG64(random_state))
+
+    # Assign tags for atoms in the substrate
+    atoms = substrate
+    tags = atoms.get_tags()
+    if tags.shape[0] == 0:
+        # Start from 1 as 0 is reserved for the substrate
+        start_tag = 1
+    else:
+        start_tag = int(tags.max())
+
+    # Sort fragments by chemical formulae alphabetically
+    fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
+
+    chemical_numbers = list(
+        itertools.chain(*[a.get_atomic_numbers() for a in fragments])
+    )
+
+    # Check inter-molecular distances
+    min_molecular_distance, max_molecular_distance = molecular_distances
+    excluded_pairs = []
+
+    tag = start_tag
+    if test_dist_to_substrate:
+        candidate = atoms
+        chemical_numbers = candidate.get_atomic_numbers().tolist() + chemical_numbers
+    else:
+        candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.get_pbc())
+
+    for frag in fragments:
+        # find intra-molecular pairs that will be ignored in distance check
+        beg = len(candidate)
+        end = beg + len(frag)
+        excluded_pairs.extend(itertools.permutations(range(beg, end), 2))
+        # assign tag
+        tag += 1
+        frag.set_tags(tag)
+        for _ in range(max_attempts):
+            pos = region.get_random_positions(size=1, rng=rng)[0]
+            frag = copy.deepcopy(frag)
+            frag = translate_then_rotate(frag, position=pos, use_com=True, rng=rng)
+            num_atoms = len(candidate)
+            if num_atoms > 0:
+                pairs = np.array(
+                    list(itertools.product(range(0, beg), range(beg, end)))
+                )
+                positions = np.vstack([candidate.get_positions(), frag.get_positions()])
+                raw_vectors = positions[pairs[:, 0]] - positions[pairs[:, 1]]
+                mic_vecs, mic_dis = find_mic(
+                    v=raw_vectors, cell=atoms.cell, pbc=atoms.pbc
+                )
+                if (
+                    np.min(mic_dis) >= min_molecular_distance
+                    and np.max(mic_dis) <= max_molecular_distance
+                ):
+                    # PERF: We resue distances from the find_mic
+                    #       instead of getting neighbour list.
+                    trial = candidate + frag
+                    if check_pair_distances(
+                        pairs,
+                        mic_dis,
+                        chemical_numbers,
+                        covalent_ratio,
+                        bond_distance_dict,
+                        excluded_pairs=excluded_pairs,
+                        restraints=restraints,
+                        tags=trial.get_tags() if trial.has("tags") else None,
+                    ) and evaluate_restraints(trial, restraints or [], complete=False):
+                        candidate = trial
+                        break
+                else:
+                    continue
+            else:
+                candidate += frag
+                break
+        else:
+            candidate = None
+            break
+
+    # Add substrate if we do not include it in the distance check
+    if candidate is not None and not test_dist_to_substrate:
+        candidate = atoms + candidate
+
+    if candidate is not None and not evaluate_restraints(candidate, restraints or [], complete=True):
+        candidate = None
+
+    return candidate
+
+
+def insert_fragments_at_once(
+    substrate: Atoms,
+    fragments: List[Atoms],
+    region,
+    molecular_distances,
+    covalent_ratio,
+    bond_distance_dict,
+    random_state,
+    restraints: Optional[list[ParsedRestraint]] = None,
+    max_attempts: int = 5,
+) -> Optional[Atoms]:
+    """"""
+    # Initialise a random number generator
+    rng = np.random.Generator(np.random.PCG64(random_state))
+
+    # Assign tags for atoms in the substrate
+    atoms = substrate
+    tags = atoms.get_tags()
+    if tags.shape[0] == 0:
+        # Start from 1 as 0 is reserved for the substrate
+        start_tag = 1
+    else:
+        start_tag = int(tags.max())
+
+    # Sort fragments by chemical formulae alphabetically
+    fragments = sorted(fragments, key=lambda a: a.get_chemical_formula())
+    num_fragments = len(fragments)
+
+    # Find intra-molecular pairs
+    end_indices = np.cumsum([len(a) for a in fragments])
+    beg_indices = np.hstack([[0], end_indices[:-1]])
+
+    excluded_pairs = list(
+        itertools.chain(
+            *[
+                itertools.permutations(range(beg, end), 2)
+                for beg, end in zip(beg_indices, end_indices)
+            ]
+        )
+    )
+
+    # Check inter-molecular distances
+    min_molecular_distance, max_molecular_distance = molecular_distances
+
+    for _ in range(max_attempts):
+        candidate = None
+
+        random_positions = region.get_random_positions(size=num_fragments, rng=rng)
+        if num_fragments > 1:
+            pair_positions = np.array(list(itertools.combinations(random_positions, 2)))
+            raw_vectors = pair_positions[:, 0, :] - pair_positions[:, 1, :]
+            mic_vecs, mic_dis = find_mic(v=raw_vectors, cell=atoms.cell, pbc=atoms.pbc)
+            if (
+                np.min(mic_dis) >= min_molecular_distance
+                and np.max(mic_dis) <= max_molecular_distance
+            ):
+                is_molecule_valid = True
+            else:
+                is_molecule_valid = False
+        else:
+            is_molecule_valid = True
+
+        if is_molecule_valid:
+            candidate = Atoms("", cell=atoms.get_cell(), pbc=atoms.pbc)
+            tag = start_tag
+            assert candidate is not None
+            for a, p in zip(fragments, random_positions):
+                # rotate and translate
+                a = copy.deepcopy(a)
+                a = translate_then_rotate(a, position=p, use_com=True, rng=rng)
+                tag += 1
+                a.set_tags(tag)
+                candidate += a
+
+            if check_atomic_distances(
+                candidate,
+                covalent_ratio=covalent_ratio,
+                bond_distance_dict=bond_distance_dict,
+                excluded_pairs=excluded_pairs,
+                restraints=restraints,
+                allow_isolated=True,
+            ):
+                candidate = atoms + candidate
+                if not evaluate_restraints(candidate, restraints or [], complete=True):
+                    candidate = None
+                    continue
+                break
+            else:
+                candidate = None
+
+        if candidate is not None:
+            break
+    else:
+        candidate = None  # No atoms generated after max_attempts
+
+    return candidate
+
+
+def batch_insert_fragments_at_once(
+    substrates: List[Atoms],
+    fragments,
+    region,
+    molecular_distances,
+    covalent_ratio,
+    bond_distance_dict,
+    random_states: List[int],
+    restraints: Optional[list[ParsedRestraint]] = None,
+):
+    """"""
+    frames = []
+    for atoms, random_state in zip(substrates, random_states):
+        new_atoms = insert_fragments_at_once(
+            atoms,
+            fragments,
+            region,
+            molecular_distances,
+            covalent_ratio,
+            bond_distance_dict,
+            random_state=random_state,
+            restraints=restraints,
+        )
+        frames.append(new_atoms)
+
+    return frames
+
+
+if __name__ == "__main__":
+    ...

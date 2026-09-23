@@ -4,16 +4,15 @@
 
 import copy
 import itertools
-from typing import List
 
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from ..core.operation import Operation
+from gdpx.session.operation import Operation
 
 
-def merge_results(host_frames: List[Atoms], corr_frames: List[Atoms]):
+def merge_results(host_frames: list[Atoms], corr_frames: list[Atoms]):
     """"""
     frames = []
     for host, corr in zip(host_frames, corr_frames):

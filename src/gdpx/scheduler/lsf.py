@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import subprocess
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class LsfScheduler(AbstractScheduler):
+class LsfScheduler(BaseScheduler):
     """Load Sharing Facility (LSF) scheduler.
 
     A LSF scheduler. Commands are bjobs, bsub, bkill.
@@ -53,9 +54,7 @@ class LsfScheduler(AbstractScheduler):
             # else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
 
-        if self.environs:
-            content += "\n\n"
-            content += self.environs
+        content += self._convert_environs_to_content()
 
         if self.user_commands:
             content += "\n\n"
@@ -63,7 +62,7 @@ class LsfScheduler(AbstractScheduler):
 
         return content
 
-    @AbstractScheduler.job_name.setter
+    @BaseScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         self.set(**{"J": self._job_name})

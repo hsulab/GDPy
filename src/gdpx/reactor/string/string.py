@@ -9,26 +9,46 @@ import itertools
 import pathlib
 import re
 import shutil
-from typing import Optional, Union, List
+from typing import Callable, Optional, Union
 
 import numpy as np
-
 from ase import Atoms
-from ase.io import read, write
-from ase.geometry import find_mic
+from ase.calculators.calculator import Calculator
 from ase.constraints import FixAtoms
-from ase.neb import interpolate, idpp_interpolate
+from ase.geometry import find_mic
+from ase.io import read, write
+from ase.mep import idpp_interpolate, interpolate
 
-from .. import parse_constraint_info
-from ..reactor import AbstractReactor
-from ..utils import plot_bands, plot_mep, compute_rxn_coords
+from gdpx.group import evaluate_constraint_expression
+
+from ..reactor import BaseReactor
+from ..utils import compute_rxn_coords, plot_mep
+
+
+@dataclasses.dataclass
+class Controller:
+
+    #: Thermostat name.
+    name: str = "controller"  # thermostat or barostat
+
+    #: Parameter unit type (see ase.lammps).
+    units: str = "metal"
+
+    #: Parameters.
+    params: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class StringReactorSetting:
 
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix: str = ""
+
     #: Reactor setting.
     backend: str = "external"
+
+    #: Simulation task.
+    task: str = "neb"
 
     #: Period to save the trajectory.
     dump_period: int = 1
@@ -45,8 +65,8 @@ class StringReactorSetting:
     #: Optimiser.
     optimiser: str = "bfgs"
 
-    #: Spring constant, eV/Ang2.
-    k: float = 5.0
+    #: Spring constant [eV/Ang^2], various codes use different defaults, we use the one in VASP.
+    kspring: float = 5.0
 
     #: Whether use CI-NEB.
     climb: bool = False
@@ -80,55 +100,87 @@ class StringReactorSetting:
     def get_run_params(self):
         """"""
 
-        raise NotImplementedError(
-            f"{self.__class__.__name__} has no function for run params."
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
-class AbstractStringReactor(AbstractReactor):
+class BaseStringReactor(BaseReactor):
 
     name: str = "string"
 
     traj_name: str = "nebtraj.xyz"
 
-    @AbstractReactor.directory.setter
-    def directory(self, directory_: Union[str, pathlib.Path]):
-        self._directory = pathlib.Path(directory_)
-        # avoid inconsistent in ASE
-        # the actual calc directory will be set in _irun
-        self.calc.directory = str(self.directory)
+    def __init__(
+        self,
+        calc: Calculator,
+        params: dict = {},
+        ignore_convergence: bool = False,
+        directory: Union[str, pathlib.Path] = "./",
+        *args,
+        **kwargs,
+    ):
+        """"""
+        self.calc = calc
+        self.calc.reset()
+
+        self.ignore_convergence = ignore_convergence
+
+        self.directory = directory
+        self.cache_nebtraj = self.directory / self.traj_name
+
+        # Initialize the setting.
+        if hasattr(self, "setting_cls"):
+            self.setting = self.setting_cls(**params)  # type: ignore
+        else:
+            ...
+
+        assert isinstance(self.setting, StringReactorSetting)
 
         return
 
-    def run(self, structures: List[Atoms], read_ckpt=True, *args, **kwargs):
+    @BaseReactor.directory.setter
+    def directory(self, directory: Union[str, pathlib.Path]):
+        self._directory = pathlib.Path(directory)
+        # ASE calculator uses a string as path
+        self.calc.directory = str(self.directory)
+
+        self.cache_nebtraj = self.directory / self.traj_name
+
+        return
+
+    def run(self, structures: list[Atoms], read_ckpt=True, *args, **kwargs) -> None:
         """"""
         super().run(structures=structures, *args, **kwargs)
 
-        # - compatibility
-        read_cache = kwargs.get("read_cache", None)
-        if read_cache is not None:
-            read_ckpt = read_cache
+        # String method is double-ended, so we need at least two structures.
+        num_structures = len(structures)
+        if num_structures < 2:
+            raise RuntimeError(f"String method requires at least two structures. Got {num_structures}.")
+        self._print(f"num_strucutures_provided_for_string: {num_structures}")
 
-        # - Double-Ended Methods...
-        ini_atoms, fin_atoms = structures
+        ini_atoms = structures[0]
+        fin_atoms = structures[-1]
         try:
-            self._print(f"ini_atoms: {ini_atoms.get_potential_energy()}")
-            self._print(f"fin_atoms: {fin_atoms.get_potential_energy()}")
+            ini_ene = ini_atoms.info["energy"]
+            fin_ene = fin_atoms.info["energy"]
+            self._print(f"E: {ini_ene:>16.4f}  " + f"E: {fin_ene:>16.4f}  " + f"dE: {fin_ene - ini_ene:>16.4f}")
         except RuntimeError:
-            # RuntimeError: Atoms object has no calculator.
-            self._print("Not energies attached to IS and FS.")
+            self._print("No energies attached to IS and FS.")
 
-        # - backup old parameters
+        # Backup old parameters
         prev_params = copy.deepcopy(self.calc.parameters)
 
-        # -
+        prev_command = None
+        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
+            prev_command = self.calc.command
+            self.calc.command = self.setting.machine_prefix + " " + prev_command
+
+        # Run calculation
         if not self._verify_checkpoint():
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
             self.directory.mkdir(parents=True, exist_ok=True)
-            self._irun([ini_atoms, fin_atoms], *args, **kwargs)
+            self._irun(structures, *args, **kwargs)
         else:
             self._debug(f"... restart @ {self.directory.name} ...")
-            # - check if converged
             converged = self.read_convergence()
             if not converged:
                 self._debug(f"... unconverged @ {self.directory.name} ...")
@@ -138,46 +190,17 @@ class AbstractStringReactor(AbstractReactor):
             else:
                 self._debug(f"... converged @ {self.directory.name} ...")
 
+        # Restore the calculator parameters
+        if hasattr(self.calc, "command"):
+            self.calc.command = prev_command
+
         self.calc.parameters = prev_params
         self.calc.reset()
 
-        # - check again
-        curr_band, converged = None, self.read_convergence()
-        if converged:
-            self._debug(f"... 2. converged @ {self.directory.name} ...")
-            band_frames = self.read_trajectory()  # (nbands, nimages)
-            if band_frames:
-                # FIXME: make below a function
-                plot_mep(self.directory, band_frames[-1])
-                write(self.directory / "temptraj.xyz", itertools.chain(*band_frames))
-
-                curr_band = band_frames[-1]
-
-                rxn_coords = compute_rxn_coords(curr_band)
-
-                energies = [a.get_potential_energy() for a in curr_band]
-                imax = 1 + np.argsort(energies[1:-1])[-1]
-                # NOTE: maxforce in cp2k is norm(atomic_forces)
-                maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
-
-                self._print(
-                    f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
-                    + f"-> {rxn_coords[-1]:.2f}"
-                )
-                self._print(
-                    f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
-                    + f"dE: {energies[-1]-energies[0]:<8.4f}"
-                )
-            else:
-                self._debug(f"... CANNOT read bands @ {self.directory.name} ...")
-                ...
-        else:
-            self._debug(f"... 2. unconverged @ {self.directory.name} ...")
-
-        return curr_band
+        return
 
     @abc.abstractmethod
-    def _irun(self, structures: List[Atoms], *args, **kwargs):
+    def _irun(self, structures: list[Atoms], *args, **kwargs):
         """"""
 
         return
@@ -192,7 +215,7 @@ class AbstractStringReactor(AbstractReactor):
 
     def _save_checkpoint(self, *args, **kwargs):
         """"""
-        # - find previous runs...
+        # Find the previous computation folders
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
         curr_index = len(prev_wdirs)
@@ -200,35 +223,26 @@ class AbstractStringReactor(AbstractReactor):
         curr_wdir = self.directory / f"{str(curr_index).zfill(4)}.run"
         self._debug(f"curr_wdir: {curr_wdir}")
 
-        # - backup files
+        # Move everything to a new folder
         curr_wdir.mkdir()
         for x in self.directory.iterdir():
             if not re.match(r"[0-9]{4}\.run", x.name):
-                # NOTE: default is to move everything to the new folder
-                # if x.name in self.saved_fnames:
-                #    shutil.move(x, curr_wdir)
-                # else:
-                #    x.unlink()
                 shutil.move(x, curr_wdir)
             else:
                 ...
 
         return curr_wdir
 
-    def _preprocess_constraints(self, atoms, cons_text: str) -> None:
+    def _preprocess_constraints(self, atoms, cons_expr: str) -> None:
         """"""
-        atoms._del_constraints()
-        mobile_indices, frozen_indices = parse_constraint_info(
-            atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-        )
+        atoms.set_constraint(constraint=None)
+        _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:
             atoms.set_constraint(FixAtoms(indices=frozen_indices))
 
         return
 
-    def _align_structures(
-        self, structures: List[Atoms], run_params: dict, *args, **kwargs
-    ) -> List[Atoms]:
+    def _align_structures(self, structures: list[Atoms], run_params: dict, *args, **kwargs) -> list[Atoms]:
         """Create a reaction pathway based on two structures.
 
         Args:
@@ -236,39 +250,68 @@ class AbstractStringReactor(AbstractReactor):
             run_params: We need thet latest `constraint` information.
 
         Returns:
-            A List of Atoms structures.
+            A list of Atoms structures.
 
         """
-        nstructures = len(structures)
-        if nstructures == 2:
+        num_structures = len(structures)
+        if num_structures == 2:
             self._print("Interpolate a pathway.")
-            # - check lattice consistency
+            # Check structure consistency
             ini_atoms, fin_atoms = structures
-            c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(
-                complete=True
-            )
+            c1, c2 = ini_atoms.get_cell(complete=True), fin_atoms.get_cell(complete=True)
             assert np.allclose(c1, c2), "Inconsistent unit cell..."
 
-            cons_text = run_params.pop("constraint", None)
+            cons_text = run_params.get("constraint", None)
             self._preprocess_constraints(ini_atoms, cons_text)
             self._preprocess_constraints(fin_atoms, cons_text)
 
-            # - 
+            # TODO: We only support one constraint (FixAtoms) for NEB now.
+            num_constraints = len(ini_atoms.constraints)
+            assert len(ini_atoms.constraints) == len(fin_atoms.constraints) == num_constraints
+            if num_constraints == 0:
+                ...
+            elif num_constraints == 1:
+                sorted_constrained_indices_ini = np.array(sorted(ini_atoms.constraints[0].index))
+                sorted_constrained_indices_fin = np.array(sorted(fin_atoms.constraints[0].index))
+                assert np.all(
+                    sorted_constrained_indices_ini == sorted_constrained_indices_fin
+                ), f"{sorted_constrained_indices_ini} != {sorted_constrained_indices_fin}, {sorted_constrained_indices_ini - sorted_constrained_indices_fin}"
+            else:
+                raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{ini_atoms.constraints=}`.")
+
+            # Cache energy for the initial and final states
+            ini_ene = ini_atoms.info["energy"]
+            fin_ene = fin_atoms.info["energy"]
+
+            # get interpolation parameters
             use_mic = self.setting.interpolation.get("mic", True)
             idpp_params = self.setting.interpolation.get("idpp", {})
 
-            # - linear interpolate
+            #: The displacement between two adjacent images, Angstrom.
+            image_delta = self.setting.interpolation.get("image_delta", None)
+
+            # Check the displacement between IS and FS
             shifts = fin_atoms.get_positions() - ini_atoms.get_positions()
             if use_mic:
                 self._print("Align IS and FS based on MIC.")
-                curr_vectors, curr_distances = find_mic(shifts, c1, pbc=True)
-                # self._debug(f"curr_vectors: {curr_vectors}")
-                self._print(f"disp: {np.linalg.norm(curr_vectors)}")
-                fin_atoms.positions = ini_atoms.get_positions() + curr_vectors
+                vectors, _ = find_mic(shifts, c1, pbc=True)
+                disp = np.linalg.norm(vectors)
+                fin_atoms.positions = ini_atoms.get_positions() + vectors
             else:
-                self._print(f"disp: {np.linalg.norm(shifts)}")
+                disp = np.linalg.norm(shifts)
 
-            nimages = self.setting.nimages
+            if image_delta is None:
+                nimages = self.setting.nimages
+            else:
+                nimages = int(disp / image_delta / 2.0) * 2
+                if nimages < 4:
+                    nimages = 4
+                if nimages > 20:
+                    nimages = 20
+            np.savetxt(self.directory / "nimages", [nimages], fmt="%d")
+
+            self._print(f"Displacement between IS and FS: {disp:.2f} Angstrom with {nimages} images.")
+
             images = [ini_atoms]
             images += [ini_atoms.copy() for i in range(nimages - 2)]
             images.append(fin_atoms)
@@ -282,20 +325,107 @@ class AbstractStringReactor(AbstractReactor):
             )
 
             if idpp_params:
-                # FIXME: make idpp a manager?
-                idpp_interpolate(
-                    images=images, traj=str(self.directory/"idpp_images.traj"),
-                    log=str(self.directory/"idpp.log"), mic=use_mic, **idpp_params
-                )
+                # TODO: Check IDPP convergence
+                idpp_traj_cache = self.directory / "idpp_images.traj"
+                if not idpp_traj_cache.exists():
+                    idpp_interpolate(
+                        images=images,
+                        traj=str(idpp_traj_cache),
+                        log=str(self.directory / "idpp.log"),
+                        mic=use_mic,
+                        **idpp_params,
+                    )
+                else:
+                    self._print(f"Use cached idpp images from `{idpp_traj_cache}`.")
+                    images = read(idpp_traj_cache, index=f"-{nimages}:")
+
+            # Set energies for the IS and the FS
+            images[0].info["energy"] = ini_ene
+            images[-1].info["energy"] = fin_ene
         else:
-            self._print("Use a pre-defined pathway.")
+            self._print("Use a pre-defined pathway and reset constraints.")
             images = [a.copy() for a in structures]
+
+            # Cache energy for the initial and final states
+            ini_ene = images[0].info["energy"]
+            fin_ene = images[-1].info["energy"]
+
+            nimages = len(images)
+            np.savetxt(self.directory / "nimages", [nimages], fmt="%d")
+
+            # Some constraints such as zbot/lowest may be different for each image due to minimisation,
+            # thus, we reset the constraints based on the first image.
+            cons_text = run_params.get("constraint", None)
+            self._preprocess_constraints(images[0], cons_text)
+            num_constraints = len(images[0].constraints)
+
+            for atoms in images[1:]:
+                atoms.set_constraint(constraint=None)
+                if num_constraints == 0:
+                    ...
+                elif num_constraints == 1:
+                    atoms.set_constraint(FixAtoms(indices=images[0].constraints[0].index))
+                else:
+                    raise RuntimeError(f"String Method must have 0 or 1 constraint. Not `{atoms.constraints=}`.")
+
+            # Set energies for the IS and the FS
+            images[0].info["energy"] = ini_ene
+            images[-1].info["energy"] = fin_ene
 
         return images
 
-    def read_trajectory(self, *args, **kwargs):
+    def _read_a_single_trajectory(self, *args, **kwargs) -> list[list[Atoms]]:
         """"""
-        # - find previous runs...
+
+        raise NotImplementedError()
+
+    def concatenate_trajectories(self, traj_list: list[list[Atoms]]) -> list[list[Atoms]]:
+        """Concatenate a list of trajectories.
+
+        This assumes that the trajectories are continuous, i.e., the last image of the previous trajectory is the same
+        as the first image of the next trajectory by checking the positions.
+        For different codes, the last image of the previous trajectory may not be the same as the first image of the
+        next trajectory, and this function should be overridden in the derived class.
+
+        In case of some calculations, the energetic continuity is not guaranteed, for example, the spin-polarised
+        calculation can give slightly different energies for the same structure due to the random initialisation of the
+        wavefunction.
+
+        Args:
+            traj_list: A list of trajectories, each trajectory is a list of Atoms objects.
+
+        Returns:
+            A list of Atoms objects that are concatenated from the input list of trajectories.
+
+        """
+        traj_frames, ntrajs = [], len(traj_list)
+        if ntrajs > 0:
+            traj_frames.extend(traj_list[0])
+            for i in range(1, ntrajs):
+                prev_end_band, curr_beg_band = (
+                    traj_list[i - 1][-1],
+                    traj_list[i][0],
+                )
+                is_continuous, discontinuous_index = False, -1
+                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
+                    if not np.allclose(a.positions, b.positions):
+                        discontinuous_index = j
+                        break
+                else:
+                    is_continuous = True
+                if not is_continuous:
+                    raise Exception(
+                        f"Traj {i-1} and traj {i} are not consecutive in positions at image {discontinuous_index}."
+                    )  # This should not happen if the output is correct.
+                traj_frames.extend(traj_list[i][1:])
+        else:
+            ...
+
+        return traj_frames
+
+    def read_trajectory(self) -> list[list[Atoms]]:
+        """"""
+        # Find previous computation folders
         prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"))
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
@@ -308,41 +438,34 @@ class AbstractStringReactor(AbstractReactor):
         if cache_nebtraj.exists() and cache_nebtraj.stat().st_size != 0:
             traj_list.append(self._read_a_single_trajectory(wdir=self.directory))
 
-        # - concatenate
-        traj_frames, ntrajs = [], len(traj_list)
-        if ntrajs > 0:
-            traj_frames.extend(traj_list[0])
-            for i in range(1, ntrajs):
-                prev_end_band, curr_beg_band = traj_list[i - 1][-1], traj_list[i][0]
-                for j, (a, b) in enumerate(zip(prev_end_band, curr_beg_band)):
-                    assert np.allclose(
-                        a.positions, b.positions
-                    ), f"Traj {i-1} and traj {i} are not consecutive in positions."
-                traj_frames.extend(traj_list[i][1:])
-        else:
-            ...
+        # Concatenate all the trajectories
+        traj_frames = self.concatenate_trajectories(traj_list)
 
-        if traj_frames:
-            # FIXME: make below a function
+        # Postprocess the trajectory and show the pathway information
+        have_mep_results = (self.directory / "neb.png").exists()
+        if not have_mep_results and traj_frames:
             plot_mep(self.directory, traj_frames[-1])
 
             curr_band = traj_frames[-1]
+            write(self.directory / "last_band.xyz", curr_band)
+
+            write(
+                self.directory / "temptraj.xyz",
+                list(itertools.chain(*traj_frames)),
+            )
 
             rxn_coords = compute_rxn_coords(curr_band)
 
             energies = [a.get_potential_energy() for a in curr_band]
             imax = 1 + np.argsort(energies[1:-1])[-1]
-            # NOTE: maxforce in cp2k is norm(atomic_forces)
+
+            # The max force in cp2k is norm(atomic_forces).
             maxfrc = np.max(curr_band[imax].get_forces(apply_constraint=True))
 
-            self._print(f"imax: {imax}")
+            self._print(f"The transition state image index: {imax}")
+            self._print(f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} " + f"-> {rxn_coords[-1]:.2f}")
             self._print(
-                f"rxncoords: {rxn_coords[0]:.2f} -> {rxn_coords[imax]:.2f} "
-                + f"-> {rxn_coords[-1]:.2f}"
-            )
-            self._print(
-                f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} "
-                + f"dE: {energies[-1]-energies[0]:<8.4f}"
+                f"maxfrc: {maxfrc} Ea_f: {energies[imax]-energies[0]:<8.4f} " + f"dE: {energies[-1]-energies[0]:<8.4f}"
             )
 
         return traj_frames
@@ -350,8 +473,6 @@ class AbstractStringReactor(AbstractReactor):
     def as_dict(self) -> dict:
         """"""
         params = {}
-
-        # self._print(f"{self.setting.backend = }")
 
         for k, v in dataclasses.asdict(self.setting).items():
             if not k.startswith("_"):

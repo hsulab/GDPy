@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+import pathlib
+from typing import Optional, Union
+
+import numpy as np
+import omegaconf
+from ase import Atoms
+from ase.io import read, write
+
+from gdpx.core.register import registers
+from gdpx.data.array import AtomsNDArray
+from gdpx.session.operation import Operation
+from gdpx.session.variable import Variable
+
+
+@registers.variable.register
+class BuilderVariable(Variable):
+    """Build structures from the scratch."""
+
+    def __init__(self, directory: Union[str, pathlib.Path] = "./", **kwargs):
+        """"""
+        method = kwargs.pop("method", "direct")
+        builder = registers.create("builder", method, convert_name=False, **kwargs)
+
+        super().__init__(initial_value=builder, directory=directory)
+
+        return
+
+    @Variable.directory.setter
+    def directory(self, directory_) -> None:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        # Value is the attached builder
+        self.value.directory = self._directory
+
+        return
+
+    def _reset_random_seed(self, mode: str = "init"):
+        """Rewind random state to the one at the initialisation of the object."""
+        if mode == "init":
+            self.value.set_rng(seed=self.value.init_random_seed)
+        elif mode == "zero":
+            self.value.set_rng(seed=None)
+        else:
+            raise RuntimeError(f"INCORRECT RESET RANDOM SEED MODE {mode}.")
+
+        return
+
+
+@registers.operation.register
+class read_stru(Operation):
+    def __init__(
+        self,
+        fname,
+        format=None,
+        index=":",
+        extend: bool = True,
+        input_nodes=[],
+        directory="./",
+        **kwargs,
+    ) -> None:
+        """"""
+        super().__init__(input_nodes, directory)
+
+        self.fname = fname  # This is broadcastable...
+        self.format = format
+        self.index = index
+        self.kwargs = kwargs
+
+        self.extend = extend  # whether extened the input structure files
+
+        return
+
+    def forward(self, *args, **kwargs) -> AtomsNDArray:
+        """"""
+        super().forward()
+
+        # - check params
+        if isinstance(self.fname, str):
+            fname_ = [self.fname]
+        else:  # assume it is an iterable object
+            fname_ = self.fname
+
+        # - read structures
+        frames = []
+        for curr_fname in fname_:
+            self._print(f"read {curr_fname}")
+            curr_frames = read(curr_fname, format=self.format, index=self.index, **self.kwargs)
+            if isinstance(curr_frames, Atoms):
+                curr_frames = [curr_frames]  # if index is single, then read will give Atoms
+            if self.extend:
+                frames.extend(curr_frames)
+            else:
+                frames.append(curr_frames)
+
+        frames = AtomsNDArray(frames)
+        self._print(f"shape of structures: {frames.shape}")
+
+        self.status = "finished"
+
+        return frames
+
+
+@registers.operation.register
+class write_stru(Operation):
+    def __init__(
+        self,
+        structures,
+        fname: Optional[str] = None,
+        format: str = "extxyz",
+        dump_last: bool = True,
+        directory="./",
+        *args,
+        **kwargs,
+    ) -> None:
+        """Initialise the write_stru operation.
+
+        Args:
+            structures: AtomsNDArray or Atoms.
+            fname: The file name to save the structures.
+            format: The format of the output file.
+            dump_last: Whether save the last frame for a 2D AtomsNDArray.
+            directory: The directory to save the structures.
+
+        """
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.fname = fname
+        self.format = format
+        self.kwargs = kwargs
+
+        self.dump_last = dump_last
+
+        return
+
+    def forward(self, structures, *args, **kwargs):
+        """"""
+        super().forward()
+
+        if isinstance(structures, AtomsNDArray):
+            if self.dump_last:
+                if structures.ndim == 2:
+                    # TODO: Check markers?
+                    frames = []
+                    for traj in structures.tolist():
+                        for atoms in traj[::-1]:
+                            if atoms is not None:
+                                frames.append(atoms)
+                                break
+                    structures = frames
+                else:
+                    raise Exception("`dump_last` only supports 2D AtomsNDArray.")
+            else:
+                structures = structures.get_marked_structures()
+
+        self._print(f"write structures to {str(self.directory / 'structures.xyz')}")
+        write(self.directory / "structures.xyz", structures, format=self.format)
+
+        if self.fname is not None:
+            fpath = pathlib.Path(self.fname)
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            if fpath.exists():
+                self._print("remove previous saved_structures")
+                fpath.unlink()
+            fpath.symlink_to(self.directory / "structures.xyz")
+        else:
+            ...
+
+        self.status = "finished"
+
+        return structures
+
+
+@registers.operation.register
+class build(Operation):
+    """Build structures without substrate structures."""
+
+    def __init__(self, builder, size: int = 1, directory="./") -> None:
+        super().__init__(input_nodes=[builder], directory=directory)
+
+        self.size = size
+
+        return
+
+    @Operation.directory.setter
+    def directory(self, directory_) -> None:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        # self.input_nodes[0].directory = self._directory / "builder"
+
+        return
+
+    def forward(self, builder) -> list[Atoms]:
+        """"""
+        super().forward()
+
+        cache_path = self.directory / f"{builder.name}-out.xyz"
+        if not cache_path.exists():
+            frames = builder.run(size=self.size)
+            write(cache_path, frames)
+        else:
+            frames = read(cache_path, ":")
+        # self._print(f"{builder.name} nframes: {len(frames)}")
+
+        self.status = "finished"
+
+        return frames
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        builder = input_nodes[0]
+        if isinstance(builder, dict) or isinstance(builder, omegaconf.dictconfig.DictConfig):
+            builder = BuilderVariable(directory=self.directory / "builder", **builder)
+
+        return [builder]
+
+
+@registers.operation.register
+class modify(Operation):
+    def __init__(
+        self,
+        substrates,
+        modifier,
+        size: int = 1,
+        repeat: int = 1,
+        directory="./",
+    ) -> None:
+        """"""
+        super().__init__(input_nodes=[substrates, modifier], directory=directory)
+
+        self.size = size  # create number of new structures
+        self.repeat = repeat  # repeat modification times for one structure
+
+        return
+
+    @Operation.directory.setter
+    def directory(self, directory_) -> None:
+        """"""
+        self._directory = pathlib.Path(directory_)
+
+        # self.input_nodes[0].directory = self._directory / "substrates"
+        # self.input_nodes[1].directory = self._directory / "modifier"
+
+        return
+
+    def _preprocess_input_nodes(self, input_nodes):
+        """"""
+        substrates, modifier = input_nodes
+        if isinstance(substrates, str) or isinstance(substrates, pathlib.Path):
+            # TODO: check if it is a molecule name
+            substrates = build(
+                BuilderVariable(
+                    directory=self.directory / "substrates",
+                    method="reader",
+                    fname=substrates,
+                )
+            )
+        if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
+            modifier = BuilderVariable(directory=self.directory / "modifier", **modifier)
+        elif isinstance(modifier, list) or isinstance(modifier, omegaconf.ListConfig):
+            modifiers_ = []
+            for modifier_ in modifier:
+                modifier_ = BuilderVariable(directory=self.directory / "modifier", **modifier_).value
+                modifiers_.append(modifier_)
+            modifier = BuilderVariable(
+                directory=self.directory / "modifier",
+                method="composed",
+                modifiers=modifiers_,
+            )
+        else:
+            raise RuntimeError(f"Unknown modifier {modifier} with a type of `{type(modifier)}`.")
+
+        return substrates, modifier
+
+    def forward(self, substrates: list[Atoms], modifier) -> list[Atoms]:
+        """Modify inputs structures.
+
+        A modifier only accepts one structure each time.
+
+        """
+        super().forward()
+
+        cache_path = self.directory / f"{modifier.name}-out.xyz"
+        if not cache_path.exists():
+            frames = modifier.run(substrates, size=self.size)
+            write(cache_path, frames)
+        else:
+            frames = read(cache_path, ":")
+
+        self.status = "finished"
+
+        return frames
+
+
+@registers.operation.register
+class remove_vacuum(Operation):
+    cache: str = "cache_frames.xyz"
+
+    def __init__(self, structures, thickness: float = 20.0, directory="./") -> None:
+        """"""
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.thickness = thickness
+
+        return
+
+    def forward(self, structures) -> list[Atoms]:
+        """Remove some vaccum of structures.
+
+        Args:
+            structures: A list of Atoms or AtomsNDArray.
+
+        """
+        super().forward()
+
+        if isinstance(structures, AtomsNDArray):
+            frames = structures.get_marked_structures()
+        else:
+            frames = structures
+
+        # TODO: convert to atoms_array?
+        cache_fpath = self.directory / self.cache
+        if cache_fpath.exists():
+            frames = read(cache_fpath, ":")
+        else:
+            for a in frames:
+                a.cell[2, 2] -= self.thickness
+            write(cache_fpath, frames)
+
+        self.status = "finished"
+
+        return frames
+
+
+@registers.operation.register
+class reset_cell(Operation):
+    cache: str = "cache_frames.xyz"
+
+    def __init__(self, structures, cell, directory="./") -> None:
+        """"""
+        input_nodes = [structures]
+        super().__init__(input_nodes, directory)
+
+        self.cell = np.array(cell)
+
+        return
+
+    def forward(self, structures) -> list[Atoms]:
+        """Remove some vaccum of structures.
+
+        Args:
+            structures: A list of Atoms or AtomsNDArray.
+
+        """
+        super().forward()
+
+        if isinstance(structures, AtomsNDArray):
+            frames = structures.get_marked_structures()
+        else:
+            frames = structures
+
+        # TODO: convert to atoms_array?
+        cache_fpath = self.directory / self.cache
+        if cache_fpath.exists():
+            frames = read(cache_fpath, ":")
+        else:
+            center_of_cell = np.sum(self.cell, axis=0) / 2.0
+            for a in frames:
+                com = a.get_center_of_mass()
+                a.set_cell(self.cell)
+                a.positions -= com - center_of_cell
+            write(cache_fpath, frames)
+
+        self.status = "finished"
+
+        return frames
+
+
+if __name__ == "__main__":
+    ...

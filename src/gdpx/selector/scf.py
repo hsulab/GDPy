@@ -6,10 +6,10 @@ import numpy as np
 
 from ..data.array import AtomsNDArray
 from ..data.extatoms import ScfErrAtoms
-from .selector import AbstractSelector
+from .selector import BaseSelector
 
 
-class ScfSelector(AbstractSelector):
+class ScfSelector(BaseSelector):
 
     name = "scf"
 

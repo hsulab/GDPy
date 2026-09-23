@@ -1,60 +1,69 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+import copy
 import io
-import itertools
-import os
-import pathlib
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import PIL
-from ase.io import read, write
-from reportlab.lib.utils import ImageReader
-from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate,
-                                Table)
+from ase.io import write
 
-from . import registers
-from .selector import AbstractSelector
+try:
+    USE_REPORTLAB = 1
+    from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Table
+except:
+    USE_REPORTLAB = 0
+
+from gdpx.comparator import REGISTER as COMPARATOR_REGISTER
+from gdpx.data.array import AtomsNDArray
+
+from .selector import BaseSelector
 
 
-class CompareSelector(AbstractSelector):
-
+class CompareSelector(BaseSelector):
     name: str = "compare"
 
-    default_parameters: dict = dict(comparator_name=None, comparator_params={})
+    print_period: int = 50
 
-    def __init__(self, directory="./", axis=None, *args, **kwargs) -> None:
-        """"""
-        super().__init__(directory, axis, *args, **kwargs)
+    def __init__(self, comparator: dict, write_report: bool = False, *args, **kwargs) -> None:
+        """Initialise the selector.
 
-        self.comparator = registers.create(
-            "comparator",
-            self.comparator_name,
-            convert_name=True,
-            **self.comparator_params,
-        )
+        Args:
+            comparator: The comparator configuration.
+            write_report: Whether to write a report. Defaults to False.
+
+        """
+        super().__init__(*args, **kwargs)
+
+        if self.group_by is not None:
+            raise Exception("Grouping is not supported in comparison.")
+
+        comparator_config = copy.deepcopy(comparator)
+        comparator_name = comparator_config.pop("name", "unknown")
+        if comparator_name not in COMPARATOR_REGISTER:
+            raise Exception(f"Unknown comparator: {comparator_name}")
+
+        self.comparator = COMPARATOR_REGISTER[comparator_name](**comparator_config)
+
+        self.write_report = write_report
+
+        if self.group_by is not None:
+            raise Exception("Group_by is not supported in compare.")
 
         return
 
-    def _mark_structures(self, data, *args, **kwargs) -> None:
+    def _mark_structures(self, data: AtomsNDArray) -> None:
         """"""
-        super()._mark_structures(data, *args, **kwargs)
-
-        # -
         structures = data.get_marked_structures()
-        nstructures = len(structures)
 
-        # - start from the first structure and compare structures by a given comparator
+        # Start from the first structure and compare structures by a given comparator
         if not hasattr(self.comparator, "prepare_data"):
-            selected_indices, scores = [0], []
+            # Compare structures directly
+            selected_indices = [0]
             for i, a1 in enumerate(structures[1:]):
-                # NOTE: assume structures are sorted by energy
-                #       close structures may have a high possibility to be similar
-                #       so we compare reversely
+                # Assume structures are sorted by energy,
+                # close structures may have a high possibility to be similar,
+                # so we compare reversely.
                 for j in selected_indices[::-1]:
-                    self._print(f"compare: {i+1} and {j}")
+                    self._print(f"compare: {i + 1} and {j}")
                     a2 = structures[j]
                     if self.comparator(a1, a2):
                         break
@@ -62,12 +71,16 @@ class CompareSelector(AbstractSelector):
                     selected_indices.append(i + 1)
                     self._print(f"--->>> current indices: {selected_indices}")
         else:
+            # Compare structure based on fingerprint
+            assert hasattr(self.comparator, "compare_fingerprints")
             fingerprints = self.comparator.prepare_data(structures)
+            num_fingerprints = len(fingerprints)
 
-            # - compare structural fingerprint
-            selected_indices, unique_groups, scores = [], {}, []
+            selected_indices, unique_groups = [], {}
             for i, fp in enumerate(fingerprints):
-                for j in selected_indices[::-1]: # j -> unique_group_index
+                if i % self.print_period == 0:
+                    self._print(f"processing [{i:>4d}/{num_fingerprints:>4d}] structures")
+                for j in selected_indices[::-1]:  # j -> unique_group_index
                     # --- average ---
                     # # TODO: The ditribution maybe too wide?
                     # fp_avg = np.average(
@@ -76,8 +89,7 @@ class CompareSelector(AbstractSelector):
                     # if self.comparator(fp, fp_avg):
                     #     unique_groups[j].append(i)
                     #     break
-                    # --- normal ---
-                    if self.comparator(fp, fingerprints[unique_groups[j][0]]):
+                    if self.comparator.compare_fingerprints(fp, fingerprints[unique_groups[j][0]]):
                         unique_groups[j].append(i)
                         break
                 else:
@@ -118,10 +130,13 @@ class CompareSelector(AbstractSelector):
             # selected_indices = new_selected_indices
             # unique_groups = new_unique_groups
 
-            self.report(structures, unique_groups)
+            if USE_REPORTLAB and self.write_report:
+                self.report(structures, unique_groups)
+            else:
+                self._print("Please install `reportlab` to report comparison.")
 
         curr_markers = data.markers
-        # NOTE: convert to np.array as there may have 2D markers
+        # Convert to np.array as there may have 2D markers
         selected_markers = np.array([curr_markers[i] for i in selected_indices])
         data.markers = selected_markers
 
@@ -168,9 +183,7 @@ class CompareSelector(AbstractSelector):
                         ]
                     )
                 if (curr_nframes - nrows * num_structures_per_row) > 0:
-                    image_table.append(
-                        [images[im] for im in range(nrows * 4, curr_nframes)]
-                    )
+                    image_table.append([images[im] for im in range(nrows * 4, curr_nframes)])
 
                 story.append(Table(image_table))
                 story.append(PageBreak())
@@ -204,7 +217,3 @@ class CompareSelector(AbstractSelector):
         image.drawHeight = 100
 
         return image
-
-
-if __name__ == "__main__":
-    ...

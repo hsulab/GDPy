@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import json
 import pathlib
+import subprocess
 import tempfile
 import time
 import uuid
-from typing import List, Optional, Tuple
+from typing import Optional
 
-import yaml
 from ase import Atoms
-from ase.io import read, write
+from ase.io import write
 from tinydb import Query, TinyDB
 
-from ..computation.driver import AbstractDriver
-from ..potential.manager import AbstractPotentialManager
-from ..scheduler.local import LocalScheduler
-from ..scheduler.scheduler import AbstractScheduler
-from ..utils.command import CustomTimer
+from gdpx.computation.driver import BaseDriver
+from gdpx.potential.manager import BasePotentialManager
+from gdpx.scheduler.local import LocalScheduler
+from gdpx.scheduler.scheduler import BaseScheduler
+from gdpx.utils.profiler import CustomTimer
+
 from .utils import copy_minimal_frames, get_file_md5
-from .worker import AbstractWorker
+from .worker import BaseWorker
 
 #: Structure ID Key.
 STRU_ID_KEY: str = "identifier"
@@ -28,13 +30,41 @@ STRU_ID_KEY: str = "identifier"
 BATCH_ID_KEY: str = "gdir"  # FIXME: change to batch?
 
 
-class GridDriverBasedWorker(AbstractWorker):
+def run_command(directory, command, comment="", timeout=None, print_func=print):
+    """Try to run a command in a directory."""
+    proc = subprocess.Popen(
+        command,
+        shell=True,
+        cwd=directory,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+    if timeout is None:
+        errorcode = proc.wait()
+    else:
+        errorcode = proc.wait(timeout=timeout)
+
+    output = proc.stdout
+    if output is not None:
+        msg = "Message: " + "".join(output.readlines())
+    else:
+        msg = ""
+    print_func(msg)
+
+    if errorcode:
+        raise RuntimeError("Error in %s at %s." % (comment, directory))
+
+    return msg
+
+
+class GridDriverBasedWorker(BaseWorker):
 
     def __init__(
         self,
-        potters: List[AbstractPotentialManager],
-        drivers: List[AbstractDriver],
-        scheduler: AbstractScheduler = LocalScheduler(),
+        potters: list[BasePotentialManager],
+        drivers: list[BaseDriver],
+        scheduler: BaseScheduler = LocalScheduler(),
         directory="./",
         *args,
         **kwargs,
@@ -50,9 +80,9 @@ class GridDriverBasedWorker(AbstractWorker):
 
         return
 
-    def _preprocess_structures(self, structures) -> Tuple[str, List[Atoms]]:
+    def _preprocess_structures(self, structures) -> tuple[str, list[Atoms]]:
         """Preprocess structures."""
-        if isinstance(structures, list):  # assume List[Atoms]
+        if isinstance(structures, list):  # assume list[Atoms]
             structures = structures
         else:  # assume it is a builder
             structures = structures.run()
@@ -105,9 +135,7 @@ class GridDriverBasedWorker(AbstractWorker):
                 num_structures = len(structures)
                 has_broadcast = True
             else:
-                raise RuntimeError(
-                    f"Failed to broadcast {num_structures =} to {num_drivers =}."
-                )
+                raise RuntimeError(f"Failed to broadcast {num_structures =} to {num_drivers =}.")
 
         wdir_names = [f"cand{i}" for i in range(num_drivers)]
 
@@ -137,7 +165,7 @@ class GridDriverBasedWorker(AbstractWorker):
         The structures and the drivers must be one-to-one.
 
         Args:
-            structures: A plain List[Atoms] or a builder.
+            structures: A plain list[Atoms] or a builder.
             batch: batch number.
 
         Returns:
@@ -148,17 +176,11 @@ class GridDriverBasedWorker(AbstractWorker):
 
         # prepare batch
         identifier, structures = self._preprocess_structures(structures)
-        batches = self._prepare_batches(
-            identifier, structures, self.potters, self.drivers
-        )
-        self._print(
-            f"num_computations: {len(self.drivers)} num_batches: {len(batches)}"
-        )
+        batches = self._prepare_batches(identifier, structures, self.potters, self.drivers)
+        self._print(f"num_computations: {len(self.drivers)} num_batches: {len(batches)}")
 
         # read metadata from file or database
-        database = TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        )
+        database = TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2)
 
         # TODO: The search only works in default_table for now
         #       store each input structures into one different table
@@ -182,17 +204,13 @@ class GridDriverBasedWorker(AbstractWorker):
             if isinstance(batch, int) and ib != batch:
                 continue
 
-            self._run_one_batch(
-                identifier, datatable, batch_name, curr_indices, curr_wdirs, structures
-            )
+            self._run_one_batch(identifier, datatable, batch_name, curr_indices, curr_wdirs, structures)
 
         database.close()
 
         return identifier
 
-    def _write_inputs(
-        self, identifier: str, batch_numbers, wdir_names, has_broadcast: bool = False
-    ):
+    def _write_inputs(self, identifier: str, batch_numbers, wdir_names, has_broadcast: bool = False):
         """"""
         inp_fpath = self.directory / "_data" / f"inp-{identifier}.json"
         if inp_fpath.exists():
@@ -211,11 +229,7 @@ class GridDriverBasedWorker(AbstractWorker):
             comput_data = {"batch": ib, "wdir_name": wdir_name}
             comput_data["builder"] = dict(
                 method="reader",
-                fname=str(
-                    (self.directory / "_data" / f"{identifier}.xyz").relative_to(
-                        self.directory
-                    )
-                ),
+                fname=str((self.directory / "_data" / f"{identifier}.xyz").relative_to(self.directory)),
                 index=f"{stru_i}",
             )
             comput_data["computer"] = {}
@@ -233,7 +247,7 @@ class GridDriverBasedWorker(AbstractWorker):
         identifier,
         database,
         batch_name: str,
-        batch_indices: List[int],
+        batch_indices: list[int],
         wdir_names,
         structures,
     ):
@@ -244,17 +258,13 @@ class GridDriverBasedWorker(AbstractWorker):
 
         # - TODO: check whether params for scheduler is changed
         user_commands = "gdp compute {} --batch {}\n".format(
-            (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
-                self.directory
-            ),
+            (self.directory / "_data" / f"inp-{identifier}.json").relative_to(self.directory),
             batch_name[6:],
         )
         self.scheduler.user_commands = user_commands
 
         if self.scheduler.name == "local":
-            from ..utils.command import run_command
-
-            run_command(self.directory, self.scheduler.user_commands)
+            run_command(self.directory, self.scheduler.user_commands, print_func=self._print)
         else:
             # - save scheduler file
             self.scheduler.job_name = job_name
@@ -291,9 +301,7 @@ class GridDriverBasedWorker(AbstractWorker):
         with CustomTimer(name="run-driver", func=print_func):
             for wdir, atoms, driver in zip(wdirs, structures, drivers):
                 driver.directory = wdir
-                print_func(
-                    f"{time.asctime( time.localtime(time.time()) )} {driver.directory.name} is running..."
-                )
+                print_func(f"{time.asctime( time.localtime(time.time()) )} {driver.directory.name} is running...")
                 driver.reset()
                 driver.run(atoms, read_ckpt=True, extra_info=None)
 
@@ -305,12 +313,8 @@ class GridDriverBasedWorker(AbstractWorker):
 
         running_jobs = self._get_running_jobs()
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            self._inspect_and_update(
-                running_jobs=running_jobs, database=database, resubmit=resubmit
-            )
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+            self._inspect_and_update(running_jobs=running_jobs, database=database, resubmit=resubmit)
 
         return
 
@@ -323,9 +327,7 @@ class GridDriverBasedWorker(AbstractWorker):
             wdir_names = doc_data["wdir_names"]
 
             user_commands = "gdp compute {} --batch {}\n".format(
-                (self.directory / "_data" / f"inp-{identifier}.json").relative_to(
-                    self.directory
-                ),
+                (self.directory / "_data" / f"inp-{identifier}.json").relative_to(self.directory),
                 doc_data["batch"],
             )
             self.scheduler.user_commands = user_commands
@@ -348,9 +350,7 @@ class GridDriverBasedWorker(AbstractWorker):
                         curr_driver = self.drivers[driver_id]
                         curr_driver.directory = curr_wdir
                         if not curr_driver.read_convergence():
-                            self._print(
-                                f"Found unfinished computation at {curr_wdir.name}"
-                            )
+                            self._print(f"Found unfinished computation at {curr_wdir.name}")
                             break
                     else:
                         is_finished = True
@@ -368,13 +368,9 @@ class GridDriverBasedWorker(AbstractWorker):
                     if resubmit:
                         if self.scheduler.name != "local":
                             jobid = self.scheduler.submit()
-                            self._print(
-                                f"{job_name} is re-submitted with JOBID {jobid}."
-                            )
+                            self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                         else:
-                            from ..utils.command import run_command
-
-                            run_command(self.directory, self.scheduler.user_commands)
+                            run_command(self.directory, self.scheduler.user_commands, print_func=self._print)
             else:
                 self._print(f"{job_name} is running...")
 
@@ -383,7 +379,7 @@ class GridDriverBasedWorker(AbstractWorker):
     def retrieve(self, include_retrieved: bool = False, *args, **kwargs):
         """Retrieve training results."""
         self.inspect(*args, **kwargs)
-        self._debug(f"~~~{self.__class__.__name__}+retrieve")
+        self._debug(f"<<-- {self.__class__.__name__}+retrieve -->>")
 
         # check status and get results
         if not include_retrieved:
@@ -391,12 +387,8 @@ class GridDriverBasedWorker(AbstractWorker):
         else:
             unretrieved_jobs = self._get_finished_jobs()
 
-        with TinyDB(
-            self.directory / f"_{self.scheduler.name}_jobs.json", indent=2
-        ) as database:
-            results = self._retrieve_and_update(
-                unretrieved_jobs=unretrieved_jobs, database=database
-            )
+        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+            results = self._retrieve_and_update(unretrieved_jobs=unretrieved_jobs, database=database)
 
         return results
 
@@ -405,9 +397,7 @@ class GridDriverBasedWorker(AbstractWorker):
         unretrieved_wdirs_ = []
         for job_name in unretrieved_jobs:
             doc_data = database.get(Query()[BATCH_ID_KEY] == job_name)
-            unretrieved_wdirs_.extend(
-                (self.directory / w).resolve() for w in doc_data["wdir_names"]
-            )
+            unretrieved_wdirs_.extend((self.directory / w).resolve() for w in doc_data["wdir_names"])
         unretrieved_wdirs = unretrieved_wdirs_
 
         results = []

@@ -1,36 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import logging
+
 import argparse
+import logging
 import pathlib
 
 import numpy as np
 
-# global settings
-from . import config
-from .core.register import registers, import_all_modules_for_register
-from .utils.command import parse_input_file, dict2str
+from gdpx import config
+from gdpx.core.register import import_all_modules_for_register, registers
+from gdpx.utils.parser import parse_input_file
+from gdpx.utils.strconv import dictionary_to_string
 
 
 def main():
-    # - register
-    import_all_modules_for_register()
+    # Load all components
+    import_all_modules_for_register(disable_import_info=False)
 
+    # The arguments
     description = "gdpx: Generating Deep Potential with Python\n"
 
-    # - arguments
     parser = argparse.ArgumentParser(prog="gdp", description=description)
 
-    parser.add_argument(
-        "-rs", "--random_seed", default=None, type=int, help="global random seed"
-    )
+    parser.add_argument("-rs", "--random_seed", default=None, type=int, help="global random seed")
 
-    parser.add_argument(
-        "-d", "--directory", default=pathlib.Path.cwd(), help="working directory"
-    )
+    parser.add_argument("-d", "--directory", default=pathlib.Path.cwd(), help="working directory")
 
     # the workflow tracker
     parser.add_argument(
@@ -40,20 +35,14 @@ def main():
         help="target potential related configuration (json/yaml)",
     )
 
-    parser.add_argument(
-        "-nj", "--n_jobs", default=1, type=int, help="number of processors"
-    )
+    parser.add_argument("-nj", "--n_jobs", default=1, type=int, help="number of processors")
 
-    parser.add_argument(
-        "--debug", action="store_true", help="debug mode that gives more information"
-    )
+    parser.add_argument("--debug", action="store_true", help="debug mode that gives more information")
 
     parser.add_argument("--log", default="gdp.out", help="logging output file")
 
     # subcommands in the entire workflow
-    subparsers = parser.add_subparsers(
-        title="available subcommands", dest="subcommand", help="sub-command help"
-    )
+    subparsers = parser.add_subparsers(title="available subcommands", dest="subcommand", help="sub-command help")
 
     # - run session
     parser_session = subparsers.add_parser(
@@ -62,18 +51,16 @@ def main():
         description=str(registers.variable) + "\n" + str(registers.operation),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_session.add_argument(
-        "SESSION", help="session configuration file (json/yaml)"
-    )
-    parser_session.add_argument(
-        "--feed", default=None, nargs="+", help="session placeholders"
-    )
+    parser_session.add_argument("SESSION", help="session configuration file (json/yaml)")
+    parser_session.add_argument("--feed", default=None, nargs="+", help="session placeholders")
     parser_session.add_argument(
         "--timewait",
         default=-1,
         type=float,
-        help="waiting time between repeated running",
+        help="the waiting time between repeated running",
     )
+    parser_session.add_argument("--timemax", default=-1, type=float, help="the maximum time for the entire session")
+    parser_session.add_argument("--repeats", default=1000, type=int, help="number of repeat times")
 
     # - build structures
     parser_build = subparsers.add_parser(
@@ -89,16 +76,18 @@ def main():
         default=None,
         help="file that stores substrates (e.g. *.xyz)",
     )
-    parser_build.add_argument(
-        "-n", "--number", default=1, type=int, help="number of structures to build"
-    )
+    parser_build.add_argument("-n", "--number", default=1, type=int, help="number of structures to build")
 
     # - convert dataset format
     parser_convert = subparsers.add_parser(
         "convert",
         help="convert dataset formats",
+        description=str(registers.dataloader),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_convert.add_argument("INPUT", help="path of the input dataset")
+    parser_convert.add_argument("-i", "--input_format", required=True, help="the format of the input dataset")
+    parser_convert.add_argument("-o", "--output_format", required=True, help="the format of the output dataset")
 
     # - automatic training
     parser_train = subparsers.add_parser(
@@ -113,7 +102,7 @@ def main():
     parser_compute = subparsers.add_parser(
         "compute",
         help="compute structures with basic methods (MD, MIN, and ...)",
-        description=str(registers.manager),
+        description=str(registers.manager).lower() + "\n" + str(registers.bias) + "\n" + str(registers.scheduler),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_compute.add_argument(
@@ -146,38 +135,47 @@ def main():
         description=str(registers.expedition),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser_explore.add_argument("CONFIG", help="json/yaml file that stores parameters for a task")
     parser_explore.add_argument(
-        "CONFIG", help="json/yaml file that stores parameters for a task"
+        "--spawn",
+        default=None,
+        help="The batch indices spawned by a host worker.",
     )
-    parser_explore.add_argument(
-        "--wait", default=None, type=float, help="wait time after each run"
-    )
+    parser_explore.add_argument("--wait", default=None, type=float, help="wait time after each run")
 
     # selection
     parser_select = subparsers.add_parser(
         "select",
         help="apply various selection operations",
-        description=str(registers.selector),
+        description=str(registers.selector) + "\n" + str(registers.comparator),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_select.add_argument("CONFIG", help="selection configuration file")
-    parser_select.add_argument(
-        "-s", "--structure", required=True, help="structure generator"
-    )
+    parser_select.add_argument("-s", "--structures", required=True, nargs="*", help="structure generator")
 
-    # --- validation
-    parser_validation = subparsers.add_parser(
-        "valid",
+    # describer
+    parser_describe = subparsers.add_parser(
+        "describe",
+        help="compute descriptors for given structures",
+        description=str(registers.describer),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser_describe.add_argument("CONFIG", help="describer configuration")
+    parser_describe.add_argument("-s", "--structures", required=True, help="structures")
+
+    # validation
+    parser_validate = subparsers.add_parser(
+        "validate",
         help="validate properties with trained models",
         description=str(registers.validator),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_validation.add_argument("CONFIG", help="validation configuration file")
+    parser_validate.add_argument("CONFIG", help="validation configuration file")
 
-    # === execute
+    # Excute the parsed subcommand
     args = parser.parse_args()
 
-    # - update global configuration
+    # Update global configuration
     if args.debug:
         config.logger.setLevel(logging.DEBUG)
 
@@ -194,109 +192,93 @@ def main():
         fh.setFormatter(config.formatter)
         config.logger.addHandler(fh)
 
-    # -- set LOGO
+    # Display the package logo
     for line in config.LOGO_LINES:
         config._print(line)
 
-    # -- set njobs
+    # Set the number of processors
     config.NJOBS = args.n_jobs
     if config.NJOBS != 1:
         config._print(f"Use {config.NJOBS} processors.")
 
-    # -- set rng
-    # TODO: load random state from a file???
+    # Set the global random state
     random_seed = args.random_seed
-    if random_seed is None:
-        # NOTE: np.random should only be called here once...
-        random_seed = np.random.randint(0, 1e8)
+    if random_seed is not None:
+        config.GRNG = np.random.default_rng(random_seed)
     else:
-        ...
-
-    config.GRNG = np.random.Generator(np.random.PCG64(random_seed))
-
+        random_seed = config._random_seed
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+
     rng_state = config.GRNG.bit_generator.state
-    for l in dict2str(rng_state).split("\n"):
+    for l in dictionary_to_string(rng_state).split("\n"):
         config._print(l)
 
     # - potential
     if args.potential:
         # a worker or a List of worker
-        from .cli.compute import convert_config_to_potter
+        from .cli.compute import convert_input_to_computer
 
-        potter = convert_config_to_potter(args.potential)
+        computer = convert_input_to_computer(args.potential)
+        workers = computer.value
     else:
-        potter = [None]
+        computer = None
+        workers = [None]
 
     # - use subcommands
     if args.subcommand == "session":
-        from gdpx.core.session import run_session
+        from .cli.session import run_session
 
-        run_session(args.SESSION, args.feed, args.timewait, args.directory)
+        run_session(args.SESSION, args.feed, args.timewait, args.timemax, args.repeats, args.directory)
     elif args.subcommand == "convert":
-        from gdpx.data import convert_dataset
+        from .cli.convert import convert_dataset
 
-        convert_dataset(args.INPUT)
+        convert_dataset(args.INPUT, args.input_format, args.output_format, curr_wdir)
     elif args.subcommand == "train":
-        from gdpx.trainer import run_newtrainer
+        from .cli.train import run_trainer
 
-        run_newtrainer(args.CONFIG, args.directory)
+        run_trainer(args.CONFIG, args.directory)
     elif args.subcommand == "build":
         build_config = parse_input_file(args.CONFIG)
         from .cli.build import build_structures
 
         build_structures(build_config, args.substrates, args.number, args.directory)
     elif args.subcommand == "select":
-        from gdpx.selector.interface import run_selection
+        from .cli.select import run_selection
 
-        run_selection(args.CONFIG, args.structure, args.directory)
+        run_selection(args.CONFIG, structures=args.structures, directory=args.directory)
+    elif args.subcommand == "describe":
+        from .cli.describe import describe_structures
+
+        desc_config = parse_input_file(args.CONFIG)
+        describe_structures(desc_config, args.structures, args.directory)
     elif args.subcommand == "compute":
-        if isinstance(potter, list):
-            first_worker = potter[0]
-        else:
-            # FIXME: This is for reactor but we need unify this with computer.
-            first_worker = potter
-            potter = [potter]
-        config._print(f"{first_worker =}")
-        if first_worker is not None:
-            # For compatibility, the classic mode
-            # `gdp -p ./worker.yaml compute structures.xyz`
-            from .cli.compute import run_worker
+        from .cli.compute import run_computation
 
-            run_worker(
-                args.STRUCTURE,
-                potter,
-                batch=args.batch,
-                spawn=args.spawn,
-                archive=args.archive,
-                directory=args.directory,
-            )
-        else:  # Use GridWorker here!!
-            from .cli.compute import run_grid_worker
-
-            run_grid_worker(
-                parse_input_file(args.STRUCTURE[0]),
-                batch=args.batch,
-                spawn=args.spawn,
-                directory=args.directory,
-            )
+        run_computation(
+            args.STRUCTURE,
+            computer,
+            batch=args.batch,
+            spawn=args.spawn,
+            archive=args.archive,
+            directory=args.directory,
+        )
     elif args.subcommand == "explore":
         from .cli.explore import run_expedition
 
         params = parse_input_file(args.CONFIG)
-        run_expedition(params, args.wait, args.directory, potter[0])
-    elif args.subcommand == "valid":
-        from gdpx.validator import run_validation
+        run_expedition(params, args.wait, args.directory, workers[0], spawn=args.spawn)
+    elif args.subcommand == "validate":
+        from .cli.validate import run_validation
 
         params = parse_input_file(args.CONFIG)
-        run_validation(params, args.directory, potter[0])
+        run_validation(params, args.directory, workers[0])
     else:
         ...
 
-    # - report the end random state
+    # Report the end random state
     config._print(f"GLOBAL RANDOM SEED : {random_seed}")
     rng_state = config.GRNG.bit_generator.state
-    for l in dict2str(rng_state).split("\n"):
+    for l in dictionary_to_string(rng_state).split("\n"):
         config._print(l)
 
     return
