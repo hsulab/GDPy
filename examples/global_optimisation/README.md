@@ -6,7 +6,7 @@ repository root so substrate paths resolve correctly.
 - `explorations/genetic_algorithm/`: system construction, populations, genetic operators, and stopping criteria.
 - `explorations/basin_hopping/`: system construction, populations, hopping moves, and stopping criteria.
 - `runtimes/`: potential, executor, and relaxation settings.
-- `assets/`: shared substrate structures.
+- `assets/`: shared substrate and seed structures.
 - `verify_cu4o4_bh_thanos.py`: verification for the extinction demonstration.
 
 Exploration YAML files contain `method: global_optimisation`, `population`,
@@ -64,6 +64,7 @@ runtimes can be substituted without changing the exploration.
 | `explorations/genetic_algorithm/cu4_alumina111.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/genetic_algorithm/cu4_co_alumina111.yaml` | `runtimes/mattersim.yaml` |
 | `explorations/basin_hopping/cu8.yaml` | `runtimes/emt.yaml` |
+| `explorations/basin_hopping/cu8_seeded.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu_ni_compositions.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu6_nix.yaml` | `runtimes/emt.yaml` |
 | `explorations/basin_hopping/cu4o4.yaml` | `runtimes/tace.yaml` |
@@ -88,6 +89,25 @@ TACE uses OAM-7M on CPU. Both download their model on first use. Choose a
 potential that supports the system's elements; EMT is not an oxide or water
 runtime. The Thanos verifier checks observed extinction/restart events, which
 are not guaranteed to occur with a different potential.
+
+## Random and seeded initialization
+
+`explorations/basin_hopping/cu8_seeded.yaml` combines two random Cu₈ candidates
+with two structures read from `assets/cu8_seeds.xyz`. The `seeds` builder uses
+`method: direct` and `indices: [0, 1]`; its initial allocation matches the two
+selected frames. All four candidates are relaxed before chain-start selection.
+
+```shell
+gdp -d ./run-cu8-seeded-bh-emt \
+  --runtime examples/global_optimisation/runtimes/emt.yaml explore \
+  examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml
+```
+
+The seed geometries are unrelaxed, slightly perturbed cube and square-antiprism
+clusters with a 20 Å periodic cell and positive per-atom tags. Replace the file
+and frame indices to use your own seeds, adjusting `initial.total_size` and
+`initial.builder_allocations` to match. Use a new output directory when changing
+seeds. The candidate database records each initial candidate's builder name.
 
 ## Different compositions in one job
 

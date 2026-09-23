@@ -140,6 +140,13 @@ the crossover operator automatically; no composition-selection switch is needed.
 See {doc}`population` for the shared settings and {doc}`genetic-algorithm` for
 reproduction, mutation, and completion behavior.
 
+## Combine random candidates and seed structures
+
+The {doc}`seeded Cu₈ basin-hopping example <bh/examples/seeded-cluster>` uses
+two initial builders: `random_structure_improved` creates two candidates and
+a `direct` builder reads two frames from a seed file. Exact builder allocations
+combine them into one initial population, evaluated by the same runtime.
+
 ## Results and restart
 
 Inspect `gdp.out` for progress, `candidates.db` for evaluated candidates, and

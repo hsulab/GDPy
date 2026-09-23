@@ -25,6 +25,7 @@ to open its configuration and guide.
 | Main system | Specific system | Potential | Notes |
 | --- | --- | --- | --- |
 | Cluster | {ref}`Cu₈ <bh-cu8-example>` | EMT | Basic search and trajectory export |
+| Cluster | {ref}`Cu₈ with seeds <bh-seeded-cu8-example>` | EMT | Two initial builders: random structures and seed-file frames |
 | Cluster | {ref}`Cu₆Ni₂ and Cu₄Ni₄ <bh-composition-broadcast-example>` | EMT | Broadcast two compositions in one allocation |
 | Cluster | {ref}`Cu₆Niₓ <bh-variable-composition-example>` | EMT | Variable composition through Ni insertion/removal |
 | Cluster | {ref}`Cu₄O₄ <bh-cuox-tace-example>` | TACE | Oxide cluster search |
@@ -35,6 +36,7 @@ to open its configuration and guide.
 :hidden:
 
 cluster
+seeded-cluster
 compositions
 variable-composition
 cuox_tace

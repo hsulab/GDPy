@@ -407,19 +407,20 @@ class BasinHopping(PopulationBasedExploration):
         candidates = self._prepare_generation(database, gen_num, gen_wdir)
         if candidates is None:
             return EvaluationStatus.PENDING
+        # Worker outputs need not preserve input metadata. Keep persisted builder provenance by ID.
+        expected = {a.info["confid"]: copy.deepcopy(a.info.get("data", {})) for a in candidates}
         # Every hopping evaluation was already persisted by the round coordinator.
         results = evaluate_batch(candidates, self.worker, gen_wdir, self.use_archive) if gen_num == 0 else []
         if results is None:
             return EvaluationStatus.PENDING
         committed = set(database.get_generation_info(gen_num).relaxed_confids)
-        expected = {a.info["confid"] for a in candidates}
         for candidate in results:
             confid = candidate.info["confid"]
             if confid not in expected:
                 raise RuntimeError("Worker returned a candidate outside the current generation.")
             if confid in committed:
                 continue
-            provenance = candidate.info.get("data", {})
+            provenance = expected[confid]
             canonical_candidates_from_worker_results(
                 [candidate], gen_num=gen_num, use_tags=True, objective=self.objective,
                 extinct_callbacks=self.population_config.extinct_callbacks)

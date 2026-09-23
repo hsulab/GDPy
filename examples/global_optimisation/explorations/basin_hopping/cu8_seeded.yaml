@@ -1,0 +1,42 @@
+method: global_optimisation
+random_seed: 7
+population:
+  retained_size: 4
+  builders:
+    random:
+      method: random_structure_improved
+      composition: {Cu: 8}
+      box: [20.0, 20.0, 20.0]
+      region:
+        method: sphere
+        origin: [10.0, 10.0, 10.0]
+        radius: 3.0
+      covalent_ratio: [0.6, 2.0]
+    seeds:
+      method: direct
+      frames: ./examples/global_optimisation/assets/cu8_seeds.xyz
+      indices: [0, 1]
+  initial:
+    total_size: 4
+    builder_allocations:
+      - builder: random
+        size: 2
+      - builder: seeds
+        size: 2
+  generation:
+    total_size: 2
+  comparator:
+    method: interatomic_distance
+strategy:
+  method: basin_hopping
+  steps_per_chain: 5
+  operators:
+    - method: move
+      particles: [Cu]
+      temperature: 500.0
+      max_disp: 0.8
+      covalent_ratio: [0.6, 2.0]
+      max_random_attempts: 100
+      probability: 1.0
+convergence:
+  generation: 1

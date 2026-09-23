@@ -155,6 +155,11 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
     monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
     resumed.run()
     assert db.connection.count(relaxed=1) == engine.population_config.init_size
+    if method == "bh":
+        # Real worker results may omit input data; restore provenance on partial ingestion and resume.
+        for row in db.connection.select(relaxed=1, generation=0):
+            source = db.connection.get(relaxed=0, confid=row.confid)
+            assert row.data["builder"] == source.data["builder"]
     assert len(calls) == len(set(calls))
     assert db.get_generation_number() == 1
     assert resumed.read_convergence()
