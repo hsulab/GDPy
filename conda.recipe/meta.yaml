@@ -18,11 +18,11 @@ build:
 
 requirements:
   host:
-    - python >=3.9
+    - python >=3.10
     - pip
     - setuptools >=61
   run:
-    - python >=3.9
+    - python >=3.10
     - ase >=3.24,<3.27
     - h5py >=3.7.0
     - joblib >=1.1.0
