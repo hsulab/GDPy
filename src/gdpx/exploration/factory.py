@@ -13,9 +13,7 @@ from .exploration import BaseExploration
 
 
 RECIPE_METHODS = {
-    "genetic_algorithm",
     "monte_carlo",
-    "basin_hopping",
     "simulated_annealing",
 }
 
@@ -27,12 +25,7 @@ def _recipe_parameters(method: str, parameters: dict) -> dict:
 
     if "recipe" not in parameters:
         legacy_keys = ", ".join(sorted(parameters)) or "none"
-        migration = (
-            "Move random_seed and method-specific settings under 'recipe', and define named GA builders "
-            "under 'recipe.population.builders'."
-            if method == "genetic_algorithm"
-            else "Move random_seed, builder, and all method-specific settings under 'recipe'."
-        )
+        migration = "Move random_seed, builder, and all method-specific settings under 'recipe'."
         raise ValueError(
             f"Exploration method {method!r} requires a 'recipe' mapping. "
             f"{migration} "
@@ -61,12 +54,20 @@ def create_exploration(config):
         method = parameters.pop("method")
     except KeyError as error:
         raise ValueError("Exploration configuration requires a top-level 'method'.") from error
-    if method == "concurrent_hopping":
-        raise ValueError("concurrent_hopping was renamed to basin_hopping; keep the concurrent-hopping recipe.")
+    if method in {"genetic_algorithm", "basin_hopping", "concurrent_hopping"}:
+        selected = "basin_hopping" if method == "concurrent_hopping" else method
+        raise ValueError(f"Use method: global_optimisation with strategy.method: {selected}; "
+                         "remove the recipe wrapper and move algorithm settings under strategy.")
+    if method == "global_optimisation":
+        from .population.exploration import reject_legacy_settings, validate_strategy
+        reject_legacy_settings(parameters)
+        validate_strategy(parameters.get("strategy"))
+        if "population" not in parameters:
+            raise ValueError("global_optimisation requires population settings.")
     broadcast = parameters.pop('broadcast', None)
     if 'broadcast' in config:
-        if method not in RECIPE_METHODS:
-            raise ValueError(f'Broadcast is only supported for recipe-based explorations, not {method!r}.')
+        if method not in RECIPE_METHODS | {"global_optimisation"}:
+            raise ValueError(f'Broadcast is only supported for global_optimisation and recipe-based explorations, not {method!r}.')
         if not isinstance(broadcast, Mapping) or not broadcast:
             raise ValueError('broadcast must be a nonempty mapping of recipe paths to value lists.')
     parameters = _recipe_parameters(method, parameters)
@@ -122,9 +123,6 @@ def _broadcast_recipes(recipe, broadcast):
 
 def _create_exploration(method, parameters):
     """Construct one resolved recipe, preserving method-specific broadcasting."""
-    if method == "basin_hopping" and "population" not in parameters:
-        raise ValueError("basin_hopping now uses the concurrent-hopping population recipe; "
-                         "for the former MC alias use method: monte_carlo.")
     random_seed = parameters.get("random_seed")
     if random_seed is None:
         random_seed = int(np.random.randint(0, 1_000_000_000_000))

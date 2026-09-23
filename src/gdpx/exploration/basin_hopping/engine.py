@@ -9,19 +9,15 @@ from ase import Atoms
 from ase.io import write
 
 from gdpx.execution.lifecycle.runtime import create_runtime_workers
-from ..population.random import RandomStreamRegistry
 from .selection import HoppingStartSelector
 from .output import GenerationReporter, bh_logging, report_setup
 from ..sampling.logging import MoveLog
-from ..population import Population
-from ..population.config import PopulationConfig
-from ..population.comparators import create_population_comparator
 from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
 
-from ..exploration import BaseExploration
+from ..population.exploration import PopulationBasedExploration, validate_strategy, reject_legacy_settings
 from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
 from ..sampling import parse_operators
@@ -100,17 +96,15 @@ def canonical_candidates_from_worker_results(
     return relaxed_candidates
 
 
-class BasinHopping(BaseExploration):
+class BasinHopping(PopulationBasedExploration):
     def __init__(
         self,
-        operators: list[dict],
-        num_mcmoves: int,
         population: dict,
+        strategy: Optional[dict] = None,
         convergence: Optional[dict] = None,
         objective: Optional[dict] = None,
         builder=None,
         use_archive: bool = True,
-        selection: Optional[dict] = None,
         *args,
         **kwargs,
     ) -> None:
@@ -118,11 +112,18 @@ class BasinHopping(BaseExploration):
 
         Args:
             builder: Removed; use population.builders.
-            operators: Operator parameters.
+            strategy: Move operators, chain length, and chain-start selection.
             population: Population parameters.
 
         """
         reject_legacy_property(kwargs)
+        reject_legacy_settings(kwargs)
+        strategy = validate_strategy(strategy, "basin_hopping")
+        operators = strategy.get("operators")
+        if not isinstance(operators, list):
+            raise ValueError("strategy.operators must be a list for basin hopping.")
+        num_mcmoves = strategy.get("num_mcmoves")
+        selection = strategy.get("selection")
         if selection is not None and not isinstance(selection, Mapping):
             raise TypeError("BH selection must be a mapping.")
         selection = {"replace": False, **dict(selection or {})}
@@ -142,36 +143,18 @@ class BasinHopping(BaseExploration):
             raise ValueError("BH convergence.generation must be a non-negative integer.")
         if builder is not None:
             raise ValueError("BH builder moved to population.builders and initial.builder_allocations.")
-        super().__init__(*args, **kwargs)
-        self.random_streams = RandomStreamRegistry(self.random_seed)
-        self.rng = self.random_streams.get("engine")
-
         objective = normalise_objective(objective, {"energy", "formation_energy"})
+        super().__init__(population, strategy, *args, **kwargs)
 
         # Store initial parameters
         self._init_params = dict(
-            num_mcmoves=num_mcmoves,
-            selection=selection,
-            operators=operators,
+            strategy={**strategy, "selection": selection},
             population=population,
         )
         if not is_default_objective(objective):
             self._init_params["objective"] = copy.deepcopy(objective)
         self._init_params.update(convergence=convergence, use_archive=use_archive)
 
-        self.population_config = PopulationConfig(population, rng=self.random_streams.get("population"))
-        unsupported = {"reproduction", "mutation", "completion"} & population["generation"].keys()
-        if unsupported:
-            raise ValueError("BH generation does not accept GA policies: " + ", ".join(sorted(unsupported)))
-        self.builders = self.population_config.initialise_builders(population, self.random_streams)
-        self.generator = self.builders[self.population_config.reference_builder_name]
-        comparator = create_population_comparator(
-            self.population_config.comparator_config, self.population_config.periodic,
-            self.random_streams.get("population/comparator"),
-        )
-        self.population = Population(
-            self.population_config.retained_size, comparator, self.population_config.use_extinct,
-        )
         self.start_selector = HoppingStartSelector(self.random_streams.get("population"), **selection)
 
         # Parse monte carlo settings
@@ -530,14 +513,4 @@ class BasinHopping(BaseExploration):
         return workers
 
     def as_dict(self) -> dict:
-        """"""
-        recipe = {key: copy.deepcopy(value) for key, value in self._init_params.items() if key != "population"}
-        recipe["population"] = self.population_config.serialise(self._init_params["population"])
-        recipe = dict(random_seed=self.random_seed, **recipe)
-        assert self.worker is not None
-
-        return {
-            "method": "basin_hopping",
-            "recipe": recipe,
-            "runtime": self.worker.as_dict(),
-        }
+        return self.serialise_search(self._init_params)

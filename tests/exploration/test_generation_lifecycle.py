@@ -69,14 +69,24 @@ def bh_config(tmp_path, initial=2, generations=0):
     runtime = {"potential": {"provider": "emt", "parameters": {}},
                "executor": {"provider": "ase", "method": "spc", "parameters": {}},
                "options": {"worker": "single"}}
-    config = {"method": "basin_hopping", "recipe": {
-        "population": {"periodic": False, "retained_size": 1,
-                       "initial": {"total_size": initial, "builder_allocations": [{"builder": "random", "size": initial}]},
-                       "generation": {"total_size": 2},
-                       "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
-        "operators": [{"method": "move", "particles": ["Cu"], "max_disp": .05, "skip_distance_check": True}],
-        "num_mcmoves": 2, "convergence": {"generation": generations},
-        "random_seed": 7, "use_archive": False}}
+    config = {
+        'method': 'global_optimisation',
+        'population': {
+            'periodic': False,
+            'retained_size': 1,
+            'initial': {'total_size': initial, 'builder_allocations': [{'builder': 'random', 'size': initial}]},
+            'generation': {'total_size': 2},
+            'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
+        },
+        'convergence': {'generation': generations},
+        'random_seed': 7,
+        'use_archive': False,
+        'strategy': {
+            'method': 'basin_hopping',
+            'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
+            'num_mcmoves': 2,
+        },
+    }
     return config, runtime
 
 
@@ -122,7 +132,7 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
-        config["recipe"].update(convergence={"generation": 0}, use_archive=False)
+        config.update(convergence={"generation": 0}, use_archive=False)
     engine = make_engine(config, runtime, tmp_path / "run")
     original = GlobalOptimisationDatabase.add_relaxed_step
     calls = []
@@ -168,7 +178,7 @@ def test_restart_between_generations_preserves_search_trajectory(tmp_path, monke
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
-        config["recipe"].update(convergence={"generation": 2}, use_archive=False)
+        config.update(convergence={"generation": 2}, use_archive=False)
     baseline = make_engine(config, runtime, tmp_path / "baseline")
     baseline.run()
     interrupted = make_engine(config, runtime, tmp_path / "interrupted")
@@ -259,7 +269,7 @@ def test_bh_trial_ingestion_is_idempotent(tmp_path, monkeypatch, boundary):
 def test_bh_rejects_removed_mcworker_and_serial_checkpoints(tmp_path):
     config, runtime = bh_config(tmp_path, generations=1)
     legacy = copy.deepcopy(config)
-    legacy["recipe"]["mcworker"] = runtime
+    legacy["mcworker"] = runtime
     with pytest.raises(ValueError, match="mcworker.*top-level runtime"):
         create_exploration(legacy)
     engine = make_engine(config, runtime, tmp_path / "search")
@@ -317,9 +327,9 @@ class HistoryWorker:
 @pytest.mark.parametrize("accept_uphill", [False, True])
 def test_every_minimum_is_available_to_next_population(tmp_path, accept_uphill):
     config, runtime = bh_config(tmp_path, generations=2 if accept_uphill else 1)
-    config["recipe"]["population"]["comparator"] = {"method": "atoms"}
-    config["recipe"]["population"]["retained_size"] = 1 if accept_uphill else 10
-    config["recipe"]["operators"][0]["temperature"] = 1e12 if accept_uphill else 1e-6
+    config["population"]["comparator"] = {"method": "atoms"}
+    config["population"]["retained_size"] = 1 if accept_uphill else 10
+    config["strategy"]["operators"][0]["temperature"] = 1e12 if accept_uphill else 1e-6
     engine = make_engine(config, runtime, tmp_path / "search")
     worker = HistoryWorker([0., -10., -1., -2., -3.])
     engine.register_worker(worker)
@@ -351,7 +361,7 @@ def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, 
     from gdpx.exploration.sampling.proposal import MoveProposal
     config, runtime = bh_config(tmp_path, generations=2)
     if not invalid:
-        config["recipe"]["num_mcmoves"] = 0
+        config["strategy"]["num_mcmoves"] = 0
     engine = make_engine(config, runtime, tmp_path / "search")
     if invalid:
         def reject(atoms, rng):
@@ -376,13 +386,13 @@ def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, 
 def test_bh_default_generation_and_serialization(tmp_path, convergence):
     config, runtime = bh_config(tmp_path)
     if convergence is None:
-        config["recipe"].pop("convergence")
+        config.pop("convergence")
     else:
-        config["recipe"]["convergence"] = convergence
+        config["convergence"] = convergence
     engine = make_engine(config, runtime, tmp_path / "search")
     assert engine.convergence == {"generation": 1}
     serialized = engine.as_dict()
-    assert serialized["recipe"]["convergence"] == {"generation": 1}
+    assert serialized["convergence"] == {"generation": 1}
     serialized.pop("runtime")
     assert create_exploration(serialized).convergence == {"generation": 1}
     engine.run()
@@ -391,13 +401,13 @@ def test_bh_default_generation_and_serialization(tmp_path, convergence):
     assert db.connection.count(relaxed=1, generation=1) == 4
     assert db.get_generation_plan(2) is None
     if convergence is not None:
-        assert config["recipe"]["convergence"] == convergence
+        assert config["convergence"] == convergence
 
 
 @pytest.mark.parametrize("generation", [-1, 1.5, True, "1", None])
 def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
     config, _ = bh_config(tmp_path)
-    config["recipe"]["convergence"] = {"generation": generation}
+    config["convergence"] = {"generation": generation}
     with pytest.raises(ValueError, match="convergence.generation.*non-negative integer"):
         create_exploration(config)
 
@@ -405,7 +415,7 @@ def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
 def test_bh_default_generation_resumes_without_reselecting_starts(tmp_path, monkeypatch):
     import gdpx.exploration.basin_hopping.chain as chain
     config, runtime = bh_config(tmp_path)
-    config["recipe"].pop("convergence")
+    config.pop("convergence")
     baseline = make_engine(config, runtime, tmp_path / "baseline")
     baseline.run()
     interrupted = make_engine(config, runtime, tmp_path / "interrupted")
@@ -488,7 +498,7 @@ class RoundEnergyWorker(HistoryWorker):
 
 def test_bh_restart_uses_complete_round_and_marks_trajectory(tmp_path, monkeypatch):
     config, runtime = bh_config(tmp_path, generations=1)
-    config["recipe"]["operators"][0]["temperature"] = 1e12
+    config["strategy"]["operators"][0]["temperature"] = 1e12
     engine = extinction_engine(config, runtime, tmp_path / "search", RoundEnergyWorker(),
                                lambda a: int(a.get_potential_energy() < -5))
     select = engine.start_selector.select
@@ -523,7 +533,7 @@ def test_bh_restart_uses_complete_round_and_marks_trajectory(tmp_path, monkeypat
 def test_bh_extinction_restart_preserves_all_random_streams(tmp_path, monkeypatch, boundary):
     import gdpx.exploration.basin_hopping.chain as chain
     config, runtime = bh_config(tmp_path, generations=1)
-    config["recipe"]["operators"][0]["temperature"] = 1e12
+    config["strategy"]["operators"][0]["temperature"] = 1e12
     def make(directory):
         return extinction_engine(config, runtime, directory, RoundEnergyWorker(),
                                  lambda a: int(a.get_potential_energy() < -5))
@@ -609,11 +619,11 @@ def test_bh_empty_restart_pool_terminates_search(tmp_path, monkeypatch):
 @pytest.mark.parametrize('replace', [False, True])
 def test_bh_selection_config_roundtrip(tmp_path, replace):
     config, runtime = bh_config(tmp_path)
-    config['recipe']['selection'] = {'replace': replace}
+    config["strategy"]["selection"] = {'replace': replace}
     engine = make_engine(config, runtime, tmp_path / 'run')
     assert engine.start_selector.replace is replace
     exported = engine.as_dict()
-    assert exported['recipe']['selection'] == {'replace': replace}
+    assert exported["strategy"]["selection"] == {'replace': replace}
     restored_runtime = exported.pop('runtime')
     restored = make_engine(exported, restored_runtime, tmp_path / 'restored')
     assert restored.start_selector.replace is replace
@@ -622,7 +632,7 @@ def test_bh_selection_config_roundtrip(tmp_path, replace):
 @pytest.mark.parametrize('selection', [True, [], {'replace': 'false'}, {'replace': 0}, {'replacement': False}])
 def test_bh_selection_invalid_config(tmp_path, selection):
     config, runtime = bh_config(tmp_path)
-    config['recipe']['selection'] = selection
+    config["strategy"]["selection"] = selection
     with pytest.raises((TypeError, ValueError), match='selection'):
         make_engine(config, runtime, tmp_path / 'run')
 
@@ -630,8 +640,8 @@ def test_bh_selection_invalid_config(tmp_path, selection):
 @pytest.mark.parametrize('replace', [False, True])
 def test_bh_generation_and_extinction_share_selection_policy(tmp_path, monkeypatch, replace):
     config, runtime = bh_config(tmp_path, generations=1)
-    config['recipe']['population']['retained_size'] = 2
-    config['recipe']['selection'] = {'replace': replace}
+    config['population']['retained_size'] = 2
+    config["strategy"]["selection"] = {'replace': replace}
     engine = extinction_engine(config, runtime, tmp_path / 'run', HistoryWorker([0., -1., 0.]),
                                lambda a: int(a.get_potential_energy() == -1.))
     monkeypatch.setattr(engine.population.comparator, 'looks_like', lambda a, b: False)

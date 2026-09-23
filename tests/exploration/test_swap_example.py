@@ -32,7 +32,7 @@ def test_cu7ni6_example_generates_tagged_clusters_and_swaps_species():
         "data": {},
         "key_value_pairs": {},
     }
-    mutation_config = copy.deepcopy(engine.ga_dict["operators"]["mutation"])
+    mutation_config = copy.deepcopy(engine.strategy_config["operators"]["mutation"])
     assert mutation_config.pop("method") == "swap"
     mutation = SwapMutation(
         bond_distance_dict=engine.generator.get_bond_distance_dict(),

@@ -48,14 +48,14 @@ def test_water_cluster_example_and_small_mattersim_runtime():
     with path.open() as stream:
         config = yaml.safe_load(stream)
 
-    builder = config["recipe"]["population"]["builders"]["random"]
+    builder = config["population"]["builders"]["random"]
     assert builder["composition"] == {"H2O": 4}
-    assert config["recipe"]["population"].get("periodic", True) is True
-    assert config["recipe"]["population"].get("preserve_fragments", True) is True
-    assert config["recipe"]["operators"]["crossover"]["method"] == (
+    assert config["population"].get("periodic", True) is True
+    assert config["population"].get("preserve_fragments", True) is True
+    assert config["strategy"]["operators"]["crossover"]["method"] == (
         "cut_and_splice"
     )
-    assert config["recipe"]["operators"]["mutation"]["method"] == "rattle"
+    assert config["strategy"]["operators"]["mutation"]["method"] == "rattle"
     runtime_path = Path(__file__).parents[2] / "examples/global_optimisation/runtimes/mattersim.yaml"
     runtime = yaml.safe_load(runtime_path.read_text())
     assert runtime["potential"] == {

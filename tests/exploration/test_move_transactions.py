@@ -180,7 +180,7 @@ def test_acceptance_rules_preserve_formulas_and_do_not_mutate_metadata():
     rule = SemiGrandAcceptance(temperature, ("H", "He"), (0.1, 0.4))
     assert rule.probability(dict(first_ptype="H", second_ptype="He"), 0, 1) == pytest.approx(np.exp(-0.7))
     rule = ReactionAcceptance(temperature, (-1, 1), (0.0, 0.0))
-    assert rule.probability({"direction": 1, "particle_numbers": [1, 4], "volume": 2}, 0, 1) == pytest.approx(0.2 * np.exp(-1))
+    assert rule.probability({'direction': 1, 'particle_numbers': [1, 4], 'volume': 2}, 0, 1) == pytest.approx(0.2 * np.exp(-1))
 
 
 class Worker:
@@ -221,7 +221,15 @@ def test_worker_exception_restores_trial(tmp_path):
     atoms = structure()
     original = atoms.positions.copy()
     with pytest.raises(RuntimeError, match="worker failed"):
-        run_worker_move(atoms, 0, [operator()], [1.0], np.random.default_rng(2), FailingWorker(0), tmp_path / "pending")
+        run_worker_move(
+            atoms,
+            0,
+            [operator()],
+            [1.0],
+            np.random.default_rng(2),
+            FailingWorker(0),
+            tmp_path / 'pending',
+        )
     np.testing.assert_array_equal(atoms.positions, original)
     assert atoms.get_potential_energy() == 0
 
@@ -449,16 +457,26 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
         "options": {"worker": "single"},
     }
-    engine = create_exploration({"method": "basin_hopping", "recipe": {
-        "population": {"periodic": False, "retained_size": 1,
-                       "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
-                       "generation": {"total_size": 3},
-                       "builders": {"random": {"method": "read_stru", "fname": str(source)}}},
-        "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.05,
-                       "skip_distance_check": True}],
-        "num_mcmoves": 2, "convergence": {"generation": 1},
-        "random_seed": 7, "use_archive": False,
-    }})
+    engine = create_exploration(
+        {
+            'method': 'global_optimisation',
+            'population': {
+                'periodic': False,
+                'retained_size': 1,
+                'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
+                'generation': {'total_size': 3},
+                'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
+            },
+            'convergence': {'generation': 1},
+            'random_seed': 7,
+            'use_archive': False,
+            'strategy': {
+                'method': 'basin_hopping',
+                'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
+                'num_mcmoves': 2,
+            },
+        },
+    )
     engine.directory = tmp_path / "bh"
     engine.register_worker(runtime)
     submitted = []
@@ -472,7 +490,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     assert engine.read_convergence()
     assert (engine.directory / "results" / "all_candidates.xyz").exists()
     serialized = engine.as_dict()
-    assert serialized["method"] == "basin_hopping"
+    assert serialized["method"] == "global_optimisation"
     assert serialized["runtime"]["executor"]["method"] == "spc"
     assert len(engine.get_workers()) == 3
     from ase.io import read

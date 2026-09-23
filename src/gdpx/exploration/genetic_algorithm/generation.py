@@ -38,7 +38,7 @@ def compare_two_atoms_by_substrates(a0: Atoms, a1: Atoms, dtol: float = 0.20) ->
         a0_substrate_positions = a0.get_positions()[a0_substrate_indices]
         a1_substrate_positions = a1.get_positions()[a1_substrate_indices]
         _, mic_distances = find_mic(a1_substrate_positions - a0_substrate_positions, a0.get_cell())
-        dmax = np.max(mic_distances)
+        dmax = np.max(mic_distances) if len(mic_distances) else 0.0
         if dmax <= dtol:
             similar = True
         else:
@@ -94,64 +94,21 @@ class GeneticGenerationManager:
 
     @staticmethod
     def validate_parameters(params):
-        legacy_keys = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"}.intersection(
-            params
-        )
-        if legacy_keys:
-            replacements = {
-                "init": "initial",
-                "gen": "generation",
-                "pmut": "generation.reproduction.mutation_probability",
-                "pmut_custom": "generation.reproduction.custom_mutation_probability",
-                "random_generator": "builders",
-                "reproduction": "generation.reproduction",
-            }
-            migration = ", ".join(f"{key} -> {replacements[key]}" for key in sorted(legacy_keys))
-            raise ValueError(f"Legacy GA population keys are not supported: {migration}.")
-
-        # Get population name
-        name = params.get("name", "constant")
-        if name not in ["constant", "variable"]:
-            raise ValueError("Population name must be `constant` or `variable`.")
-
-        gen_params = params.get("generation", {})
-        if not isinstance(gen_params, Mapping):
-            raise ValueError("population.generation must be a mapping.")
-        legacy_generation_keys = {
-            "reprod": "reproduction",
-            "mutate": "mutation",
-            "max_random_try": "reproduction.maximum_attempts",
-            "max_reprod_try": "reproduction.maximum_attempts",
-            "size": "total_size",
-            "random": "completion.builder_proportions",
-        }
-        found_legacy_generation_keys = legacy_generation_keys.keys() & gen_params.keys()
-        if found_legacy_generation_keys:
-            migration = ", ".join(
-                f"{key} -> {legacy_generation_keys[key]}" for key in sorted(found_legacy_generation_keys)
-            )
-            raise ValueError(f"Legacy GA generation keys are not supported: {migration}.")
-
-        init_params = params.get("initial", {})
-        if not isinstance(init_params, Mapping):
-            raise ValueError("population.initial must be a mapping.")
-        rejected_initial = {"size", "seed_file", "sources", "fallback_builder"}.intersection(init_params)
-        if rejected_initial:
-            raise ValueError(
-                "Legacy GA initial keys are not supported: " + ", ".join(sorted(rejected_initial)) + "."
-            )
-        substrate_params = params.get("substrate", dict(distance_tolerance=-1.0))
-        if "dtol" in substrate_params:
-            raise ValueError("Legacy GA substrate key 'dtol' is not supported; use 'distance_tolerance'.")
-        return name
+        from ..population.exploration import validate_strategy
+        validate_strategy(params, "genetic_algorithm")
+        substrate = params.get("substrate", {})
+        if not isinstance(substrate, Mapping):
+            raise ValueError("strategy.substrate must be a mapping.")
+        if "dtol" in substrate:
+            raise ValueError("Use strategy.substrate.distance_tolerance instead of dtol.")
 
     def __init__(self, params: dict, config: PopulationConfig, population, selector, rng):
-        self.name = self.validate_parameters(params)
+        self.validate_parameters(params)
         self.config = config
         self.population = population
         self.selector = selector
         self.rng = rng
-        gen_params = params["generation"]
+        gen_params = params
         substrate_params = params.get("substrate", {})
         # Get number of structures from different origins in one generation
         reproduction_params = gen_params.get("reproduction", {})
@@ -160,12 +117,12 @@ class GeneticGenerationManager:
         generation_sections = (reproduction_params, mutation_params, completion_params)
         if not all(isinstance(section, Mapping) for section in generation_sections):
             raise ValueError(
-                "generation.reproduction, generation.mutation, and generation.completion must be mappings."
+                "strategy.reproduction, strategy.mutation, and strategy.completion must be mappings."
             )
         self.gen_rep_size = self.config._nonnegative_integer(reproduction_params.get("size", 0), "reproduction.size")
         self.gen_mut_size = self.config._nonnegative_integer(mutation_params.get("size", 0), "mutation.size")
         if self.gen_rep_size + self.gen_mut_size > self.config.gen_size:
-            raise ValueError("generation reproduction and mutation sizes exceed generation.total_size.")
+            raise ValueError("strategy reproduction and mutation sizes exceed population.generation.total_size.")
         self.gen_rep_max_try = self._attempts(reproduction_params, self.gen_rep_size, "reproduction")
         self.gen_mut_max_try = self._attempts(mutation_params, self.gen_mut_size, "mutation")
         self.completion_builder_proportions = self._parse_builder_proportions(
@@ -184,35 +141,35 @@ class GeneticGenerationManager:
 
     def _attempts(self, params: Mapping, size: int, section: str) -> int:
         attempts = params.get("maximum_attempts", size * self.config.MAX_ATTEMPTS_MULTIPLIER)
-        return self.config._nonnegative_integer(attempts, f"generation.{section}.maximum_attempts")
+        return self.config._nonnegative_integer(attempts, f"strategy.{section}.maximum_attempts")
 
 
     def _parse_builder_proportions(self, proportions) -> list[dict]:
         if not isinstance(proportions, list) or not proportions:
-            raise ValueError("generation.completion.builder_proportions must be a non-empty list.")
+            raise ValueError("strategy.completion.builder_proportions must be a non-empty list.")
         parsed = []
         names = set()
         for index, item in enumerate(proportions):
             if not isinstance(item, Mapping) or not isinstance(item.get("builder"), str) or not item["builder"]:
-                raise ValueError(f"generation.completion.builder_proportions[{index}] requires a builder name.")
+                raise ValueError(f"strategy.completion.builder_proportions[{index}] requires a builder name.")
             proportion = item.get("proportion")
             if not isinstance(proportion, (int, float)) or isinstance(proportion, bool) or proportion <= 0:
-                raise ValueError(f"generation completion proportion at index {index} must be positive.")
+                raise ValueError(f"strategy completion proportion at index {index} must be positive.")
             name = item["builder"]
             if name in names:
-                raise ValueError(f"generation completion proportions repeat builder {name!r}.")
+                raise ValueError(f"strategy completion proportions repeat builder {name!r}.")
             names.add(name)
             maximum_attempts = item.get("maximum_attempts")
             if maximum_attempts is not None:
                 maximum_attempts = self.config._nonnegative_integer(
                     maximum_attempts,
-                    f"generation.completion.builder_proportions[{index}].maximum_attempts",
+                    f"strategy.completion.builder_proportions[{index}].maximum_attempts",
                 )
             parsed.append(
                 dict(builder=name, proportion=float(proportion), maximum_attempts=maximum_attempts)
             )
         if not np.isclose(sum(x["proportion"] for x in parsed), 1.0):
-            raise ValueError("generation completion builder proportions must sum to 1.0.")
+            raise ValueError("strategy completion builder proportions must sum to 1.0.")
         return parsed
 
     def allocate_completion_sizes(self, size: int) -> list[dict]:
@@ -496,50 +453,22 @@ class GeneticGenerationManager:
                 "Not enough structures in the current population. Some errors must have occurred before."
             )
 
-        if num_structures_in_population >= 2:
-            if pairing.allow_variable_composition:
-                parents = self.selector.select_pair(population)
-                if parents is None:
-                    return None
-                natoms_p0, natoms_p1 = len(parents[0]), len(parents[1])
-                self._print(f"  p0_natoms: {natoms_p0} p1_natoms: {natoms_p1}")
-            else:
-                for _ in range(100):
-                    parents = self.selector.select_pair(population)
-                    # TODO: Move this check to population?
-                    if parents is not None:
-                        self._print(
-                            f"  compare candidates: {parents[0].info['confid']:>6d} {parents[1].info['confid']:>6d}"
-                        )
-                    if not is_reproduction_isolation(parents):
-                        if self.substrate_dtol > 0.0:
-                            is_substrate_similar = compare_two_atoms_by_substrates(
-                                parents[0],
-                                parents[1],
-                                dtol=self.substrate_dtol,
-                            )
-                            self._print(f"    substrate consistency: {is_substrate_similar}")
-                            if not is_substrate_similar:
-                                continue
-                        # get two candidates that are both consistent in composition and substrate
-                        natoms_p0 = len(parents[0])
-                        tags_dict = get_tags_per_species(parents[0])
-                        identities = " ".join([k + "_" + str(len(v)) for k, v in tags_dict.items()])
-                        self._print(f"  natoms: {natoms_p0} composition: {identities}")
-                        break
-                else:
-                    self._print(
-                        f"Cannot find two parents after 100 attempts from a population of {len(population.candidates)}."
-                    )
-                    self._print(f"Get one parent and perform parthenogenesis.")
-                    parent_0 = self.selector.select_one(population)
-                    assert parent_0 is not None
-                    parents = [parent_0]
-                    natoms_p0 = len(parents[0])
-        else:
-            # We only have one structure
-            parents = [population.candidates[0]]
-            natoms_p0 = len(parents[0])
+        def compatible(first, second):
+            if getattr(pairing, "allow_variable_composition", False):
+                return True
+            if is_reproduction_isolation((first, second)):
+                return False
+            return self.substrate_dtol <= 0.0 or compare_two_atoms_by_substrates(
+                first, second, dtol=self.substrate_dtol)
+
+        parents = self.selector.select_pair(population, compatible=compatible)
+        if parents is None:
+            self._print("No compatible pair; selecting one parent for mutation.")
+            parent = self.selector.select_one(population)
+            if parent is None:
+                return None
+            parents = [parent]
+        natoms_p0 = len(parents[0])
 
         parents = [parent.copy() for parent in parents]
         for parent in parents:

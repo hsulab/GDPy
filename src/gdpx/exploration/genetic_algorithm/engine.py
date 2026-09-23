@@ -19,6 +19,7 @@ from gdpx.utils.strconv import integers_to_string
 from gdpx.core.output import quiet_logging
 
 from ..exploration import BaseExploration
+from ..population.exploration import PopulationBasedExploration, validate_strategy, reject_legacy_settings
 from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import (
     CANDIDATES_DATABASE_FILENAME,
@@ -26,14 +27,11 @@ from ..persist.database import (
 from ..persist.database import GlobalOptimisationDatabase as GODB
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
 from .operators import instantiate_a_genetic_operator
-from .core import OperationSelector, RandomStreamRegistry
+from .core import OperationSelector
 from .generation import GeneticGenerationManager
 from .selection import GeneticParentSelector
 from .output import GenerationReporter, report_setup
 from .files import write_candidate_results, write_generation_history, write_search_files
-from ..population import Population
-from ..population.config import PopulationConfig
-from ..population.comparators import create_population_comparator
 
 
 def plot_evolution_figure(rdir, data, gen_num, target):
@@ -86,7 +84,7 @@ class GeneticAlgorithmBroadcaster:
         self,
         population: dict,
         convergence: dict,
-        operators: Optional[dict] = None,
+        strategy: Optional[dict] = None,
         objective: Optional[dict] = None,
         use_archive: bool = True,
         random_seed=None,
@@ -94,6 +92,8 @@ class GeneticAlgorithmBroadcaster:
     ):
         """"""
         reject_legacy_property(legacy_kwargs)
+        reject_legacy_settings(legacy_kwargs)
+        strategy = validate_strategy(strategy, "genetic_algorithm")
         if "database" in legacy_kwargs:
             raise ValueError(
                 "The genetic-algorithm database filename is no longer configurable; "
@@ -101,7 +101,7 @@ class GeneticAlgorithmBroadcaster:
             )
         if legacy_kwargs:
             key = next(iter(legacy_kwargs))
-            raise TypeError(f"Unexpected genetic-algorithm recipe key {key!r}.")
+            raise TypeError(f"Unexpected genetic-algorithm setting {key!r}.")
 
         objective = normalise_objective(
             objective,
@@ -109,7 +109,7 @@ class GeneticAlgorithmBroadcaster:
         )
         recipe = dict(
             population=population,
-            operators=operators,
+            strategy=strategy,
         )
         if not is_default_objective(objective):
             recipe["objective"] = objective
@@ -167,7 +167,7 @@ class GeneticAlgorithmBroadcaster:
         return new_params_list
 
 
-class GeneticAlgorithmEngine(BaseExploration):
+class GeneticAlgorithmEngine(PopulationBasedExploration):
     """The genetic algorithm engine for structure search.
 
     The systems include bulk, surface, cluster, and surface with adsorbates.
@@ -189,7 +189,7 @@ class GeneticAlgorithmEngine(BaseExploration):
         self,
         population: dict,
         convergence: dict,
-        operators: Optional[dict] = None,
+        strategy: Optional[dict] = None,
         objective: Optional[dict] = None,
         use_archive: bool = True,
         *args,
@@ -207,25 +207,19 @@ class GeneticAlgorithmEngine(BaseExploration):
                 "The genetic-algorithm database filename is no longer configurable; "
                 f"remove 'database'. GDPy uses {CANDIDATES_DATABASE_FILENAME!r}."
             )
-        super().__init__(*args, **kwargs)
-        self.random_streams = RandomStreamRegistry(self.random_seed)
-        self.rng = self.random_streams.get("engine")
-
-        # Config mappings may contain builder instances; never deep-copy them.
+        reject_legacy_settings(kwargs)
+        strategy = validate_strategy(strategy, "genetic_algorithm")
+        self._reject_legacy_population_comparators(strategy.get("operators"))
+        GeneticGenerationManager.validate_parameters(strategy)
         population = dict(population)
-        self._reject_legacy_population_comparators(operators)
-        GeneticGenerationManager.validate_parameters(population)
-        self.population_config = PopulationConfig(population, rng=self.random_streams.get("population"))
-        self.periodic = self.population_config.periodic
-        self.preserve_fragments = self.population_config.preserve_fragments
-
         objective = normalise_objective(
             objective,
             {"energy", "cohesive_energy", "formation_energy"},
         )
+        super().__init__(population, strategy, *args, **kwargs)
         ga_dict = dict(
             population=population,
-            operators=operators,
+            strategy=strategy,
         )
         if not is_default_objective(objective):
             ga_dict["objective"] = objective
@@ -234,25 +228,6 @@ class GeneticAlgorithmEngine(BaseExploration):
         # Store initial parameters
         self.ga_dict = {key: copy.deepcopy(value) for key, value in ga_dict.items() if key != "population"}
         self.ga_dict["population"] = dict(population)
-
-        self.builders = self.population_config.initialise_builders(population, self.random_streams)
-        self.reference_builder_name = self.population_config.reference_builder_name
-        self.generator = self.builders[self.reference_builder_name]
-        self.population_comparator = create_population_comparator(
-            self.population_config.comparator_config, self.periodic,
-            self.random_streams.get("population/comparator"))
-
-        self.population = Population(
-            self.population_config.retained_size, self.population_comparator,
-            self.population_config.use_extinct,
-        )
-        self.parent_selector = GeneticParentSelector(
-            self.random_streams.get("population"), population.get("name", "constant")
-        )
-        self.generation_manager = GeneticGenerationManager(
-            population, self.population_config, self.population, self.parent_selector,
-            self.random_streams.get("population"),
-        )
 
         # Worker will be lazily checked in run
         self.worker = None
@@ -266,15 +241,6 @@ class GeneticAlgorithmEngine(BaseExploration):
             allocation["builder"] for allocation in self.population_config.initial_builder_allocations
         ] + [item["builder"] for item in self.generation_manager.completion_builder_proportions]
         self.population_config._require_builders(self.builders, configured_builder_names)
-        if self.generation_manager.name == "variable":
-            if self.target not in ("cohesive_energy", "formation_energy"):
-                raise RuntimeError(
-                    f"Population manager `{self.generation_manager.name}` is only compatible with "
-                    + "formation energy or cohesive energy target."
-                )
-        else:
-            ...
-
         # Convergence
         self.conv_dict = ga_dict["convergence"]
 
@@ -282,6 +248,15 @@ class GeneticAlgorithmEngine(BaseExploration):
         self.use_archive = ga_dict.get("use_archive", True)
 
         return
+
+    def _configure_population_strategy(self):
+        self.parent_selector = GeneticParentSelector(
+            self.random_streams.get("population")
+        )
+        self.generation_manager = GeneticGenerationManager(
+            self.strategy_config, self.population_config, self.population, self.parent_selector,
+            self.random_streams.get("population"),
+        )
 
     @BaseExploration.directory.setter
     def directory(self, directory: Union[str, pathlib.Path]) -> None:
@@ -710,7 +685,7 @@ class GeneticAlgorithmEngine(BaseExploration):
         """"""
         self.operators = {}
 
-        op_dict = copy.deepcopy(self.ga_dict.get("operators", None))
+        op_dict = copy.deepcopy(self.strategy_config.get("operators", None))
         if op_dict is None:
             op_dict = {
                 "mobile": {
@@ -958,19 +933,4 @@ class GeneticAlgorithmEngine(BaseExploration):
         return
 
     def as_dict(self) -> dict:
-        """"""
-        population = self.population_config.serialise(self.ga_dict["population"])
-        if self.reference_builder_name != "random":
-            population["reference_builder"] = self.reference_builder_name
-        ga_dict = {key: copy.deepcopy(value) for key, value in self.ga_dict.items() if key != "population"}
-        ga_dict["population"] = population
-        recipe = dict(
-            random_seed=self.random_seed,
-            **ga_dict,
-        )
-        engine_params = {
-            "method": "genetic_algorithm",
-            "recipe": recipe,
-            "runtime": self.worker.as_dict(),
-        }
-        return copy.deepcopy(engine_params)
+        return self.serialise_search(self.ga_dict)

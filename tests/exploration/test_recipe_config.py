@@ -27,13 +27,17 @@ from gdpx.exploration.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
 
 
-def make_generation_manager(params):
-    GeneticGenerationManager.validate_parameters(params)
+def make_generation_manager(params, strategy):
+    GeneticGenerationManager.validate_parameters(strategy)
     config = PopulationConfig(params)
-    population = Population(config.retained_size, create_population_comparator(config.comparator_config), config.use_extinct)
+    population = Population(
+        config.retained_size,
+        create_population_comparator(config.comparator_config),
+        config.use_extinct,
+    )
     rng = np.random.default_rng(7)
-    selector = GeneticParentSelector(rng, params.get("name", "constant"))
-    return GeneticGenerationManager(params, config, population, selector, rng)
+    selector = GeneticParentSelector(rng)
+    return GeneticGenerationManager(strategy, config, population, selector, rng)
 
 
 def test_fragment_atom_order_is_canonical_without_changing_geometry():
@@ -60,7 +64,9 @@ def test_two_builder_co_example_has_compatible_fragment_order(tmp_path, monkeypa
     from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
     root = Path(__file__).resolve().parents[2]
     monkeypatch.chdir(root)
-    recipe = yaml.safe_load((root / 'examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml').read_text())['recipe']
+    recipe = yaml.safe_load(
+        (root / 'examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml').read_text(),
+    )
     population = PopulationConfig(recipe['population'])
     builders = population.initialise_builders(recipe['population'], RandomStreamRegistry(recipe['random_seed']))
     for name, builder in builders.items():
@@ -90,9 +96,7 @@ class SerializableBuilder(Serializable):
 @pytest.mark.parametrize(
     "method",
     [
-        "genetic_algorithm",
         "monte_carlo",
-        "basin_hopping",
         "simulated_annealing",
     ],
 )
@@ -132,7 +136,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
     [
         (
             {"method": "genetic_algorithm", "builder": {}, "params": {}},
-            "requires a 'recipe' mapping",
+            "Use method: global_optimisation",
         ),
         (
             {
@@ -153,23 +157,21 @@ def test_factory_rejects_legacy_global_optimisation_shapes(config, message):
 def test_ga_broadcaster_uses_named_recipe_fields():
     broadcaster = GeneticAlgorithmBroadcaster(
         population={
-            "periodic": False,
-            "preserve_fragments": False,
-            "builders": {"random": {"method": "unused"}},
-            "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
-            "generation": {
-                "total_size": 1,
-                "reproduction": {"size": 1},
-                "mutation": {"size": 0},
-                "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.0}]},
-            },
+            'periodic': False,
+            'preserve_fragments': False,
+            'builders': {'random': {'method': 'unused'}},
+            'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
+            'generation': {'total_size': 1},
         },
-        convergence={"generation": 1},
-        objective={
-            "target": "formation_energy",
-            "chemical_potentials": {"Cu": [-3.0, -2.0]},
-        },
+        convergence={'generation': 1},
+        objective={'target': 'formation_energy', 'chemical_potentials': {'Cu': [-3.0, -2.0]}},
         random_seed=23,
+        strategy={
+            'method': 'genetic_algorithm',
+            'reproduction': {'size': 1},
+            'mutation': {'size': 0},
+            'completion': {'builder_proportions': [{'builder': 'random', 'proportion': 1.0}]},
+        },
     )
 
     assert len(broadcaster.input_params_list) == 2
@@ -184,10 +186,11 @@ def test_ga_broadcaster_uses_named_recipe_fields():
 
 def test_ga_omits_default_energy_objective():
     broadcaster = GeneticAlgorithmBroadcaster(
-        population=_minimal_ga_population("random"),
-        convergence={"generation": 1},
-        objective={"target": "energy"},
+        population=_minimal_ga_population('random'),
+        convergence={'generation': 1},
+        objective={'target': 'energy'},
         random_seed=23,
+        strategy=_minimal_ga_strategy('random'),
     )
 
     assert "objective" not in broadcaster.input_params_list[0]
@@ -199,21 +202,22 @@ def test_search_objective_rejects_legacy_keys():
     with pytest.raises(ValueError, match="property.*objective"):
         GeneticAlgorithmBroadcaster(
             population=population,
-            convergence={"generation": 1},
-            property={"target": "energy"},
+            convergence={'generation': 1},
+            property={'target': 'energy'},
+            strategy=_minimal_ga_strategy('random'),
         )
 
     with pytest.raises(ValueError, match="chempot.*chemical_potentials"):
         GeneticAlgorithmBroadcaster(
             population=population,
-            convergence={"generation": 1},
-            objective={"target": "formation_energy", "chempot": {"Cu": -3.0}},
+            convergence={'generation': 1},
+            objective={'target': 'formation_energy', 'chempot': {'Cu': -3.0}},
+            strategy=_minimal_ga_strategy('random'),
         )
 
     with pytest.raises(ValueError, match="property.*objective"):
         BasinHopping(
-            operators=[],
-            num_mcmoves=1,
+            strategy={"method": "basin_hopping", "operators": [], "num_mcmoves": 1},
             mcworker={},
             population={},
             convergence={},
@@ -224,9 +228,10 @@ def test_search_objective_rejects_legacy_keys():
 def test_searches_reject_configurable_database_names():
     with pytest.raises(ValueError, match="database filename is no longer configurable"):
         GeneticAlgorithmBroadcaster(
-            population=_minimal_ga_population("random"),
-            convergence={"generation": 1},
-            database="custom.db",
+            population=_minimal_ga_population('random'),
+            convergence={'generation': 1},
+            database='custom.db',
+            strategy=_minimal_ga_strategy('random'),
         )
 
     with pytest.raises(ValueError, match="population.database_fname is no longer configurable"):
@@ -249,21 +254,11 @@ def test_population_searches_use_fixed_database_path(tmp_path):
 
 def _minimal_ga_population(builder_name, reference_builder=None):
     population = {
-        "periodic": False,
-        "preserve_fragments": False,
-        "builders": {builder_name: SerializableBuilder({"method": builder_name})},
-        "initial": {
-            "total_size": 1,
-            "builder_allocations": [{"builder": builder_name, "size": 1}],
-        },
-        "generation": {
-            "total_size": 1,
-            "reproduction": {"size": 0},
-            "mutation": {"size": 0},
-            "completion": {
-                "builder_proportions": [{"builder": builder_name, "proportion": 1.0}]
-            },
-        },
+        'periodic': False,
+        'preserve_fragments': False,
+        'builders': {builder_name: SerializableBuilder({'method': builder_name})},
+        'initial': {'total_size': 1, 'builder_allocations': [{'builder': builder_name, 'size': 1}]},
+        'generation': {'total_size': 1},
     }
     if reference_builder is not None:
         population["reference_builder"] = reference_builder
@@ -272,9 +267,10 @@ def _minimal_ga_population(builder_name, reference_builder=None):
 
 def test_ga_defaults_reference_builder_to_random():
     engine = GeneticAlgorithmEngine(
-        population=_minimal_ga_population("random"),
-        convergence={"generation": 1},
+        population=_minimal_ga_population('random'),
+        convergence={'generation': 1},
         random_seed=7,
+        strategy=_minimal_ga_strategy('random'),
     )
 
     assert engine.reference_builder_name == "random"
@@ -284,15 +280,17 @@ def test_ga_defaults_reference_builder_to_random():
 def test_ga_requires_reference_when_random_builder_is_absent():
     with pytest.raises(ValueError, match="defaults reference_builder to 'random'"):
         GeneticAlgorithmEngine(
-            population=_minimal_ga_population("alternative"),
-            convergence={"generation": 1},
+            population=_minimal_ga_population('alternative'),
+            convergence={'generation': 1},
             random_seed=7,
+            strategy=_minimal_ga_strategy('alternative'),
         )
 
     engine = GeneticAlgorithmEngine(
-        population=_minimal_ga_population("alternative", reference_builder="alternative"),
-        convergence={"generation": 1},
+        population=_minimal_ga_population('alternative', reference_builder='alternative'),
+        convergence={'generation': 1},
         random_seed=7,
+        strategy=_minimal_ga_strategy('alternative'),
     )
     assert engine.reference_builder_name == "alternative"
 
@@ -300,33 +298,31 @@ def test_ga_requires_reference_when_random_builder_is_absent():
 def test_ga_population_uses_expanded_keys():
     population = make_generation_manager(
         {
-            "periodic": False,
-            "preserve_fragments": False,
-            "initial": {
-                "total_size": 4,
-                "builder_allocations": [
-                    {"builder": "imported", "size": 1},
-                    {"builder": "random", "size": 3},
+            'periodic': False,
+            'preserve_fragments': False,
+            'initial': {
+                'total_size': 4,
+                'builder_allocations': [{'builder': 'imported', 'size': 1}, {'builder': 'random', 'size': 3}],
+            },
+            'generation': {'total_size': 4},
+        },
+        {
+            'method': 'genetic_algorithm',
+            'reproduction': {
+                'size': 2,
+                'maximum_attempts': 24,
+                'mutation_probability': 0.25,
+                'custom_mutation_probability': 0.75,
+            },
+            'mutation': {'size': 1, 'maximum_attempts': 12},
+            'completion': {
+                'builder_proportions': [
+                    {'builder': 'random', 'proportion': 0.75},
+                    {'builder': 'alternative', 'proportion': 0.25},
                 ],
             },
-            "generation": {
-                "total_size": 4,
-                "reproduction": {
-                    "size": 2,
-                    "maximum_attempts": 24,
-                    "mutation_probability": 0.25,
-                    "custom_mutation_probability": 0.75,
-                },
-                "mutation": {"size": 1, "maximum_attempts": 12},
-                "completion": {
-                    "builder_proportions": [
-                        {"builder": "random", "proportion": 0.75},
-                        {"builder": "alternative", "proportion": 0.25},
-                    ]
-                },
-            },
-            "substrate": {"distance_tolerance": 0.1},
-        }
+            'substrate': {'distance_tolerance': 0.1},
+        },
     )
 
     assert population.config.init_size == 4
@@ -345,16 +341,8 @@ def test_ga_population_uses_expanded_keys():
 
 def test_ga_population_defaults_system_description_to_true():
     base = {
-        "initial": {
-            "total_size": 1,
-            "builder_allocations": [{"builder": "random", "size": 1}],
-        },
-        "generation": {
-            "total_size": 1,
-            "completion": {
-                "builder_proportions": [{"builder": "random", "proportion": 1.0}]
-            },
-        },
+        'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
+        'generation': {'total_size': 1},
     }
 
     population = PopulationConfig(base)
@@ -378,18 +366,10 @@ def test_ga_population_defaults_system_description_to_true():
 
 def test_population_candidate_validation_uses_system_description():
     config = {
-        "periodic": True,
-        "preserve_fragments": True,
-        "initial": {
-            "total_size": 1,
-            "builder_allocations": [{"builder": "random", "size": 1}],
-        },
-        "generation": {
-            "total_size": 1,
-            "completion": {
-                "builder_proportions": [{"builder": "random", "proportion": 1.0}]
-            },
-        },
+        'periodic': True,
+        'preserve_fragments': True,
+        'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
+        'generation': {'total_size': 1},
     }
     population = PopulationConfig(config)
 
@@ -418,8 +398,9 @@ def test_ga_rejects_population_owned_builder_keys(key, replacement):
     with pytest.raises(ValueError, match=replacement):
         GeneticAlgorithmEngine(
             population=population,
-            convergence={"generation": 1},
+            convergence={'generation': 1},
             random_seed=7,
+            strategy=_minimal_ga_strategy('random'),
         )
 
 
@@ -435,8 +416,9 @@ def test_ga_injects_default_system_settings_into_compatible_builders():
 
     engine = GeneticAlgorithmEngine(
         population=population,
-        convergence={"generation": 1},
+        convergence={'generation': 1},
         random_seed=7,
+        strategy=_minimal_ga_strategy('random'),
     )
 
     assert engine.periodic is True
@@ -445,7 +427,7 @@ def test_ga_injects_default_system_settings_into_compatible_builders():
     assert engine.builders["random"].use_tags is True
 
     engine.worker = Serializable({"schema_version": 3})
-    serialised_population = engine.as_dict()["recipe"]["population"]
+    serialised_population = engine.as_dict()["population"]
     assert "periodic" not in serialised_population
     assert "preserve_fragments" not in serialised_population
 
@@ -494,8 +476,8 @@ def test_ga_fragment_policy_configures_and_rejects_operators():
     ],
 )
 def test_ga_population_rejects_abbreviated_keys(population):
-    with pytest.raises(ValueError, match="Legacy GA"):
-        make_generation_manager(population)
+    with pytest.raises(ValueError):
+        PopulationConfig(population)
 
 
 def test_monte_carlo_operator_probability_is_expanded():
@@ -530,7 +512,7 @@ def test_ga_serialization_uses_recipe_and_runtime():
             "initial": {"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
             "generation": {"total_size": 1},
         },
-        "operators": {},
+        "strategy": _minimal_ga_strategy("random"),
         "convergence": {"generation": 1},
         "use_archive": True,
     }
@@ -539,20 +521,21 @@ def test_ga_serialization_uses_recipe_and_runtime():
     engine.population_config.builders = engine.builders
     config = engine.as_dict()
 
-    assert list(config) == ["method", "recipe", "runtime"]
-    assert config["recipe"]["random_seed"] == 7
-    assert config["recipe"]["population"]["builders"] == {
+    assert config["method"] == "global_optimisation"
+    assert "recipe" not in config
+    assert config["random_seed"] == 7
+    assert config["population"]["builders"] == {
         "random": {"method": "random_structure_improved"},
         "imported": {"method": "direct"},
     }
-    assert "reference_builder" not in config["recipe"]["population"]
+    assert "reference_builder" not in config["population"]
     assert "params" not in config
     assert "worker" not in config
-    assert "objective" not in config["recipe"]
-    assert "database" not in config["recipe"]
+    assert "objective" not in config
+    assert "database" not in config
 
     engine.reference_builder_name = "imported"
-    assert engine.as_dict()["recipe"]["population"]["reference_builder"] == "imported"
+    assert engine.as_dict()["population"]["reference_builder"] == "imported"
 
 
 class FixedBuilder:
@@ -566,20 +549,18 @@ class FixedBuilder:
 def test_initial_population_uses_ordered_builder_allocations():
     population = make_generation_manager(
         {
-            "periodic": False,
-            "preserve_fragments": False,
-            "initial": {
-                "total_size": 3,
-                "builder_allocations": [
-                    {"builder": "first", "size": 2},
-                    {"builder": "second", "size": 1},
-                ],
+            'periodic': False,
+            'preserve_fragments': False,
+            'initial': {
+                'total_size': 3,
+                'builder_allocations': [{'builder': 'first', 'size': 2}, {'builder': 'second', 'size': 1}],
             },
-            "generation": {
-                "total_size": 3,
-                "completion": {"builder_proportions": [{"builder": "first", "proportion": 1.0}]},
-            },
-        }
+            'generation': {'total_size': 3},
+        },
+        {
+            'method': 'genetic_algorithm',
+            'completion': {'builder_proportions': [{'builder': 'first', 'proportion': 1.0}]},
+        },
     )
     frames = population.config._prepare_initial_population(
         {"first": FixedBuilder("H"), "second": FixedBuilder("He")}
@@ -605,24 +586,19 @@ def test_generation_plan_round_trip(tmp_path):
 def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, monkeypatch):
     population = make_generation_manager(
         {
-            "periodic": False,
-            "preserve_fragments": False,
-            "initial": {
-                "total_size": 1,
-                "builder_allocations": [{"builder": "first", "size": 1}],
+            'periodic': False,
+            'preserve_fragments': False,
+            'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'first', 'size': 1}]},
+            'generation': {'total_size': 4},
+        },
+        {
+            'method': 'genetic_algorithm',
+            'reproduction': {'size': 2, 'maximum_attempts': 1},
+            'mutation': {'size': 1, 'maximum_attempts': 1},
+            'completion': {
+                'builder_proportions': [{'builder': 'first', 'proportion': 0.5}, {'builder': 'second', 'proportion': 0.5}],
             },
-            "generation": {
-                "total_size": 4,
-                "reproduction": {"size": 2, "maximum_attempts": 1},
-                "mutation": {"size": 1, "maximum_attempts": 1},
-                "completion": {
-                    "builder_proportions": [
-                        {"builder": "first", "proportion": 0.5},
-                        {"builder": "second", "proportion": 0.5},
-                    ]
-                },
-            },
-        }
+        },
     )
     population.selector = SimpleNamespace(select_one=lambda *args, **kwargs: Atoms("H"))
     monkeypatch.setattr(population, "_reproduce", lambda *args, **kwargs: None)
@@ -678,6 +654,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     concurrent.worker = worker
     concurrent._init_params = {
         "population": _minimal_ga_population("random"),
+        "strategy": {"method": "basin_hopping", "operators": [], "num_mcmoves": 1},
         "convergence": {"generation": 2},
         "objective": {
             "target": "formation_energy",
@@ -688,7 +665,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     concurrent.population_config = PopulationConfig(concurrent._init_params["population"])
     concurrent.population_config.builders = concurrent._init_params["population"]["builders"]
     concurrent_config = concurrent.as_dict()
-    assert concurrent_config["method"] == "basin_hopping"
+    assert concurrent_config["method"] == "global_optimisation"
 
     annealing = object.__new__(SimulatedAnnealing)
     annealing.random_seed = 19
@@ -697,9 +674,9 @@ def test_other_global_optimisers_serialize_the_recipe():
     annealing.temperatures = [800.0, 400.0]
     annealing_config = annealing.as_dict()
 
-    assert concurrent_config["recipe"]["random_seed"] == 13
-    assert concurrent_config["recipe"]["population"]["retained_size"] == 1
-    assert concurrent_config["recipe"]["objective"] == {
+    assert concurrent_config["random_seed"] == 13
+    assert concurrent_config["population"]["retained_size"] == 1
+    assert concurrent_config["objective"] == {
         "target": "formation_energy",
         "chemical_potentials": {"O": -4.95},
     }
@@ -714,15 +691,15 @@ def test_other_global_optimisers_serialize_the_recipe():
     }
 
 
-def test_basin_hopping_replaces_the_old_alias_and_registration():
-    from gdpx.exploration.exploration import BaseExploration
-    assert REGISTER["basin_hopping"] is BasinHopping
-    assert BasinHopping.__bases__ == (BaseExploration,)
-    assert "concurrent_hopping" not in REGISTER
-    with pytest.raises(ValueError, match="renamed to basin_hopping"):
-        create_exploration({"method": "concurrent_hopping", "recipe": {}})
-    with pytest.raises(ValueError, match="former MC alias use method: monte_carlo"):
-        create_exploration({"method": "basin_hopping", "recipe": {"convergence": {"steps": 2}}})
+def test_global_optimisation_registration_and_shared_base():
+    from gdpx.exploration.population.exploration import PopulationBasedExploration, create_global_optimisation
+    assert REGISTER["global_optimisation"] is create_global_optimisation
+    assert BasinHopping.__bases__ == (PopulationBasedExploration,)
+    assert GeneticAlgorithmEngine.__bases__ == (PopulationBasedExploration,)
+    for method in ("genetic_algorithm", "basin_hopping", "concurrent_hopping"):
+        assert method not in REGISTER
+        with pytest.raises(ValueError, match="Use method: global_optimisation"):
+            create_exploration({"method": method, "recipe": {}})
 
 
 def test_basin_hopping_accepts_a_constructed_cli_worker():
@@ -732,3 +709,8 @@ def test_basin_hopping_accepts_a_constructed_cli_worker():
     worker = object.__new__(SingleWorker)
     engine.register_worker(worker)
     assert engine.worker is worker
+
+
+def _minimal_ga_strategy(builder_name="random", operators=None):
+    return dict(method="genetic_algorithm", operators=operators,
+                completion={"builder_proportions": [{"builder": builder_name, "proportion": 1.0}]})

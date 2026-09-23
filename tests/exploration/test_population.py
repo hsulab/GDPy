@@ -51,7 +51,6 @@ def test_both_methods_accept_independent_sizes_without_mutating_config():
     original = copy.deepcopy(params)
     bh = PopulationConfig(params)
     ga_params = copy.deepcopy(params)
-    ga_params["generation"]["completion"] = {"builder_proportions": [{"builder": "random", "proportion": 1.}]}
     ga = PopulationConfig(ga_params)
     for manager in [bh, ga]:
         assert (manager.init_size, manager.retained_size, manager.gen_size) == (2, 3, 4)
@@ -80,7 +79,7 @@ def test_bh_migration_names_replacement(old, new):
 def test_comparator_location_migration():
     for operators in [{"comparator": {}}, {"mobile": {"comparator": {}}}]:
         with pytest.raises(ValueError, match="population.comparator"):
-            GeneticAlgorithmEngine(population=settings(), operators=operators, convergence={})
+            GeneticAlgorithmEngine(population=settings(), strategy={"method": "genetic_algorithm", "operators": operators}, convergence={})
 
 
 def test_pool_ranks_deduplicates_counts_history_and_borrows(monkeypatch):
@@ -113,19 +112,18 @@ def test_empty_singleton_equal_scores_and_bh_exact_chain_count():
 
 def test_ga_retained_capacity_and_variable_selection():
     params = settings(initial=1, retained=4, generation=2)
-    params["name"] = "variable"
-    params["generation"]["completion"] = {"builder_proportions": [{"builder": "random", "proportion": 1.}]}
+    strategy = {"method": "genetic_algorithm", "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.}]}}
     config = PopulationConfig(params)
     population = Population(config.retained_size, create_population_comparator({"method": "atoms"}))
     rng = np.random.default_rng(9)
-    selector = GeneticParentSelector(rng, "variable")
-    manager = GeneticGenerationManager(params, config, population, selector, rng)
+    selector = GeneticParentSelector(rng)
+    manager = GeneticGenerationManager(strategy, config, population, selector, rng)
     frames = [candidate(1), candidate(2), candidate(3, symbol="Ag"), candidate(4, symbol="Ag")]
     manager.update_population(Database(frames))
     assert len(population.candidates) == 4
     assert type(manager.population) is Population
     for _ in range(20):
-        first, second = selector.select_pair(population)
+        first, second = selector.select_pair(population, compatible=lambda a, b: a.symbols == b.symbols)
         assert first is not second
         assert first.symbols == second.symbols
         assert any(first is a for a in frames)
@@ -187,8 +185,8 @@ def test_example_population_round_trip_and_config_immutability(example, runtime_
     engine.register_worker(create_worker(runtime))
     saved = engine.as_dict()
     assert config == original
-    assert saved["recipe"]["population"]["retained_size"] == 2
-    assert saved["recipe"]["population"]["comparator"] == {"method": "interatomic_distance"}
+    assert saved["population"]["retained_size"] == 2
+    assert saved["population"]["comparator"] == {"method": "interatomic_distance"}
     saved.pop("runtime")
     rebuilt = create_exploration(saved)
     if isinstance(rebuilt, list):
@@ -212,9 +210,9 @@ def selection_fixture_database():
     return database
 
 
-@pytest.mark.parametrize("policy", ["constant", "variable", "bh"])
+@pytest.mark.parametrize("policy", ["bh"])
 @pytest.mark.parametrize("with_history", [True, False])
-def test_selection_and_rng_match_before_refactor(policy, with_history):
+def test_bh_selection_and_rng_match_before_refactor(policy, with_history):
     import json
     from pathlib import Path
 
@@ -225,25 +223,16 @@ def test_selection_and_rng_match_before_refactor(policy, with_history):
     population = Population(5, create_population_comparator({"method": "atoms"}))
     population.refresh(database)
     draws = []
-    if policy == "bh":
-        selector = HoppingStartSelector(streams.get("population"))
-        for _ in range(8):
-            draws.append([a.info["confid"] for a in selector.select(population, 7, with_history)])
-    else:
-        selector = GeneticParentSelector(streams.get("population"), policy)
-        selector.refresh(population, database)
-        for _ in range(8):
-            pair = selector.select_pair(population, with_history)
-            one = selector.select_one(population, with_history)
-            draws.append({"pair": [a.info["confid"] for a in pair], "one": one.info["confid"]})
+    selector = HoppingStartSelector(streams.get("population"))
+    for _ in range(8):
+        draws.append([a.info["confid"] for a in selector.select(population, 7, with_history)])
     assert {"draws": draws, "state": streams.snapshot()} == baseline[f"{policy}_{with_history}"]
     assert [a.info for a in database.frames] == original_info
 
 
-@pytest.mark.parametrize("policy", ["constant", "variable"])
-def test_ga_selection_empty_singleton_and_missing_compatible_pair(policy):
+def test_ga_selection_empty_singleton_and_missing_compatible_pair():
     rng = np.random.default_rng(5)
-    selector = GeneticParentSelector(rng, policy)
+    selector = GeneticParentSelector(rng)
     population = Population(4, create_population_comparator({"method": "atoms"}))
     database = Database([])
     population.refresh(database)
@@ -261,17 +250,15 @@ def test_ga_selection_empty_singleton_and_missing_compatible_pair(policy):
     database.frames.append(candidate(2, symbol="Ag"))
     population.refresh(database)
     selector.refresh(population, database)
-    if policy == "variable":
-        assert selector.select_pair(population) is None
-    else:
-        assert len(selector.select_pair(population)) == 2
+    assert selector.select_pair(population, compatible=lambda a, b: a.symbols == b.symbols) is None
+    assert len(selector.select_pair(population)) == 2
 
 
 def test_refresh_rebuilds_membership_statistics_and_ga_history():
     frames = [candidate(1, 1., 0.), candidate(2, 2., 0.), candidate(3, 3., 3.)]
     database = Database(frames)
     population = Population(2, create_population_comparator({"method": "atoms"}), use_extinct=True)
-    selector = GeneticParentSelector(np.random.default_rng(1), "variable")
+    selector = GeneticParentSelector(np.random.default_rng(1))
     population.refresh(database)
     selector.refresh(population, database)
     assert [a.info["confid"] for a in population.candidates] == [3, 2]
@@ -284,7 +271,6 @@ def test_refresh_rebuilds_membership_statistics_and_ga_history():
     assert [a.info["confid"] for a in population.candidates] == [4, 2]
     assert dict(population.similarity_counts) == {4: 0, 2: 1}
     assert selector.participation == {4: 3}
-    assert [group[0].info["confid"] for group in selector.groups] == [4, 2]
     with pytest.raises(AttributeError):
         population.candidates = ()
 
@@ -329,8 +315,7 @@ def test_ga_incompatible_pairs_fall_back_to_independent_single_parent():
     from types import SimpleNamespace
 
     params = settings(initial=2, retained=2, generation=1)
-    params["name"] = "variable"
-    params["generation"].update({
+    strategy = dict(method="genetic_algorithm", **{
         "reproduction": {"size": 1},
         "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.}]},
     })
@@ -342,8 +327,8 @@ def test_ga_incompatible_pairs_fall_back_to_independent_single_parent():
     positions = [a.positions.copy() for a in frames]
     population = Population(2, create_population_comparator({"method": "atoms"}))
     rng = np.random.default_rng(8)
-    selector = GeneticParentSelector(rng, "variable")
-    manager = GeneticGenerationManager(params, config, population, selector, rng)
+    selector = GeneticParentSelector(rng)
+    manager = GeneticGenerationManager(strategy, config, population, selector, rng)
     manager.update_population(Database(frames))
     writes = []
     database = SimpleNamespace(

@@ -23,7 +23,7 @@ def clean_seed_structures(frames):
 
 
 class PopulationConfig:
-    """Settings shared by BH and GA; algorithm policies extend generation settings."""
+    """Algorithm-independent population settings and initial construction."""
 
     MAX_ATTEMPTS_MULTIPLIER = 10
     _print = staticmethod(print)
@@ -32,6 +32,17 @@ class PopulationConfig:
     def __init__(self, params, rng=None):
         if not isinstance(params, Mapping):
             raise ValueError("population must be a mapping.")
+        for key in ("name", "substrate"):
+            if key in params:
+                replacement = ("remove it; crossover parent compatibility is automatic" if key == "name"
+                               else "move it to strategy.substrate")
+                raise ValueError(f"population.{key} is no longer supported; {replacement}.")
+        generation = params.get("generation")
+        if isinstance(generation, Mapping):
+            moved = {"reproduction", "mutation", "completion"} & generation.keys()
+            if moved:
+                raise ValueError("Move GA population policies: " + ", ".join(
+                    f"population.generation.{key} -> strategy.{key}" for key in sorted(moved)))
         if "database_fname" in params:
             raise ValueError("population.database_fname is no longer configurable; remove it.")
         replacements = {
@@ -44,10 +55,24 @@ class PopulationConfig:
         if old:
             migration = ", ".join(f"{key} -> {replacements[key]}" for key in sorted(old))
             raise ValueError(f"Legacy population keys are not supported: {migration}.")
+        obsolete = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"} & params.keys()
+        if obsolete:
+            raise ValueError("Legacy GA population keys are not supported: " + ", ".join(sorted(obsolete)) +
+                             "; use population.initial, population.generation.total_size, and strategy policies.")
         self.rng = np.random.default_rng() if rng is None else rng
         for section in ("initial", "generation"):
             if not isinstance(params.get(section), Mapping):
                 raise ValueError(f"population.{section} must be a mapping.")
+        old_initial = {"size", "seed_file", "sources", "fallback_builder"} & params["initial"].keys()
+        if old_initial:
+            raise ValueError("Legacy population.initial keys are not supported: " + ", ".join(sorted(old_initial)) +
+                             "; use total_size and builder_allocations.")
+        old_generation = {"reprod", "mutate", "max_random_try", "max_reprod_try", "size", "random"}
+        old_generation &= params["generation"].keys()
+        if old_generation:
+            raise ValueError("Legacy population.generation keys are not supported: " +
+                             ", ".join(sorted(old_generation)) +
+                             "; use total_size and put production policies under strategy.")
         self.init_size = self._positive_integer(params["initial"].get("total_size"), "initial.total_size")
         self.gen_size = self._positive_integer(params["generation"].get("total_size"), "generation.total_size")
         self.retained_size = self._positive_integer(params.get("retained_size", self.gen_size), "population.retained_size")
