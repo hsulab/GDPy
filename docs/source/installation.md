@@ -60,11 +60,32 @@ $ git pull
 From the repository root, install only the potential packages you need:
 
 ```shell
+python -m pip install -e '.[deepmd]'
 python -m pip install -e '.[mattersim]'
 python -m pip install -e '.[tace]'
-# Or install both in the same environment:
-python -m pip install -e '.[tace,mattersim]'
+# Or combine extras in the same environment:
+python -m pip install -e '.[deepmd,tace,mattersim]'
 ```
+
+Select DeepMD 2 or 3 explicitly with `.[deepmd2]` or `.[deepmd3]`.
+Both include `dpdata` for training data conversion. For a complete TensorFlow
+installation, choose one of the following in separate environments:
+
+```shell
+# DeepMD 2: CPU or NVIDIA GPU with CUDA 12 runtime dependencies
+python -m pip install -e '.[deepmd2-cpu]'
+python -m pip install -e '.[deepmd2-cu12]'
+
+# DeepMD 3: CPU or NVIDIA GPU with CUDA 12 runtime dependencies
+python -m pip install -e '.[deepmd3-cpu]'
+python -m pip install -e '.[deepmd3-cu12]'
+```
+
+If compatible CUDA and cuDNN libraries are already installed, use
+`.[deepmd2-gpu]` or `.[deepmd3-gpu]` instead. GPU options require a compatible
+NVIDIA driver. The original `deepmd` extra allows either major version;
+`deepmd-gpu` and `deepmd-cu12` select DeepMD 3. See {doc}`potentials/deepmd`
+for version constraints, backend selection, and GPU verification.
 
 The TACE extra uses a tested GitHub commit and requires Git. See
 {doc}`potentials/tace` and {doc}`potentials/mattersim` for model selection and

@@ -37,6 +37,17 @@ gdp = "gdpx.main:main"
 
 [project.optional-dependencies]
 remote = ["paramiko>=2.11"]
+deepmd = ["deepmd-kit>=2,<4", "dpdata"]
+deepmd2 = ["deepmd-kit>=2,<3", "dpdata"]
+deepmd2-cpu = ["deepmd-kit[cpu]>=2,<3", "dpdata"]
+deepmd2-gpu = ["deepmd-kit[gpu]>=2.2.11,<3", "dpdata"]
+deepmd2-cu12 = ["deepmd-kit[gpu,cu12]>=2.2.11,<3", "dpdata"]
+deepmd3 = ["deepmd-kit>=3,<4", "dpdata"]
+deepmd3-cpu = ["deepmd-kit[cpu]>=3,<4", "dpdata"]
+deepmd3-gpu = ["deepmd-kit[gpu]>=3,<4", "dpdata"]
+deepmd3-cu12 = ["deepmd-kit[gpu,cu12]>=3,<4", "dpdata"]
+deepmd-gpu = ["deepmd-kit[gpu]>=3,<4", "dpdata"]
+deepmd-cu12 = ["deepmd-kit[gpu,cu12]>=3,<4", "dpdata"]
 mattersim = ["mattersim>=1.2.3,<2"]
 tace = ["tace @ git+https://github.com/xvzemin/tace.git@90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896"]
 

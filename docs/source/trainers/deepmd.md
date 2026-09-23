@@ -1,9 +1,22 @@
 # deepmd
 
-:::{warning}
-This trainer requires an extra package `dpdata`. Use `conda install dpdata -c deepmodeling` to
-install it.
-:::
+## Installation
+
+Install the optional DeepMD dependencies from the repository root:
+
+```shell
+# Choose the major version matching your training configuration:
+python -m pip install -e '.[deepmd2]'
+# Or, in a separate environment:
+python -m pip install -e '.[deepmd3]'
+```
+
+This includes `deepmd-kit` and `dpdata`, which the trainer uses to convert
+structures into DeepMD datasets. Install a matching backend following
+{doc}`../potentials/deepmd` and ensure the `dp` command is available in the
+training environment.
+
+## Configuration
 
 **gdp** converts structures into the deepmd format stored in two folders `train`
 and `valid` based on `dataset` and writes a training configuration `deepmd.json`.
