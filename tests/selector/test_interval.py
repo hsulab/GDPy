@@ -13,7 +13,7 @@ from ase.io import read, write
 
 from gdpx.core.register import import_all_modules_for_register, registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.selector.interface import run_selection
+from gdpx.cli.select import run_selection
 
 
 import_all_modules_for_register()
@@ -44,7 +44,7 @@ def test_intv_1d(selection_params):
         
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./xxx"
-            _ = run_selection(tmp.name, "./r2.xyz", directory=tmpdirname)
+            _ = run_selection(tmp.name, ["./r2.xyz"], directory=tmpdirname)
             selected_frames = read(pathlib.Path(tmpdirname)/"selected_frames.xyz", ":")
     
     assert len(selected_frames) == 6
@@ -104,7 +104,7 @@ def test_intv_2d_axis0(selection_params):
         frames.append(frames_[i*85:(i+1)*85])
     frames = AtomsNDArray(frames)
 
-    selection_params["selection"][0]["axis"] = 0
+    selection_params["selection"][0]["group_by"] = "axis 0"
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -169,7 +169,7 @@ def test_intv_2dp_axis0(selection_params):
     frames.append(frames_[70:])
     frames = AtomsNDArray(frames)
 
-    selection_params["selection"][0]["axis"] = 0
+    selection_params["selection"][0]["group_by"] = "axis 0"
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
