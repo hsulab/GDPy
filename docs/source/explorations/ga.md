@@ -98,7 +98,7 @@ below are in the `recipe` section:
   > - periodic and preserve_fragments:
   >
   >   > Both booleans default to `true`. The default makes the searched system
-  >   > periodic in all three directions and requires compatible operations to
+  >   > periodic in all three directions and requires compatible operators to
   >   > keep atoms sharing an ASE tag together as one fragment. For isolated
   >   > clusters, always keep both `true` and use a periodic cell with vacuum.
   >   > Give independent atoms distinct positive tags and molecular fragments

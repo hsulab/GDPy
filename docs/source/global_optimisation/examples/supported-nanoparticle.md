@@ -29,7 +29,7 @@ region is at z = 11.8 Å, leaving about 22.2 Å of upper vacuum.
 
 :::{note}
 All substrate Al and O atoms must have ASE tag 0. The builder assigns a distinct
-positive tag to every Cu atom, allowing GA operations to distinguish the fixed
+positive tag to every Cu atom, allowing GA operators to distinguish the fixed
 support from the searchable nanoparticle.
 :::
 

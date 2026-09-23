@@ -10,7 +10,7 @@ recombined to discover better ones.
 ```{toctree}
 :maxdepth: 2
 
-operations
+operators
 examples/index
 ```
 

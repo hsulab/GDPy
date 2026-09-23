@@ -62,7 +62,7 @@ and rattle mutation. MatterSim is used because the potential must describe Cu,
 C, O, Al, and their interfaces; see the {ref}`potential-mattersim` guide for
 installation and model details.
 
-Fragment preservation applies to structure generation and GA operations. The
+Fragment preservation applies to structure generation and GA operators. The
 local MatterSim relaxation still optimises the C–O coordinates, so it does not
 impose a rigid C–O bond.
 

@@ -17,7 +17,7 @@ above the surface.
 
 :::{note}
 Substrate atoms must have ASE tag 0. The builder assigns a distinct positive
-tag to every added Cu or O atom, allowing GA operations to distinguish the
+tag to every added Cu or O atom, allowing GA operators to distinguish the
 fixed substrate from the searchable overlayer.
 :::
 
