@@ -57,7 +57,7 @@ def test_identical_population_can_be_used_by_both_strategies():
     (lambda c: c["population"].update(substrate={}), "strategy.substrate"),
     (lambda c: c["population"]["generation"].update(mutation={}), "strategy.mutation"),
     (lambda c: c["strategy"].update(selection={"group_by_composition": False}), "automatically"),
-    (lambda c: c["strategy"].update(num_mcmoves=1), "Unsupported"),
+    (lambda c: c["strategy"].update(steps_per_chain=1), "Unsupported"),
     (lambda c: c["strategy"].update(operators=[]), "must be a mapping"),
     (lambda c: c["strategy"]["reproduction"].update(size=3), "exceed"),
     (lambda c: c["strategy"].pop("completion"), "builder_proportions"),
@@ -148,3 +148,13 @@ def test_pair_selection_restart_and_metadata_immutability():
     rng.bit_generator.state = state
     assert [selector.select_pair(population, compatible=compatible)[0].info["confid"] for _ in range(20)] == expected
     assert [a.info for a in frames] == info
+
+
+@pytest.mark.parametrize("location", ["top", "strategy"])
+def test_bh_old_chain_length_has_actionable_migration(location):
+    parameters = config("basin_hopping")
+    steps = parameters["strategy"].pop("steps_per_chain")
+    target = parameters if location == "top" else parameters["strategy"]
+    target["num_mcmoves"] = steps
+    with pytest.raises(ValueError, match="strategy.steps_per_chain"):
+        create_exploration(parameters)

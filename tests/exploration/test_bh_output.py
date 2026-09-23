@@ -150,7 +150,7 @@ def test_generation_border_expands_and_contains_move_budget(tmp_path, generation
                                 'energy', emit=messages.append, resumed=True)
     title = messages[0]
     assert f'basin hopping | generation {generation}/{maximum} | hopping' in title
-    assert 'moves/chain: 1000 | resumed' in title
+    assert 'steps/chain: 1000 | resumed' in title
     assert 'chains:' not in title
     assert '...' not in title
     assert not any('chains:' in line or 'objective:' in line for line in messages[1:])

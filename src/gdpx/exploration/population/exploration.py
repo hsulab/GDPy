@@ -15,12 +15,14 @@ def validate_strategy(strategy, method=None):
     selected = strategy.get("method")
     allowed = {
         "genetic_algorithm": {"operators", "reproduction", "mutation", "completion", "substrate"},
-        "basin_hopping": {"operators", "num_mcmoves", "selection"},
+        "basin_hopping": {"operators", "steps_per_chain", "selection"},
     }
     if not isinstance(selected, str) or selected not in allowed:
         raise ValueError("strategy.method must be genetic_algorithm or basin_hopping.")
     if method is not None and selected != method:
         raise ValueError(f"Expected strategy.method: {method}, got {selected!r}.")
+    if "num_mcmoves" in strategy:
+        raise ValueError("strategy.num_mcmoves was renamed to strategy.steps_per_chain.")
     unknown = strategy.keys() - allowed[selected] - {"method"}
     if unknown:
         raise ValueError(
@@ -34,13 +36,15 @@ def validate_strategy(strategy, method=None):
 
 
 def reject_legacy_settings(parameters):
+    if "num_mcmoves" in parameters:
+        raise ValueError("num_mcmoves moved to strategy.steps_per_chain.")
     if "mcworker" in parameters:
         raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
     if "builder" in parameters:
         raise ValueError("Use population.builders and population.initial.builder_allocations instead of builder.")
     if "recipe" in parameters:
         raise ValueError("global_optimisation has no recipe wrapper; move recipe fields to the top level.")
-    moved = {"operators", "num_mcmoves", "selection", "reproduction", "mutation", "completion", "substrate"}
+    moved = {"operators", "steps_per_chain", "selection", "reproduction", "mutation", "completion", "substrate"}
     moved &= parameters.keys()
     if moved:
         raise ValueError(

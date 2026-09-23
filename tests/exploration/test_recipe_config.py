@@ -217,7 +217,7 @@ def test_search_objective_rejects_legacy_keys():
 
     with pytest.raises(ValueError, match="property.*objective"):
         BasinHopping(
-            strategy={"method": "basin_hopping", "operators": [], "num_mcmoves": 1},
+            strategy={"method": "basin_hopping", "operators": [], "steps_per_chain": 1},
             mcworker={},
             population={},
             convergence={},
@@ -654,7 +654,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     concurrent.worker = worker
     concurrent._init_params = {
         "population": _minimal_ga_population("random"),
-        "strategy": {"method": "basin_hopping", "operators": [], "num_mcmoves": 1},
+        "strategy": {"method": "basin_hopping", "operators": [], "steps_per_chain": 1},
         "convergence": {"generation": 2},
         "objective": {
             "target": "formation_energy",

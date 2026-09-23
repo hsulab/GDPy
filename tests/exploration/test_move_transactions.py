@@ -473,7 +473,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
             'strategy': {
                 'method': 'basin_hopping',
                 'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
-                'num_mcmoves': 2,
+                'steps_per_chain': 2,
             },
         },
     )

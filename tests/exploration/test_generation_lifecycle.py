@@ -84,7 +84,7 @@ def bh_config(tmp_path, initial=2, generations=0):
         'strategy': {
             'method': 'basin_hopping',
             'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
-            'num_mcmoves': 2,
+            'steps_per_chain': 2,
         },
     }
     return config, runtime
@@ -361,7 +361,7 @@ def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, 
     from gdpx.exploration.sampling.proposal import MoveProposal
     config, runtime = bh_config(tmp_path, generations=2)
     if not invalid:
-        config["strategy"]["num_mcmoves"] = 0
+        config["strategy"]["steps_per_chain"] = 0
     engine = make_engine(config, runtime, tmp_path / "search")
     if invalid:
         def reject(atoms, rng):

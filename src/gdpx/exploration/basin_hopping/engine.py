@@ -122,7 +122,7 @@ class BasinHopping(PopulationBasedExploration):
         operators = strategy.get("operators")
         if not isinstance(operators, list):
             raise ValueError("strategy.operators must be a list for basin hopping.")
-        num_mcmoves = strategy.get("num_mcmoves")
+        steps_per_chain = strategy.get("steps_per_chain")
         selection = strategy.get("selection")
         if selection is not None and not isinstance(selection, Mapping):
             raise TypeError("BH selection must be a mapping.")
@@ -133,8 +133,8 @@ class BasinHopping(PopulationBasedExploration):
             raise TypeError("BH selection.replace must be a boolean.")
         if "mcworker" in kwargs:
             raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
-        if isinstance(num_mcmoves, bool) or not isinstance(num_mcmoves, int) or num_mcmoves < 0:
-            raise ValueError("BH num_mcmoves must be a non-negative integer.")
+        if isinstance(steps_per_chain, bool) or not isinstance(steps_per_chain, int) or steps_per_chain < 0:
+            raise ValueError("BH steps_per_chain must be a non-negative integer.")
         if convergence is not None and not isinstance(convergence, Mapping):
             raise TypeError("BH convergence must be a mapping.")
         convergence = {"generation": 1, **copy.deepcopy(dict(convergence or {}))}
@@ -158,7 +158,7 @@ class BasinHopping(PopulationBasedExploration):
         self.start_selector = HoppingStartSelector(self.random_streams.get("population"), **selection)
 
         # Parse monte carlo settings
-        self.num_mcmoves = num_mcmoves
+        self.steps_per_chain = steps_per_chain
         self.operators, self.op_probs = parse_operators(operators)
 
         # Some convergence criteria
@@ -252,7 +252,7 @@ class BasinHopping(PopulationBasedExploration):
                 reporter = GenerationReporter(
                     database, self.directory / "tmp_folder" / f"gen{gen_num}" / "rounds",
                     gen_num, self.convergence["generation"], self.population_config.gen_size,
-                    self.num_mcmoves, self.population_config.init_size, self.objective["target"],
+                    self.steps_per_chain, self.population_config.init_size, self.objective["target"],
                     resumed=database.get_generation_plan(gen_num) is not None)
                 self._generation_reporter = reporter
                 try:
@@ -260,7 +260,7 @@ class BasinHopping(PopulationBasedExploration):
                         status = self._irun(database, gen_info)
                     plan = database.get_generation_plan(gen_num) or {}
                     if status is EvaluationStatus.PENDING:
-                        detail = (f"waiting for round {reporter.step + 1}/{self.num_mcmoves} evaluations"
+                        detail = (f"waiting for round {reporter.step + 1}/{self.steps_per_chain} evaluations"
                                   if gen_num else "waiting for initialization evaluations")
                         reporter.finish("waiting", detail)
                     else:
@@ -379,7 +379,7 @@ class BasinHopping(PopulationBasedExploration):
             with MoveLog(gen_wdir / 'mcmoves.log',
                          gen_num, self.operators, self.op_probs) as move_logger:
                 outcome = run_hopping_rounds(
-                    starts, self.worker, self.operators, self.op_probs, self.num_mcmoves,
+                    starts, self.worker, self.operators, self.op_probs, self.steps_per_chain,
                     self.rng, gen_wdir / "rounds", archive=self.use_archive, record_trial=record_trial,
                     restart_chains=restart_chains, random_streams=self.random_streams,
                     store_history=False, move_logger=move_logger,

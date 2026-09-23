@@ -10,10 +10,10 @@ class GenerationReporter(Box):
     width = 76
 
     def __init__(self, database, directory, generation, maximum_generation, chains,
-                 moves, initial_size, objective, resumed=False, emit=None, unicode=None):
+                 steps_per_chain, initial_size, objective, resumed=False, emit=None, unicode=None):
         self.database = database
         self.directory = directory
-        self.generation, self.moves = generation, moves
+        self.generation, self.steps_per_chain = generation, steps_per_chain
         self.initial_size = initial_size
         self.objective = objective
         self.started = time.monotonic()
@@ -26,7 +26,7 @@ class GenerationReporter(Box):
         headers = ['round', 'eval', 'accept', 'reject', 'invalid', 'extinct', 'restart',
                    f'best {objective} [eV]']
         count_width = len(str(chains))
-        self.column_widths = [max(len(headers[0]), 2 * len(str(moves)) + 1)]
+        self.column_widths = [max(len(headers[0]), 2 * len(str(steps_per_chain)) + 1)]
         self.column_widths += [max(len(label), count_width) for label in headers[1:-1]]
         self.column_widths.append(max(len(headers[-1]), 14))
         if generation:
@@ -34,7 +34,7 @@ class GenerationReporter(Box):
         title = f'basin hopping | generation {generation}/{maximum_generation} | '
         title += 'initialization' if generation == 0 else 'hopping'
         if generation:
-            title += f' | moves/chain: {moves}'
+            title += f' | steps/chain: {steps_per_chain}'
         if resumed:
             title += ' | resumed'
         self.width = max(self.width, len(title) + 6)
@@ -80,7 +80,7 @@ class GenerationReporter(Box):
         self.refresh()
         if resumed:
             if step:
-                self.line(f'resumed after committed round {step}/{self.moves}')
+                self.line(f'resumed after committed round {step}/{self.steps_per_chain}')
             return
         if not step:
             return
@@ -91,7 +91,7 @@ class GenerationReporter(Box):
         best = self.best().removesuffix(' eV')
         if len(best) > self.column_widths[-1]:
             best = f'{float(best):.6e}'
-        self.table_row([f'{step}/{self.moves}', len(rows), accepted, len(rows)-accepted,
+        self.table_row([f'{step}/{self.steps_per_chain}', len(rows), accepted, len(rows)-accepted,
                         decisions.count(2), extinct, decisions.count(4), best])
 
     def finish(self, status, detail=None):
