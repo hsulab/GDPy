@@ -25,7 +25,6 @@ these are top-level keys; do not wrap them in another `runtime` key.
 ```yaml
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: min

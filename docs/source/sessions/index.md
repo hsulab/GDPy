@@ -21,7 +21,6 @@ variables:
   emt:
     type: potential
     provider: emt
-    parameters: {}
   relax:
     type: executor
     provider: ase

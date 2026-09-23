@@ -12,7 +12,6 @@ Use `examples/compute/tasks/neb.yaml`:
 ```yaml
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: neb

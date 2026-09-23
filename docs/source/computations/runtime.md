@@ -58,7 +58,6 @@ For a fixed-cell relaxation with ASE, for example:
 ```yaml
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: min
@@ -94,7 +93,6 @@ alongside `potential` and `executor`:
 ```yaml
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: min

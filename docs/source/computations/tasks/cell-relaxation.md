@@ -8,7 +8,6 @@ Generate the input files as described in {doc}`index`, then use
 ```yaml
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: cmin

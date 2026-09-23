@@ -17,7 +17,8 @@ potential:
     asap_cutoff: false
 ```
 
-All parameters pass to ASE’s `EMT` calculator; `parameters: {}` uses its defaults.
+The `parameters` field is optional; omit it to use ASE’s `EMT` defaults.
+When supplied, its settings pass to ASE’s `EMT` calculator.
 Use this provider for lightweight metal examples such as copper clusters.
 The calculator has a fixed element parameter table, so it is not a universal
 potential for arbitrary chemistry.

@@ -1,7 +1,6 @@
 schema_version: 3
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: min

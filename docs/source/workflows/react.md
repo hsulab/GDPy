@@ -13,7 +13,6 @@ example:
 ```
 potential:
   provider: emt
-  parameters: {}
 executor:
   provider: ase
   method: neb
