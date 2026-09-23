@@ -74,23 +74,21 @@ machine resources <computations/schedulers>
 
 ```{toctree}
 :caption: 'Build Structures:'
-:maxdepth: 1
+:maxdepth: 2
 :titlesonly:
 
 command: gdp build <builders/index>
-dimer <builders/dimer>
-random <builders/random>
-graph <builders/graph>
+methods <builders/methods>
 regions <builders/region>
 ```
 
 ```{toctree}
 :caption: 'Select Structures:'
-:maxdepth: 1
+:maxdepth: 2
 :titlesonly:
 
 command: gdp select <selections/index>
-descriptor <selections/descriptor>
+methods <selections/methods>
 ```
 
 ```{toctree}

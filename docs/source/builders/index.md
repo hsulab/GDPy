@@ -47,9 +47,7 @@ $ gdp -d ./results build ./config.yaml --substrates ./sub.xyz --number 10
 
 ## List of Builders
 
-- {doc}`dimer <dimer>`
-- {doc}`random <random>`
-- {doc}`graph <graph>`
+See {doc}`methods` for dimer, random, and graph builders.
 
 ## Related Components
 
