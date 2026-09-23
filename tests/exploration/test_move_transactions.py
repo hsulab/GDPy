@@ -671,10 +671,14 @@ def test_hybrid_pending_dynamics_remembers_procedure(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("cls", [MonteCarlo, HybridMonteCarlo])
-def test_old_exploration_layout_rejected_before_checkpoint_changes(tmp_path, cls):
+@pytest.mark.parametrize("mixed_metadata", [False, True])
+def test_old_exploration_layout_rejected_before_checkpoint_changes(tmp_path, cls, mixed_metadata):
     engine = mc_engine(tmp_path / "old", cls)
     engine._save_checkpoint(1)
     (engine.directory / "_meta").mkdir()
+    if mixed_metadata:
+        (engine.directory / "_meta" / "_scheduler.json").write_text("{}")
+        (engine.directory / "_meta" / "inputs.json").write_text("{}")
     before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
     with pytest.raises(ValueError, match="Legacy append-based exploration"):
         engine._load_checkpoint()

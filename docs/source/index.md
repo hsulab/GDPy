@@ -103,7 +103,7 @@ command: gdp explore <explorations/index>
 
 ```{toctree}
 :caption: 'Canonical Sampling:'
-:maxdepth: 2
+:maxdepth: 4
 :titlesonly:
 
 monte carlo <explorations/mc>

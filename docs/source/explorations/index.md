@@ -55,13 +55,12 @@ runtime: {}
 Omitting the top-level `scheduler` also runs the exploration itself directly
 on the current machine.
 
-## canonical sampling
+## Monte Carlo ensembles
 
-See {doc}`monte carlo <mc>` for proposals, acceptance rules, and restart
-behaviour. Canonical sampling targets fixed-composition equilibrium at a
-specified temperature. The current MC guide also covers exchange moves and
-minimised trial structures: those examples are grand-canonical or optimisation
-workflows, rather than validated canonical-ensemble sampling.
+See {doc}`Monte Carlo <mc>` for canonical, semi-grand-canonical, and grand-canonical EMT examples using single-point energies.
+The guide covers displacement, identity-change, and insertion/removal moves,
+chemical potentials, output inspection, restart behaviour, and current
+limitations of the ensemble sampling rules.
 
 ## global optimisation
 

@@ -1,0 +1,22 @@
+method: monte_carlo
+recipe:
+  random_seed: 1112
+  builder:
+    method: read_stru
+    fname: examples/monte_carlo/assets/aucu8.xyz
+  operators:
+    - method: exchange
+      particles: [Cu]
+      chempots: [2.0]
+      region:
+        method: lattice
+        origin: [0, 0, 0]
+        cell: [8, 0, 0, 0, 8, 0, 0, 0, 8]
+      temperature: 1200.0
+      skip_distance_check: true
+      max_random_attempts: 1
+  convergence:
+    steps: 100
+  dump_period: 1
+  ckpt_period: 10
+  should_retry: false

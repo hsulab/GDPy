@@ -508,7 +508,16 @@ class MonteCarlo(BaseExploration):
         """Reject append-era runs before touching their checkpoints or outputs."""
         from gdpx.execution.workers.metadata import WorkerMetadata
 
-        if ((self.directory / "_meta").exists() or (self.directory / "_data").exists()
+        # The exploration CLI stores scheduler metadata at the run root. It
+        # must not be confused with the old root-level calculation metadata.
+        metadata = self.directory / "_meta"
+        scheduler_metadata = (metadata / "_scheduler.json").is_file() and all(
+            path.name == "_scheduler.json"
+            or path.match("exp-*.json")
+            or path.match("run.script-*")
+            for path in metadata.iterdir()
+        )
+        if ((metadata.exists() and not scheduler_metadata) or (self.directory / "_data").exists()
                 or any(self.directory.glob("_*_jobs.json")) or any(self.directory.glob("cand*"))
                 or any(self.directory.glob("step.*")) or (self.directory / "init" / "_meta").exists()):
             raise ValueError("Legacy append-based exploration layout; use a new working directory.")

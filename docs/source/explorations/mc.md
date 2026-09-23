@@ -1,161 +1,120 @@
 (monte-carlo)=
 
-# monte carlo (mc)
+# Monte Carlo (MC)
 
-## Overview
+Monte Carlo proposes structural changes and accepts or rejects them using
+energies from a runtime. Choose the ensemble through `recipe.operators`;
+there is no separate `ensemble` key. The {doc}`examples <mc/examples/index>` use ASE EMT and
+single-point energies, so no model download or external simulation executable
+is needed. Install GDPy as described in {doc}`../installation` first.
 
-MC is a conventional method to explore the configuration space.
+| Ensemble | Fixed quantities | What changes | Operators |
+| --- | --- | --- | --- |
+| Canonical (NVT) | Species counts, volume, temperature | Positions | `move`, `rattle`; `swap` for alloys |
+| Semi-grand-canonical | Total atom count, volume, temperature, chemical-potential differences | Species identities and optionally positions | `swap_type`, optionally `move` |
+| Grand-canonical (μVT) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `exchange`, optionally `move` |
 
-This implementation remains an exploration method. Its worker determines
-whether trial configurations undergo single-point evaluation, minimization,
-or dynamics. The minimization example below is a search workflow, not a claim
-of equilibrium canonical sampling. Some biased moves use heuristic acceptance
-rules. Ensemble validation and migration to an MC executor are separate work.
+`swap` exchanges the positions of unlike particles
+and preserves composition; `swap_type` changes one atom's element and therefore
+changes composition. The latter currently supports individual atoms only.
 
-Population-based basin hopping is a separate {doc}`../global_optimisation/basin_hopping` method.
-Both methods reuse moves and acceptance rules from `gdpx.exploration.sampling`; BH does
-not inherit from MC. Moves use reversible in-place edits rather than copying
-the whole structure on every attempt.
+These are short workflow demonstrations, not equilibrated production studies.
+The current implementation is an exploration method and its historical
+acceptance rules do not establish detailed balance for every proposal. In
+particular, `swap_type` chooses a species first and then an atom of that species,
+but its acceptance rule omits the resulting proposal-count ratio. `exchange`
+forces insertion when no exchangeable particles remain, without correcting the
+change in insertion/deletion proposal probabilities at that boundary. Do not
+use these semi-grand/grand-canonical demos as validated equilibrium samplers.
 
-## Example
+## Examples
 
-The related commands are
+The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands
+for canonical, semi-grand-canonical, and grand-canonical MC with single-point energies.
+
+```{toctree}
+:maxdepth: 2
+:hidden:
+
+mc/examples/index
+```
+
+## Proposal settings
+
+`probability` is a relative operator-selection weight; the weights are
+normalised automatically. Keep temperatures consistent across operators in
+one simulation. Use consistent regions when combining moves and exchange;
+see {ref}`region-definitions` for region definitions.
+
+These demos set `skip_distance_check: true` so the energy evaluation, rather
+than repeated geometry filtering, decides whether a trial is acceptable.
+`max_random_attempts: 1` and `should_retry: false` avoid retrying failed
+proposals until a valid move is found. Failed proposals count as steps and
+retain the current state. These choices remove geometry-retry bias but do
+not fix the semi-grand/exchange proposal limitations above.
+
+With distance checks enabled, `covalent_ratio` sets lower and upper
+multipliers of covalent bond distances. Such filters and retries can change
+the proposal distribution and should not be assumed to preserve equilibrium
+sampling. They can be useful for structure search.
+
+MC assigns distinct atomic tags by default. If `ignore_atoms_tags: false`,
+provide distinct tags for independent atoms; atoms sharing a tag are treated
+as one particle. `swap_type` requires single-atom particles.
+
+### Collective rattle moves
+
+For collective displacements, replace a `move` entry with:
+
+```yaml
+- method: rattle
+  particles: [Cu]
+  rattle_strength: 0.1
+  rattle_prop: 0.4
+  temperature: 1200.0
+  probability: 1.0
+  skip_distance_check: true
+  max_random_attempts: 1
+```
+
+Each eligible particle is selected independently with `rattle_prop`. Each
+Cartesian displacement component is uniform between `-rattle_strength` and
+`+rattle_strength` Å, rather than Gaussian. Tagged molecules translate rigidly.
+Empty or invalid proposals exhaust the attempt limit and are handled according
+to `should_retry`. MC and BH share these moves and acceptance rules, but BH
+does not inherit from MC.
+
+## Inspect the results
+
+Each output directory contains:
+
+- `mc.xyz`: the initial state followed by the current state after each completed
+  MC step, including repeated states on rejection. Keep these repetitions when
+  computing averages.
+- `mc_attempts.xyz`: proposed structures sent for evaluation, including rejected
+  trials; this is not the accepted-state trajectory.
+- `opstat.txt`: operator, diagnostic, current atom count, acceptance flag, and
+  previous/trial energies.
+- `calculations/step.NNNN/`: retained runtime calculations.
+
+`convergence.steps: 100` is a step budget, not a test of statistical convergence.
+The examples retain all calculation steps with `dump_period: 1`; increasing
+`dump_period` prunes intermediate calculation directories, **not** frames in
+`mc.xyz`. `ckpt_period` controls checkpoint frequency independently.
+
+Inspect energy and composition from the repository root:
 
 ```shell
-# - explore configuration space defined by `config.yaml`
-#   results will be written to the `results` folder
-#   a log file will be written to `results/gdp.out` as well
-$ gdp -d exp -r runtime.yaml explore ./config.yaml
-
-# - after MC is converged i.e. reaches the maximum number of steps,
-#   the MC trajectory is stored at `results/mc.xyz`
+python examples/monte_carlo/inspect_run.py run-mc-canonical
+python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical
+python examples/monte_carlo/inspect_run.py run-mc-grand-canonical
 ```
 
-In the `recipe.operators` section,
-
-Every MC operator has parameters of `temperature`, `pressure`, and `region`. In general,
-these three parameters should be consistent among different operators used in the simulation.
-Otherwise, the simulation may not converge the structure to the phyiscal equilibrium.
-
-To increase the acceptance, `convalent_ratio` is often set to check if the new structure has
-too small or too large distances. The two values are the minimum and the maximum coefficients,
-which will be multipied by the covalent bond distance.
-
-See {ref}`region-definitions` for more information about defining a region.
-
-- move:
-
-  > Move a particle to a random position with maximum `max_disp` displacement.
-
-- swap:
-
-  > Swap the positions of two particles from two different types.
-
-- rattle:
-
-  > Perturb several particles in one proposal. Each eligible particle is selected
-  > independently with `rattle_prop` (default `0.4`). Each displacement component
-  > is uniform between `-rattle_strength` and `+rattle_strength` Angstrom
-  > (default `0.8`), following the GA rattle convention rather than a Gaussian.
-  > Tagged molecular particles translate rigidly without rotation. Eligibility
-  > follows the same `particles` and `region` rules as `move`.
-
-- exchange:
-
-  > Exchange particles with an imaginary reservoir by inserting or removing. This
-  > changes the number of atoms in the system as it samples the grand canonical
-  > ensemble.
-
-:::{note}
-In general, operators should have the same region. Otherwise, the simulation is
-not converged to an equilibrium.
-:::
-
-In the `recipe.convergence` section,
-
-- steps: Number of MC steps.
-
-Since MC usually takes ~5000 steps, the `dump_period` determines what MC step
-will be saved. For example, if `dump_period = 2`, step 0, 2, 4 ... will be saved.
-These saved structures and trajectories can be used for MLIP training.
-
-The input file shown below explores the oxidation of Cu(111) surface. The MC operators
-only apply to atoms in the surface region including Cu and O.
-
-```yaml
-method: monte_carlo
-recipe:
-  random_seed: 1112
-  builder:
-    method: read_stru
-    fname: ./fcc-s111p44.xyz
-  operators:
-    - method: exchange
-      region:
-        method: lattice
-        origin: [0, 0, 8.0]
-        cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
-      covalent_ratio: [0.8, 2.0]
-      particles: [O]
-      chempots: [-5.75]
-      temperature: 800
-      probability: 0.5
-    - method: move
-      particles: [Cu, O]
-      region:
-        method: lattice
-        origin: [0, 0, 8.0]
-        cell: [10.17, 0, 0, 0, 8.81, 0, 0, 0, 6.0]
-      covalent_ratio: [0.8, 2.0]
-      max_disp: 2.0
-      temperature: 800
-      probability: 0.5
-  convergence:
-    steps: 5
-  dump_period: 1
-```
-
-Use a single-worker runtime for sequential Monte Carlo moves:
-
-```yaml
-potential:
-  provider: deepmd
-  parameters:
-    command: lmp -in in.lammps 2>&1 > lmp.out
-    type_list: [Cu, O]
-    model:
-      - ./graph.pb
-executor:
-  provider: lammps
-  method: min
-  parameters:
-    ignore_convergence: false
-    fmax: 0.05
-    steps: 400
-options:
-  worker: single
-```
-
-## Rattle example
-
-For collective rattle moves in either MC or BH, use this operator entry:
-
-```yaml
-operators:
-  - method: rattle
-    particles: [Cu]
-    rattle_strength: 0.2
-    rattle_prop: 0.4
-    temperature: 500.0
-    probability: 1.0
-```
-
-Rattle retries empty selections and invalid geometries up to
-`max_random_attempts`. Exhausted proposals are skipped. It uses the existing
-distance settings and energy-based MC acceptance rule.
-Use distinct atom tags for independent atomic particles;
-atoms sharing a tag form one particle. Position edits are reversible and do not
-copy the complete structure.
+Canonical frames should all contain Cu32; semi-grand-canonical frames should all
+contain 32 atoms but may have different Cu/Ni counts; grand-canonical frames
+should retain one Au while Cu counts change. The cell stays fixed in all
+three. For quantitative work, assess equilibration, autocorrelation, acceptance
+rates, and sensitivity to run length after validating the sampling algorithm.
 
 ## Checkpoints and restart
 
