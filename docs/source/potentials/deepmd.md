@@ -13,6 +13,7 @@ conversion; none is required by the base gdpx installation.
 | Installation | DeepMD 2 | DeepMD 3 |
 | --- | --- | --- |
 | Backend installed separately | `.[deepmd2]` | `.[deepmd3]` |
+| PyTorch backend | Not supported | `.[deepmd3-torch]` |
 | TensorFlow CPU | `.[deepmd2-cpu]` | `.[deepmd3-cpu]` |
 | TensorFlow GPU, existing CUDA/cuDNN | `.[deepmd2-gpu]` | `.[deepmd3-gpu]` |
 | TensorFlow GPU, pip installs CUDA 12 runtime dependencies | `.[deepmd2-cu12]` | `.[deepmd3-cu12]` |
@@ -26,9 +27,8 @@ python -m pip install -e '.[deepmd2-cpu]'
 python -m pip install -e '.[deepmd2-cu12]'
 ```
 
-The `deepmd2` and `deepmd2-cpu` extras constrain DeepMD to `>=2,<3`.
-The GPU extras use `>=2.2.11,<3`, following the CUDA 12 installation options
-in the [DeepMD 2.2.11 guide](https://docs.deepmodeling.com/projects/deepmd/en/v2.2.11/getting-started/install.html).
+These extras select DeepMD 2. Exact dependency constraints are maintained in
+[`pyproject.toml`](https://github.com/hsulab/GDPy/blob/main/pyproject.toml).
 
 ### DeepMD 3
 
@@ -39,12 +39,12 @@ python -m pip install -e '.[deepmd3-cpu]'
 python -m pip install -e '.[deepmd3-cu12]'
 ```
 
-All `deepmd3` extras constrain DeepMD to `>=3,<4`. For an existing backend
+All `deepmd3` extras select DeepMD 3. For an existing backend
 installation, use `.[deepmd2]` or `.[deepmd3]` to select just the major version.
 Use separate environments for DeepMD 2 and 3; their version constraints cannot
 be combined. Both versions use `provider: deepmd` in gdpx configuration.
 
-The original `deepmd` extra remains available with `>=2,<4`.
+The original `deepmd` extra accepts either supported major version.
 `deepmd-gpu` and `deepmd-cu12` retain the same dependencies as `deepmd3-gpu`
 and `deepmd3-cu12`, respectively.
 
@@ -70,13 +70,25 @@ check inside a GPU allocation with the required environment modules loaded.
 For PyTorch models with DeepMD 3:
 
 ```shell
-python -m pip install -e '.[deepmd3]' 'deepmd-kit[torch]>=3,<4'
+python -m pip install -e '.[deepmd3-torch]'
 ```
+
+This installs DeepMD with its PyTorch extra and `dpdata`, including the backend
+dependencies selected by DeepMD. The `-cpu`, `-gpu`, and `-cu12` extras above
+select TensorFlow dependencies; they are not needed for this PyTorch path.
 
 For a specific CUDA build, install the appropriate PyTorch wheel following the
 [PyTorch installation selector](https://pytorch.org/get-started/locally/), then
-install `.[deepmd3]` in that environment. The TensorFlow GPU extras above do
-not select the PyTorch CUDA build. Check GPU availability with:
+install `.[deepmd3-torch]` in that environment. For CPU-only wheels on Linux
+or Windows, use PyTorch's `https://download.pytorch.org/whl/cpu` index instead.
+The installed Torch version must satisfy the chosen DeepMD release's
+requirements. Pin it in a pip constraints file if it must be preserved:
+preinstalling Torch alone does not prevent pip from replacing it.
+
+See {ref}`gpu-install-on-cpu-node` for a combined DeepMD/TACE/MatterSim installation
+that explicitly selects a CUDA-enabled Torch wheel on either a CPU or GPU node.
+
+Check GPU availability with:
 
 ```shell
 python -c "import torch; print(torch.cuda.is_available())"

@@ -2,106 +2,73 @@
 
 ## Requirements
 
-Must:
+Use Python 3.10 or newer. Required packages, optional extras, and their version
+constraints are declared in
+[`pyproject.toml`](https://github.com/hsulab/GDPy/blob/main/pyproject.toml).
+Pip installs the dependencies for the extras you select.
 
-- Python 3.10 or newer
-- matplotlib 3.5.0
-- numpy 1.21.2
-- scipy 1.7.3
-- scikit-learn 1.0.1
-- [ase] 3.27 or newer
-- dscribe 1.2.1
-- joblib 1.1.0
-- [tinydb] 4.7.0
-- pyyaml 6.0
-- networkx 2.6.3
-- [omegaconf] 2.3.0
-- h5py 3.7.0
+## Create an environment
 
-% - e3nn 0.5.0
-
-Optional:
-
-- jax 0.2.27
-- pytorch 1.10.1
-- sella 2.0.2
-- plumed 2.7.3
-
-## From Source, Conda or Pip
+Use Conda to create an isolated Python environment, then use pip to install
+GDPy and its dependencies:
 
 ```shell
-# Create a python environment
-
-# Install the latest RELEASED version from anaconda
-$ conda install gdpx -c conda-forge
-
-# or from pypi
-$ pip install gdpx
-
-# Install the latest development version
-# 1. download the MAIN branch
-$ git clone https://github.com/hsulab/GDPy.git gdpx
-#    or the DEV branch
-$ git clone -b dev https://github.com/hsulab/GDPy.git gdpx
-
-# 2. Use pip to install the an editable version to
-#    the current environment
-$ cd gdpx
-$ pip install -e ./
-
-# 3. Update the source code
-$ cd gdpx
-$ git fetch
-$ git pull
+conda create -n gdpx python=3.12 pip
+conda activate gdpx
 ```
 
-## Optional potential packages
+## Install from source
 
-From the repository root, install only the potential packages you need:
+Clone the repository and enter its root directory:
 
 ```shell
-python -m pip install -e '.[deepmd]'
-python -m pip install -e '.[mace]'
-python -m pip install -e '.[mattersim]'
-python -m pip install -e '.[reann]'
-python -m pip install -e '.[tace]'
-# Or combine extras in the same environment:
-python -m pip install -e '.[deepmd,tace,mattersim]'
+git clone https://github.com/hsulab/GDPy.git
+cd GDPy
 ```
 
-Select DeepMD 2 or 3 explicitly with `.[deepmd2]` or `.[deepmd3]`.
-Both include `dpdata` for training data conversion. For a complete TensorFlow
-installation, choose one of the following in separate environments:
+For the base package, use an editable installation so source changes take
+effect without reinstalling:
 
 ```shell
-# DeepMD 2: CPU or NVIDIA GPU with CUDA 12 runtime dependencies
-python -m pip install -e '.[deepmd2-cpu]'
-python -m pip install -e '.[deepmd2-cu12]'
-
-# DeepMD 3: CPU or NVIDIA GPU with CUDA 12 runtime dependencies
-python -m pip install -e '.[deepmd3-cpu]'
-python -m pip install -e '.[deepmd3-cu12]'
+python -m pip install -e .
 ```
 
-If compatible CUDA and cuDNN libraries are already installed, use
-`.[deepmd2-gpu]` or `.[deepmd3-gpu]` instead. GPU options require a compatible
-NVIDIA driver. The original `deepmd` extra allows either major version;
-`deepmd-gpu` and `deepmd-cu12` select DeepMD 3. See {doc}`potentials/deepmd`
-for version constraints, backend selection, and GPU verification.
+For GPU potential packages, use the installation command below instead.
+Add `-e` to that command if you also want an editable installation.
 
-The `mace` extra installs `mace-torch` and PyTorch for inference and training.
-See {doc}`potentials/mace` for CPU/GPU setup and {doc}`trainers/mace` for the
-installed training command.
+(gpu-install-on-cpu-node)=
 
-The TACE extra uses a tested GitHub commit and requires Git. See
-{doc}`potentials/tace` and {doc}`potentials/mattersim` for model selection and
-runtime configuration.
+## Recommended GPU installation
 
-The `reann` extra installs PyTorch and `opt_einsum`. Supply an exported
-TorchScript potential (`PES.pt`) for inference. For training, obtain and set up
-the upstream REANN code separately. See {doc}`potentials/reann` for manual
-training setup, CPU and GPU installation commands, and verification.
+For DeepMD 3 (PyTorch and TensorFlow), TACE, and MatterSim, run this from the
+repository root on either a CPU or GPU Linux node:
 
-[ase]: https://wiki.fysik.dtu.dk/ase
-[omegaconf]: https://omegaconf.readthedocs.io
-[tinydb]: https://tinydb.readthedocs.io
+```shell
+python -m pip install '.[deepmd3-torch,deepmd3-cu12,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cu128' --extra-index-url https://download.pytorch.org/whl/cu128
+```
+
+We use DeepMD's explicit backend extras to establish the PyTorch and TensorFlow
+GPU dependencies. TACE and MatterSim reuse the same compatible PyTorch and
+shared libraries. Resolving them together with the pinned CUDA wheel reduces
+version mismatches from separate installations. Their declared shared
+dependency constraints overlap; the complete environment has not yet been
+validated end to end.
+
+This selects the CUDA-enabled packages even when no GPU is visible during
+installation. Git is required for TACE. GPU execution requires a compatible
+NVIDIA driver on the compute node; `CONDA_OVERRIDE_CUDA` is unnecessary.
+
+## Other potential packages
+
+:::{warning}
+Some provider versions require incompatible dependencies. For example,
+[`mace-torch` 0.3.16](https://pypi.org/pypi/mace-torch/0.3.16/json) requires
+`e3nn==0.4.4`, while DeepMD 3.2.0's PyTorch backend requires `e3nn>=0.5.9`
+and MatterSim 1.2.3 requires `e3nn>=0.5.0`. Install these MACE versions in a
+separate environment rather than adding `mace` to the command above.
+:::
+
+Install individual providers with `python -m pip install '.[mace]'`, replacing
+`mace` with the extra you need. See the provider pages for other backends and
+training setup: {doc}`potentials/deepmd`, {doc}`potentials/mace`,
+{doc}`potentials/mattersim`, {doc}`potentials/reann`, and {doc}`potentials/tace`.
