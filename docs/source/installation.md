@@ -62,6 +62,7 @@ From the repository root, install only the potential packages you need:
 ```shell
 python -m pip install -e '.[deepmd]'
 python -m pip install -e '.[mattersim]'
+python -m pip install -e '.[reann]'
 python -m pip install -e '.[tace]'
 # Or combine extras in the same environment:
 python -m pip install -e '.[deepmd,tace,mattersim]'
@@ -90,6 +91,11 @@ for version constraints, backend selection, and GPU verification.
 The TACE extra uses a tested GitHub commit and requires Git. See
 {doc}`potentials/tace` and {doc}`potentials/mattersim` for model selection and
 runtime configuration.
+
+The `reann` extra installs PyTorch and `opt_einsum`. Supply an exported
+TorchScript potential (`PES.pt`) for inference. For training, obtain and set up
+the upstream REANN code separately. See {doc}`potentials/reann` for manual
+training setup, CPU and GPU installation commands, and verification.
 
 [ase]: https://wiki.fysik.dtu.dk/ase
 [omegaconf]: https://omegaconf.readthedocs.io
