@@ -5,10 +5,10 @@
 import re
 import subprocess
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class SlurmScheduler(AbstractScheduler):
+class SlurmScheduler(BaseScheduler):
     """Slurm scheduler.
 
     A slurm scheduler.
@@ -56,9 +56,7 @@ class SlurmScheduler(AbstractScheduler):
             # else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
 
-        if self.environs:
-            content += "\n\n"
-            content += self.environs
+        content += self._convert_environs_to_content()
 
         if self.user_commands:
             content += "\n\n"
@@ -66,7 +64,7 @@ class SlurmScheduler(AbstractScheduler):
 
         return content
 
-    @AbstractScheduler.job_name.setter
+    @BaseScheduler.job_name.setter
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         self.set(**{"job-name": self._job_name})
@@ -94,8 +92,11 @@ class SlurmScheduler(AbstractScheduler):
             universal_newlines=True,
         )
         output = p.stdout
-        lines = output.readlines()
-        content = "".join(lines)
+        if output is not None:
+            lines = output.readlines()
+            content = "".join(lines)
+        else:
+            content = ""
 
         pattern = re.compile(
             r"\s+(\d+)\s+\S+\s+(\S+)\s+[A-Z]+\s+\S+\s+\S+\s+\d+\s+\d+"

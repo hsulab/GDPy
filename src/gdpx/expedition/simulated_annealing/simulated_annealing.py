@@ -3,18 +3,16 @@
 
 
 import copy
-import dataclasses
 import pathlib
 import time
+from typing import Union
 
-from typing import Union, List
+from gdpx.core.register import registers
 
-from .. import registers
-
-from ..expedition import AbstractExpedition
+from ..expedition import BaseExpedition
 
 
-class SimulatedAnnealing(AbstractExpedition):
+class SimulatedAnnealing(BaseExpedition):
 
     name: str = "simulated_annealing"
 
@@ -24,7 +22,7 @@ class SimulatedAnnealing(AbstractExpedition):
     def __init__(
         self,
         builder,
-        temperatures: List[float],
+        temperatures: list[float],
         directory: Union[str, pathlib.Path] = "./",
         random_seed: Union[int, dict] = None,
         *args,
@@ -36,9 +34,7 @@ class SimulatedAnnealing(AbstractExpedition):
         if isinstance(builder, dict):
             builder_params = copy.deepcopy(builder)
             builder_method = builder_params.pop("method")
-            builder = registers.create(
-                "builder", builder_method, convert_name=False, **builder_params
-            )
+            builder = registers.create("builder", builder_method, convert_name=False, **builder_params)
         else:
             builder = builder
         self.builder = builder
@@ -69,16 +65,9 @@ class SimulatedAnnealing(AbstractExpedition):
                 # - get each candidates' final rng_states
                 prev_structures, prev_rng_states = [], []
                 for icand in range(nstructures):
-                    curr_wdir = (
-                        self.directory
-                        / self.comput_dirname
-                        / f"gen{istep-1}"
-                        / f"cand{icand}"
-                    )
+                    curr_wdir = self.directory / self.comput_dirname / f"gen{istep-1}" / f"cand{icand}"
                     ckpt_wdir = self.worker.driver._find_latest_checkpoint(curr_wdir)
-                    prev_atoms, prev_rng_state = self.worker.driver._load_checkpoint(
-                        ckpt_wdir
-                    )
+                    prev_atoms, prev_rng_state = self.worker.driver._load_checkpoint(ckpt_wdir)
                     self._print(f"{prev_atoms =}")
                     self._print(f"{prev_rng_state =}")
                     prev_structures.append(prev_atoms)
@@ -89,10 +78,7 @@ class SimulatedAnnealing(AbstractExpedition):
                             if hasattr(calc, "_load_checkpoint"):
                                 calc._load_checkpoint(
                                     ckpt_wdir,
-                                    dst_wdir=self.directory
-                                    / self.comput_dirname
-                                    / f"gen{istep}"
-                                    / f"cand{icand}",
+                                    dst_wdir=self.directory / self.comput_dirname / f"gen{istep}" / f"cand{icand}",
                                     start_step=prev_atoms.info["step"],
                                 )
                 structures = prev_structures
@@ -108,9 +94,7 @@ class SimulatedAnnealing(AbstractExpedition):
         else:
             self._print("SlicedExpedition is converged.")
             with open(self.directory / "FINISHED", "w") as fopen:
-                fopen.write(
-                    f"FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                )
+                fopen.write(f"FINISHED AT {time.asctime( time.localtime(time.time()) )}.")
 
         return
 

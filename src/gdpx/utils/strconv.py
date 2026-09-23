@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import List
+import itertools
+import operator
+from typing import Any, Mapping
 
 import numpy as np
 
 
-def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
-    """Convert a string to a List of int.
+def string_to_integers(inp: str, convention: str = "lmp", out_convention: str = "ase") -> list[int]:
+    """Convert a string to a list of int.
 
     Args:
         inp: A string contains numbers and colons.
@@ -16,13 +18,13 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
                     lmp index starts from 1 and includes the last.
 
     Examples:
-        >>> str2list_int("1:2 4:6", "lmp")
+        >>> string_to_integers("1:2 4:6", "lmp")
         >>> [0, 1, 3, 4, 5]
-        >>> str2list_int("1:2 4:6", "ase")
+        >>> string_to_integers("1:2 4:6", "ase")
         >>> [1, 4, 5]
 
     Returns:
-        A List of integers.
+        A list of integers.
 
     """
     ret = []
@@ -39,14 +41,67 @@ def str2list_int(inp: str, convention: str = "lmp") -> List[int]:
         else:
             ...
 
-    # remove duplicates
-    # ret = sorted(list(set(ret)))
+    if out_convention == "lmp":
+        ret = [r + 1 for r in ret]
+    elif out_convention == "ase":
+        ...
+    else:
+        ...
+
+    # Remove duplicates after the final conversion,
+    # otherwise, "0:2" in lmp convention will be [1, 2, -1]
+    # due to the set sort positive then negative.
     ret = list(set(ret))
 
     return ret
 
 
-def str2array(inp: str):
+def integers_to_string(
+    indices: list[int],
+    inp_convention: str = "ase",
+    out_convention: str = "lmp",
+) -> str:
+    """Convert a list of integers to a string.
+
+    Args:
+        indices: A list of integers.
+        inp_convention: The input convention either `lmp` or `ase`.
+        out_convention: The output convention must be `lmp`.
+
+    Examples:
+        >>> integers_to_string([6, 1, 7, 8], "lmp", "lmp")
+        >>> "1 6:8"
+
+        >>> integers_to_string([6, 1, 7, 8], "ase", "lmp")
+        >>> "2 7:9"
+
+    Returns:
+        A string.
+
+    """
+    if out_convention != "lmp":
+        raise Exception("The output string must be in the ASE convention.")
+    indices = sorted(indices)
+    if inp_convention == "lmp":
+        if 0 in indices:
+            raise Exception("The input indices should be greater than 0 in the LAMMPS convention.")
+    elif inp_convention == "ase":
+        indices = [i + 1 for i in indices]
+
+    ret = []
+    for _, g in itertools.groupby(enumerate(indices), lambda x: x[0] - x[1]):
+        group = map(operator.itemgetter(1), g)
+        group = list(map(int, group))
+        if group[0] == group[-1]:
+            ret.append(str(group[0]))
+        else:
+            ret.append("{}:{}".format(group[0], group[-1]))
+    ret = " ".join(ret)
+
+    return ret
+
+
+def string_to_array(inp: str):
     """Convert a string to a np.array using np.arange.
 
     The endpoint is always included.
@@ -69,6 +124,25 @@ def str2array(inp: str):
     ret = np.array(ret)
 
     return ret
+
+
+def dictionary_to_string(d: Mapping[str, Any], indent: int = 2):
+    """Convert a nested dict to str."""
+
+    def _dict2str(d_: Mapping[str, Any], indent_: int):
+        """Recursive function."""
+        content = ""
+        for k, v in d_.items():
+            if isinstance(v, dict):
+                content += f"{k}:\n" + _dict2str(v, indent_ + indent)
+            else:
+                content += " " * indent_ + f"{k}: {v}\n"
+
+        return content
+
+    content = _dict2str(d, 0)
+
+    return content
 
 
 if __name__ == "__main__":

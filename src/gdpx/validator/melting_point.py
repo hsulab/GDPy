@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import List, NoReturn, Union
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy as sp
+import omegaconf
 from ase import Atoms
-from ase.io import read, write
 from joblib import Parallel, delayed
 from scipy.optimize import curve_fit
 from scipy.spatial import distance_matrix
@@ -18,16 +18,13 @@ try:
 except Exception as e:
     ...
 
-from ..builder.group import create_a_group
-from ..data.array import AtomsNDArray
-from ..utils.command import CustomTimer
-from ..utils.strconv import str2array
-from .utils import wrap_traj
-from .validator import AbstractValidator
+from gdpx.data.array import AtomsNDArray
+from gdpx.geometry.align import wrap_traj
+from gdpx.group import evaluate_group_expression
+from gdpx.utils.profiler import CustomTimer
+from gdpx.utils.strconv import string_to_array
 
-"""Measure melting point.
-
-"""
+from .validator import BaseValidator
 
 
 def jpcc2020_func(T, Tm, x1, x2, x3, x4):
@@ -50,7 +47,8 @@ def get_distance_matrix(atoms: Atoms, indices=None):
         selected_positions = atoms.positions[indices, :]
         return distance_matrix(selected_positions, selected_positions)
 
-def recenter_com_by_group(frames: List[Atoms], group_indices: List[int]):
+
+def recenter_com_by_group(frames: list[Atoms], group_indices: list[int]):
     """"""
     # FIXME: The current implementation is the center of positions.
     #        We should implement center of mass later!!!
@@ -65,7 +63,8 @@ def recenter_com_by_group(frames: List[Atoms], group_indices: List[int]):
 
     return frames
 
-def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool=False, n_jobs=1):
+
+def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool = False, n_jobs=1):
     """Calculate Lindemann Index of each atom.
 
     Returns:
@@ -75,7 +74,7 @@ def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool=F
     # FIXME: Use unwrapped positions when under PBC?
     frames = wrap_traj(frames)  # align structures
 
-    group_indices = create_a_group(frames[0], group)
+    group_indices = evaluate_group_expression(frames[0], group)
     num_atoms = len(group_indices)
 
     if recenter_com:
@@ -84,13 +83,11 @@ def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool=F
         # write("./xxx.xyz", frames)
     else:
         ...
-    
+
     frames = frames[start:]
 
     with CustomTimer("Lindemann Index"):
-        distances = Parallel(n_jobs=n_jobs)(
-            delayed(get_distance_matrix)(atoms, group_indices) for atoms in frames
-        )
+        distances = Parallel(n_jobs=n_jobs)(delayed(get_distance_matrix)(atoms, group_indices) for atoms in frames)
     distances = np.array(distances)
 
     dis2 = np.square(distances)
@@ -105,7 +102,7 @@ def _icalc_local_lindemann_index(frames, start: int, group, recenter_com: bool=F
     return q
 
 
-class MeltingPointValidator(AbstractValidator):
+class MeltingPointValidator(BaseValidator):
     """Estimate the melting point from a series of MD simulations.
 
     For nanoparticles, the lindeman index is used. MD simulations with various
@@ -118,11 +115,11 @@ class MeltingPointValidator(AbstractValidator):
     def __init__(
         self,
         group,
-        temperatures: Union[List[float], str],
+        temperatures: Union[list[float], str],
         run_fit: bool = True,
         start=0,
         fitting="sigmoid",
-        recenter_com: bool=False,
+        recenter_com: bool = False,
         directory: Union[str, pathlib.Path] = "./",
         *args,
         **kwargs,
@@ -138,21 +135,24 @@ class MeltingPointValidator(AbstractValidator):
 
         self.start = start
 
-        if isinstance(temperatures, list):
-            temperatures = []
+        if isinstance(temperatures, list) or isinstance(temperatures, omegaconf.ListConfig):
+            temperatures = temperatures
         elif isinstance(temperatures, str):
-            temperatures = str2array(temperatures)
+            temperatures = string_to_array(temperatures)
         else:
             raise TypeError(f"Unknown {temperatures} of type {type(temperatures)}.")
 
         self.temperatures = temperatures
 
-        assert fitting in ["sigmoid", "jpcc2020"], "Unsupported fitting function."
+        assert fitting in [
+            "sigmoid",
+            "jpcc2020",
+        ], "Unsupported fitting function."
         self.fitting = fitting
 
         return
 
-    def _process_data(self, data) -> List[List[Atoms]]:
+    def _process_data(self, data) -> list[list[Atoms]]:
         """"""
         data = AtomsNDArray(data)
 
@@ -179,18 +179,14 @@ class MeltingPointValidator(AbstractValidator):
         if reference is not None:
             reference = self._process_data(reference)
             data = self._compute_melting_point(reference, prefix="ref-")
-            self._plot_figure(
-                data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit
-            )
+            self._plot_figure(data[:, 1], data[:, 0], prefix="ref-", run_fit=self.run_fit)
 
         self._print("process prediction ->")
         prediction = dataset.get("prediction")
         if prediction is not None:
             prediction = self._process_data(prediction)
             data = self._compute_melting_point(prediction, prefix="pre-")
-            self._plot_figure(
-                data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit
-            )
+            self._plot_figure(data[:, 1], data[:, 0], prefix="pre-", run_fit=self.run_fit)
 
         return
 
@@ -201,7 +197,9 @@ class MeltingPointValidator(AbstractValidator):
 
         num_trajectories = len(trajectories)
         num_temperatures = len(temperatures)
-        assert num_trajectories == num_temperatures, f"Inconsitent number of trajectories {num_trajectories} and temperatures {num_temperatures}."
+        assert (
+            num_trajectories == num_temperatures
+        ), f"Inconsitent number of trajectories {num_trajectories} and temperatures {num_temperatures}."
 
         qnames = [str(t) for t in temperatures]
 
@@ -212,7 +210,7 @@ class MeltingPointValidator(AbstractValidator):
                 qmat = Parallel(n_jobs=1)(
                     delayed(_icalc_local_lindemann_index)(
                         [a for a in curr_frames if a is not None],
-                        start=start, # wrap_traj based on the first, so we should take start after wrap
+                        start=start,  # wrap_traj based on the first, so we should take start after wrap
                         group=self.group,
                         recenter_com=self.recenter_com,
                         n_jobs=self.njobs,
@@ -234,14 +232,10 @@ class MeltingPointValidator(AbstractValidator):
         t = temperatures
         q = np.average(qmat, axis=1)
 
-        sorted_indices = [
-            x[0] for x in sorted(enumerate(temperatures), key=lambda x: x[1])
-        ]
+        sorted_indices = [x[0] for x in sorted(enumerate(temperatures), key=lambda x: x[1])]
         self._debug(sorted_indices)
 
-        data = np.vstack(
-            ([t[i] for i in sorted_indices], [q[i] for i in sorted_indices])
-        ).T
+        data = np.vstack(([t[i] for i in sorted_indices], [q[i] for i in sorted_indices])).T
 
         np.savetxt(
             self.directory / f"{prefix}data.txt",
@@ -252,7 +246,7 @@ class MeltingPointValidator(AbstractValidator):
 
         return data
 
-    def _plot_figure(self, q, t: List[float], prefix="", run_fit=True):
+    def _plot_figure(self, q, t: list[float], prefix="", run_fit=True):
         """"""
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 8))
 

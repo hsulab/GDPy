@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import copy
-import itertools
-from typing import List
-import warnings
 
-import numpy as np
+import pathlib
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
+
 try:
     plt.style.use("presentation")
 except Exception as e:
@@ -17,122 +16,158 @@ except Exception as e:
 from ase import Atoms
 from ase.io import read, write
 
-from ..worker.drive import DriverBasedWorker
-from .validator import AbstractValidator
-from .utils import get_properties
+from gdpx.builder.builder import StructureBuilder
+from gdpx.worker.drive import DriverBasedWorker
+
+from .validator import BaseValidator
 
 
-class DimerValidator(AbstractValidator):
+def compare_structures(v_frames: list[Atoms], p_frames: list[Atoms]):
+    v_ene = np.array([a.get_potential_energy() for a in v_frames])
+    p_ene = np.array([a.get_potential_energy() for a in p_frames])
 
-    def run(self, dataset, worker: DriverBasedWorker, *args, **kwargs):
+    distances = np.array([a.get_distance(0, 1, mic=True) for a in v_frames])
+
+    sorted_indices = sorted(range(len(distances)), key=lambda i: distances[i])
+
+    results = dict(
+        distances=distances[sorted_indices],
+        v_ene=v_ene[sorted_indices],
+        p_ene=p_ene[sorted_indices],
+    )
+
+    return results
+
+
+def summarise_validation(distances, v_ene, p_ene):
+    """"""
+    content = "# dis [Å]  ref [eV]  mlp [eV]  abs [eV]  rel [%]\n"
+    for dis, v, p in zip(distances, v_ene, p_ene):
+        abs_error = p - v
+        rel_error = (abs_error / v) * 100.0
+        content += f"{dis:8.4f}  {v:12.4f}  {p:12.4f}  {abs_error:12.4f}  {rel_error:8.4f}\n"
+
+    return content
+
+
+def plot_dimer_curve(fig_fpath: pathlib.Path, dimer: str, distances, v_ene, p_ene):
+    """"""
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 9))
+    assert isinstance(ax, plt.Axes)
+
+    ax.set_title(dimer)
+
+    ax.plot(
+        distances,
+        v_ene,
+        marker="o",
+        markerfacecolor="w",
+        label="Reference",
+    )
+    ax.plot(
+        distances,
+        p_ene,
+        marker="o",
+        markerfacecolor="w",
+        label="Prediction",
+    )
+
+    ax.set_ylabel("Energy [eV]")
+    ax.set_xlabel("Distance [Å]")
+
+    ax.legend()
+
+    fig.savefig(fig_fpath, bbox_inches="tight")
+
+    return
+
+
+class DimerValidator(BaseValidator):
+
+    name: str = "dimer"
+
+    def run(
+        self,
+        structures: Optional[Any] = None,
+        worker: Optional[DriverBasedWorker] = None,
+        *args,
+        **kwargs,
+    ) -> bool:
         """"""
         super().run()
-        self._print(dataset["reference"])
-        for prefix, frames in dataset["reference"].items():
-            self._irun(prefix, frames, None, worker)
 
-        return
+        if worker is not None:
+            v_worker = worker
+            self._print("Use the worker at run time.")
+        else:
+            v_worker = self.worker
+        assert (
+            v_worker is not None
+        ), "Worker must be provided either init or run time."
+        v_worker.directory = self.directory / "_run"
+
+        if structures is not None:
+            v_structures = structures
+            self._print("Use the structures at run time.")
+        else:
+            v_structures = self.structures
+        self._print(f"{v_structures=}")
+        assert (
+            v_structures is not None
+        ), "Structures must be provided either init or run time."
+
+        if isinstance(v_structures, StructureBuilder):
+            v_structures = v_structures.run()
+
+        # Make sure all structures are dimers
+        num_atoms = [len(a) for a in v_structures]
+        if any([n != 2 for n in num_atoms]):
+            raise Exception("All structures must be dimers.")
+        composition = [a.get_chemical_formula() for a in v_structures]
+        if any([c != composition[0] for c in composition]):
+            raise Exception("All dimers must be the same.")
+
+        # Run calculations
+        is_finished = False
+
+        p_structures = self._irun(v_structures, v_worker)
+        if p_structures is not None:
+            results = compare_structures(v_structures, p_structures)
+            if not pathlib.Path(self.directory / "v.dat").exists():
+                content = summarise_validation(**results)
+                with open(self.directory / "v.dat", "w") as fopen:
+                    fopen.write(content)
+            fig_fpath = self.directory / "dimer.png"
+            plot_dimer_curve(fig_fpath, composition[0], **results)
+        else:
+            is_finished = False
+
+        return is_finished
 
     def _irun(
-        self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker
-    ):
+        self, frames: list[Atoms], worker: DriverBasedWorker
+    ) -> Optional[list[Atoms]]:
         """"""
-        # - check if input frames are dimers...
-        chemicals = []
-        for atoms in ref_frames:
-            natoms = len(atoms)
-            assert natoms == 2, f"Input structure at {self.directory} must be a dimer."
-            chemicals.append(atoms.get_chemical_formula())
-            assert (
-                len(set(chemicals)) == 1
-            ), f"Input dimers are different. Maybe {chemicals[0]}?"
+        assert isinstance(
+            worker, DriverBasedWorker
+        ), "Worker must be a DriverBasedWorker."
 
-        # - read reference
-        ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
-        nframes = len(ref_frames)
-        ref_natoms = [len(a) for a in ref_frames]
+        cache_fpath = self.directory / "pred.xyz"
+        if cache_fpath.exists():
+            end_frames = read(cache_fpath, ":")
+            return end_frames  # type: ignore
 
-        if pred_frames is None:
-            # NOTE: use worker to calculate
-            self._print(f"Calculate reference frames {prefix} with potential...")
-            cached_pred_fpath = self.directory / prefix / "pred.xyz"
-            if not cached_pred_fpath.exists():
-                worker.directory = self.directory / prefix
-                worker.batchsize = nframes
-
-                worker._share_wdir = True
-
-                worker.run(ref_frames)
-                worker.inspect(resubmit=True)
-                if worker.get_number_of_running_jobs() == 0:
-                    ret = worker.retrieve(
-                        include_retrieved=True,
-                    )
-                    pred_frames = list(itertools.chain(*ret))
-                else:
-                    ...
-                write(cached_pred_fpath, pred_frames)
-            else:
-                pred_frames = read(cached_pred_fpath, ":")
+        _ = worker.run(frames)
+        _ = worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs() == 0:
+            trajectories = worker.retrieve(include_retrieved=True)
+            end_frames = [t[-1] for t in trajectories]
+            write(cache_fpath, end_frames)  # type: ignore
         else:
-            ...
-        pred_symbols, pred_energies, pred_forces = get_properties(pred_frames)
+            end_frames = None
 
-        # - get reaction coordinate (dimer distance here)
-        ref_distances = []
-        for atoms in ref_frames:
-            dis = atoms.get_distance(0, 1, mic=True)
-            ref_distances.append(dis)
-
-        # - save data
-        abs_errors = [x - y for x, y in zip(pred_energies, ref_energies)]
-        rel_errors = [(x / y) * 100.0 for x, y in zip(abs_errors, ref_energies)]
-        data = np.array(
-            [ref_distances, ref_energies, pred_energies, abs_errors, rel_errors]
-        ).T
-
-        np.savetxt(
-            self.directory / prefix / f"{prefix}.dat",
-            data,
-            fmt="%8.4f  %12.4f  %12.4f  %12.4f  %8.4f",
-            header="{:<8s}  {:<12s}  {:<12s}  {:<12s}  {:<8s}".format(
-                "dis", "ref", "mlp", "abs", "rel [%]"
-            ),
-        )
-
-        # - plot data
-        fig, ax = plt.subplots(
-            nrows=1, ncols=1, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
-        plt.suptitle(f"{prefix} with nframes {nframes}")
-
-        ax.plot(
-            ref_distances,
-            ref_energies,
-            marker="o",
-            markerfacecolor="w",
-            label="Reference",
-        )
-        ax.plot(
-            ref_distances,
-            pred_energies,
-            marker="o",
-            markerfacecolor="w",
-            label="Prediction",
-        )
-
-        ax.set_ylabel("Energy [eV]")
-        ax.set_xlabel("Dimer Distance [Å]")
-
-        ax.legend()
-
-        if (self.directory / f"{prefix}.png").exists():
-            warnings.warn(f"Figure file {prefix} exists.", UserWarning)
-        else:
-            plt.savefig(self.directory / prefix / f"{prefix}.png")
-
-        return
+        return end_frames  # type: ignore
 
 
 if __name__ == "__main__":
-    pass
+    ...

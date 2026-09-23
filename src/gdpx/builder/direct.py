@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 import pathlib
-from typing import List, NoReturn, Optional, Union
+from typing import Optional, Union
 
 from ase import Atoms
 from ase.constraints import FixAtoms
-from ase.io import read, write
+from ase.io import read
+
+from gdpx.data.array import AtomsNDArray
 
 from .builder import StructureBuilder
 
@@ -60,9 +63,7 @@ def read_xsd2(fd) -> Atoms:
 
                 restriction = atom.get("RestrictedProperties", None)
                 if restriction:
-                    if restriction.startswith(
-                        "FractionalXYZ"
-                    ):  # TODO: may have 1-3 flags
+                    if restriction.startswith("FractionalXYZ"):  # TODO: may have 1-3 flags
                         restrictions.append(True)
                     else:
                         raise ValueError("unknown RestrictedProperties")
@@ -86,9 +87,7 @@ def read_xsd2(fd) -> Atoms:
             atoms.set_constraint(FixAtoms(indices=fixed_indices))
 
         # add two atoms constrained optimisation
-        constrained_indices = [
-            idx for idx, name in enumerate(names) if name.endswith("_c")
-        ]
+        constrained_indices = [idx for idx, name in enumerate(names) if name.endswith("_c")]
         if constrained_indices:
             assert len(constrained_indices) == 2
             atoms.info["copt"] = constrained_indices
@@ -115,7 +114,9 @@ def read_xsd2(fd) -> Atoms:
         return atoms
 
 
-class ReadBuilder(StructureBuilder):
+class ReadStruBuilder(StructureBuilder):
+
+    name: str = "read_stru"
 
     def __init__(
         self,
@@ -125,37 +126,39 @@ class ReadBuilder(StructureBuilder):
         use_tags=False,
         directory="./",
         random_seed=None,
-        *args,
-        **kwargs,
     ):
         """"""
         super().__init__(
             use_tags=use_tags,
             directory=directory,
             random_seed=random_seed,
-            *args,
-            **kwargs,
         )
 
         self.fname = pathlib.Path(fname)
         self.index = index
         self.format = format
-        # self.kwargs = kwargs
 
         return
 
     def run(self, *args, **kwargs):
         """"""
-        frames = read(self.fname, self.index, self.format)
-        if isinstance(frames, Atoms):
-            frames = [frames]
+        if self.fname.suffix != ".h5":
+            frames = read(self.fname, self.index, self.format)
+            if isinstance(frames, Atoms):
+                frames = [frames]
+        else:
+            if self.index != ":":
+                raise Exception("HDF5 file only supports index `:`")
+            if not (self.format is None or self.format == "h5"):
+                raise Exception("HDF5 file only supports format `h5`")
+            frames = AtomsNDArray.from_file(self.fname)
 
         return frames
 
     def as_dict(self) -> dict:
         """"""
         params = {}
-        params["method"] = "reader"
+        params["method"] = "read_stru"
         params["fname"] = str(self.fname.resolve())
         params["index"] = self.index
         params["format"] = self.format
@@ -169,22 +172,19 @@ class DirectBuilder(StructureBuilder):
     #: Builder's name.
     name: str = "direct"
 
-    default_parameters: dict = {}
-
     #: Stored structures.
-    _frames: Optional[List[Atoms]] = None
+    _frames: Optional[list[Atoms]] = None
 
     #: The file path of stored structures.
     _fpath: Optional[Union[str, pathlib.Path]] = None
 
     #: Selected structure indices.
-    _indices: Optional[Union[str, List[int]]] = None
+    _indices: Optional[Union[str, list[int]]] = None
 
     def __init__(
         self,
-        frames: Union[str, pathlib.Path, List[Atoms]],
-        indices: Optional[Union[str, List[int]]] = None,
-        directory: Union[str, pathlib.Path] = "./",
+        frames: Union[str, pathlib.Path, list[Atoms]],
+        indices: Optional[Union[str, list[int]]] = None,
         *args,
         **kwargs,
     ):
@@ -195,7 +195,7 @@ class DirectBuilder(StructureBuilder):
             directory: Working directory.
 
         """
-        super().__init__(directory, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if isinstance(frames, (str, pathlib.Path)):
             fdata = frames.strip().split("::")
@@ -212,9 +212,7 @@ class DirectBuilder(StructureBuilder):
             except:
                 self.ornaments = 0
         else:
-            assert all(
-                isinstance(x, Atoms) for x in frames
-            ), "Input should be a list of atoms."
+            assert all(isinstance(x, Atoms) for x in frames), "Input should be a list of atoms."
             self._frames = frames
             self.ornaments = 0
 
@@ -228,11 +226,11 @@ class DirectBuilder(StructureBuilder):
         return self._fpath
 
     @property
-    def indices(self) -> Union[str, List[int]]:
+    def indices(self) -> Union[str, list[int]]:
         """Return selected indices."""
         return self._indices
 
-    def run(self, indices: Union[str, List[int]] = [], *args, **kwargs) -> List[Atoms]:
+    def run(self, indices: Union[str, list[int]] = [], *args, **kwargs) -> list[Atoms]:
         """Return stored structures.
 
         Args:
@@ -245,9 +243,7 @@ class DirectBuilder(StructureBuilder):
         else:
             indices_ = self.indices
 
-        assert bool(self._frames) ^ bool(
-            self.fpath
-        ), "Cant have frames and fpath at the same time."
+        assert bool(self._frames) ^ bool(self.fpath), "Cant have frames and fpath at the same time."
 
         # - read frames if it is a path
         if self.fpath:
@@ -287,9 +283,7 @@ class DirectBuilder(StructureBuilder):
         """Return generator parameters"""
         params = dict(
             method="direct",
-            frames=str(
-                self._fpath.resolve()
-            ),  # TODO: if not exists, and only have _frames
+            frames=str(self._fpath.resolve()),  # TODO: if not exists, and only have _frames
             indices=self.indices,
             ornaments=self.ornaments,
         )

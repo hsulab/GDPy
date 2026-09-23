@@ -1,32 +1,23 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from gdpx.core.register import BaseRegister
 
-from ase.ga.ofp_comparator import OFPComparator
-from ase.ga.particle_comparator import NNMatComparator
-from ase.ga.standard_comparators import InteratomicDistanceComparator
+REGISTER = BaseRegister("comparator")
 
-from ..core.register import registers
+from .cartesian import CartesianCoordinateComparator
 
-registers.comparator.register(OFPComparator)
-registers.comparator.register(NNMatComparator)
-registers.comparator.register(InteratomicDistanceComparator)
-
-from .cartesian import CartesianComparator
-registers.comparator.register(CartesianComparator)
+REGISTER.register("cartesian_coordinate")(CartesianCoordinateComparator)
 
 from .coordination import CoordinationComparator
-registers.comparator.register(CoordinationComparator)
+
+REGISTER.register("coordination")(CoordinationComparator)
 
 from .graph import GraphComparator
-registers.comparator.register(GraphComparator)
+
+REGISTER.register("graph")(GraphComparator)
 
 from .singlepoint import SinglePointComparator
-registers.comparator.register("single_point")(SinglePointComparator)
+
+REGISTER.register("single_point")(SinglePointComparator)
 
 from .reaction import ReactionComparator
-registers.comparator.register("reaction")(ReactionComparator)
 
-
-
-if __name__ == "__main__":
-    ...
+REGISTER.register("reaction")(ReactionComparator)

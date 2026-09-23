@@ -2,25 +2,27 @@
 # -*- coding: utf-8 -*-
 
 
-try:
-    import jax
-except Exception as e:
-    ...
+from gdpx.core.register import BaseRegister
 
-from ..core.register import registers
+REGISTER = BaseRegister("colvar")
 
 from .distance import DistanceColvar
-registers.colvar.register("DistanceColvar")(DistanceColvar)
+
+REGISTER.register("DistanceColvar")(DistanceColvar)
 
 from .rmsd import RmsdColvar
-registers.colvar.register("RmsdColvar")(RmsdColvar)
+
+REGISTER.register("RmsdColvar")(RmsdColvar)
 
 from .fingerprint import FingerprintColvar
-registers.colvar.register("FingerprintColvar")(FingerprintColvar)
+
+REGISTER.register("FingerprintColvar")(FingerprintColvar)
 
 from .position import position
-registers.colvar.register("position")(position)
+
+REGISTER.register("position")(position)
 
 
 if __name__ == "__main__":
     ...
+

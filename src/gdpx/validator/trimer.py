@@ -3,14 +3,11 @@
 
 
 import itertools
-import pathlib
 import warnings
 
-from typing import List
-
+import matplotlib.pyplot as plt
 import numpy as np
 
-import matplotlib.pyplot as plt
 try:
     plt.style.use("presentation")
 except Exception as e:
@@ -19,14 +16,13 @@ except Exception as e:
 from ase import Atoms
 from ase.io import read, write
 
-from ..worker.drive import DriverBasedWorker
-from .validator import AbstractValidator
 from .utils import get_properties
+from .validator import BaseValidator
 
 
-class TrimerValidator(AbstractValidator):
+class TrimerValidator(BaseValidator):
 
-    def __init__(self, angle: List[int], *args, **kwargs):
+    def __init__(self, angle: list[int], *args, **kwargs):
         """"""
         super().run(*args, **kwargs)
         self.angle = angle
@@ -42,9 +38,7 @@ class TrimerValidator(AbstractValidator):
 
         return
 
-    def _irun(
-        self, prefix: str, ref_frames: List[Atoms], pred_frames: List[Atoms], worker
-    ):
+    def _irun(self, prefix: str, ref_frames: list[Atoms], pred_frames: list[Atoms], worker):
         """"""
         # - check if input frames are dimers...
         chemicals = []
@@ -52,9 +46,7 @@ class TrimerValidator(AbstractValidator):
             natoms = len(atoms)
             assert natoms == 3, f"Input structure at {self.directory} must be a trimer."
             chemicals.append(atoms.get_chemical_formula())
-            assert (
-                len(set(chemicals)) == 1
-            ), f"Input dimers are different. Maybe {chemicals[0]}?"
+            assert len(set(chemicals)) == 1, f"Input dimers are different. Maybe {chemicals[0]}?"
 
         # - read reference
         ref_symbols, ref_energies, ref_forces = get_properties(ref_frames)
@@ -98,23 +90,17 @@ class TrimerValidator(AbstractValidator):
         # - save data
         abs_errors = [x - y for x, y in zip(pred_energies, ref_energies)]
         rel_errors = [(x / y) * 100.0 for x, y in zip(abs_errors, ref_energies)]
-        data = np.array(
-            [ref_angles, ref_energies, pred_energies, abs_errors, rel_errors]
-        ).T
+        data = np.array([ref_angles, ref_energies, pred_energies, abs_errors, rel_errors]).T
 
         np.savetxt(
             self.directory / prefix / f"{prefix}.dat",
             data,
             fmt="%8.4f  %12.4f  %12.4f  %12.4f  %8.4f",
-            header="{:<8s}  {:<12s}  {:<12s}  {:<12s}  {:<8s}".format(
-                "ang", "ref", "mlp", "abs", "rel [%]"
-            ),
+            header="{:<8s}  {:<12s}  {:<12s}  {:<12s}  {:<8s}".format("ang", "ref", "mlp", "abs", "rel [%]"),
         )
 
         # - plot data
-        fig, ax = plt.subplots(
-            nrows=1, ncols=1, gridspec_kw={"hspace": 0.3}, figsize=(16, 9)
-        )
+        fig, ax = plt.subplots(nrows=1, ncols=1, gridspec_kw={"hspace": 0.3}, figsize=(16, 9))
         plt.suptitle(f"{prefix} with nframes {nframes}")
 
         ax.plot(

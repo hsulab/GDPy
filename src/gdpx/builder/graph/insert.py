@@ -1,156 +1,89 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import copy
-from typing import NoReturn, Callable, List
-
-import numpy as np
-import networkx as nx
+import ase.data
+from ase import Atoms
+from ase.io import write
 from joblib import Parallel, delayed
 
-import ase
-from ase import Atoms
-from ase.io import read, write
+from gdpx.geometry.composition import convert_string_to_adsorbate
+from gdpx.utils.profiler import CustomTimer
 
-
-from .. import config
-from .. import CustomTimer
-from .. import SiteFinder
-from .modifier import GraphModifier, DEFAULT_GRAPH_PARAMS
-
-
-def str2atoms(species: str) -> Atoms:
-    """Convert a string to an Atoms object."""
-    # - build adsorbate
-    atoms = None
-    if species in ase.data.chemical_symbols:
-        atoms = Atoms(species, positions=[[0.0, 0.0, 0.0]])
-    elif species in ase.collections.g2.names:
-        atoms = ase.build.molecule(species)
-    else:
-        raise ValueError(f"Fail to create species {species}")
-
-    return atoms
-
-
-def single_insert_adsorbate(
-    graph_params: dict, idx, atoms, ads, site_params: list, 
-    print_func: Callable=print, debug_func: Callable=print
-):
-    """Insert adsorbate into the graph.
-    """
-    site_creator = SiteFinder(**graph_params)
-    site_creator._print = print_func
-    site_creator._debug = debug_func
-    site_groups = site_creator.find(atoms, site_params)
-
-    ads_indices = [a.index for a in atoms if a.symbol in site_creator.adsorbate_elements]
-
-    created_frames = []
-    for i, (sites, params) in enumerate(zip(site_groups, site_params)):
-        ads_params = params.get("ads", [{}])
-        cur_frames = []
-        for s in sites: 
-            ads_frames = s.adsorb(
-                ads, ads_indices, ads_params
-            )
-            cur_frames.extend(ads_frames)
-        created_frames.extend(cur_frames)
-        print_func(
-            f"group {i} unique sites {len(sites)} with {len(cur_frames)} frames for substrate {idx}."
-        )
-    
-    return created_frames
+from .modifier import GraphModifier
+from .utils import single_insert_species
 
 
 class GraphInsertModifier(GraphModifier):
-
     name = "graph_insert"
 
     def __init__(
-            self, species, spectators: List[str], 
-            sites: List[dict], substrates=None, graph: dict = DEFAULT_GRAPH_PARAMS,
-            *args, **kwargs
-        ):
-        """Insert an adsorbate on sites according to graph representation.
-        """
+        self,
+        species: str,
+        site: str,
+        group: str,
+        substrates=None,
+        gmax: tuple[int, int, int] = (2, 2, 0),
+        ratio: float = 1.1,
+        skin: float = 0.25,
+        *args,
+        **kwargs,
+    ):
+        """Insert an adsorbate on sites according to graph representation."""
         super().__init__(substrates=substrates, *args, **kwargs)
 
-        self.species = species # make this a node
+        self.species = species
+        self._species_instance = convert_string_to_adsorbate(species)
+        if self._species_instance.info.get("anchor_mode", None) != "mono":
+            raise Exception(f"graph_insert only supports monodentate adsorbate insertion, got `{species}`.")
 
-        self.spectators = spectators 
-        self.site_params = sites
-        self.graph_params = graph
+        if site not in ase.data.chemical_symbols:
+            raise Exception(f"graph_insert only supports single atom site, got `{site}`.")
+        self.site = site
 
-        #self.check_site_unique = True
-        # adsorbate_indices
-        # site_radius
-        # region
+        self.group = group
 
-        # - parallel
-        self.njobs = config.NJOBS
+        # Graph-building parameters
+        self.gmax = gmax
+        self.ratio = ratio
+        self.skin = skin
 
         return
-    
-    def _irun(self, substrates: List[Atoms]) -> List[Atoms]:
+
+    def _irun(self, substrates: list[Atoms]) -> list[Atoms]:
         """Insert an adsorabte on the substrate."""
-        # -- parameters for finding adsorption sites
-        site_params = copy.deepcopy(self.site_params)
-
-        # -- parameters for site graph
-        graph_params = copy.deepcopy(self.graph_params) # to create site graph
-        adsorbate_elements = copy.deepcopy(self.spectators)
-        graph_params.update( 
-            dict(
-                adsorbate_elements = adsorbate_elements,
-                #coordination_numbers = params.get("coordination_numbers"),
-                site_radius = 2,
-                #check_site_unique = params.get("check_site_unique", True)
+        self._print("---run insert---")
+        # Get chemical environments of selected species that may be removed
+        with CustomTimer(name="insert-species", func=self._print):
+            ret = Parallel(n_jobs=self.njobs)(
+                delayed(single_insert_species)(
+                    a,
+                    self.group,
+                    self._species_instance,
+                    self.site,
+                    gmax=self.gmax,
+                    ratio=self.ratio,
+                    skin=self.skin,
+                    print_func=self._print,
+                    debug_func=self._debug,
+                )
+                for _, a in enumerate(substrates)
             )
-        )
 
-        # -- parameters for species used for comparison
-        species = self.species # to insert
-        self._print(f"start to insert adsorbate {species}.")
-
-        # - build adsorbate (single atom or molecule)
-        #   and update selected_species
-        if isinstance(species, str):
-            # simple species
-            adsorbate = str2atoms(species)
-        else: # dict
-            adsorbate = read(species["adsorbate"]) # only one structure
-        symbols = list(set(adsorbate.get_chemical_symbols()))
-
-        selected_species = copy.deepcopy(graph_params.get("adsorbate_elements", []))
-        selected_species.extend(symbols)
-        selected_species = list(set(selected_species))
-
-        # - get structures with inserted species
-        with CustomTimer(name="insert-adsorbate", func=self._print):
-            #ret = Parallel(n_jobs=self.njobs)(
-            ret = Parallel(n_jobs=1)(
-                delayed(single_insert_adsorbate)(
-                    graph_params, idx, a, adsorbate, site_params,
-                    print_func=self._print, debug_func=self._debug
-                ) for idx, a in enumerate(substrates)
-            )
-        ret_frames = []
-        for frames in ret:
+        ret_frames, ret_envs = [], []
+        for i, (frames, envs) in enumerate(ret):  # type: ignore
+            nenvs = len(envs)
+            ret_envs.extend(envs)
             ret_frames.extend(frames)
-        write(self.directory/f"possible_frames.xyz", ret_frames)
-        self._print(f"nframes of inserted: {len(ret_frames)}")
+            self._print(f"number of sites {nenvs} to remove for substrate {i}.")
 
-        # NOTE: It is unnecessary to compare among substrates if the spectator
-        #       adsorbates are not the same as the inserted one. Otherwise, 
-        #       comparasion should be performed.
-        target_group = ["symbol "+" ".join(selected_species)]
-        created_frames = self._compare_structures(
-            ret_frames, graph_params, target_group
+        write(self.directory / f"possible_frames.xyz", ret_frames)
+
+        # Get unique structures among substrates.
+        # Using chemical environments of atoms in the group to compare.
+        # If chemical symbols in adsorbates are not included in the group,
+        # they will be ignored in the graph comparison.
+        graph_params = dict(
+            gmax=self.gmax,
+            ratio=self.ratio,
+            skin=self.skin,
         )
+        created_frames = self._compare_structures(ret_frames, graph_params, self.group)
 
         return created_frames
-
-
-if __name__ == "__main__":
-    ...

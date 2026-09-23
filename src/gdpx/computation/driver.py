@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import abc
 import copy
 import dataclasses
@@ -9,48 +6,43 @@ import re
 import shutil
 import tarfile
 import warnings
-from collections.abc import Iterable
-from typing import Callable, List, NoReturn, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import compare_atoms
 from ase.constraints import FixAtoms
-from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
-                                         Stationary, ZeroRotation)
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary, ZeroRotation
 
-from ..builder.constraints import convert_indices, parse_constraint_info
-from ..core.node import AbstractNode
+from gdpx.core.component import BaseComponent
+from gdpx.group import evaluate_constraint_expression
+from gdpx.utils.strconv import integers_to_string
+
 from .md.md_utils import force_temperature
-
-#: Prefix of backup files
-BACKUP_PREFIX_FORMAT: str = "gbak.{:d}."
-
-#: Parameter keys used to init a minimisation task.
-MIN_INIT_KEYS: List[str] = ["min_style", "min_modify", "dump_period"]
-
-#: Parameter keys used to run a minimisation task.
-MIN_RUN_KEYS: List[str] = ["steps", "fmax"]
-
-#: Parameter keys used to init a molecular-dynamics task.
-MD_INIT_KEYS: List[str] = [
-    "md_style",
-    "velocity_seed",
-    "timestep",
-    "temp",
-    "Tdamp",
-    "press",
-    "Pdamp",
-    "dump_period",
-]
 
 # Key name for earlystopping in atoms.info.
 EARLYSTOP_KEY: str = "earlystop"
 
 
+def check_constraint_consistency(cons_expr: str, beg_atoms: Atoms, end_atoms: Atoms) -> bool:
+    """"""
+    is_consistent = True
+
+    _, beg_frozen_indices = evaluate_constraint_expression(beg_atoms, cons_expr)
+    if beg_frozen_indices:
+        _, end_frozen_indices = evaluate_constraint_expression(end_atoms, cons_expr)
+        if integers_to_string(end_frozen_indices, inp_convention="ase") != integers_to_string(
+            beg_frozen_indices, inp_convention="ase"
+        ):
+            is_consistent = False
+        end_atoms.set_constraint(constraint=None)
+        end_atoms.set_constraint(FixAtoms(indices=beg_frozen_indices))
+
+    return is_consistent
+
+
 @dataclasses.dataclass
 class Controller:
-
     #: Thermostat name.
     name: str = "controller"  # thermostat or barostat
 
@@ -65,6 +57,9 @@ class Controller:
 class DriverSetting:
     """These are geometric parameters. Electronic?"""
 
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix: str = ""
+
     #: Simulation task.
     task: str = "min"
 
@@ -75,16 +70,9 @@ class DriverSetting:
     check_trajectory_convergence: bool = False
 
     #: Some observers
-    observers: Optional[List[dict]] = None
+    observers: Optional[list[dict]] = None
 
-    #:
-    min_style: str = "bfgs"
-    min_modify: str = "integrator verlet tmax 4"
-    maxstep: float = 0.1
-
-    #:
-    md_style: str = "nvt"
-
+    #: Random seed for velocity initialisation.
     velocity_seed: Optional[int] = None
 
     #: Whether ignore atoms' velocities and initialise it from the scratch.
@@ -96,43 +84,47 @@ class DriverSetting:
     #: Whether remove translation when init velocity.
     remove_translation: bool = True
 
+    #: MD Timestep in [fs].
     timestep: float = 1.0
 
+    #: MD temperature in [Kelvin].
     temp: float = 300.0
-    tend: Optional[float] = None
-    Tdamp: float = 100.0  # fs
 
-    press: float = 1.0  # bar
-    pend: float = None  # bar
-    Pdamp: float = 100.0
+    #: MD temperature at the end in [Kelvin].
+    tend: Optional[float] = None
+
+    #: MD pressure in [bar].
+    press: float = 1.0
+
+    #: MD pressure at the end in [bar].
+    pend: Optional[float] = None
 
     #: The interval steps to dump output files (e.g. trajectory).
     dump_period: int = 1
 
-    #: The interval steps to save a check point that is used for restart.
+    #: The interval steps to save a check point used for restart.
     ckpt_period: int = 100
 
     #: The number of checkpoints to save.
     ckpt_number: int = 3
 
-    #: run params
-    etol: float = None  # 5e-2
-    fmax: float = None  # 1e-5
+    #: Energy tolerance in minimisation, 1e-5 [eV].
+    emax: Optional[float] = None
+
+    #: Force tolerance in minimisation, 5e-2 eV/Ang.
+    fmax: Optional[float] = None
+
+    #: Stress tolerance in minimisation, 1e-1 GPa.
+    smax: Optional[float] = None
+
+    #: Number of steps for minimisation or molecular dynamics.
     steps: int = 0
 
-    constraint: str = None
+    #: How to constrain/fix/freeze some atoms in a structure.
+    constraint: Optional[str] = None
 
     #: Parameters that are used to update
     _internals: dict = dataclasses.field(default_factory=dict)
-
-    def update(self, **kwargs):
-        """"""
-        for k, v in kwargs.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        self.__post_init__()
-
-        return
 
     def get_init_params(self):
         """"""
@@ -141,13 +133,11 @@ class DriverSetting:
 
     def get_run_params(self, *args, **kwargs):
         """"""
-        raise NotImplementedError(
-            f"{self.__class__.__name__} has no function for run params."
-        )
+        _ = args, kwargs
+        raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
-class AbstractDriver(AbstractNode):
-
+class BaseDriver(BaseComponent):
     #: Driver's name.
     name: str = "abstract"
 
@@ -160,17 +150,8 @@ class AbstractDriver(AbstractNode):
     #: Whether accepct the bad structure due to crashed FF or SCF-unconverged DFT.
     accept_bad_structure: bool = False
 
-    #: Driver setting.
-    setting: DriverSetting = None
-
-    #: List of output files would be saved when restart.
-    saved_fnames: List[str] = []
-
     #: List of output files would be removed when restart.
-    removed_fnames: List[str] = []
-
-    #: Systemwise parameter keys.
-    syswise_keys: list = []
+    removed_fnames: list[str] = []
 
     #: Parameters for PotentialManager.
     pot_params: Optional[dict] = None
@@ -181,7 +162,7 @@ class AbstractDriver(AbstractNode):
         params: dict,
         directory="./",
         ignore_convergence: bool = False,
-        random_seed=None,
+        random_seed: Optional[Union[int, dict]] = None,
         *args,
         **kwargs,
     ):
@@ -198,51 +179,38 @@ class AbstractDriver(AbstractNode):
         self.calc = calc
         self.calc.reset()
 
-        self.cache_traj: Optional[List[Atoms]] = None
+        self.cache_traj: Optional[list[Atoms]] = None
 
         self.ignore_convergence = ignore_convergence
 
         self._org_params = copy.deepcopy(params)
+        self.canonicalise_parameters()
+
+        if hasattr(self, "setting_cls"):
+            self.setting = self.setting_cls(**params)  # type: ignore
+        else:
+            # We need init self.setting in subclass's init
+            ...
+
+        assert isinstance(self.setting, DriverSetting)
 
         return
 
-    @property
-    @abc.abstractmethod
-    def default_task(self) -> str:
-        """Default simulation task."""
+    def canonicalise_parameters(self) -> None:
+        """ "Canonicalise parameters especially for path-like inputs."""
 
         return
 
-    @property
-    @abc.abstractmethod
-    def supported_tasks(self) -> List[str]:
-        """Supported simulation tasks"""
-
-        return
-
-    @AbstractNode.directory.setter
-    def directory(self, directory_):
+    @BaseComponent.directory.setter
+    def directory(self, directory: Union[str, pathlib.Path]):
         """"""
-        self._directory = pathlib.Path(directory_)
         # NOTE: directory is set before self.calc is defined...
         #       ASE uses str path, so to avoid inconsistency here
+        self._directory = pathlib.Path(directory).resolve()
         if hasattr(self, "calc"):
             self.calc.directory = str(self.directory)
 
         return
-
-    def get(self, key):
-        """Get param value from init/run params by a mapped key name."""
-        parameters = copy.deepcopy(self.init_params)
-        parameters.update(copy.deepcopy(self.run_params))
-
-        value = parameters.get(key, None)
-        if not value:
-            mapped_key = self.param_mapping.get(key, None)
-            if mapped_key:
-                value = parameters.get(mapped_key, None)
-
-        return value
 
     def reset(self) -> None:
         """Remove results stored in dynamics calculator."""
@@ -250,14 +218,11 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def run(
-        self, atoms, read_ckpt: bool = True, extra_info: dict = None, *args, **kwargs
-    ) -> None:
+    def run(self, atoms, read_ckpt: bool = True, *args, **kwargs) -> None:
         """Return the last frame of the simulation.
 
         Copy input atoms, and return a new atoms. Check whether the simulation is
-        finished and retrieve stored results. If necessary, extra information could
-        be added to the atoms.info.
+        finished and retrieve stored results.
 
         The simulation should either run from the scratch or restart from a given
         checkpoint...
@@ -267,7 +232,7 @@ class AbstractDriver(AbstractNode):
         #       cell, pbc, positions, symbols, tags, momenta...
         atoms = atoms.copy()
 
-        # - set driver's atoms to the current one
+        # set driver's atoms to the current one
         if isinstance(self.atoms, Atoms):
             warnings.warn("Driver has attached atoms object.", RuntimeWarning)
             system_changes = compare_atoms(atoms1=self.atoms, atoms2=atoms, tol=1e-15)
@@ -280,11 +245,30 @@ class AbstractDriver(AbstractNode):
         else:
             system_changed = False
 
-        # backup old params
+        # backup calculator
         prev_params = copy.deepcopy(self.calc.parameters)
 
+        # run step
+        if hasattr(self.calc, "command"):  # CommitteeCalculator has no command.
+            prev_command = self.calc.command
+            self.calc.command = self.setting.machine_prefix + " " + prev_command
+        else:
+            prev_command = ""
+
+        self._run_step(atoms, system_changed, read_ckpt, *args, **kwargs)
+
+        # restore calculator
+        if hasattr(self.calc, "command"):
+            self.calc.command = prev_command
+        self.calc.parameters = prev_params
+        self.calc.reset()
+
+        return
+
+    def _run_step(self, atoms, system_changed, read_ckpt, *args, **kwargs):
+        """"""
         # run dynamics
-        self.cache_traj: Optional[List[Atoms]] = None
+        self.cache_traj: Optional[list[Atoms]] = None
         if not self._verify_checkpoint():
             # If there is no valid checkpoint, just run the simulation from the scratch
             self._debug(f"... start from the scratch @ {self.directory.name} ...")
@@ -297,12 +281,9 @@ class AbstractDriver(AbstractNode):
                 converged = self.read_convergence()
                 self._debug(f"... convergence {converged} ...")
                 if not converged:
-                    self._debug(
-                        f"... continue from unconverged @ {self.directory.name} ..."
-                    )
+                    self._debug(f"... continue from unconverged @ {self.directory.name} ...")
                     ckpt_wdir = self._save_checkpoint() if read_ckpt else None
                     self._debug(f"... checkpoint @ {str(ckpt_wdir)} ...")
-                    self._cleanup()
                     self._irun(
                         atoms,
                         ckpt_wdir=ckpt_wdir,
@@ -315,23 +296,23 @@ class AbstractDriver(AbstractNode):
                     self._debug(f"... converged @ {self.directory.name} ...")
             else:
                 self._debug(f"... start after clean up @ {self.directory.name} ...")
-                self._cleanup()
                 self._irun(atoms, *args, **kwargs)
-
-        self.calc.parameters = prev_params
-        self.calc.reset()
 
         return
 
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
+        _ = args, kwargs
 
         return self.directory.exists()
 
-    def _save_checkpoint(self, *args, **kwargs):
+    def _save_checkpoint(self):
         """Save the previous simulation to a checkpoint directory."""
         # find previous runs...
-        prev_wdirs = sorted(self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"), key= lambda p: int(p.name[:4]))
+        prev_wdirs = sorted(
+            self.directory.glob(r"[0-9][0-9][0-9][0-9][.]run"),
+            key=lambda p: int(p.name[:4]),
+        )
         self._debug(f"prev_wdirs: {prev_wdirs}")
 
         # get output files
@@ -352,10 +333,6 @@ class AbstractDriver(AbstractNode):
             curr_wdir.mkdir()
             for x in self.directory.iterdir():
                 if not re.match(r"[0-9]{4}\.run", x.name):
-                    # if x.name in self.saved_fnames:
-                    #    shutil.move(x, curr_wdir)
-                    # else:
-                    #    x.unlink()
                     shutil.move(x, curr_wdir)  # save everything...
                 else:
                     ...
@@ -371,44 +348,27 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def _cleanup(self):
-        """Remove unnecessary files.
-
-        Some dynamics will not overwrite old files so cleanup is needed.
-
-        """
-        # retain calculator-related files
-        for fname in self.removed_fnames:
-            curr_fpath = self.directory / fname
-            if curr_fpath.exists():
-                curr_fpath.unlink()
-
-        return
-
     def _preprocess_constraints(self, atoms: Atoms, run_params: dict) -> None:
         """Remove existing constraints on atoms and add FixAtoms.
 
         If have cons in kwargs overwrite current cons stored in atoms.
 
         """
-        # - check constraint
-        cons_text = run_params.pop("constraint", None)
-        if cons_text is not None:  # FIXME: check cons_text in parse_?
-            atoms._del_constraints()
-            mobile_indices, frozen_indices = parse_constraint_info(
-                atoms, cons_text, ignore_ase_constraints=True, ret_text=False
-            )
-            if frozen_indices:
-                atoms.set_constraint(FixAtoms(indices=frozen_indices))
-            else:
-                ...
+        cons_expr = run_params.pop("constraint", None)
+        atoms.set_constraint(constraint=None)
+        _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
+        if frozen_indices:
+            atoms.set_constraint(FixAtoms(indices=frozen_indices))
         else:
             ...
 
         return
 
     def _prepare_velocities(
-        self, atoms: Atoms, velocity_seed: Optional[int], ignore_atoms_velocities: bool
+        self,
+        atoms: Atoms,
+        velocity_seed: Optional[int],
+        ignore_atoms_velocities: bool,
     ):
         """"""
         # - velocity
@@ -428,9 +388,7 @@ class AbstractDriver(AbstractNode):
             # nve does not have temp in dyn_params so we use setting.temp
             # for all ensembles just for consistency
             target_temperature = self.setting.temp
-            MaxwellBoltzmannDistribution(
-                atoms, temperature_K=target_temperature, rng=vrng
-            )
+            MaxwellBoltzmannDistribution(atoms, temperature_K=target_temperature, rng=vrng)
             if self.setting.remove_rotation:
                 ZeroRotation(atoms, preserve_temperature=False)
             if self.setting.remove_translation:
@@ -441,8 +399,16 @@ class AbstractDriver(AbstractNode):
 
         return
 
-    def read_convergence_from_trajectory(self, frames: List[Atoms], *args, **kwargs):
-        """"""
+    def read_convergence_from_trajectory(self, frames: list[Atoms]) -> bool:
+        """Check convergence based on the trajectory.
+
+        Args:
+            frames: List of Atoms objects.
+
+        Returns:
+            Whether the simulation is converged.
+
+        """
         converged = False
 
         num_frames = len(frames)
@@ -452,44 +418,26 @@ class AbstractDriver(AbstractNode):
         if self.setting.steps > 0:
             step = frames[-1].info["step"]
             self._debug(f"nframes: {num_frames}")
-            if self.setting.task == "min":
-                # NOTE: check geometric convergence (forces)...
-                #       some drivers does not store constraints in trajectories
-                # NOTE: Sometimes constraint changes if `lowest` is used.
-                frozen_indices = None
-                run_params = self.setting.get_run_params()
-                cons_text = run_params.pop("constraint", None)
-                mobile_indices, beg_frozen_indices = parse_constraint_info(
-                    frames[0], cons_text, ret_text=False
-                )
-                if beg_frozen_indices:
-                    frozen_indices = beg_frozen_indices
-                end_atoms = frames[-1]
-                if frozen_indices:
-                    mobile_indices, end_frozen_indices = parse_constraint_info(
-                        end_atoms, cons_text, ret_text=False
-                    )
-                    if convert_indices(end_frozen_indices) != convert_indices(
-                        beg_frozen_indices
-                    ):
-                        self._print(
-                            "Constraint changes after calculation, which may be from `lowest`. Most times it is fine."
-                        )
-                    end_atoms._del_constraints()
-                    end_atoms.set_constraint(FixAtoms(indices=frozen_indices))
+            if self.setting.task == "min" or self.setting.task == "cmin":
+                # check geometric convergence (forces) with constraints that are loaded from settings
+                # since some drivers does not store constraints in trajectories.
+                cons_expr = self.setting.get_run_params().get("constraint", None)
+                if cons_expr is not None:
+                    is_constraint_consistent = check_constraint_consistency(cons_expr, frames[0], frames[-1])
+                    if not is_constraint_consistent:
+                        self._print(f"Constraint changes after calculation due to {cons_expr}. Most times it is fine.")
                 # TODO: Different codes have different definition for the max force
-                maxfrc = np.max(np.fabs(end_atoms.get_forces(apply_constraint=True)))
+                # TODO: Check criterion more than fmax, such as structure displacement in cp2k.
+                maxfrc = np.max(np.fabs(frames[-1].get_forces(apply_constraint=True)))
                 if maxfrc <= self.setting.fmax or step + 1 >= self.setting.steps:
                     converged = True
                 self._debug(
-                    f"MIN convergence: {converged} STEP: {step+1} >=? {self.setting.steps} MAXFRC: {maxfrc} <=? {self.setting.fmax}"
+                    f"min convergence: {converged} step: {step + 1} >=? {self.setting.steps} maxfrc: {maxfrc} <=? {self.setting.fmax}"
                 )
             elif self.setting.task == "md":
                 if step + 1 >= self.setting.steps:  # step startswith 0
                     converged = True
-                self._debug(
-                    f"MD convergence: {converged} STEP: {step+1} >=? {self.setting.steps}"
-                )
+                self._debug(f"md convergence: {converged} step: {step + 1} >=? {self.setting.steps}")
             else:
                 raise NotImplementedError("Unknown task in read_convergence.")
             # check if simulation stops early
@@ -501,10 +449,11 @@ class AbstractDriver(AbstractNode):
             # just spc, only need to check force convergence
             if num_frames == 1:
                 converged = True
+            self._debug(f"spc convergence: {converged} num_frames: {num_frames} ==? 1")
 
         return converged
 
-    def read_convergence(self, *args, **kwargs) -> bool:
+    def read_convergence(self) -> bool:
         """Read output to check whether the simulation is converged.
 
         TODO:
@@ -517,18 +466,16 @@ class AbstractDriver(AbstractNode):
         # For some large simulations, the convergence check by reading the trajectory
         # can be very time-consuming. Thus, we implement another way to check convergence
         # by reading some lines in the logfile for some driver backends.
-        if not self.setting.check_trajectory_convergence and hasattr(
-            self, "read_convergence_from_logfile"
-        ):
+        if not self.setting.check_trajectory_convergence and hasattr(self, "read_convergence_from_logfile"):
             converged = self.read_convergence_from_logfile()
         else:
-            # - check whether the driver is coverged
+            # check whether the driver is coverged
             if self.cache_traj is None:
                 traj_frames = self.read_trajectory()  # NOTE: DEAL WITH EMPTY FILE ERROR
             else:
                 traj_frames = self.cache_traj
 
-            # - check if this structure is bad
+            # check if this structure is bad
             is_badstru = False
             for a in traj_frames:
                 curr_is_badstru = a.info.get("is_badstru", False)
@@ -552,14 +499,18 @@ class AbstractDriver(AbstractNode):
         return converged
 
     @abc.abstractmethod
-    def read_trajectory(self, *args, **kwargs) -> List[Atoms]:
+    def read_trajectory(self, *args, **kwargs) -> list[Atoms]:
         """Read trajectory in the current working directory."""
 
-        return
+        ...
 
-    def _aggregate_trajectories(
-        self, check_energy: bool = False, archive_path=None, *args, **kwargs
-    ) -> List[Atoms]:
+    def _read_a_single_trajectory(self, *args, **kwargs) -> list[Atoms]:
+        """"""
+        _ = args, kwargs
+
+        raise NotImplementedError()
+
+    def _aggregate_trajectories(self, check_energy: bool = False, archive_path=None, *args, **kwargs) -> list[Atoms]:
         """"""
         prev_wdirs = []
         if archive_path is None:
@@ -570,18 +521,14 @@ class AbstractDriver(AbstractNode):
                 for tarinfo in tar:
                     if tarinfo.isdir() and re.match(pattern, tarinfo.name):
                         prev_wdirs.append(tarinfo.name)
-            prev_wdirs = [
-                self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)
-            ]
+            prev_wdirs = [self.directory / pathlib.Path(p).name for p in sorted(prev_wdirs)]
         self._debug(f"prev_wdirs@{self.directory.name}: {prev_wdirs}")
 
         all_wdirs = prev_wdirs + [self.directory]
 
         traj_list = []
         for w in all_wdirs:
-            curr_frames = self._read_a_single_trajectory(
-                w, archive_path=archive_path, **kwargs
-            )
+            curr_frames = self._read_a_single_trajectory(w, archive_path=archive_path, **kwargs)
             if curr_frames:
                 traj_list.append(curr_frames)
 
@@ -601,14 +548,14 @@ class AbstractDriver(AbstractNode):
                 prev_steps = [a.info["step"] for a in traj_list[i - 1]]
                 prev_traj = traj_list[i - 1][: prev_steps.index(curr_beg_step) + 1]
                 prev_end_frame = prev_traj[-1]
-                assert np.allclose(
-                    prev_end_frame.positions, curr_beg_frame.positions
-                ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in positions."
+                assert np.allclose(prev_end_frame.positions, curr_beg_frame.positions), (
+                    f"{self.directory.name} Traj {i - 1} and traj {i} are not consecutive in positions."
+                )
                 if check_energy:
                     assert np.allclose(
                         prev_end_frame.get_potential_energy(),
                         curr_beg_frame.get_potential_energy(),
-                    ), f"{self.directory.name} Traj {i-1} and traj {i} are not consecutive in energy."
+                    ), f"{self.directory.name} Traj {i - 1} and traj {i} are not consecutive in energy."
                 traj_frames.extend(prev_traj[:-1])
             traj_frames.extend(traj_list[-1])
         else:
@@ -635,7 +582,7 @@ class AbstractDriver(AbstractNode):
         )
         # NOTE: we use original params otherwise internal param names would be
         #       written out and make things confusing
-        #       org_params are merged params thatv have init and run sections
+        #       org_params are merged params that have init and run sections
         org_params = copy.deepcopy(self._org_params)
 
         # - update some special parameters
@@ -645,7 +592,3 @@ class AbstractDriver(AbstractNode):
         params.update(org_params)
 
         return params
-
-
-if __name__ == "__main__":
-    ...

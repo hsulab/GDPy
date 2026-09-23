@@ -1,40 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List
+
+import copy
+import itertools
+from typing import Optional
 
 import numpy as np
-
 from ase import Atoms
-from ase import data, units
 from ase.neighborlist import NeighborList, natural_cutoffs
 
-from .operator import AbstractOperator
+from gdpx.geometry.bounce import get_a_random_direction
+from gdpx.geometry.particle import translate_then_rotate
+from gdpx.geometry.spatial import check_atomic_distances_by_neighbour_list
+
+from .operator import BaseMCOperator, metropolis_by_energy_difference
 
 
-class MoveOperator(AbstractOperator):
-
+class MoveOperator(BaseMCOperator):
     name: str = "move"
 
     def __init__(
         self,
-        particles: List[str] = None,
-        region: dict = {},
-        temperature: float = 300.0,
-        pressure: float = 1.0,
-        covalent_ratio=[0.8, 2.0],
+        particles: list[str],
         max_disp: float = 2.0,
-        use_rotation: bool = True,
         *args,
         **kwargs,
-    ):
-        """"""
+    ) -> None:
+        """Initialise a MC move operator.
+
+        Args:
+            particles: The particles that can move.
+            max_disp: The maximum displacement in [Ang].
+
+        """
         super().__init__(
-            region=region,
-            temperature=temperature,
-            pressure=pressure,
-            covalent_ratio=covalent_ratio,
-            use_rotation=use_rotation,
             *args,
             **kwargs,
         )
@@ -45,92 +45,123 @@ class MoveOperator(AbstractOperator):
 
         return
 
-    def run(self, atoms: Atoms, rng=np.random) -> Atoms:
+    def run(self, atoms: Atoms, rng=np.random.default_rng()) -> Optional[Atoms]:
         """"""
+        # Check particles in the region
         super().run(atoms)
         self._extra_info = "-"
 
-        # BUG: If there is no species in the system...
-        species_indices = self._select_species(atoms, self.particles, rng=rng)
+        # We need covalent bond distanes for neighbour check
+        assert hasattr(self, "bond_distance_dict")
 
-        # - basic
-        curr_atoms = atoms.copy()  # TODO: use clean atoms?
-        cell = curr_atoms.get_cell(complete=True)
+        assert hasattr(self, "custom_pair_distance_dict")
+        custom_pair_distance_dict = self.custom_pair_distance_dict if self.custom_pair_distance_dict else None  # type: ignore
 
-        # - neighbour list
+        if custom_pair_distance_dict is not None:
+            custom_bond_distance_dict = copy.deepcopy(self.bond_distance_dict)  # type: ignore
+            custom_bond_distance_dict.update(custom_pair_distance_dict)
+        else:
+            custom_bond_distance_dict = self.bond_distance_dict  # type: ignore
+
+        # Check if the particles are in the atoms
+        particle_indices = self._select_species(atoms, self.particles, rng=rng)
+        if len(particle_indices) == 0:
+            # Skip if no particles found
+            self._print(self.indent + f"skipped move as no particles are found...")
+            self._extra_info = "Move_Skipped"
+            return None
+
+        # Use the reference to avoid copying?
+        self._atoms = atoms
+        new_atoms = atoms
+
+        # Initialise the neighbour list
         nl = NeighborList(
-            self.covalent_max * np.array(natural_cutoffs(curr_atoms)),
+            self.covalent_max * np.array(natural_cutoffs(new_atoms)),
             skin=0.0,
             self_interaction=False,
             bothways=True,
         )
 
-        # - find tag atoms
-        # record original position of species_indices
-        species = curr_atoms[species_indices]
-        self._extra_info = f"Move_{species.get_chemical_formula()}_{species_indices}"
+        # Find tag atoms
+        particle = new_atoms[particle_indices]
+        assert isinstance(particle, Atoms)
+        self._extra_info = f"Move_{particle.get_chemical_formula()}_{particle_indices}"
 
-        # org_pos = new_atoms[species_indices].position.copy() # original position
-        # TODO: deal with pbc, especially for move step
-        org_com = np.mean(species.positions, axis=0)
-        org_positions = species.positions.copy()
+        excluded_pairs = list(itertools.permutations(particle_indices, 2))
 
-        # - move the atom
+        # TODO: Deal with pbc for molecules
+        org_cop = np.mean(particle.positions, axis=0)
+        org_positions = particle.positions.copy()
+
+        self._state = {
+            "picked_indices": particle_indices,
+            "before_positions": org_positions,
+        }
+
+        # Move the particle and use neighbour list to check atomic distances
+        self._print(self.indent + f"check distance: {not self.skip_distance_check}")
         for i in range(self.MAX_RANDOM_ATTEMPTS):
-            rsq = 1.1
-            while rsq > 1.0:
-                rvec = 2 * rng.uniform(size=3) - 1.0
-                rsq = np.linalg.norm(rvec)
-            ran_pos = org_com + rvec * self.max_disp
-            # -- make a copy and rotate
-            species_ = self._rotate_species(species, rng=rng)
-            curr_cop = np.average(species_.positions, axis=0)
-            # -- translate
-            new_vec = ran_pos - curr_cop
-            species_.translate(new_vec)
-            curr_atoms.positions[species_indices] = species_.positions.copy()
-            # use neighbour list
-            if not self.check_overlap_neighbour(nl, curr_atoms, cell, species_indices):
-                self._print(f"succeed to random after {i+1} attempts...")
-                self._print(f"original position: {org_com}")
-                self._print(f"random position: {ran_pos}")
-                self._print(
-                    f"actual position: {np.average(curr_atoms.positions[species_indices], axis=0)}"
-                )
+            rvec = get_a_random_direction(rng)
+            ran_pos = org_cop + rvec * self.max_disp
+            particle_ = copy.deepcopy(particle)
+            particle_ = translate_then_rotate(particle_, position=ran_pos, use_com=False, rng=rng)
+            new_atoms.positions[particle_indices] = particle_.positions.copy()
+            if self.skip_distance_check or check_atomic_distances_by_neighbour_list(
+                new_atoms,
+                neighlist=nl,
+                atomic_indices=particle_indices,
+                covalent_ratio=(self.covalent_min, self.covalent_max),
+                bond_distance_dict=custom_bond_distance_dict,
+                excluded_pairs=excluded_pairs,
+                allow_isolated=False,
+            ):
+                self._print(self.indent + f"succeed to random after {i + 1} attempts...")
+                self._print(self.indent + "before pos: " + ("{:>12.4f} " * 3).format(*org_cop))
+                self._print(self.indent + "random pos: " + ("{:>12.4f} " * 3).format(*ran_pos))
+                new_cop = np.average(new_atoms.positions[particle_indices], axis=0)
+                self._print(self.indent + "actual pos: " + ("{:>12.4f} " * 3).format(*new_cop))
                 break
-            curr_atoms.positions[species_indices] = org_positions
+            # Move failed and fallback to the original positions
+            new_atoms.positions[particle_indices] = org_positions
         else:
-            curr_atoms = None
+            self._print(self.indent + f"failed to move after {self.MAX_RANDOM_ATTEMPTS} attempts...")
+            new_atoms = None
+            self._extra_info = f"Move_Failed"
 
-        return curr_atoms
+        return new_atoms
 
-    def metropolis(self, prev_ene: float, curr_ene: float, rng=np.random) -> bool:
-        """"""
-        # - acceptance ratio
-        kBT_eV = units.kB * self.temperature
-        beta = 1.0 / kBT_eV  # 1/(kb*T), eV
+    def revert_state(self, atoms: Atoms) -> Atoms:
+        """Revert the state of atoms."""
+        picked_indices = self._state.get("picked_indices")
+        before_positions = self._state.get("before_positions")
 
-        coef = 1.0
-        ene_diff = curr_ene - prev_ene
-        acc_ratio = np.min([1.0, coef * np.exp(-beta * (ene_diff))])
+        atoms.positions[picked_indices] = before_positions
 
-        # content = "\nVolume %.4f Nexatoms %.4f CubicWave %.4f Coefficient %.4f\n" %(
-        #    self.acc_volume, len(self.tag_list[expart]), cubic_wavelength, coef
-        # )
-        content = "\nVolume %.4f Beta %.4f Coefficient %.4f\n" % (
-            self.region.get_volume(),
-            beta,
-            coef,
+        return atoms
+
+    def metropolis(self, prev_ene: float, curr_ene: float, rng: np.random.Generator = np.random.default_rng()) -> bool:
+        """Metropolis criterion for the move operator."""
+        success = metropolis_by_energy_difference(
+            prev_ene=prev_ene,
+            curr_ene=curr_ene,
+            temperature=self.temperature,
+            region=self.region,
+            rng=rng,
+            indent=self.indent,
+            print_func=self._print,
         )
-        content += "Energy Difference %.4f [eV]\n" % ene_diff
-        content += "Accept Ratio %.4f\n" % acc_ratio
-        for x in content.split("\n"):
-            self._print(x)
 
-        rn_move = rng.uniform()
-        self._print(f"{self.__class__.__name__} Probability %.4f" % rn_move)
+        if not success:
+            assert self._atoms is not None, "Atoms should not be None when reverting state."
+            self.revert_state(self._atoms)
+        else:
+            ...
 
-        return rn_move < acc_ratio
+        self._state = {}
+        self._atoms = None
+
+        return success
 
     def as_dict(self) -> dict:
         """"""
@@ -143,14 +174,15 @@ class MoveOperator(AbstractOperator):
     def __repr__(self) -> str:
         """"""
         content = f"@Modifier {self.__class__.__name__}\n"
-        content += (
-            f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
-        )
+        content += f"temperature {self.temperature} [K] pressure {self.pressure} [bar]\n"
         content += "covalent ratio: \n"
         content += f"  min: {self.covalent_min} max: {self.covalent_max}\n"
         content += f"max disp: {self.max_disp}\n"
         content += f"particles: \n"
         content += f"  {self.particles}\n"
+
+        # add indent
+        content = self.indent + content.replace("\n", "\n" + self.indent)
 
         return content
 

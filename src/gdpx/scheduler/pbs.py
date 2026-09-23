@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import re
-import subprocess
-import json
-import pathlib
 
-from .scheduler import AbstractScheduler
+from .scheduler import BaseScheduler
 
 
-class PbsScheduler(AbstractScheduler):
+class PbsScheduler(BaseScheduler):
 
     name = "pbs"
 
@@ -26,7 +22,6 @@ class PbsScheduler(AbstractScheduler):
 
     def __str__(self):
         """Return the content of the job script."""
-        # - slurm params
         content = self.SHELL + "\n"
         for key, value in self.parameters.items():
             if value:
@@ -34,9 +29,7 @@ class PbsScheduler(AbstractScheduler):
             # else:
             #    raise ValueError("Keyword *%s* not properly set." %key)
 
-        if self.environs:
-            content += "\n\n"
-            content += self.environs
+        content += self._convert_environs_to_content()
 
         if self.user_commands:
             content += "\n\n"

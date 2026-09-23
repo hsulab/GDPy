@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import List
 import warnings
-
-import numpy as np
-from scipy.stats import qmc
+from typing import List
 
 import jax
 import jax.numpy as jnp
-from jax import grad, value_and_grad, jit, jacfwd, jacrev
+import numpy as np
+from jax import grad, jacfwd, jacrev, jit, value_and_grad
+from scipy.stats import qmc
 
 jax.config.update("jax_enable_x64", True)
 
@@ -87,7 +86,11 @@ def compute_bond_angles(positions, trimer_indices):
     dvecs2 = trimer_positions[2] - trimer_positions[0]
     dnorms2 = jnp.linalg.norm(dvecs2, axis=1)
 
-    angles = jnp.arccos(jnp.sum(dvecs1 * dvecs2, axis=1) / dnorms1 / dnorms2)
+    # angles = jnp.arccos(jnp.sum(dvecs1 * dvecs2, axis=1) / dnorms1 / dnorms2)
+    angles = jnp.arctan2(
+        jnp.linalg.norm(jnp.cross(dvecs1, dvecs2), axis=-1),
+        jnp.sum(dvecs1 * dvecs2, axis=-1),
+    )
 
     return angles
 

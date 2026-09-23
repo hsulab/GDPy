@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import abc
 import copy
-from typing import Optional, Union, Tuple, List, NoReturn
+from typing import Generic, TypeVar, Union, cast
 
 import numpy as np
-
 from ase.calculators.calculator import Calculator
 
-from .. import config
-from ..core.register import registers
-from ..computation import register_drivers
-from .calculators.dummy import DummyCalculator
+from gdpx import config
+from gdpx.backend.ase import DummyCalculator
+from gdpx.computation import register_drivers
+from gdpx.computation.driver import BaseDriver
+from gdpx.reactor import register_reactors
+from gdpx.reactor.reactor import BaseReactor
+
+DYNAMICS_DRIVER_TASKS: list[str] = ["spc", "min", "ts", "cmin", "md", "freq"]
+DYNAMICS_REACTOR_TASKS: list[str] = ["neb"]
 
 
-"""The abstract base class of any potential manager.
-
-"""
+CalcT = TypeVar("CalcT", bound=Calculator)
 
 
-class AbstractPotentialManager(abc.ABC):
+class BasePotentialManager(abc.ABC, Generic[CalcT]):
     """
     Create various potential instances
     """
@@ -29,33 +32,42 @@ class AbstractPotentialManager(abc.ABC):
     name: str = "potential"
 
     #: Supported calculator backends.
-    implemented_backends: List[str] = []
+    implemented_backends: tuple[str, ...] = ()
 
     #: Supported combinations of calculator backend and driver/engine.
     valid_combinations: tuple = ()
 
+    #: The attached calculator.
+    _calc: CalcT
+
     def __init__(self):
-        """ """
+        """"""
         #: Attached calculator.
-        self._calc: Calculator = DummyCalculator()
+        self._calc: CalcT = cast(CalcT, DummyCalculator())
+
+        #: The default backend.
+        self._default_backend: str = self.implemented_backends[0]
 
         return
 
     @property
-    def calc(self) -> Calculator:
+    def calc(self) -> CalcT:
         """Attached calculator."""
+
         return self._calc
 
     @calc.setter
-    def calc(self, calc_):
-        self._calc = calc_
+    def calc(self, calc: CalcT) -> None:
+        """Set the attached calculator."""
+        self._calc = calc
+
         return
 
     @property
     def calc_backend(self) -> str:
         """Backend of attached calculator."""
 
-        return self.calc_params.get("backend", self.name)
+        return self.calc_params.get("backend", self._default_backend)
 
     @abc.abstractmethod
     def register_calculator(self, calc_params: dict, *agrs, **kwargs):
@@ -63,7 +75,7 @@ class AbstractPotentialManager(abc.ABC):
         # Save the original copy of calc_params and pop the backend keyword
         # as it is not for calculator.
         self.calc_params = copy.deepcopy(calc_params)
-        calc_params.pop("backend")
+        calc_params.pop("backend", None)
 
         if self.calc_backend not in self.implemented_backends:
             raise RuntimeError(
@@ -72,31 +84,33 @@ class AbstractPotentialManager(abc.ABC):
 
         return
 
-    def create_driver(self, dyn_params: dict = {}, *args, **kwargs):
+    def create_driver(self, dyn_params: dict = {}) -> Union[BaseDriver, BaseReactor]:
         """Create a driver for dynamics.
 
-        Default the dynamics backend will be the same as calc. However,
-        ase-based dynamics can be used for all calculators.
+        The default dynamics backend will be the same as the calculator.
+        The ase-based dynamics can be used for all calculators.
+
+        Args:
+            dyn_params: Parameters for driver.
+
+        Returns:
+            A driver instance.
 
         """
-        # - check whether there is a calc
+        # Check whether the calculator is properly registered.
         if not hasattr(self, "calc"):
-            raise AttributeError(
-                "Cannot create driver since a calculator has been properly registered."
-            )
+            raise AttributeError("Cannot create driver since a calculator has not been properly registered.")
 
-        # parse backends
+        # Parse backends
         self.dyn_params = dyn_params
         dynamics = dyn_params.get("backend", self.calc_backend)
         if dynamics == "external":
             dynamics = self.calc_backend
 
         if (self.calc_backend, dynamics) not in self.valid_combinations:
-            raise RuntimeError(
-                f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator"
-            )
+            raise RuntimeError(f"Invalid dynamics backend {dynamics} based on {self.calc_backend} calculator")
 
-        # - merge params for compat
+        # Merge parameters for compatibility
         merged_params = {}
         if "task" in dyn_params:
             merged_params.update(task=dyn_params.get("task", "min"))
@@ -107,23 +121,27 @@ class AbstractPotentialManager(abc.ABC):
         else:
             merged_params.update(**dyn_params)
 
-        # -- add params from key besides task, init, and run
+        # Add extra parameters for keys besides task, init, and run
         merged_params.update(
             ignore_convergence=dyn_params.get("ignore_convergence", False),
             random_seed=dyn_params.get("random_seed", None),
         )
 
-        # -- other params
+        # Check some special parameters
         ignore_convergence = merged_params.pop("ignore_convergence", False)
 
-        # TODO: make PotentialManager a Node as well???
-        random_seed = merged_params.pop(
-            "random_seed", int(config.GRNG.integers(0, 1e8))
-        )
+        # TODO: make PotentialManager a subclass of BaseComponent as well?
+        assert isinstance(config.GRNG, np.random.Generator)
+        random_seed = merged_params.pop("random_seed", int(config.GRNG.integers(0, 1_000_000_000_000)))
 
-        # - create dynamics
-        driver_cls = register_drivers[dynamics]
-        # assert driver_cls is not None, f"Cannot find a driver named {dynamics}."
+        # Create the driver instance
+        task = merged_params.get("task", "min")
+        if task in DYNAMICS_DRIVER_TASKS:
+            driver_cls = register_drivers[dynamics]  # The dynamics backend has already been checked.
+        elif task in DYNAMICS_REACTOR_TASKS:
+            driver_cls = register_reactors[dynamics]
+        else:
+            raise Exception(f"Unknown task {task} for dynamics backend {dynamics}.")
 
         driver = driver_cls(
             self.calc,
@@ -132,53 +150,6 @@ class AbstractPotentialManager(abc.ABC):
             ignore_convergence=ignore_convergence,
             random_seed=random_seed,
         )
-        driver.pot_params = self.as_dict()
-
-        return driver
-
-    def create_reactor(self, rxn_params: dict = {}, *args, **kwargs):
-        """Create a reactor for reaction.
-
-        Default the reaction backend will be the same as calc. However,
-        ase-based dynamics can be used for all calculators.
-
-        """
-        # - check whether there is a calc
-        if not hasattr(self, "calc"):
-            raise AttributeError(
-                "Cant create reactor before a calculator has been properly registered."
-            )
-
-        # parse backends
-        self.rxn_params = rxn_params
-        reaction = rxn_params.get("backend", self.calc_backend)
-        if reaction == "external":
-            reaction = self.calc_backend
-
-        if (self.calc_backend, reaction) not in self.valid_combinations:
-            raise RuntimeError(
-                f"Invalid reaction backend {reaction} based on {self.calc_backend} calculator. Valid combinations are {self.valid_combinations}"
-            )
-
-        # - merge params for compat
-        merged_params = {}
-        if "task" in rxn_params:
-            merged_params.update(task=rxn_params.get("task", "min"))
-        if "init" in rxn_params or "run" in rxn_params:
-            merged_params.update(**rxn_params.get("init", {}))
-            merged_params.update(**rxn_params.get("run", {}))
-        else:
-            merged_params.update(**rxn_params)
-
-        # - other params
-        ignore_convergence = merged_params.pop("ignore_convergence", False)
-
-        # - construct driver params
-        inp_params = dict(
-            calc=self.calc, params=merged_params, ignore_convergence=ignore_convergence
-        )
-
-        driver = registers.create("reactor", reaction, convert_name=False, **inp_params)
         driver.pot_params = self.as_dict()
 
         return driver

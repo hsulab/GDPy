@@ -1,19 +1,43 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from gdpx import config
+from gdpx.core.register import BaseRegister
 
-"""This module aims to offer a unified interface to the computation of descriptors."""
+REGISTER = BaseRegister("describer")
 
-from ..core.register import registers
-
-# ---
-from .interface import DescriberVariable, describe
-registers.variable.register(DescriberVariable)
-registers.operation.register(describe)
-
-# ---
 from .spc import SpcDescriber
-registers.describer.register("spc")(SpcDescriber)
 
+REGISTER.register("spc")(SpcDescriber)
 
-if __name__ == "__main__":
-    ...
+from .coordinate import CoordinateDescriber
+
+REGISTER.register("coordinate")(CoordinateDescriber)
+
+from .coordination import CoordinationDescriber
+
+REGISTER.register("coordination")(CoordinationDescriber)
+
+from .connectivity import ConnectivityDescriber
+
+REGISTER.register("connectivity")(ConnectivityDescriber)
+
+from .dissociative import DissociativeDescriber
+
+REGISTER.register("dissociative")(DissociativeDescriber)
+
+from .formation_energy import FormationEnergyDescriber
+
+REGISTER.register("formation_energy")(FormationEnergyDescriber)
+
+try:
+    from .soap import SoapDescriber
+
+    REGISTER.register("soap")(SoapDescriber)
+except ImportError as err:
+    config._print(f"  {'Describer':<16s} {'`soap`':<16s} -> require `{err.name}`.")
+
+from .cluster import ClusterDescriber
+
+REGISTER.register("cluster")(ClusterDescriber)
+
+from .colvar import ColvarDescriber
+
+REGISTER.register("colvar")(ColvarDescriber)

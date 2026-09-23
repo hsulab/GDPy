@@ -1,17 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
+import abc
 import copy
 import pathlib
 import subprocess
-from typing import NoReturn, Union, List, Callable
+from typing import Callable, Iterable, Optional, Union
 
-from abc import ABC, abstractmethod
-
-from .. import config
+from gdpx import config
 
 
-class AbstractScheduler(ABC):
+def submit_job_script(
+    script_fpath: pathlib.Path, submit_command: str, submit_timeout: float, is_dry_run: bool = False
+) -> str:
+    """Submit job script."""
+    command = f"{submit_command} {script_fpath.name}"
+    if not is_dry_run:
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=script_fpath.parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        errorcode = proc.wait(timeout=submit_timeout)
+        if errorcode:
+            raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
+
+        output = "".join(proc.stdout.readlines())  # type: ignore
+        job_id = output.strip().split()[-1]
+    else:
+        job_id = f"Attempt to submit the job script `{script_fpath.name}` with command `{command}`."
+
+    return job_id
+
+
+class BaseScheduler(abc.ABC):
     """The abstract scheduler that implements common functions.
 
     A scheduler deals with the lifecycle of a job in the queue.
@@ -32,19 +58,19 @@ class AbstractScheduler(ABC):
     hostname: str = "local"
 
     #: A string starts at each option line.
-    PREFIX: str = None
+    PREFIX: str = ""
 
     #: The suffix of a job script.
-    SUFFIX: str = None
+    SUFFIX: str = ""
 
     #: The first line of a script.
-    SHELL: str = None
+    SHELL: str = ""
 
     #: The command used to submit jobs.
-    SUBMIT_COMMAND: str = None
+    SUBMIT_COMMAND: str = ""
 
     #: The command used to check job status.
-    ENQUIRE_COMMAND: str = None
+    ENQUIRE_COMMAND: str = ""
 
     #: Default parameters.
     default_parameters: dict = {}
@@ -52,57 +78,67 @@ class AbstractScheduler(ABC):
     #: Current stored parameters.
     parameters: dict = {}
 
-    #: _script: The path of the job script.
-    _script: Union[str, pathlib.Path] = None
-
     #: The job name.
     _job_name: str = "scheduler"
 
     #: Environment settings for a job.
-    environs: str = None
+    environs: Union[str, list[str]] = ""
+
+    #: Machine-related prefix added before executable (e.g. mpirun).
+    machine_prefix: str = ""
 
     #: Custom commands for a job.
-    user_commands: str = None
+    user_commands: str = ""
 
     #: The tags that a job may have in the queue.
-    running_status: List[str] = []
+    running_status: list[str] = []
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, submit_timeout: float = 10.0, is_dry_run: bool = False, *args, **kwargs):
         """Init an abstract scheduler.
 
         Args:
+            submit_timeout: Timeout for running the submit command.
+            is_dry_run: Whether submit the job (for test).
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
         """
-        # - update params
+        # basic params
+        self.submit_timeout = submit_timeout
+        self.is_dry_run = is_dry_run
+
+        # update params
         self.environs = kwargs.pop("environs", "")
+        self.machine_prefix = kwargs.pop("machine_prefix", "")
         self.user_commands = kwargs.pop("user_commands", "")
 
         self.hostname = kwargs.pop("hostname", "local")
         self.remote_wdir = kwargs.pop("remote_wdir", "./")
 
-        # - make default params
+        # make default params
         self.parameters = self._get_default_parameters()
         # parameters_ = kwargs.pop("parameters", None)
         # if parameters_:
         #    self.parameters.update(parameters_)
         self.parameters.update(kwargs)
 
-        # - update some special keywords
-        #   job_name
+        # Some default settings
+
+        #: The path of the job script.
+        self._script: pathlib.Path = pathlib.Path("./run.script")
 
         return
 
     @property
-    def script(self) -> Union[str, pathlib.Path]:
+    def script(self) -> pathlib.Path:
         """Store the path of the job script."""
 
         return self._script
 
     @script.setter
-    def script(self, script_):
-        self._script = pathlib.Path(script_)
+    def script(self, script: Union[str, pathlib.Path]) -> None:
+        self._script = pathlib.Path(script)
+
         return
 
     @property
@@ -111,7 +147,7 @@ class AbstractScheduler(ABC):
         return self._job_name
 
     @job_name.setter
-    @abstractmethod
+    @abc.abstractmethod
     def job_name(self, job_name_: str):
         self._job_name = job_name_
         # update job name in parameters
@@ -137,6 +173,23 @@ class AbstractScheduler(ABC):
 
         return
 
+    def _convert_environs_to_content(self) -> str:
+        """"""
+        content = "\n\n"
+        if self.environs:
+            if isinstance(self.environs, str):
+                content += self.environs
+            elif isinstance(self.environs, Iterable):
+                for env in self.environs:
+                    content += env.strip() + "\n"
+            else:
+                raise RuntimeError(f"Fail to convert environs `{self.environs}`.")
+        else:
+            ...
+        content += "\n\n"
+
+        return content
+
     def write(self) -> None:
         """Write self to the path of the job script."""
         with open(self.script, "w") as fopen:
@@ -144,27 +197,40 @@ class AbstractScheduler(ABC):
 
         return
 
-    def submit(self) -> str:
+    def submit(self, func_to_execute: Optional[Callable] = None) -> str:
         """Submit job using specific scheduler command and return job id."""
-        command = "{0} {1}".format(self.SUBMIT_COMMAND, self.script.name)
-        proc = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=self.script.parent,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-        )
-        errorcode = proc.wait(timeout=10)  # 10 seconds
-        if errorcode:
-            raise RuntimeError(f"Error in submitting job script {str(self.script)}")
-
-        output = "".join(proc.stdout.readlines())
-        job_id = output.strip().split()[-1]
+        if func_to_execute is None:  # compatible mode
+            assert isinstance(self.script, pathlib.Path)
+            if not self.script.exists():
+                self.write()
+            else:
+                ...
+            job_id = submit_job_script(
+                self.script,
+                submit_command=self.SUBMIT_COMMAND,
+                submit_timeout=self.submit_timeout,
+                is_dry_run=self.is_dry_run,
+            )
+        else:
+            job_id = "local"
+            if self.name == "local":
+                func_to_execute()
+            else:
+                assert isinstance(self.script, pathlib.Path)
+                if not self.script.exists():
+                    self.write()
+                else:
+                    ...
+                job_id = submit_job_script(
+                    self.script,
+                    submit_command=self.SUBMIT_COMMAND,
+                    submit_timeout=self.submit_timeout,
+                    is_dry_run=self.is_dry_run,
+                )
 
         return job_id
 
-    @abstractmethod
+    @abc.abstractmethod
     def is_finished(self) -> bool:
         """Check whether the job is finished.
 
@@ -172,7 +238,7 @@ class AbstractScheduler(ABC):
 
         """
 
-        return
+        ...
 
     def as_dict(self) -> dict:
         """"""

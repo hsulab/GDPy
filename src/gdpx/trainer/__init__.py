@@ -1,48 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
-import itertools
-import pathlib
-from typing import NoReturn, List, Union
 
-import numpy as np
+from gdpx import config
+from gdpx.core.register import BaseRegister
 
-from ase.io import read, write
+REGISTER = BaseRegister("trainer")
 
-from .. import config
-from ..core.register import registers
-from ..utils.command import parse_input_file
+from .deepmd.deepmd import DeepmdTrainer
 
+REGISTER.register(DeepmdTrainer)
 
-""""""
+try:
+    from .deepmd.deepmd_jax import DeepmdJaxTrainer
 
+    REGISTER.register(DeepmdJaxTrainer)
+except ImportError as e:
+    config._print(f"  {'Potential':<16s} {'`deepmd_jax`':<16s} -> require `{e.name}`.")
 
-def run_newtrainer(configuration, directory):
-    """"""
-    config._print(f"{configuration = }")
-    params = parse_input_file(configuration)
+from .nequip import NequipTrainer
 
-    # - create trainer
-    name = params["trainer"].get("name", None)
-    trainer = registers.create(
-        "trainer", name, convert_name=True, **params["trainer"]
-    )
-    trainer.directory = directory
+REGISTER.register(NequipTrainer)
 
-    # - create dataset
-    name = params["dataset"].get("name", None)
-    dataset = registers.create(
-        "dataloader", name, convert_name=True, **params["dataset"]
-    )
+from .mace import MaceTrainer
 
-    # - other options
-    init_model = params.get("init_model", None)
+REGISTER.register(MaceTrainer)
 
-    # TODO: merge below two into one func?
-    trainer.train(dataset, init_model=init_model)
-    trainer.freeze()
+from .reann.beann import BeannTrainer
 
-    return
+REGISTER.register(BeannTrainer)
+
+from .reann.reann import ReannTrainer
+
+REGISTER.register(ReannTrainer)
 
 
 if __name__ == "__main__":
