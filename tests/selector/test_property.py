@@ -13,7 +13,7 @@ from ase.io import read, write
 
 from gdpx.core.register import import_all_modules_for_register, registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.selector.interface import run_selection
+from gdpx.cli.select import run_selection
 
 
 import_all_modules_for_register()
@@ -22,29 +22,19 @@ import_all_modules_for_register()
 def selection_params():
     """"""
     params = dict(
-        selection = [
+        selection=[
             dict(
-                method = "property",
-                properties = dict(
-                    energy = dict(
-                        range = [None, None],
-                        nbins = 20,
-                        sparsify = "filter"
-                    )
-                ),
+                method="property",
+                name="energy",
+                sparsify=dict(method="filter", range=[None, None], nbins=20),
             ),
             dict(
-                method = "property",
-                properties = dict(
-                    energy = dict(
-                        range = [-293., -292.],
-                        nbins = 20,
-                        sparsify = "hist"
-                    )
-                ),
-                number = [4, 1.0],
-                random_seed = 1112,
-            )
+                method="property",
+                name="energy",
+                sparsify=dict(method="hist", range=[-293., -292.], nbins=20),
+                number=[4, 1.0],
+                random_seed=1112,
+            ),
         ]
     )
 
@@ -59,7 +49,7 @@ def test_props_1d(selection_params):
         
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./xxx"
-            _ = run_selection(tmp.name, "./r2.xyz", directory=tmpdirname)
+            _ = run_selection(tmp.name, ["./r2.xyz"], directory=tmpdirname)
             selected_frames = read(pathlib.Path(tmpdirname)/"selected_frames.xyz", ":")
     
     assert len(selected_frames) == 4
@@ -115,7 +105,7 @@ def test_props_2d_axis0(selection_params):
         frames.append(frames_[i*85:(i+1)*85])
     frames = AtomsNDArray(frames)
 
-    selection_params["selection"][1]["axis"] = 0 # hist on axis 0
+    selection_params["selection"][1]["group_by"] = "axis 0" # hist on axis 0
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -180,7 +170,7 @@ def test_props_2dp_axis0(selection_params):
     frames.append(frames_[70:])
     frames = AtomsNDArray(frames)
 
-    selection_params["selection"][1]["axis"] = 0 # hist on axis 0
+    selection_params["selection"][1]["group_by"] = "axis 0" # hist on axis 0
     selector = registers.create("variable", "selector", convert_name=True, **selection_params).value
 
     with tempfile.TemporaryDirectory() as tmpdirname:

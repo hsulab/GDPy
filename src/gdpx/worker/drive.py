@@ -456,7 +456,7 @@ class DriverBasedWorker(BaseWorker):
         """"""
         # Load metadata for previous submitted batches
         database_path = (self.directory / f"_{self.scheduler.name}_jobs.json").resolve()
-        self._print(f"database_path: {database_path.relative_to(pathlib.Path.cwd())}")
+        self._print(f"database_path: {database_path}")
 
         with TinyDB(database_path, indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
