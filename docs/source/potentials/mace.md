@@ -6,35 +6,18 @@ The `mace` provider loads local MACE checkpoints.
 
 ## Installation
 
-From the repository root, install the optional MACE dependencies:
+From the repository root:
 
 ```shell
 python -m pip install -e '.[mace]'
 ```
 
-The extra installs `mace-torch` and PyTorch, including the ASE calculator and
-MACE training code. `mace-torch` is the distribution recommended by the
-[MACE installation guide](https://mace-docs.readthedocs.io/en/latest/guide/installation.html).
+The extra installs `mace-torch` and PyTorch for inference and training,
+including `mace_run_train`. See {doc}`../installation` for CPU/GPU setup,
+verification, and dependency conflicts with other providers.
 
-For CPU execution on Linux or Windows, install the CPU PyTorch build first:
-
-```shell
-python -m pip install 'torch>=1.12,!=2.4.1' --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e '.[mace]'
-```
-
-For NVIDIA GPU execution, first install the appropriate CUDA-enabled PyTorch
-build using the [PyTorch installation selector](https://pytorch.org/get-started/locally/),
-then install `.[mace]`. The same extra serves CPU and GPU environments.
-Check the installation with:
-
-```shell
-python -c "from mace.calculators import MACECalculator; import torch; print('GPU available:', torch.cuda.is_available())"
-mace_run_train --help
-```
-
-For LAMMPS, supply a compatible exported model and a binary with the MACE pair
-style; the extra does not install LAMMPS.
+LAMMPS requires a separate binary with the MACE pair style and a compatible
+exported model.
 
 ## Configuration
 

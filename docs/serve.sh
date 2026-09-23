@@ -16,7 +16,7 @@ if ! command -v conda >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! conda run -n catorch3 python -c "import myst_parser, sphinx, sphinx_autobuild" >/dev/null 2>&1; then
+if ! conda run -n catorch3 python -c "import myst_parser, sphinx, sphinx_autobuild, sphinx_copybutton, sphinx_rtd_theme" >/dev/null 2>&1; then
     echo "The catorch3 environment is missing the documentation dependencies." >&2
     echo "Install them once with:" >&2
     echo "  conda run -n catorch3 python -m pip install -r $docs_dir/requirements.txt" >&2

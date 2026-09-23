@@ -6,14 +6,15 @@ The `mattersim` provider loads MatterSim pretrained models and local checkpoints
 
 ## Installation
 
-Install MatterSim in the same environment as gdpx, from the repository root:
+From the repository root:
 
 ```shell
-python -m pip install '.[mattersim]'
+python -m pip install -e '.[mattersim]'
 ```
 
-PyTorch is also required and is installed by the standard MatterSim package.
-gdpx automatically uses CUDA when it is available and otherwise uses the CPU.
+The extra installs MatterSim and its PyTorch dependencies. See
+{doc}`../installation` for the recommended GPU installation and verification.
+gdpx uses CUDA when available and otherwise uses CPU.
 
 ## Configuration
 

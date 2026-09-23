@@ -6,20 +6,15 @@ The `tace` provider loads TACE checkpoints and foundation models.
 
 ## Installation
 
-From the gdpx repository root, in the environment used to run gdpx:
+From the repository root (Git is required):
 
 ```shell
-conda activate catorch3
 python -m pip install -e '.[tace]'
-# Both optional providers can coexist:
-python -m pip install -e '.[tace,mattersim]'
-python -m pip check
 ```
 
-The TACE extra pins upstream GitHub commit
-`90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896` (0.2.2), which uses
-`TACEAseCalc(model=...)`. Git and network access are required for installation.
-The base gdpx installation does not require TACE, MatterSim, or PyTorch.
+The extra installs the upstream commit pinned in `pyproject.toml`. See
+{doc}`../installation` for the recommended combined GPU installation and
+verification.
 
 ## Configuration
 
