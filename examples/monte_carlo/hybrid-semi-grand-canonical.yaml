@@ -1,0 +1,54 @@
+method: hybrid_monte_carlo
+random_seed: 1112
+builder:
+  method: read_stru
+  fname: examples/monte_carlo/assets/cu16ni16.xyz
+operators:
+  - method: swap_type
+    particles: [Cu, Ni]
+    chempots: [0.0, 0.0]
+    temperature: 1200.0
+    skip_distance_check: true
+    max_random_attempts: 1
+procedure:
+  - worker_md
+  - [monte_carlo, worker_mc]
+num_mcmoves: 5
+convergence:
+  steps: 5
+ckpt_period: 1
+dump_period: 1
+should_retry: false
+# Initial evaluation and MC trials use the same EMT single-point runtime.
+runtime: &single_point
+  schema_version: 3
+  potential:
+    provider: emt
+  executor:
+    provider: ase
+    method: spc
+    parameters: {}
+  options:
+    worker: single
+extra_workers:
+  mc: *single_point
+  md:
+    schema_version: 3
+    potential:
+      provider: emt
+    executor:
+      provider: ase
+      method: md
+      parameters:
+        ensemble: nvt
+        temp: 1200.0
+        timestep: 1.0
+        steps: 20
+        dump_period: 5
+        velocity_seed: 7
+        random_seed: 7
+        remove_rotation: false
+        controller:
+          name: langevin
+          params:
+            friction: 0.01

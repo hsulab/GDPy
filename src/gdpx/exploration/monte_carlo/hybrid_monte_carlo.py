@@ -259,13 +259,8 @@ class HybridMonteCarlo(MonteCarlo):
         # existing flat serialization until that method adopts the shared schema.
         d = {
             "method": "hybrid_monte_carlo",
-            "builder": recipe["builder"],
-            "worker": common["runtime"],
-            "operators": recipe["operators"],
-            "dump_period": recipe["dump_period"],
-            "ckpt_period": recipe["ckpt_period"],
-            "convergence": recipe["convergence"],
-            "random_seed": recipe["random_seed"],
+            **recipe,
+            "runtime": common["runtime"],
         }
         d.update(
             {

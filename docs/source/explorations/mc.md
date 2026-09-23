@@ -31,6 +31,10 @@ use these semi-grand/grand-canonical demos as validated equilibrium samplers.
 
 The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands
 for canonical, semi-grand-canonical, and grand-canonical MC with single-point energies.
+The {doc}`hybrid MC examples <hmc/examples/index>` combine short EMT molecular
+dynamics segments with displacement or identity-change MC blocks. Their guide
+covers procedure configuration, the three runtime roles, cycle-level output,
+and restart behaviour.
 
 ```{toctree}
 :maxdepth: 2

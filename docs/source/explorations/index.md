@@ -61,6 +61,8 @@ See {doc}`Monte Carlo <mc>` for canonical, semi-grand-canonical, and grand-canon
 The guide covers displacement, identity-change, and insertion/removal moves,
 chemical potentials, output inspection, restart behaviour, and current
 limitations of the ensemble sampling rules.
+For alternating MD and MC blocks, see the {doc}`Hybrid Monte Carlo guide
+<hmc>`.
 
 ## global optimisation
 
