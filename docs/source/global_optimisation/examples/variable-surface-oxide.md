@@ -19,9 +19,10 @@ composition:
 ```
 
 The quoted ranges include both endpoints, so every initial or completion
-candidate contains one to four added Cu atoms and one to four O atoms. Setting
-`population.name: variable` makes the population manager compare and select
-candidates across these different compositions.
+candidate contains one to four added Cu atoms and one to four O atoms. The
+shared population retains candidates across these compositions automatically.
+Mutation selects from the full retained pool; crossover, when enabled, selects
+parents compatible with its operator.
 
 The `exchange` mutation inserts or removes one independently tagged Cu or O
 atom. Its `num_min_max` entries follow the order in `species` and enforce the

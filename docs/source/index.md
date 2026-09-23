@@ -114,6 +114,7 @@ operators <explorations/operators/index>
 :maxdepth: 4
 :titlesonly:
 
+overview <global_optimisation/index>
 global_optimisation/genetic-algorithm
 global_optimisation/basin_hopping
 global_optimisation/population

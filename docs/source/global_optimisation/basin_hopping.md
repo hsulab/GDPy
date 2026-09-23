@@ -7,12 +7,12 @@ with `gdp --runtime <runtime.yaml> explore <exploration.yaml>`, placing
 `--runtime` before `explore`. To compare potentials, keep the exploration file
 and select another suitable runtime in a new output directory.
 
-`method: basin_hopping` runs the population-based search formerly named
+`method: global_optimisation` with `strategy.method: basin_hopping` runs the population-based search formerly named
 `concurrent_hopping`. It selects starting structures for hopping chains,
 evaluates candidates using execution workers, and ranks them using the search
-objective. It inherits directly from `BaseExploration`, independently of MC.
+objective. It inherits `PopulationBasedExploration`, independently of MC.
 
-Basin hopping reuses the {ref}`sampling-operators` documented under Canonical Sampling. Configure those same moves in `recipe.operators`. With a minimization
+Basin hopping reuses the {ref}`sampling-operators` documented under Canonical Sampling. Configure those same moves in `strategy.operators`. With a minimization
 runtime, BH relaxes valid trials before the chain's acceptance decision.
 
 ```{toctree}
@@ -26,16 +26,18 @@ configuration. The recipe uses these settings:
 
 - `population`: `retained_size`, named `builders`, `initial` allocations,
   `generation.total_size`, comparator, and extinction settings.
-- `operators`: weighted moves; see {ref}`sampling-operators` for configuration and {ref}`bh-operator-logs` for move logs.
-- `num_mcmoves`: number of proposals per candidate chain.
-- `selection.replace`: sample chain starts with replacement; defaults to `false`.
+- `strategy.operators`: weighted moves; see {ref}`sampling-operators` for configuration and {ref}`bh-operator-logs` for move logs.
+- `strategy.steps_per_chain`: attempted proposals per chain per generation; a non-negative integer.
+  Rejected and invalid proposals count; the starting structure does not. The
+  progress header labels this value `steps/chain`.
+- `strategy.selection.replace`: sample chain starts with replacement; defaults to `false`.
 - `convergence.generation`: final generation number; defaults to `1`.
 - `objective`: energy or formation-energy ranking, with chemical potentials
   for the latter.
 
 By default, generation 0 generates and minimizes the initial structures, then
 selects chain starts once for generation 1. Each chain advances through its own
-accept/reject decisions for `num_mcmoves` proposals. Omit `convergence` to use
+accept/reject decisions for `steps_per_chain` proposals. Omit `convergence` to use
 this default. Set `convergence.generation: 0` for initialization only; larger
 values add population reselection between search generations.
 
@@ -60,7 +62,8 @@ See {ref}`exploration-output-layout` for output directories and restart metadata
 ## Chain-start selection
 
 ```yaml
-recipe:
+strategy:
+  method: basin_hopping
   selection:
     replace: false
 ```
@@ -107,7 +110,7 @@ rules remain stored but are ineligible for selection.
 
 ## Extinction and replacement chains
 
-Configure extinction rules with `recipe.population.thanos`. Every evaluated
+Configure extinction rules with `population.thanos`. Every evaluated
 trial receives an extinction flag after its MC acceptance decision, and remains
 in the database regardless of either result.
 
@@ -119,12 +122,12 @@ in the database regardless of either result.
 
 After all results in the round are stored, BH refreshes the retained population
 from eligible database minima, including discoveries from that round. It selects
-replacement starts with the existing fitness weights and `selection.replace`
+replacement starts with the existing fitness weights and `strategy.selection.replace`
 policy described above. Earlier
 valid states remain eligible, even if a later trial terminated their segment.
 
 Replacement starts reuse their stored energies and begin on the next round.
-The terminating trial consumes a move: replacement never resets `num_mcmoves`.
+The terminating trial consumes a move: replacement never resets `steps_per_chain`.
 No replacement is selected after the final round. If the replacement pool is
 empty, the search terminates as extinct. Invalid proposals do not trigger this
 mechanism, and the Cu₈ demo does not enable extinction rules.

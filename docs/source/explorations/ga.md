@@ -67,13 +67,9 @@ $ gdp -d exp -r runtime.yaml explore ./config.yaml
 
 The GA input file `./config.yaml` uses the common global-optimisation layout:
 
-- method: This must be `genetic_algorithm`.
+- method: This must be `global_optimisation`; set `strategy.method: genetic_algorithm`.
 
-- recipe:
-
-  > Contains the random seed, population generator, and all GA-specific settings.
-
-- recipe.population.builders:
+- population.builders:
 
   > Define named builders that can initialise the population and complete later
   > generations. See {ref}`random-builders` for more details.
@@ -84,7 +80,7 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
 
 gdpx stores explored structures and restart metadata in `candidates.db` inside
 the exploration directory; its name is not configurable. The remaining entries
-below are in the `recipe` section:
+below are top-level settings, except for the algorithm-specific `strategy` section:
 
 - objective: Optional search target. It defaults to `energy`, so the section can
   be omitted for ordinary energy minimisation. Composition-dependent targets
@@ -118,11 +114,12 @@ below are in the `recipe` section:
   >
   > - generation:
   >
-  >   > `total_size` is the target size. Candidates are attempted in order:
-  >   > `reproduction`, direct `mutation`, then `completion`. Completion builders
+  >   > `total_size` is the target size. The strategy attempts candidates in order:
+  >   > `strategy.reproduction`, direct `strategy.mutation`, then
+  >   > `strategy.completion`. Completion builders
   >   > fill the actual deficit according to `builder_proportions`.
 
-- operators:
+- strategy.operators:
 
   > - crossover:
   >
@@ -133,52 +130,53 @@ below are in the `recipe` section:
   >   > Each operator can be selected based on relative probabilities.
 
 ```yaml
-method: genetic_algorithm
-recipe:
-  random_seed: 127
-  population:
-    comparator:
-      dE: 0.015
-      method: interatomic_distance
-    preserve_fragments: false
-    builders:
-      surface:
-        method: random_surface
-        composition:
-          Cu: 4
-        region:
-          method: lattice
-          origin: [0., 0., 7.]
-          cell: [11.174, 0., 0., 0., 8.413, 0., 0., 0., 6.]
-        substrates: ./sub.xyz
-        covalent_ratio: [0.8, 2.0]
-    reference_builder: surface
-    initial:
-      total_size: 5
-      builder_allocations:
-        - builder: surface
-          size: 5
-    generation:
-      total_size: 5
-      reproduction:
-        size: 3
-        mutation_probability: 0.8
-      mutation:
-        size: 0
-      completion:
-        builder_proportions:
-          - builder: surface
-            proportion: 1.0
+method: global_optimisation
+random_seed: 127
+population:
+  comparator:
+    dE: 0.015
+    method: interatomic_distance
+  preserve_fragments: false
+  builders:
+    surface:
+      method: random_surface
+      composition:
+        Cu: 4
+      region:
+        method: lattice
+        origin: [0., 0., 7.]
+        cell: [11.174, 0., 0., 0., 8.413, 0., 0., 0., 6.]
+      substrates: ./sub.xyz
+      covalent_ratio: [0.8, 2.0]
+  reference_builder: surface
+  initial:
+    total_size: 5
+    builder_allocations:
+      - builder: surface
+        size: 5
+  generation:
+    total_size: 5
+convergence:
+  generation: 2
+strategy:
+  method: genetic_algorithm
   operators:
     crossover:
       method: cut_and_splice
     mutation:
-    - method: rattle
-      probability: 1.0
-    - method: mirror
-      probability: 1.0
-  convergence:
-    generation: 2
+      - method: rattle
+        probability: 1.0
+      - method: mirror
+        probability: 1.0
+  reproduction:
+    size: 3
+    mutation_probability: 0.8
+  mutation:
+    size: 0
+  completion:
+    builder_proportions:
+      - builder: surface
+        proportion: 1.0
 ```
 
 ## Application

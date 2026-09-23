@@ -1,36 +1,37 @@
-method: basin_hopping
-recipe:
-  random_seed: 7
-  population:
-    thanos:
-      name: restraints
-      restraints:
-        - type: contact_count
-          pair: [O, O]
-          scope: all_atoms
-          distance: {min: 0.0, max: 1.6}
-          max: 0
-    initial:
-      total_size: 4
-      builder_allocations:
-        - builder: random
-          size: 4
-    generation:
-      total_size: 2
-    comparator:
-      method: interatomic_distance
-    builders:
-      random:
-        method: random_structure_improved
-        composition:
-          Cu: 4
-          O: 4
-        box: [20.0, 20.0, 20.0]
-        region:
-          method: sphere
-          origin: [10.0, 10.0, 10.0]
-          radius: 3.0
-        covalent_ratio: [0.6, 2.0]
+method: global_optimisation
+random_seed: 7
+population:
+  thanos:
+    name: restraints
+    restraints:
+      - type: contact_count
+        pair: [O, O]
+        scope: all_atoms
+        distance: {min: 0.0, max: 1.6}
+        max: 0
+  initial:
+    total_size: 4
+    builder_allocations:
+      - builder: random
+        size: 4
+  generation:
+    total_size: 2
+  comparator:
+    method: interatomic_distance
+  builders:
+    random:
+      method: random_structure_improved
+      composition:
+        Cu: 4
+        O: 4
+      box: [20.0, 20.0, 20.0]
+      region:
+        method: sphere
+        origin: [10.0, 10.0, 10.0]
+        radius: 3.0
+      covalent_ratio: [0.6, 2.0]
+strategy:
+  method: basin_hopping
   operators:
     - method: rattle
       particles: [Cu, O]
@@ -40,4 +41,4 @@ recipe:
       covalent_ratio: [0.6, 2.0]
       max_random_attempts: 100
       probability: 1.0
-  num_mcmoves: 8
+  steps_per_chain: 8

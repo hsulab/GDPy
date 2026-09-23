@@ -6,7 +6,7 @@ Rearrange two particle types while preserving their total counts.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or basin hopping,
+Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
 or under top-level `operators` for hybrid MC:
 
 ```yaml

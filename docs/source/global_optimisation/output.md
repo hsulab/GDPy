@@ -49,12 +49,13 @@ moved or resumed by the new layout.
 A top-level `broadcast` mapping expands one recipe into independent searches:
 
 ```yaml
-method: basin_hopping
+method: global_optimisation
 broadcast:
   population.builders.random.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
-recipe:
+strategy:
+  method: basin_hopping
   # Full builder, population, operators, and convergence settings.
 ```
 
@@ -71,8 +72,8 @@ writes to `expo.00` and Cu₄Ni₄ to `expo.01`. Submit
 `sbatch examples/global_optimisation/two_explorations.slurm` to run both within
 one allocation; adapt environment/account/partition settings to your cluster.
 
-Broadcast keys are recipe-relative dotted paths, including numeric list indices
-such as `operators.0.temperature`. Each value is a nonempty list of alternatives;
+Broadcast keys are dotted paths into top-level search settings, including numeric
+list indices such as `strategy.operators.0.temperature`. Each value is a nonempty list of alternatives;
 an alternative replaces the entire target value, including dictionaries or lists.
 Parents must exist, but final mapping keys may introduce optional settings.
 Invalid paths, empty alternatives, and overlapping paths are rejected.

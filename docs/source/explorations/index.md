@@ -38,19 +38,20 @@ The exploration layer owns proposal state, convergence, and selection. The
 execution layer owns materialization, job submission, restart, and result
 collection.
 
-Global-optimisation inputs use a common top-level architecture. The `recipe`
-contains the random seed and settings specific to the selected method; runtime
-and optional scheduler configuration remain separate execution concerns.
+Global-optimisation inputs use top-level `population` and `strategy` sections.
+The strategy selects GA or BH and owns its operators and generation policies.
+Runtime and optional scheduler configuration remain separate execution concerns.
+MC and simulated annealing retain their `recipe` wrappers.
 
 ```yaml
-method: genetic_algorithm
-recipe:
-  random_seed: 7
-  population:
-    builders:
-      random: {}
-  # remaining method-specific settings
+method: global_optimisation
 runtime: {}
+random_seed: 7
+population:
+  builders:
+    random: {}
+strategy:
+  method: genetic_algorithm
 ```
 
 Omitting the top-level `scheduler` also runs the exploration itself directly
@@ -66,6 +67,10 @@ For alternating MD and MC blocks, see the {doc}`Hybrid Monte Carlo guide
 <hmc>`.
 
 ## global optimisation
+
+Start with the {doc}`global optimisation overview <../global_optimisation/index>`
+for the shared configuration and a runnable demo using either a separate
+`runtime.yaml` or a runtime embedded in `expo.yaml`.
 
 Use {doc}`genetic algorithms <../global_optimisation/genetic-algorithm>` or
 {doc}`basin hopping <../global_optimisation/basin_hopping>` to search for low-energy

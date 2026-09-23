@@ -10,7 +10,8 @@ execution, invalid-proposal handling, and result storage.
 
 ## Configuration
 
-For MC and basin hopping, configure operators under `recipe.operators`.
+For MC, configure operators under `recipe.operators`; for basin hopping use
+`strategy.operators`.
 Hybrid MC uses a top-level `operators` list. Each operator page shows an entry
 to put in that list. For example, this MC/BH fragment displaces a copper atom:
 

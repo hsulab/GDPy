@@ -78,7 +78,7 @@ as restart events; this demo has no extinction rules. Export works during a run
 up to its last committed round and after generation finalization.
 
 The small population and ten-move chains keep this example short. Increase
-`num_mcmoves` for longer chains, or adjust the initial population and number of
+`steps_per_chain` for longer chains, or adjust the initial population and number of
 chains for a broader search. Setting `convergence.generation` above 1 additionally
 reselects chain starts from the accumulated minima between search generations.
 The demonstration does not establish the global minimum of Cu₈.

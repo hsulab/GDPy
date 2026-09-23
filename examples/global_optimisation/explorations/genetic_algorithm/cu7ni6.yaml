@@ -1,41 +1,42 @@
-method: genetic_algorithm
-recipe:
-  random_seed: 31
-  population:
-    comparator:
-      method: interatomic_distance
-    builders:
-      random:
-        method: random_structure_improved
-        composition:
-          Cu: 7
-          Ni: 6
-        box: [20.0, 20.0, 20.0]
-        region:
-          method: sphere
-          origin: [10.0, 10.0, 10.0]
-          radius: 3.0
-        covalent_ratio: [0.7, 2.0]
-    initial:
-      total_size: 4
-      builder_allocations:
-        - builder: random
-          size: 4
-    generation:
-      total_size: 2
-      reproduction:
-        size: 0
-      mutation:
-        size: 2
-      completion:
-        builder_proportions:
-          - builder: random
-            proportion: 1.0
+method: global_optimisation
+random_seed: 31
+population:
+  comparator:
+    method: interatomic_distance
+  builders:
+    random:
+      method: random_structure_improved
+      composition:
+        Cu: 7
+        Ni: 6
+      box: [20.0, 20.0, 20.0]
+      region:
+        method: sphere
+        origin: [10.0, 10.0, 10.0]
+        radius: 3.0
+      covalent_ratio: [0.7, 2.0]
+  initial:
+    total_size: 4
+    builder_allocations:
+      - builder: random
+        size: 4
+  generation:
+    total_size: 2
+convergence:
+  generation: 1
+strategy:
+  method: genetic_algorithm
   operators:
     mutation:
       method: swap
       particles: [Cu, Ni]
       swap_ratio: 0.2
       covalent_ratio: [0.7, 2.0]
-  convergence:
-    generation: 1
+  reproduction:
+    size: 0
+  mutation:
+    size: 2
+  completion:
+    builder_proportions:
+      - builder: random
+        proportion: 1.0

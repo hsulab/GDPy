@@ -20,11 +20,18 @@ Use the package that owns the concept:
 
 ## Basin hopping and shared moves
 
-`method: basin_hopping` now selects the former **concurrent hopping** search.
-Change `method: concurrent_hopping` to `method: basin_hopping` and keep its
-recipe, including `population`, `operators`, and `num_mcmoves`. Configure
+GA and BH now use `method: global_optimisation` and a `strategy.method` of
+`genetic_algorithm` or `basin_hopping`. Remove the `recipe` wrapper: keep shared
+population, objective, convergence, seed, and archive settings at the top level.
+Move operators and method-specific settings under `strategy`. GA generation
+policies move from `population.generation` to `strategy`; `population.name` is
+removed because crossover compatibility is automatic. See
+{doc}`global_optimisation/population` for the complete migration table.
+
+The former concurrent-hopping search is the `basin_hopping` strategy. Configure
 initialization and batched hop calculations with the top-level `runtime`;
-`recipe.mcworker` is no longer accepted.
+`recipe.mcworker` is no longer accepted. MC and simulated annealing continue to
+use their existing `recipe` wrappers.
 The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
 
 The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations
@@ -99,7 +106,7 @@ schema-1 compute plans are not accepted.
 ## Global-optimisation objectives
 
 Genetic algorithms and concurrent hopping configure search scoring with the
-recipe-level `objective` mapping. The former names are not accepted:
+`objective` mapping (top-level for global optimisation; inside `recipe` for MC). The former names are not accepted:
 
 - `property` is now `objective`.
 - `chempot` is now `chemical_potentials`.

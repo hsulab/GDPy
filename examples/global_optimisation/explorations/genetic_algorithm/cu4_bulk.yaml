@@ -1,40 +1,34 @@
-method: genetic_algorithm
-recipe:
-  random_seed: 29
-  population:
-    comparator:
-      method: interatomic_distance
-    builders:
-      random:
-        method: random_bulk
-        composition:
-          Cu: 4
-        box:
-          volume: 48.0
-          bounds:
-            phi: [60.0, 120.0]
-            chi: [60.0, 120.0]
-            psi: [60.0, 120.0]
-            a: [3.0, 6.0]
-            b: [3.0, 6.0]
-            c: [3.0, 6.0]
-        covalent_ratio: [0.7, 2.0]
-    initial:
-      total_size: 4
-      builder_allocations:
-        - builder: random
-          size: 4
-    generation:
-      total_size: 2
-      reproduction:
-        size: 2
-        mutation_probability: 0.5
-      mutation:
-        size: 0
-      completion:
-        builder_proportions:
-          - builder: random
-            proportion: 1.0
+method: global_optimisation
+random_seed: 29
+population:
+  comparator:
+    method: interatomic_distance
+  builders:
+    random:
+      method: random_bulk
+      composition:
+        Cu: 4
+      box:
+        volume: 48.0
+        bounds:
+          phi: [60.0, 120.0]
+          chi: [60.0, 120.0]
+          psi: [60.0, 120.0]
+          a: [3.0, 6.0]
+          b: [3.0, 6.0]
+          c: [3.0, 6.0]
+      covalent_ratio: [0.7, 2.0]
+  initial:
+    total_size: 4
+    builder_allocations:
+      - builder: random
+        size: 4
+  generation:
+    total_size: 2
+convergence:
+  generation: 1
+strategy:
+  method: genetic_algorithm
   operators:
     crossover:
       method: cut_and_splice
@@ -44,5 +38,12 @@ recipe:
       - method: strain
         probability: 0.5
         stddev: 0.15
-  convergence:
-    generation: 1
+  reproduction:
+    size: 2
+    mutation_probability: 0.5
+  mutation:
+    size: 0
+  completion:
+    builder_proportions:
+      - builder: random
+        proportion: 1.0

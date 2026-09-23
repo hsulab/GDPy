@@ -7,6 +7,30 @@ population: the best distinct, eligible candidates retained from the search
 history for parent selection. The comparator determines whether candidates are
 similar; extinction rules exclude candidates that are no longer eligible.
 
+## Shared search configuration
+
+Both algorithms use `method: global_optimisation`. Search settings are top-level;
+there is no `recipe` wrapper. `population` describes initialization and the
+retained candidate pool, while `strategy.method` selects `genetic_algorithm` or
+`basin_hopping`. `objective`, `convergence`, `random_seed`, and `use_archive` are
+shared search settings. Calculation `runtime` and exploration `scheduler` remain
+separate top-level execution settings.
+
+GA puts `operators`, `reproduction`, `mutation`, `completion`, and optional
+`substrate` compatibility settings inside `strategy`. BH puts `operators`,
+`steps_per_chain`, and `selection` there. Switching strategies does not require
+changing the population schema. See the complete Cu₈ examples for both methods.
+
+Crossover compatibility follows the operator automatically. Composition-preserving
+operators require matching ordered atomic species and tags, plus the configured
+substrate tolerance. The first parent is fitness-weighted among candidates with
+at least one compatible partner; the second is fitness-weighted among its
+compatible partners. Operators explicitly supporting variable composition may
+pair different compositions. Missing capability flags default to composition
+preservation. If no pair is compatible, GA uses its single-parent mutation
+fallback and builder completion. Standalone mutations select from the full pool.
+There is no composition-group balancing or population-wide constant/variable mode.
+
 ## Three sizes
 
 | Setting | Meaning |
@@ -19,9 +43,10 @@ All three sizes must be positive integers, but need not be equal or ordered.
 `retained_size` defaults to `generation.total_size`. The retained pool may be
 smaller than its capacity if too few distinct candidates are available.
 
-BH samples chain starts with replacement, weighted by fitness. Multiple chains
-can therefore start from the same retained candidate, and each chain evolves
-independently. An empty surviving pool ends the search as extinct. GA uses its
+BH samples chain starts weighted by fitness, without replacement when enough
+candidates are available. Otherwise it samples with replacement. Set
+`strategy.selection.replace: true` to always allow replacement. Each chain
+evolves independently. An empty surviving pool ends the search as extinct. GA uses its
 own reproduction and mutation policies to produce the requested generation.
 
 ## Builders and initialization
@@ -74,11 +99,11 @@ uses pairing participation; BH does not. Equal scores receive equal base fitness
 before history weighting. Optional `population.thanos` callbacks apply extinction
 rules in both methods.
 
-GA keeps `generation.reproduction`, `generation.mutation`, and
-`generation.completion`. BH requires only `generation.total_size`; its move
-operators and `num_mcmoves` define the trials along each chain. Every evaluated
+GA uses `strategy.reproduction`, `strategy.mutation`, and
+`strategy.completion`. BH requires only `generation.total_size`; its move
+operators and `steps_per_chain` define the trials along each chain. Every evaluated
 trial minimum enters the database, including rejected trials. A BH generation
-therefore adds up to `generation.total_size × num_mcmoves` evaluated candidates;
+therefore adds up to `generation.total_size × steps_per_chain` evaluated candidates;
 invalid proposals add none. Population refresh considers all eligible stored
 minima at the start of the next generation.
 
@@ -86,6 +111,14 @@ minima at the start of the next generation.
 
 | Previous setting | Replacement |
 | --- | --- |
+| `method: genetic_algorithm` or `method: basin_hopping` | `method: global_optimisation` and `strategy.method` |
+| `recipe` wrapper | Move its shared settings to the top level |
+| `recipe.operators` | `strategy.operators` |
+| GA `population.generation.reproduction/mutation/completion` | Corresponding sections under `strategy` |
+| GA `population.substrate` | `strategy.substrate` |
+| GA `population.name` | Remove; crossover compatibility is automatic |
+| BH `recipe.num_mcmoves` or `strategy.num_mcmoves` | `strategy.steps_per_chain` |
+| BH `recipe.selection` | `strategy.selection` |
 | BH `population.initial_size` | `population.initial.total_size` |
 | BH `population.population_size` | `population.retained_size` |
 | BH `population.generation_size` | `population.generation.total_size` |
@@ -101,7 +134,9 @@ migrated BH runs need not reproduce old trajectories bit for bit.
 
 ## Population and algorithm policies
 
-GA and BH use the same `gdpx.exploration.population.Population` class. Each
+GA and BH inherit `gdpx.exploration.population.PopulationBasedExploration` for
+common setup and serialization, and use the same
+`gdpx.exploration.population.Population` class. Each
 engine exposes the retained state as `engine.population`, while
 `engine.population_config` owns configuration, builders, initialization, and
 serialization.
@@ -115,11 +150,10 @@ structures.
 
 Selection belongs to each algorithm:
 
-- GA's `GeneticParentSelector` selects one parent or a distinct pair, applies
-  pairing-participation penalties, and groups candidates by composition when
-  `population.name: variable` is configured. `GeneticGenerationManager` handles
+- GA's `GeneticParentSelector` selects one parent or a distinct compatible pair and applies
+  pairing-participation penalties. `GeneticGenerationManager` handles
   reproduction, mutation, compatibility checks, and builder completion.
-- BH's `HoppingStartSelector` selects chain starts with replacement. The BH
+- BH's `HoppingStartSelector` selects chain starts using `strategy.selection.replace`. The BH
   engine runs the moves, relaxation, and acceptance steps independently for
   each selected start.
 
@@ -161,3 +195,10 @@ population is refreshed after the complete round to select a replacement for the
 remaining moves. Rejected extinct trials only affect population eligibility.
 Replacement choices and all selection RNG streams are included in the round
 checkpoint; interruption cannot redraw a committed replacement.
+
+The unified configuration keeps database and checkpoint formats unchanged. Migrate
+saved submission inputs as well as user configurations before resuming old runs.
+Committed candidates and parent choices are reused. Automatic compatible-parent
+selection changes GA sampling and RNG consumption, so future choices may differ
+from earlier versions even with the same seed. Within this implementation,
+interrupted and uninterrupted runs remain reproducible.
