@@ -86,6 +86,14 @@ does not inherit from MC.
 
 ## Inspect the results
 
+Terminal output groups setup, initialization, each MC step, and completion in
+boxes. Worker evaluations appear inside the corresponding initialization or
+step box. Each step reports its operator, acceptance decision, previous and
+trial energies, current energy, and atom count. Waiting evaluations and invalid
+proposals are labelled separately; an invalid proposal also reports whether
+the step will be retried. Use `gdp --debug ...` for detailed proposal diagnostics.
+Restart messages identify the checkpoint or pending step being resumed.
+
 Each output directory contains:
 
 - `mc.xyz`: the initial state followed by the current state after each completed

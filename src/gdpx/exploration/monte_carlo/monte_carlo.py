@@ -1,11 +1,13 @@
 import copy
 import enum
 import shutil
+from contextlib import nullcontext
 
 import numpy as np
 from ase import Atoms, data
 from ase.io import read, write
 
+from gdpx.core.output import quiet_logging
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
@@ -16,6 +18,7 @@ from ..checkpoint import load_data, save_data, publish_snapshot, read_snapshot, 
 from ..sampling.moves.operator import BaseMCOperator
 from ..sampling import parse_operators
 from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from .output import mc_box, report_outcome, report_setup, report_status
 
 """This module tries to offer a base class for all MonteCarlo-like methods.
 """
@@ -110,9 +113,18 @@ class MonteCarlo(BaseExploration):
         return
 
     def _init_structure(self):
+        with mc_box("initialization") as box:
+            ready = self._evaluate_initial_structure()
+            if ready:
+                box.line(f"initial energy [eV]: {self.energy_stored:.6f} | atoms: {len(self.atoms)}")
+            else:
+                box.line("status: waiting for initial evaluation")
+            return ready
+
+    def _evaluate_initial_structure(self):
         """Initialise the input structure.
 
-        Set proper tags and minimise the structure. Prepare `self.atoms`,
+        Set proper tags and evaluate the structure. Prepare `self.atoms`,
         `self.energy_stored`, and `self.start_step`.
 
         """
@@ -130,8 +142,8 @@ class MonteCarlo(BaseExploration):
         else:
             self._print("set attached tags from the structure...")
 
-        # Run minimisation before any MC steps
-        self._print("===== MonteCarlo Initial Minimisation =====")
+        # Evaluate with the selected runtime before any MC steps.
+        self._print("===== MonteCarlo Initial Evaluation =====")
         # TODO: atoms lost tags in optimisation, and may move this part to driver?
         curr_tags = self.atoms.get_tags()
 
@@ -187,6 +199,12 @@ class MonteCarlo(BaseExploration):
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
+        # Subclasses such as hybrid MC still own their procedure-level output.
+        logging_context = quiet_logging() if type(self)._run is MonteCarlo._run else nullcontext()
+        with logging_context:
+            return self._run_with_worker(*args, **kwargs)
+
+    def _run_with_worker(self, *args, **kwargs):
         self._validate_calculation_layout()
         super().run(*args, **kwargs)
 
@@ -225,6 +243,7 @@ class MonteCarlo(BaseExploration):
             for l in convert_blmin_to_str(op.blmin).split("\n"):
                 self._print("  " + l)
         self._print(f"normalised probabilities {self.op_probs}")
+        report_setup(self.operators, self.op_probs, self.convergence["steps"], self.random_seed)
 
         # NOTE: Something about statmech
         # Check if operators' regions are consistent
@@ -253,6 +272,7 @@ class MonteCarlo(BaseExploration):
                 self.energy_stored = pending_data["energy"]
                 self.start_step = pending_data["context"]["step"] - 1
                 step_converged = True
+                report_status("resume", f"pending evaluation at step {self.start_step + 1}")
             elif not self._verify_checkpoint():
                 step_converged = self._init_structure()
             else:
@@ -270,10 +290,12 @@ class MonteCarlo(BaseExploration):
             while True:
                 # -- check exit-loop conditions
                 if curr_step > self.convergence["steps"]:
-                    self._print("Monte Carlo reaches the maximum step.")
+                    report_status("complete", f"step budget reached: {self.convergence['steps']} | "
+                                  f"trajectory: {self.directory / self.TRAJ_NAME}")
                     break
                 if (self.directory / MC_EARLYSTOP_FNAME).exists():
-                    self._print("Monte Carlo reaches the earlystopping.")
+                    report_status("early stopped", f"stopped before step {curr_step} | "
+                                  f"trajectory: {self.directory / self.TRAJ_NAME}")
                     break
                 # -- run step
                 step_state = self._irun(curr_step)
@@ -300,11 +322,16 @@ class MonteCarlo(BaseExploration):
                 else:
                     raise Exception(f"{step_state} should not happen.")
         else:
-            self._print("Monte Carlo is converged.")
+            status = "early stopped" if (self.directory / MC_EARLYSTOP_FNAME).exists() else "complete"
+            report_status(status, f"existing run | trajectory: {self.directory / self.TRAJ_NAME}")
 
         return
 
     def _irun(self, istep: int) -> MCStepState:
+        with mc_box(f"step {istep}/{self.convergence['steps']}") as box:
+            return self._run_trial(istep, box)
+
+    def _run_trial(self, istep, box) -> MCStepState:
         """Run a move without retaining a mutated accepted structure while waiting."""
         self._print(f"===== MC Step {istep} =====")
         self.worker.directory = self.directory / "calculations" / f"step.{istep:04d}"
@@ -316,6 +343,7 @@ class MonteCarlo(BaseExploration):
             attempts_path=self.directory / "mc_attempts.xyz",
             resume_context={"step": istep},
         )
+        report_outcome(box, result, self.energy_stored)
         self.atoms = result.atoms
         if result.accepted is None:
             self.energy_stored = result.energy
@@ -326,7 +354,10 @@ class MonteCarlo(BaseExploration):
         if result.accepted:
             self.energy_stored = result.energy
         if not result.valid and self.should_retry:
+            box.line("next action: retry this step")
             return MCStepState.FAILED
+        if not result.valid:
+            box.line("next action: retain current state and advance")
         write(self.directory / self.TRAJ_NAME, self.atoms, append=True)
         if (self.directory / f"pending-move-{istep}").exists():
             self._save_checkpoint(istep, force=True)
@@ -449,6 +480,8 @@ class MonteCarlo(BaseExploration):
         self._print("Load structure.")
         self.start_step = step
         self.energy_stored = self.atoms.get_potential_energy()
+        report_status("resume", f"checkpoint step: {self.start_step} | "
+                      f"current energy [eV]: {self.energy_stored:.6f} | atoms: {len(self.atoms)}")
 
         # Reset mctraj
         self._print("Reset `mc.xyz` and `mc_attempts.xyz`.")
