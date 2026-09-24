@@ -5,9 +5,9 @@
 This example searches for low-energy structures of a four-water cluster. The
 builder inserts four intact H2O molecules in a spherical region at the centre
 of a large periodic vacuum box and assigns one tag to each molecule. Structures
-are relaxed with the 1-million-parameter MatterSim checkpoint, the fastest
-pretrained MatterSim model. See the {ref}`potential-mattersim` guide for
-installation, model selection, and runtime settings.
+are relaxed with xreac and the bundled H/O ReaxFF parameters. See the
+{ref}`potential-reax` guide for installation and runtime settings. No
+neural-network model download is needed.
 
 ## Input
 
@@ -20,28 +20,28 @@ The complete example is available at
 
 Pair this exploration with the following runtime (passed with `--runtime`):
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/xreac.yaml
 :language: yaml
 ```
 
 As for all isolated clusters, use `population.periodic: true` and
 `population.preserve_fragments: true`. The `cut_and_splice` crossover preserves tagged molecular
 fragments and their inherited orientations, while rattle translates whole
-water molecules. The MatterSim relaxation may change intramolecular coordinates
+water molecules. The ReaxFF relaxation may change intramolecular coordinates
 because the model evaluates and relaxes all atoms.
 
 ## Run
 
-After installing MatterSim as described in the {ref}`potential-mattersim`
+After installing `gdpx[reax]` as described in the {ref}`potential-reax`
 guide, run from the repository root:
 
 ```shell
-gdp -d ./run-water4-mattersim \
-    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
+gdp -d ./run-water4-reax \
+    --runtime ./examples/global_optimisation/runtimes/xreac.yaml explore \
     ./examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
 ```
 
-The search is stored under `run-water4-mattersim`. The small
+The search is stored under `run-water4-reax`. The small
 population and single generation keep this example quick; increase both for a
 production search.
 

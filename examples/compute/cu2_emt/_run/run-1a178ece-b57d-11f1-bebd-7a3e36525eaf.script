@@ -1,6 +1,0 @@
-#!/bin/bash -l
-
-
-
-
-gdp -d . compute run --plan _data/compute-plan.json --worker 0 --batch 0

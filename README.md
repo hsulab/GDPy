@@ -25,6 +25,14 @@ $ python -m pip install git+https://github.com/hsulab/GDPy.git
 $ conda install gdpx -c conda-forge
 ```
 
+# Examples and benchmarks
+
+Inputs live in `examples/`. Usage is documented in the
+[computation](docs/source/computations/index.md),
+[global optimisation](docs/source/global_optimisation/index.md), and
+[Monte Carlo](docs/source/explorations/mc.md) guides. Performance comparisons
+and recorded measurements are in [benchmarks](benchmarks/README.md).
+
 # Table of Contents
 
 - [Overview](#overview)

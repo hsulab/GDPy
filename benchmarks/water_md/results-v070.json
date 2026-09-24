@@ -1,0 +1,172 @@
+{
+  "max_seconds": 180,
+  "runs": {
+    "reax": {
+      "budget_seconds": 89.49637799989432,
+      "status": "complete",
+      "returncode": 0,
+      "summary": {
+        "config": {
+          "provider": "reax",
+          "output": "tmp/water-md-v070-3min/reax",
+          "grid": 3,
+          "density": 0.997,
+          "seed": 731,
+          "temperature": 300,
+          "timestep_fs": 0.25,
+          "min_steps": 20,
+          "equil_steps": 50,
+          "steps": 200,
+          "sample_interval": 10
+        },
+        "platform": "macOS-26.6-arm64-arm-64bit",
+        "versions": {
+          "ase": "3.27.0",
+          "numpy": "2.0.2",
+          "xreac": "0.7.0"
+        },
+        "threads": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "CUDA_VISIBLE_DEVICES": ""
+        },
+        "atoms": 81,
+        "waters": 27,
+        "cell_A": [
+          9.322176541523964,
+          9.322176541523964,
+          9.322176541523964
+        ],
+        "parameters": {
+          "model": "bundled:ffield.reax.HO.2015"
+        },
+        "load_seconds": 1.4062282089143991,
+        "minimization": {
+          "seconds": 1.1342594176530838,
+          "steps": 20,
+          "converged": false
+        },
+        "stages": {
+          "nvt": {
+            "steps": 50,
+            "requested_steps": 50,
+            "duration_fs": 12.5,
+            "seconds": 2.475144000723958,
+            "ms_per_step": 49.50288001447916,
+            "temperature_mean_K": 250.97406359517922,
+            "temperature_min_K": 192.1518566380292,
+            "temperature_max_K": 302.9680488311101,
+            "min_OH_A": 0.9045016330964548,
+            "max_OH_A": 1.045048219801697,
+            "energy_change_meV_atom": -1.1367916424506117,
+            "energy_range_meV_atom": 1.5352315061018427,
+            "energy_slope_meV_atom_ps": -38.748812596977686
+          },
+          "nve": {
+            "steps": 200,
+            "requested_steps": 200,
+            "duration_fs": 50.0,
+            "seconds": 9.425915417261422,
+            "ms_per_step": 47.12957708630711,
+            "temperature_mean_K": 322.00737866458354,
+            "temperature_min_K": 238.9213667791375,
+            "temperature_max_K": 365.6556406614965,
+            "min_OH_A": 0.9008872779458724,
+            "max_OH_A": 1.0605911339649186,
+            "energy_change_meV_atom": -0.0594516895530208,
+            "energy_range_meV_atom": 0.0818891189744787,
+            "energy_slope_meV_atom_ps": -0.5742713698072832
+          }
+        },
+        "time_limit_reached": false,
+        "total_seconds": 14.487747583538294
+      }
+    },
+    "mattersim": {
+      "budget_seconds": 163.4932313328609,
+      "status": "complete",
+      "returncode": 0,
+      "summary": {
+        "config": {
+          "provider": "mattersim",
+          "output": "tmp/water-md-v070-3min/mattersim",
+          "grid": 3,
+          "density": 0.997,
+          "seed": 731,
+          "temperature": 300,
+          "timestep_fs": 0.25,
+          "min_steps": 20,
+          "equil_steps": 50,
+          "steps": 200,
+          "sample_interval": 10
+        },
+        "platform": "macOS-26.6-arm64-arm-64bit",
+        "versions": {
+          "ase": "3.27.0",
+          "numpy": "2.0.2",
+          "mattersim": "1.2.3"
+        },
+        "threads": {
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "CUDA_VISIBLE_DEVICES": ""
+        },
+        "atoms": 81,
+        "waters": 27,
+        "cell_A": [
+          9.322176541523964,
+          9.322176541523964,
+          9.322176541523964
+        ],
+        "parameters": {
+          "model": "MatterSim-v1.0.0-1M",
+          "compute_stress": false
+        },
+        "load_seconds": 5.097943457774818,
+        "minimization": {
+          "seconds": 5.072114207781851,
+          "steps": 20,
+          "converged": false
+        },
+        "stages": {
+          "nvt": {
+            "steps": 50,
+            "requested_steps": 50,
+            "duration_fs": 12.5,
+            "seconds": 12.018505000509322,
+            "ms_per_step": 240.37010001018643,
+            "temperature_mean_K": 256.0333021909017,
+            "temperature_min_K": 208.47967758621314,
+            "temperature_max_K": 300.00000000000006,
+            "min_OH_A": 0.9292203041621746,
+            "max_OH_A": 1.0682587594398891,
+            "energy_change_meV_atom": -0.3983400144680212,
+            "energy_range_meV_atom": 1.0646057877557094,
+            "energy_slope_meV_atom_ps": -47.48922389198652
+          },
+          "nve": {
+            "steps": 200,
+            "requested_steps": 200,
+            "duration_fs": 50.0,
+            "seconds": 48.03362845815718,
+            "ms_per_step": 240.1681422907859,
+            "temperature_mean_K": 360.8791405167471,
+            "temperature_min_K": 262.71931191476665,
+            "temperature_max_K": 405.92181949082453,
+            "min_OH_A": 0.9189139853034467,
+            "max_OH_A": 1.0682587594398891,
+            "energy_change_meV_atom": -0.004056809076740328,
+            "energy_range_meV_atom": 0.03301380016752358,
+            "energy_slope_meV_atom_ps": -0.09514195333635375
+          }
+        },
+        "time_limit_reached": false,
+        "total_seconds": 70.27107054181397
+      }
+    }
+  },
+  "elapsed_seconds": 87.0522232092917,
+  "date": "2026-09-24",
+  "xreac_revision": "6660484bb7c84a5f85bb8219b13086ef7223da45",
+  "reax_nve_speedup": 5.095911254433124
+}

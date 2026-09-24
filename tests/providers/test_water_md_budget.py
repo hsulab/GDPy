@@ -8,7 +8,7 @@ import sys
 from time import monotonic
 
 
-SCRIPT = Path(__file__).parents[2] / "examples/compute/water_md/benchmark.py"
+SCRIPT = Path(__file__).parents[2] / "benchmarks/water_md/benchmark.py"
 
 
 def test_supervisor_kills_blocked_worker_and_keeps_partial_summary(tmp_path):

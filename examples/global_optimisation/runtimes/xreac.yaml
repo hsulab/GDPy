@@ -1,0 +1,11 @@
+schema_version: 3
+potential:
+  provider: reax
+  parameters:
+    model: bundled:ffield.reax.HO.2015
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20

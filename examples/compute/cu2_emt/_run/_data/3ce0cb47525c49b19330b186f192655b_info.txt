@@ -1,4 +1,0 @@
-#id           MD5                               confid        step          wdir                        rs
-0             3ce0cb47525c49b19330b186f192655b  -1            -1            null                  94490495
-1             3ce0cb47525c49b19330b186f192655b  -1            -1            null                  62509546
-2             3ce0cb47525c49b19330b186f192655b  -1            -1            null                  68417993

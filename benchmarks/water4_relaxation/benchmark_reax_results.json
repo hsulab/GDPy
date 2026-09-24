@@ -1,0 +1,95 @@
+{
+  "platform": "macOS-26.6-arm64-arm-64bit",
+  "versions": {
+    "xreac": "0.6.0",
+    "mattersim": "1.2.3",
+    "ase": "3.27.0",
+    "numpy": "2.0.2"
+  },
+  "seed": 17,
+  "atoms": 12,
+  "results": {
+    "reax": {
+      "load_seconds": 0.07571025006473064,
+      "force_call_seconds": [
+        0.12436441704630852,
+        0.02213270775973797,
+        0.021564874798059464,
+        0.021783833391964436,
+        0.02152095828205347
+      ],
+      "median_force_seconds": 0.021783833391964436,
+      "relaxations": [
+        {
+          "seconds": 0.4690456660464406,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -43.5051317794292,
+          "fmax_eV_A": 1.954480289611687
+        },
+        {
+          "seconds": 0.46320154145359993,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -43.57917742829867,
+          "fmax_eV_A": 2.187555560109715
+        },
+        {
+          "seconds": 0.7079690843820572,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -43.572561561835165,
+          "fmax_eV_A": 0.24922268140237425
+        },
+        {
+          "seconds": 0.2737943334504962,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -43.7054927458785,
+          "fmax_eV_A": 0.29874106545381585
+        }
+      ]
+    },
+    "mattersim": {
+      "load_seconds": 6.059219709597528,
+      "force_call_seconds": [
+        0.017041416838765144,
+        0.016123582608997822,
+        0.01094129215925932,
+        0.013045082800090313,
+        0.011781208217144012
+      ],
+      "median_force_seconds": 0.013045082800090313,
+      "relaxations": [
+        {
+          "seconds": 0.2294207913801074,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -57.3099250793457,
+          "fmax_eV_A": 0.3823920786380768
+        },
+        {
+          "seconds": 0.22300225030630827,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -57.328304290771484,
+          "fmax_eV_A": 0.36938732862472534
+        },
+        {
+          "seconds": 0.2213408751413226,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -57.443782806396484,
+          "fmax_eV_A": 0.40424844622612
+        },
+        {
+          "seconds": 0.21895104087889194,
+          "steps": 20,
+          "converged": false,
+          "energy_eV": -57.50579071044922,
+          "fmax_eV_A": 0.6131711602210999
+        }
+      ]
+    }
+  }
+}

@@ -9,8 +9,7 @@ Increase the population size, number of generations, and calculation accuracy
 for production searches.
 
 Exploration inputs live under `examples/global_optimisation/explorations/`,
-grouped by method. Shared calculation inputs live under `runtimes/` in the same
-directory. Each guide shows both files. Select a runtime with
+grouped by method. Runtime paths are shown in each guide. Each guide shows both files. Select a runtime with
 `gdp --runtime <runtime.yaml> explore <exploration.yaml>`; the exploration can
 be reused with another suitable potential without editing its recipe. Use a
 new output directory when changing runtimes. EMT allows 1,000 relaxation steps;
@@ -32,7 +31,7 @@ and guide.
 | --- | --- | --- | --- |
 | Cluster | {ref}`Cu₈ <ga-cluster-example>` | EMT | |
 | Cluster | {ref}`Cu₇Ni₆ <ga-alloy-cluster-example>` | EMT | Swap mutation |
-| Cluster | {ref}`(H₂O)₄ <ga-water-cluster-example>` | MatterSim | |
+| Cluster | {ref}`(H₂O)₄ <ga-water-cluster-example>` | xreac / ReaxFF | |
 | Bulk | {ref}`Cu₄ <ga-bulk-example>` | EMT | |
 | Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | MatterSim | |
 | Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | MatterSim | Variable composition |
