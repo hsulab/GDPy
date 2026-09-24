@@ -8,16 +8,52 @@ The `eam` provider reads embedded-atom potential files.
 
 ASE supplies the Python calculator. For LAMMPS execution, install a binary with the chosen EAM pair style. Supply an existing potential file.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE EAM calculator. |
+| `lammps` | `lammps` | Yes | LAMMPS with the selected EAM pair style. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: eam
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model: ./Cu.eam.alloy
     flavour: eam/alloy
     type_list: [Cu]
+executor:
+  provider: ase
+  method: spc
 ```
+
+### lammps + lammps
+
+```yaml
+schema_version: 3
+potential:
+  provider: eam
+  backend: lammps  # Optional; default for the lammps executor.
+  parameters:
+    model: ./Cu.eam.alloy
+    flavour: eam/alloy
+    type_list: [Cu]
+    command: lmp
+executor:
+  provider: lammps
+  method: spc
+```
+
+### Parameter notes
 
 `model` accepts a path or list of paths; only the first file is used.
 ASE reads the file using its `EAM` calculator. For the LAMMPS interface,

@@ -2,18 +2,9 @@
 
 # reax
 
-Set `potential.provider: reax` to select the potential family. The executor
-determines the default implementation; `potential.backend` explicitly overrides it:
+The `reax` provider evaluates ReaxFF force fields through xreac or LAMMPS.
 
-| Internal implementation | Description | Executor |
-| --- | --- | --- |
-| `xreac` | [xreac](https://github.com/hsulab/xreac), NumPy/Autograd | `ase` |
-| `reax/c` | LAMMPS `reax/c` pair style | `lammps` or `ase` |
-
-One `ReaxManager` handles both implementations. The provider supplies xreac's
-calculator for an ASE executor and the `reax/c` pair style for a LAMMPS executor.
-
-## xreac / ASE
+## Requirements
 
 Install from the GDPy checkout:
 
@@ -24,10 +15,31 @@ python -m pip install -e '.[reax]'
 The extra pins xreac to revision `6660484bb7c84a5f85bb8219b13086ef7223da45`
 (v0.7.0). No LAMMPS executable or neural-network checkpoint is needed.
 
+For backend `reax/c`, provide a local ReaxFF force-field file and a LAMMPS
+binary that accepts the `reax/c` pair style and `qeq/reax` fix. Modern binaries
+that have removed these names in favour of `reaxff` are not compatible with
+this adapter.
+
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `xreac` | `ase` | Yes | xreac Python calculator. |
+| `reax/c` | `lammps` | Yes | LAMMPS reax/c pair style. |
+| `reax/c` | `ase` | No | LAMMPS evaluates energies and forces; ASE drives the calculation. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### xreac + ase
+
 ```yaml
 schema_version: 3
 potential:
   provider: reax
+  backend: xreac  # Optional; default for the ase executor.
   parameters:
     model: bundled:ffield.reax.HO.2015
 executor:
@@ -57,14 +69,13 @@ stress and variable-cell relaxation are not supported.
 See `examples/global_optimisation/runtimes/xreac.yaml` and the water-cluster
 benchmark in that directory for the GA example and timing comparison.
 
-## LAMMPS
-
-Provide a ReaxFF force-field file and a LAMMPS binary that accepts the adapter’s `reax/c` pair style.
+### reax/c + lammps
 
 ```yaml
 schema_version: 3
 potential:
   provider: reax
+  backend: reax/c  # Optional; default for the lammps executor.
   parameters:
     command: lmp
     model: ./ffield.reax
@@ -84,9 +95,24 @@ The LAMMPS input writer adds the `qeq/reax` fix for `reax/c`. Check compatibilit
 with your LAMMPS build: binaries providing only differently named ReaxFF styles
 are not compatible with this legacy adapter's hard-coded style.
 
-## LAMMPS reax/c with an ASE executor
+### reax/c + ase
 
-Use `potential.backend: reax/c` alongside `potential.provider: reax` in the
-LAMMPS example above, and change `executor.provider` to `ase`. The model must
-be a local file. LAMMPS performs `run 0` energy/force evaluations while ASE
-controls minimization or MD. With no explicit backend, ASE uses `xreac`.
+```yaml
+schema_version: 3
+potential:
+  provider: reax
+  backend: reax/c  # Required; the ase executor defaults to xreac.
+  parameters:
+    command: lmp
+    model: ./ffield.reax
+    type_list: [H, O]
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20
+```
+
+The model must be a local file. LAMMPS performs `run 0` energy/force evaluations
+while ASE controls minimization or MD.

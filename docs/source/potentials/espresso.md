@@ -8,11 +8,24 @@ The `espresso` provider configures Quantum ESPRESSO from a PW input template.
 
 Provide `pw.x`, a compatible ASE Espresso interface, a PW input template, and the pseudopotentials named in the configuration.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `espresso` | `ase` | Yes | Quantum ESPRESSO calculator driven by ASE. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### espresso + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: espresso
+  backend: espresso  # Optional; default for the ase executor.
   parameters:
     command: pw.x -in PREFIX.pwi > PREFIX.pwo
     template: ./espresso.pwi
@@ -20,6 +33,9 @@ potential:
     pp_name:
       Si: Si.UPF
     kpts: [2, 2, 2]
+executor:
+  provider: ase
+  method: spc
 ```
 
 `pp_path` must exist, `pp_name` must map elements to pseudopotential filenames,

@@ -8,23 +8,68 @@ The `nequip` provider declares ASE and LAMMPS interfaces for NequIP, with an All
 
 The ASE adapter expects PyTorch and the NequIP API `NequIPCalculator.from_deployed_model`. LAMMPS requires the matching `nequip` or `allegro` pair style and an exported model.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | NequIP deployed-model Python calculator. |
+| `lammps` | `lammps` | Yes | LAMMPS with the NequIP or Allegro pair style. |
+| `lammps` | `ase` | No | LAMMPS evaluates energies and forces; ASE drives the calculation. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: nequip
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model: ./deployed_model.pth
     type_list: [H, O]
     estimate_uncertainty: false
+executor:
+  provider: ase
+  method: spc
 ```
 
-## Current limitation
+### lammps + lammps
 
-The current manager constructs a calculator but does not assign it to
-`self.calc`. Materialization therefore retains the placeholder calculator.
-The configuration above documents the intended interface; calculations need
-this implementation issue resolved before use.
+```yaml
+schema_version: 3
+potential:
+  provider: nequip
+  backend: lammps  # Optional; default for the lammps executor.
+  parameters:
+    model: ./deployed_lammps_model.pth
+    type_list: [H, O]
+    command: lmp
+executor:
+  provider: lammps
+  method: spc
+```
+
+### lammps + ase
+
+```yaml
+schema_version: 3
+potential:
+  provider: nequip
+  backend: lammps  # Required; overrides the default backend for the ase executor.
+  parameters:
+    model: ./deployed_lammps_model.pth
+    type_list: [H, O]
+    command: lmp
+executor:
+  provider: ase
+  method: spc
+```
+
+### Parameter notes
 
 `type_list` maps chemical symbols to the same model type names. The ASE branch
 selects CUDA when available and supports committee construction through

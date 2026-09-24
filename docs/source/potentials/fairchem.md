@@ -8,14 +8,30 @@ The `fairchem` provider wraps FAIR-Chem pretrained predictors as potential calcu
 
 Install PyTorch and FAIR-Chem exposing `FAIRChemCalculator` and `pretrained_mlip.get_predict_unit` from `fairchem.core`. Make the requested pretrained model available to that loader.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: fairchem
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model: ./fairchem-cache/uma-s-1p1.pt
     head: omat
+executor:
+  provider: ase
+  method: spc
 ```
 
 The model string has special semantics: gdpx uses its parent directory as

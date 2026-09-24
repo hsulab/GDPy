@@ -4,7 +4,7 @@
 
 The `reann` provider loads REANN TorchScript models with gdpx’s ASE calculator.
 
-## Installation
+## Requirements
 
 From the repository root:
 
@@ -35,17 +35,33 @@ The defaults, `train` and `freeze`, are not installed by gdpx. The trainer
 expects `REANN.pth` as the training checkpoint and `PES.pt` as the exported
 potential.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: reann
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model: ./PES.pt
     type_list: [H, O]
     precision: float32
     compute_stress: false
     estimate_uncertainty: false
+executor:
+  provider: ase
+  method: spc
 ```
 
 `type_list` is passed as the model’s atom-type ordering. `precision` must be

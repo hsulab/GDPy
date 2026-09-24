@@ -8,16 +8,32 @@ The `plumed` provider exposes gdpx’s PLUMED bias calculator through the ASE ma
 
 Install the PLUMED Python bindings and a compatible PLUMED kernel library.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: plumed
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     inp: ./plumed.inp
     kT: 0.02585
     use_charge: false
     update_charge: false
+executor:
+  provider: ase
+  method: spc
 ```
 
 `inp` accepts an existing file (default `./plumed.inp`) or a list of PLUMED

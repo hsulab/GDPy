@@ -8,16 +8,32 @@ The `bias` provider exposes a built-in bias as a standalone ASE calculator.
 
 The built-in distance restraint uses gdpx and its base scientific dependencies; no external model is required.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: bias
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     method: distance_harmonic
     group: [0, 1]
     center: 1.5
     kspring: 0.1
+executor:
+  provider: ase
+  method: spc
 ```
 
 The example applies a harmonic distance restraint to two zero-based atom

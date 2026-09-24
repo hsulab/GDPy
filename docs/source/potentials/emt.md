@@ -8,13 +8,29 @@ The `emt` provider exposes ASE’s effective-medium-theory calculator.
 
 EMT is included with ASE and needs no external model files.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: emt
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     asap_cutoff: false
+executor:
+  provider: ase
+  method: spc
 ```
 
 The `parameters` field is optional; omit it to use ASE’s `EMT` defaults.

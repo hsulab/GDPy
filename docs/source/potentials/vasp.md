@@ -22,6 +22,8 @@ to the potential provider. The Python package remains `vasp_interactive`.
 Additional potential parameters are passed to the corresponding calculator;
 `vdw_path` sets the van der Waals kernel directory when needed.
 
+## Configurations
+
 ### vasp + vasp
 
 ```yaml

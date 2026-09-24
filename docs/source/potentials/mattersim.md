@@ -4,7 +4,7 @@
 
 The `mattersim` provider loads MatterSim pretrained models and local checkpoints.
 
-## Installation
+## Requirements
 
 From the repository root:
 
@@ -14,20 +14,55 @@ python -m pip install -e '.[mattersim]'
 
 The extra installs MatterSim and its PyTorch dependencies. See
 {doc}`../installation` for the recommended GPU installation and verification.
-gdpx uses CUDA when available and otherwise uses CPU.
+gdpx uses CUDA when available and otherwise uses CPU. Backend `graph_pes`
+also requires the `graph_pes` package with its MatterSim interface.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | MatterSim Python calculator. |
+| `graph_pes` | `ase` | No | MatterSim through GraphPESCalculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: mattersim
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model: MatterSim-v1.0.0-1M
     compute_stress: false
+executor:
+  provider: ase
+  method: spc
 ```
 
-`compute_stress: false` avoids unnecessary stress evaluation for fixed-cell
-molecules and clusters. Keep stress enabled when the calculation requires it.
+### graph_pes + ase
+
+```yaml
+schema_version: 3
+potential:
+  provider: mattersim
+  backend: graph_pes  # Required; overrides the default backend for the ase executor.
+  parameters:
+    model: MatterSim-v1.0.0-1M
+executor:
+  provider: ase
+  method: spc
+```
+
+### Parameter notes
+
+For backend `ase`, `compute_stress: false` avoids unnecessary stress evaluation for fixed-cell
+molecules and clusters. Keep stress enabled when the calculation requires it. The `graph_pes` branch
+does not forward this option; it uses GraphPESCalculator property requests.
 
 ## Models
 

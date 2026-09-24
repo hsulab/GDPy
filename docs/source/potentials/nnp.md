@@ -8,14 +8,30 @@ The `nnp` provider exposes gdpx’s element-wise ACSF neural-network calculator 
 
 Use a version-2 model archive produced by the current gdpx NNP trainer. Inference uses gdpx’s NumPy implementation.
 
-## Configuration
+## Backends
+
+| Potential backend | Executor | Default | Description |
+| --- | --- | --- | --- |
+| `ase` | `ase` | Yes | ASE-compatible calculator. |
+
+Backend defaults depend on the executor. The comments in each configuration
+show whether `potential.backend` can be omitted.
+
+## Configurations
+
+### ase + ase
 
 ```yaml
+schema_version: 3
 potential:
   provider: nnp
+  backend: ase  # Optional; default for the ase executor.
   parameters:
     model_file: ./nnp_model.npz
     type_map: [H, O]
+executor:
+  provider: ase
+  method: spc
 ```
 
 The required path key is `model_file`, not `model`. Optional `type_map` is a

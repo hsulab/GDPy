@@ -5,7 +5,9 @@ An interface listed here reflects the provider registry; individual guides
 identify legacy or experimental implementations that are not yet runnable.
 Allegro is a flavour of `nequip`.
 
-Each page describes the `potential` configuration and its model parameters.
+Each guide introduces the potential, lists requirements and supported backends,
+and shows complete configurations using `backend + executor` headings. Inline
+comments identify backend entries that can be omitted.
 Replace placeholder model and input paths with your files. The potential
 component’s `method` defaults to `default`; calculator-specific methods such
 as `GFN2-xTB` belong inside `potential.parameters`.
