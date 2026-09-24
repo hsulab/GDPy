@@ -25,37 +25,47 @@ def _load(module: str, attribute: str):
 
 
 @dataclass(frozen=True)
-class BackendMaterializer:
-    """Select an explicitly declared implementation for one executor target."""
+class BackendSelection:
+    """Declare supported implementations and their deterministic default."""
 
     default_backend: str
     backends: Mapping[str, Any]
 
     def __post_init__(self):
         if self.default_backend not in self.backends:
-            raise ValueError("Default backend must have a declared materializer.")
+            raise ValueError("Default backend must have a declared implementation.")
         object.__setattr__(self, "backends", MappingProxyType(dict(self.backends)))
 
     def select_backend(self, backend=None):
         selected = self.default_backend if backend is None else backend
         if selected not in self.backends:
             raise MaterializationError(
-                f"Unsupported potential backend {selected!r}; supported backends: {', '.join(self.backends)}."
+                f"Unsupported backend {selected!r}; supported backends: {', '.join(self.backends)}."
             )
         return selected
 
+
+@dataclass(frozen=True)
+class BackendMaterializer(BackendSelection):
     def materialize(self, potential, target=None, *, backend=None, **context):
         selected = self.select_backend(backend)
         return self.backends[selected].materialize(potential, target, **context)
 
 
+@dataclass(frozen=True)
+class BackendFactory(BackendSelection):
+    def create(self, parameters, *, backend=None, **context):
+        selected = self.select_backend(backend)
+        return self.backends[selected].create(parameters, **context)
+
+
 def select_backend(materializer, backend=None):
-    if isinstance(materializer, BackendMaterializer):
+    if isinstance(materializer, BackendSelection):
         return materializer.select_backend(backend)
     default = getattr(materializer, "backend", None)
     if backend is not None and backend != default:
         raise MaterializationError(
-            f"Unsupported potential backend {backend!r}; supported backends: {default or 'not declared'}."
+            f"Unsupported backend {backend!r}; supported backends: {default or 'not declared'}."
         )
     return default
 

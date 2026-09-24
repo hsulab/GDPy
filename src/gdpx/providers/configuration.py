@@ -23,7 +23,7 @@ class ComponentConfig:
             raise ProviderConfigurationError("Component provider cannot be empty.")
         if "backend" in self.parameters:
             raise ProviderConfigurationError(
-                "Component parameter `backend` is not supported; use potential.backend instead."
+                "Component parameter `backend` is not supported; use potential.backend or modifiers[].backend instead."
             )
         object.__setattr__(self, "parameters", freeze(self.parameters))
 
@@ -49,13 +49,29 @@ class PotentialConfig(ComponentConfig):
                 "use interactive for shell/interactive interfaces."
             )
         if self.provider == "vasp" and "dispersion" in self.parameters:
-            raise ProviderConfigurationError("Move VASP parameters.dispersion to a dftd3 modifier with method: default.")
+            raise ProviderConfigurationError("Move VASP parameters.dispersion to a dftd3 modifier with backend: ase.")
         if (self.provider, self.backend) in (("cp2k", "cp2k_shell"), ("vasp", "vasp_interactive")):
             raise ProviderConfigurationError(
                 f"Backend {self.backend!r} was renamed to interactive; use potential.backend: interactive."
             )
         if self.provider == "vasp" and self.backend == "vasp_interactive_disp":
-            raise ProviderConfigurationError("Use potential.backend: interactive and a dftd3 modifier with method: default.")
+            raise ProviderConfigurationError("Use potential.backend: interactive and a dftd3 modifier with backend: ase.")
+
+    def to_dict(self):
+        data = super().to_dict()
+        if self.backend is not None:
+            data["backend"] = self.backend
+        return data
+
+
+@dataclass(frozen=True)
+class ModifierConfig(ComponentConfig):
+    backend: Optional[str] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.backend is not None and (not isinstance(self.backend, str) or not self.backend):
+            raise ProviderConfigurationError("Modifier backend must be a nonempty string.")
 
     def to_dict(self):
         data = super().to_dict()
@@ -96,7 +112,7 @@ class SchedulerConfig(ComponentConfig):
 class RuntimeConfig:
     potential: PotentialConfig
     executor: ComponentConfig
-    modifiers: Tuple[ComponentConfig, ...] = ()
+    modifiers: Tuple[ModifierConfig, ...] = ()
     scheduler: Optional[SchedulerConfig] = None
     options: Mapping[str, Any] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
@@ -108,7 +124,10 @@ class RuntimeConfig:
             )
         if not isinstance(self.potential, PotentialConfig):
             object.__setattr__(self, "potential", _component(self.potential.to_dict(), "potential"))
-        object.__setattr__(self, "modifiers", tuple(self.modifiers))
+        object.__setattr__(self, "modifiers", tuple(
+            item if isinstance(item, ModifierConfig) else _component(item.to_dict(), "modifier")
+            for item in self.modifiers
+        ))
         object.__setattr__(self, "options", freeze(self.options))
         if self.scheduler is not None:
             object.__setattr__(self, "scheduler", scheduler_component(self.scheduler))
@@ -153,7 +172,7 @@ class RuntimeConfig:
 
     def modifier_specs(self) -> Tuple[ModifierSpec, ...]:
         return tuple(
-            ModifierSpec(item.provider, item.method or "", item.parameters) for item in self.modifiers
+            ModifierSpec(item.provider, item.method or "default", item.parameters, backend=item.backend) for item in self.modifiers
         )
 
 
@@ -164,7 +183,7 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     provider = data.pop("provider", None)
     method = data.pop("method", None)
     parameters = data.pop("parameters", {})
-    backend = data.pop("backend", None) if label == "potential" else None
+    backend = data.pop("backend", None) if label in ("potential", "modifier") else None
     if data:
         raise ProviderConfigurationError(f"Unknown {label} fields: {', '.join(sorted(data))}.")
     if not isinstance(parameters, Mapping):
@@ -173,6 +192,8 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
+    if label == "modifier":
+        return ModifierConfig(str(provider or ""), method, parameters, backend)
     return ComponentConfig(str(provider or ""), method, parameters)
 
 
@@ -215,7 +236,7 @@ def _parse_v3(raw: dict) -> RuntimeConfig:
     modifiers_value = raw.pop("modifiers", ())
     if not isinstance(modifiers_value, (list, tuple)):
         raise ProviderConfigurationError("Modifiers must be a sequence.")
-    modifiers = tuple(_component(item, "modifier", require_method=True) for item in modifiers_value)
+    modifiers = tuple(_component(item, "modifier") for item in modifiers_value)
     scheduler_value = raw.pop("scheduler", None)
     scheduler = None if scheduler_value is None else scheduler_component(scheduler_value)
     options = raw.pop("options", {})

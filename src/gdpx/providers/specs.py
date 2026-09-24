@@ -63,6 +63,7 @@ class ModifierSpec:
     provider: str
     method: str
     parameters: Mapping[str, Any] = field(default_factory=dict)
+    backend: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.provider or not self.method:

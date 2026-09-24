@@ -4,7 +4,7 @@ import importlib
 from dataclasses import replace
 from typing import Any, Mapping, Union
 
-from gdpx.providers.adapters import BackendMaterializer, select_backend
+from gdpx.providers.adapters import BackendFactory, BackendMaterializer, select_backend
 from gdpx.providers.capabilities import CapabilityKind
 from gdpx.providers.configuration import RuntimeConfig
 from gdpx.providers.errors import MaterializationError, MissingCapabilityError
@@ -61,7 +61,7 @@ class RuntimeResolver:
                 raise MaterializationError(
                     f"Failed to materialize {config.potential.provider!r} for target {target!r}: {error}"
                 ) from error
-            modifier_instances = self._create_modifiers(config)
+            modifier_instances, config = self._create_modifiers(config)
             materialization = self._apply_modifiers(materialization, target, modifier_instances)
             executor = executor_factory.create(
                 thaw(config.executor.parameters),
@@ -106,12 +106,16 @@ class RuntimeResolver:
 
     def _create_modifiers(self, config):
         instances = []
+        resolved = []
         for component in config.modifiers:
             factory = self.providers.require(
-                component.provider, CapabilityKind.MODIFIER, component.method
+                component.provider, CapabilityKind.MODIFIER, component.method or "default"
             )
-            instances.append(factory.create(thaw(component.parameters)))
-        return tuple(instances)
+            selected = select_backend(factory, component.backend)
+            kwargs = {"backend": selected} if isinstance(factory, BackendFactory) else {}
+            instances.append(factory.create(thaw(component.parameters), **kwargs))
+            resolved.append(replace(component, backend=selected))
+        return tuple(instances), replace(config, modifiers=tuple(resolved))
 
     @staticmethod
     def _apply_modifiers(materialization, target, modifiers):

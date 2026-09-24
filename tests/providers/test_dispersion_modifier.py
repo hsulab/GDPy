@@ -72,7 +72,8 @@ def test_modifier_failure_resumes_host_and_restores_atoms():
 
 
 @pytest.mark.parametrize('fail', [False, True])
-def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail):
+@pytest.mark.parametrize('selection', [{}, {'backend': 'ase'}, {'method': 'default'}])
+def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail, selection):
     events = []
     import gdpx.providers.vasp.manager as vasp
     def register(self, params):
@@ -88,10 +89,18 @@ def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail):
     monkeypatch.setitem(sys.modules, 'dftd3.ase', module)
     runtime = get_provider_manager().resolve_runtime({
         'potential': {'provider':'vasp','backend':'interactive'},
-        'modifiers': [{'provider':'dftd3','method':'default','parameters':{'method':'PBE','damping':'d3bj'}}],
+        'modifiers': [{'provider':'dftd3',**selection,'parameters':{'method':'PBE','damping':'d3bj'}}],
         'executor': {'provider':'ase','method':'spc'},
     })
     assert seen == [{'method':'PBE','damping':'d3bj'}]
+    assert runtime.modifiers[0].backend == 'ase'
+    assert runtime.modifiers[0].method == 'default'
+    saved = runtime.config.to_dict()
+    assert saved['modifiers'][0]['backend'] == 'ase'
+    from gdpx.providers import RuntimeConfig
+    assert RuntimeConfig.from_mapping(saved).to_dict() == saved
+    if 'method' not in selection:
+        assert 'method' not in saved['modifiers'][0]
     assert runtime.config.to_dict()['modifiers'][0]['parameters']['method'] == 'PBE'
     runtime.executor.directory = tmp_path
     atoms = molecule('H2O')
@@ -102,3 +111,29 @@ def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail):
         runtime.executor.run(atoms)
     assert events[-1] == 'finalize'
     assert events.count('finalize') == 1
+
+
+@pytest.mark.parametrize('backend', ['bad', 'lammps'])
+def test_invalid_modifier_backend_rejected_before_construction(backend, monkeypatch):
+    from gdpx.providers import MaterializationError
+    from gdpx.providers.dftd3.manager import Dftd3Manager
+    def unexpected(*args, **kwargs):
+        pytest.fail('Invalid backend must be rejected before calculator construction')
+    monkeypatch.setattr(Dftd3Manager, 'register_calculator', unexpected)
+    with pytest.raises(MaterializationError, match='supported backends: ase'):
+        get_provider_manager().resolve_runtime({
+            'potential': {'provider': 'emt'},
+            'modifiers': [{'provider': 'dftd3', 'backend': backend}],
+            'executor': {'provider': 'ase', 'method': 'spc'},
+        })
+
+
+@pytest.mark.parametrize('backend', ['', 1, []])
+def test_modifier_backend_requires_nonempty_string(backend):
+    from gdpx.providers import ProviderConfigurationError, RuntimeConfig
+    with pytest.raises(ProviderConfigurationError, match='Modifier backend'):
+        RuntimeConfig.from_mapping({
+            'potential': {'provider': 'emt'},
+            'modifiers': [{'provider': 'dftd3', 'backend': backend}],
+            'executor': {'provider': 'ase', 'method': 'spc'},
+        })
