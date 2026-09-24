@@ -44,8 +44,8 @@ executor:
 ```
 
 Selecting `executor.provider: lammps` instead uses LAMMPS `reax/c` and requires
-a local force-field file. There is one ReaxFF implementation per executor
-target, so no explicit potential backend field is needed.
+a local force-field file. To use that implementation with ASE, set
+`potential.backend: reax/c`.
 
 ## Native software
 
@@ -70,7 +70,9 @@ executor:
 ## Modifiers
 
 Biases and enhanced-sampling forces are explicit runtime `modifiers`. Each
-modifier is a provider component with a method and parameters. Runtime
+modifier is a provider component with parameters, an optional backend, and an
+optional method for named operations. Providers with a default operation, such
+as DFT-D3, do not require a method. Runtime
 resolution applies compatible modifiers to the materialized potential; the
 removed mixer potential is not part of schema version 3.
 
@@ -91,3 +93,35 @@ Runtime setup and executor compatibility are covered in {doc}`../computations/in
 
 Trainer capabilities are owned by the same provider as the potential they
 produce. See {ref}`trainers`.
+
+## Backend defaults and overrides
+
+`potential.provider` names the potential; optional `potential.backend` selects
+its implementation. `potential.parameters` contains calculator settings.
+Defaults depend on the executor's materialization target, never on installed
+packages. Resolved runtime configurations record the selected backend.
+
+| Potential | ASE default | ASE alternatives | Native backend |
+| --- | --- | --- | --- |
+| reax | xreac | reax/c | LAMMPS: reax/c |
+| deepmd, nequip, beann | ase | lammps | LAMMPS: lammps |
+| eam, mace | ase | — | LAMMPS: lammps |
+| mattersim | ase | graph_pes | — |
+| xtb | xtb | tblite | — |
+| cp2k | cp2k | interactive | CP2K: cp2k |
+| vasp | interactive | — | VASP: vasp |
+| deepmd_jax | ase | jax | — |
+| abacus | abacus | — | ABACUS: abacus |
+| lasp | lasp | — | LASP: lasp |
+| espresso | espresso | — | — |
+| grid | grid | — | — |
+| classic | — | — | LAMMPS: lammps |
+
+Other built-in potentials use `ase`. Only declared target/backend combinations
+are supported. Third-party materializers without backend declarations continue
+to work without an override; explicit overrides require declarations.
+
+Move `parameters.backend` to `potential.backend`. Replace CP2K/VASP's old
+`parameters.interface` with `potential.backend`, using `interactive` for
+`cp2k_shell` and `vasp_interactive`. Replace `vasp_interactive_disp` with
+`interactive` plus a `dftd3` modifier; see {doc}`vasp`.

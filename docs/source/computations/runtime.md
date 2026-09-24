@@ -68,13 +68,13 @@ executor:
 
 ## Native and LAMMPS execution
 
-With `executor.provider: vasp`, gdpx uses the file-based VASP interface.
-With `executor.provider: ase`, the default is `vasp_interactive`; the optional
-potential `interface` parameter can select `vasp_interactive_disp` to include
-DFT-D3. Interactive execution sets defaults for externally driven ionic steps.
+With `executor.provider: vasp`, gdpx defaults to backend `vasp`.
+With `executor.provider: ase`, VASP defaults to backend `interactive`.
+Add external DFT-D3 through a `dftd3` modifier with optional `backend: ase`;
+see {doc}`../potentials/vasp`.
 
-Native CP2K execution always uses the `cp2k` interface. ASE-driven CP2K can
-instead use `interface: cp2k_shell` with a shell-capable command. ABACUS input
+Native CP2K execution uses backend `cp2k`. ASE-driven CP2K can instead use
+`potential.backend: interactive` with a shell-capable command. ABACUS input
 templates must use `calculation scf` even though its native executor declares
 additional methods. Quantum ESPRESSO has no native executor in gdpx.
 
@@ -83,7 +83,7 @@ LAMMPS requires a binary with the selected model’s pair style. DeepMD uses
 `mace no_domain_decomposition`, `metal` units, `atomic` atom style, and
 `newton on`. The declared NequIP interface requests `newton off` for NequIP
 and `newton on` for Allegro. ReaxFF uses `real` units and `charge` atom style;
-its legacy adapter does not configure a charge-equilibration fix automatically.
+the input writer adds the `qeq/reax` charge-equilibration fix.
 
 ## Biases and modifiers
 

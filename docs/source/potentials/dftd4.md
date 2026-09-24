@@ -23,6 +23,6 @@ ASE calculator.
 
 This calculator evaluates the **dispersion contribution only**. Selecting it
 as the potential does not also run an electronic-structure calculation.
-For a combined calculation, use an explicitly supported combined interface,
-such as VASP’s `vasp_interactive_disp` option described in {doc}`vasp`.
-The removed `mixer` potential is not a schema-version-3 provider.
+DFT-D4 modifier registration is not provided by this change. The old VASP
+combined interface supported DFT-D3 only; see {doc}`dftd3` for the supported
+modifier configuration.

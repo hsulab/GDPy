@@ -24,5 +24,8 @@ potential:
 `cutoff`, `max_scf`, and `xc` to the template unless explicitly supplied as
 calculator parameters. Basis and potential file paths are resolved absolutely.
 
-`interface: cp2k_shell` selects the shell calculator interface; supply a
-shell-capable CP2K `command` for that interface. The default interface is `cp2k`.
+Set `potential.backend: interactive` alongside `provider: cp2k` to select
+the shell calculator with an ASE executor and a shell-capable CP2K command.
+Both ASE and native CP2K executors default to backend `cp2k`.
+The old `parameters.interface: cp2k_shell` setting must migrate to
+`potential.backend: interactive`.

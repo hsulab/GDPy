@@ -24,6 +24,16 @@ ASE calculator.
 
 This calculator evaluates the **dispersion contribution only**. Selecting it
 as the potential does not also run an electronic-structure calculation.
-For a combined calculation, use an explicitly supported combined interface,
-such as VASP’s `vasp_interactive_disp` option described in {doc}`vasp`.
-The removed `mixer` potential is not a schema-version-3 provider.
+For a combined ASE calculation, add DFT-D3 as a runtime modifier:
+
+```yaml
+modifiers:
+  - provider: dftd3
+    backend: ase
+    parameters:
+      method: PBE
+      damping: d3bj
+```
+
+The optional `backend` selects the implementation (default: `ase`);
+`parameters.method` specifies the functional. See {doc}`vasp` for a complete example.

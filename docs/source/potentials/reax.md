@@ -1,14 +1,14 @@
 (potential-reax)=
 
-# ReaxFF: xreac and LAMMPS reax/c
+# reax
 
 Set `potential.provider: reax` to select the potential family. The executor
-determines which implementation is used; no potential backend field is needed:
+determines the default implementation; `potential.backend` explicitly overrides it:
 
 | Internal implementation | Description | Executor |
 | --- | --- | --- |
 | `xreac` | [xreac](https://github.com/hsulab/xreac), NumPy/Autograd | `ase` |
-| `reax/c` | LAMMPS `reax/c` pair style | `lammps` |
+| `reax/c` | LAMMPS `reax/c` pair style | `lammps` or `ase` |
 
 One `ReaxManager` handles both implementations. The provider supplies xreac's
 calculator for an ASE executor and the `reax/c` pair style for a LAMMPS executor.
@@ -83,3 +83,10 @@ The adapter resolves `model` to an absolute path and sets
 The LAMMPS input writer adds the `qeq/reax` fix for `reax/c`. Check compatibility
 with your LAMMPS build: binaries providing only differently named ReaxFF styles
 are not compatible with this legacy adapter's hard-coded style.
+
+## LAMMPS reax/c with an ASE executor
+
+Use `potential.backend: reax/c` alongside `potential.provider: reax` in the
+LAMMPS example above, and change `executor.provider` to `ase`. The model must
+be a local file. LAMMPS performs `run 0` energy/force evaluations while ASE
+controls minimization or MD. With no explicit backend, ASE uses `xreac`.
