@@ -81,8 +81,8 @@ additional methods. Quantum ESPRESSO has no native executor in gdpx.
 LAMMPS requires a binary with the selected model’s pair style. DeepMD uses
 `metal` units and writes model-deviation output for a committee. MACE uses
 `mace no_domain_decomposition`, `metal` units, `atomic` atom style, and
-`newton on`. The declared NequIP interface requests `newton off` for NequIP
-and `newton on` for Allegro. ReaxFF uses `real` units and `charge` atom style;
+`newton on`. The `nequip` provider requests `newton off`; the separate `allegro` provider
+requests `newton on`. ReaxFF uses `real` units and `charge` atom style;
 the input writer adds the `qeq/reax` charge-equilibration fix.
 
 ## Biases and modifiers

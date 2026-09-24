@@ -105,6 +105,7 @@ packages. Resolved runtime configurations record the selected backend.
 | --- | --- | --- | --- |
 | reax | xreac | reax/c | LAMMPS: reax/c |
 | deepmd, nequip, beann | ase | lammps | LAMMPS: lammps |
+| allegro | ase | lammps | LAMMPS: lammps |
 | eam, mace | ase | — | LAMMPS: lammps |
 | mattersim | ase | graph_pes | — |
 | xtb | xtb | tblite | — |

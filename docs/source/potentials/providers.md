@@ -3,7 +3,7 @@
 The guides below describe the available potential configurations.
 An interface listed here reflects the provider registry; individual guides
 identify legacy or experimental implementations that are not yet runnable.
-Allegro is a flavour of `nequip`.
+NequIP and Allegro have separate providers.
 
 Each guide introduces the potential, lists requirements and supported backends,
 and shows complete configurations using `backend + executor` headings. Inline
@@ -27,6 +27,7 @@ mace
 mattersim
 tace
 nequip
+allegro
 reann
 fairchem
 gp

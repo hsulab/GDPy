@@ -23,30 +23,30 @@ class NequipManager(BasePotentialManager):
 
     def register_calculator(self, calc_params, *args, **kwargs):
         """Register the calculator."""
+        calc_params = copy.deepcopy(calc_params)
+        if "flavour" in calc_params:
+            raise ValueError(
+                "NequIP no longer accepts parameters.flavour. For Allegro use "
+                "potential.provider: allegro with backend: lammps; otherwise remove flavour."
+            )
         super().register_calculator(calc_params, *args, **kwargs)
 
-        calc_params = copy.deepcopy(calc_params)
-
         type_list = calc_params.pop("type_list", [])
-
-        type_map = {}
-        for i, a in enumerate(type_list):
-            type_map[a] = i
 
         # Check if all models exist and update the self.calc_params
         # as the potential may be used in other directories if submitted by a scheduler.
         models = canonicalise_input_models(calc_params.pop("model", []))
         self.calc_params.update(model=models)
 
-        estimate_uncertainty = calc_params.get("estimate_uncertainty", False)
+        estimate_uncertainty = calc_params.pop("estimate_uncertainty", False)
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
             try:
                 import torch
                 from nequip.ase import NequIPCalculator  # type: ignore
-            except:
-                raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.")
+            except ImportError as exc:
+                raise ModuleNotFoundError("Please install nequip and torch to use the ase interface.") from exc
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
             shared_params = dict(species_to_type_name={k: k for k in type_list}, device=device)
@@ -63,11 +63,10 @@ class NequipManager(BasePotentialManager):
         elif self.calc_backend == "lammps":
             from gdpx.providers.lammps.execution import Lammps
 
-            command = calc_params.pop("command", None)
+            command = calc_params.pop("command", "lmp")
 
-            flavour = calc_params.pop("flavour", "nequip")  # nequip or allegro
             if models:
-                pair_style = f"{flavour}"
+                pair_style = "nequip"
                 pair_coeff = f"* * {str(models[0])}" + " {type_list}"
                 calc = Lammps(
                     command=command,
@@ -77,12 +76,7 @@ class NequipManager(BasePotentialManager):
                 )
                 # Update several extra parameters
                 calc.set(units="metal", atom_style="atomic")
-                if pair_style == "nequip":
-                    calc.set(newton="off")
-                elif pair_style == "allegro":
-                    calc.set(newton="on")
-                else:
-                    raise Exception(f"Unknown flavour {flavour} that must be nequip or allegro.")
+                calc.set(newton="off")
         else:
             ...
 

@@ -78,7 +78,7 @@ or File-IO based external codes (e.g. **lammps**).
 
 *NOTE: We use a modified eann package to train and utilise.*
 
-*NOTE: Allegro is supported as well through the nequip manager.*
+*Allegro uses its own `allegro` provider and manager; see the [Allegro guide](docs/source/potentials/allegro.md).*
 
 **Other Potentials:**
 Some potentials besides MLIPs are supported. Force fields or semi-empirical potentials are used for pre-sampling to build an initial dataset. 

@@ -30,6 +30,7 @@ def test_every_builtin_declares_and_validates_default(name, target, mat):
     ('reax', 'lammps.potential', 'reax/c', ('reax/c',)),
     ('deepmd', 'ase.calculator', 'ase', ('ase', 'lammps')),
     ('nequip', 'ase.calculator', 'ase', ('ase', 'lammps')),
+    ('allegro', 'ase.calculator', 'ase', ('ase', 'lammps')),
     ('beann', 'ase.calculator', 'ase', ('ase', 'lammps')),
     ('mattersim', 'ase.calculator', 'ase', ('ase', 'graph_pes')),
     ('xtb', 'ase.calculator', 'xtb', ('xtb', 'tblite')),

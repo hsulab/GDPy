@@ -2,18 +2,19 @@
 
 # nequip
 
-The `nequip` provider declares ASE and LAMMPS interfaces for NequIP, with an Allegro flavour for LAMMPS.
+The `nequip` provider evaluates NequIP models through ASE or LAMMPS.
+For Allegro models, use the separate {doc}`allegro` provider.
 
 ## Requirements
 
-The ASE adapter expects PyTorch and the NequIP API `NequIPCalculator.from_deployed_model`. LAMMPS requires the matching `nequip` or `allegro` pair style and an exported model.
+The ASE adapter expects PyTorch and the NequIP API `NequIPCalculator.from_deployed_model`. LAMMPS requires the `nequip` pair style and an exported model.
 
 ## Backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
 | `ase` | `ase` | Yes | NequIP deployed-model Python calculator. |
-| `lammps` | `lammps` | Yes | LAMMPS with the NequIP or Allegro pair style. |
+| `lammps` | `lammps` | Yes | LAMMPS with the NequIP pair style. |
 | `lammps` | `ase` | No | LAMMPS evaluates energies and forces; ASE drives the calculation. |
 
 Backend defaults depend on the executor. The comments in each configuration
@@ -76,7 +77,10 @@ selects CUDA when available and supports committee construction through
 `estimate_uncertainty`. Its loader uses the deployed-model API, so arbitrary
 newer checkpoint formats cannot be assumed compatible.
 
-For the declared LAMMPS interface, `flavour` selects `nequip` (default) or
-`allegro`, and `command` supplies the executable. Only the first model is used.
-The adapter requests `newton off` for NequIP and `newton on` for Allegro.
-Allegro is a flavour of `nequip`, not a separate provider name.
+For the LAMMPS backend, `command` supplies the executable (default `lmp`).
+Only the first model is used. The adapter requests `newton off` for NequIP.
+
+To migrate `provider: nequip` with `parameters.flavour: allegro`, use
+`provider: allegro` and remove `flavour`. Keep `backend: lammps` explicitly when using Allegro with an ASE executor;
+Allegro now defaults to direct ASE inference for that executor. Remove a redundant
+`flavour: nequip` from NequIP configurations as well.
