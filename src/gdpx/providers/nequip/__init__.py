@@ -7,7 +7,7 @@ NEQUIP_PROVIDER = manager_provider(
     "nequip",
     "gdpx.providers.nequip.manager",
     "NequipManager",
-    {"ase.calculator":"ase","lammps.potential":"lammps"},
+    {"ase.calculator": ("ase", "lammps"),"lammps.potential":"lammps"},
     trainer=("gdpx.providers.nequip.trainer", "NequipTrainer"),
 )
 

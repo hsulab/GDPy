@@ -1,5 +1,7 @@
 """CP2K potential, materialization, and execution provider."""
 
+from ..adapters import BackendMaterializer
+
 import copy
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -13,7 +15,7 @@ from gdpx.providers.targets import AseCalculatorMaterialization, NativeInputMate
 @dataclass(frozen=True)
 class Cp2kPotential:
     parameters: Mapping[str, Any]
-    interface: str = "cp2k"
+
 
     def __post_init__(self):
         object.__setattr__(self, "parameters", freeze(self.parameters))
@@ -22,21 +24,24 @@ class Cp2kPotential:
 class Cp2kPotentialFactory:
     def create(self, parameters, **context):
         copied = copy.deepcopy(dict(parameters))
-        interface = copied.pop("interface", copied.pop("backend", "cp2k"))
+        if "interface" in copied:
+            raise ValueError("Move parameters.interface to potential.backend; use interactive for shell/interactive interfaces.")
+        copied.pop("backend", None)
         copied.pop("version", None)
-        return Cp2kPotential(copied, interface)
+        return Cp2kPotential(copied)
 
 
 class Cp2kMaterializer:
-    def __init__(self, target):
+    def __init__(self, target, backend="cp2k"):
         self.target = target
+        self.backend = backend
 
     def materialize(self, potential, target=None, **context):
         if not isinstance(potential, Cp2kPotential):
             raise TypeError(f"Expected Cp2kPotential, got {type(potential).__name__}.")
         from .manager import Cp2kManager
 
-        interface = "cp2k" if self.target == "cp2k.native" else potential.interface
+        interface = self.backend
         parameters = thaw(potential.parameters)
         parameters["backend"] = interface
         manager = Cp2kManager()
@@ -95,7 +100,7 @@ CP2K_PROVIDER = Provider(
     capabilities={
         CapabilityKind.POTENTIAL: {"default": Cp2kPotentialFactory()},
         CapabilityKind.MATERIALIZER: {
-            "ase.calculator": Cp2kMaterializer("ase.calculator"),
+            "ase.calculator": BackendMaterializer("cp2k", {b: Cp2kMaterializer("ase.calculator", b) for b in ("cp2k", "interactive")}),
             "cp2k.native": Cp2kMaterializer("cp2k.native"),
         },
         CapabilityKind.EXECUTOR: {

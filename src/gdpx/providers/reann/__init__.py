@@ -7,7 +7,7 @@ from .reann import ReannManager
 
 BEANN_PROVIDER = manager_provider(
     "beann", "gdpx.providers.reann.beann", "BeannManager",
-    {"ase.calculator": "ase", "lammps.potential": "lammps"},
+    {"ase.calculator": ("ase", "lammps"), "lammps.potential": "lammps"},
     trainer=("gdpx.providers.reann.training.beann", "BeannTrainer"),
 )
 REANN_PROVIDER = manager_provider(

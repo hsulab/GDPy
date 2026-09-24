@@ -1,7 +1,7 @@
 """Public provider and integration API."""
 
 from .capabilities import CapabilityKind, Factory, Materializer
-from .configuration import ComponentConfig, RuntimeConfig, SCHEMA_VERSION, SchedulerConfig
+from .configuration import ComponentConfig, PotentialConfig, RuntimeConfig, SCHEMA_VERSION, SchedulerConfig
 from .errors import (
     AmbiguousCapabilityError,
     DuplicateProviderError,
@@ -32,6 +32,7 @@ __all__ = [
     "ModifierSpec",
     "NativeInputMaterialization",
     "PotentialSpec",
+    "PotentialConfig",
     "Provider",
     "ProviderConfigurationError",
     "ProviderError",

@@ -86,6 +86,7 @@ class NequipManager(BasePotentialManager):
         else:
             ...
 
+        self.calc = calc
         return
 
 

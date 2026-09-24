@@ -1,4 +1,5 @@
 import pathlib
+from contextlib import nullcontext
 
 import numpy as np
 from ase import Atoms
@@ -78,8 +79,19 @@ class EnhancedCalculator(LinearCombinationCalculator):
         prev_calc = atoms.calc
         atoms.calc = None
 
-        super().calculate(atoms, properties, system_changes)
-        atoms.calc = prev_calc
+        try:
+            host = self.mixer.calcs[0]
+            pause = getattr(host, "pause", None)
+            if callable(pause):
+                requested = set(properties)
+                if self.save_host:
+                    requested.update(("energy", "forces"))
+                for prop in requested:
+                    host.get_property(prop, atoms)
+            with pause() if callable(pause) else nullcontext():
+                super().calculate(atoms, properties, system_changes)
+        finally:
+            atoms.calc = prev_calc
 
         if self.save_host:
             self.results["host_energy"] = self.mixer.calcs[0].get_property("energy", atoms)

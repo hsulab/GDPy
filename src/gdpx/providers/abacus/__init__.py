@@ -27,6 +27,8 @@ class AbacusPotentialFactory:
 
 
 class AbacusMaterializer:
+    backend = "abacus"
+
     def __init__(self, target):
         self.target = target
 

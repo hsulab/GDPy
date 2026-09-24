@@ -47,7 +47,7 @@ def test_nested_executor_parameters_are_thawed_before_factory_use():
 
 
 def test_legacy_emt_schema_is_rejected():
-    with pytest.raises(ProviderConfigurationError, match="Legacy fields found"):
+    with pytest.raises(ProviderConfigurationError, match="Legacy runtime fields are not supported"):
         get_provider_manager().resolve_runtime(
             {
                 "potter": {"name": "emt", "params": {"backend": "ase"}},

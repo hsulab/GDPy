@@ -17,5 +17,5 @@ def test_vasp_potential_configuration_is_backend_neutral_and_immutable():
     potential = factory.create(source)
     source["kpts"].append(2)
 
-    assert potential.interface == "vasp_interactive"
+    assert not hasattr(potential, "interface")
     assert potential.parameters["kpts"] == (1, 1, 1)

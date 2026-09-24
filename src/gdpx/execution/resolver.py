@@ -1,8 +1,10 @@
 """Compose provider capabilities into executable runtimes."""
 
 import importlib
+from dataclasses import replace
 from typing import Any, Mapping, Union
 
+from gdpx.providers.adapters import BackendMaterializer, select_backend
 from gdpx.providers.capabilities import CapabilityKind
 from gdpx.providers.configuration import RuntimeConfig
 from gdpx.providers.errors import MaterializationError, MissingCapabilityError
@@ -30,6 +32,8 @@ class RuntimeResolver:
         target = getattr(executor_factory, "target", None)
         modifier_instances = ()
         if target is None:
+            if config.potential.backend is not None:
+                raise MaterializationError("Legacy executor does not support explicit potential.backend.")
             materialization = Materialization(
                 target=f"{config.executor.provider}.legacy",
                 payload=getattr(potential, "calc", potential),
@@ -46,8 +50,11 @@ class RuntimeResolver:
                     f"cannot materialize target {target!r} required by executor "
                     f"{config.executor.provider!r}/{config.executor.method!r}."
                 ) from error
+            selected = select_backend(materializer, config.potential.backend)
+            config = replace(config, potential=replace(config.potential, backend=selected))
             try:
-                materialization = materializer.materialize(potential, target)
+                kwargs = {"backend": selected} if isinstance(materializer, BackendMaterializer) else {}
+                materialization = materializer.materialize(potential, target, **kwargs)
             except MaterializationError:
                 raise
             except Exception as error:

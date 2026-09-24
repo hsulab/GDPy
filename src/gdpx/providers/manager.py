@@ -165,6 +165,11 @@ class ProviderManager:
         materializer = self.require(
             provider_name, CapabilityKind.MATERIALIZER, implementation or target
         )
+        from .adapters import BackendMaterializer, select_backend
+        backend = context.pop("backend", None)
+        selected = select_backend(materializer, backend)
+        if isinstance(materializer, BackendMaterializer):
+            context["backend"] = selected
         return materializer.materialize(potential, target, **context)
 
     def create_training(self, config):

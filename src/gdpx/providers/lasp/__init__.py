@@ -27,6 +27,8 @@ class LaspPotentialFactory:
 
 
 class LaspMaterializer:
+    backend = "lasp"
+
     def __init__(self, target):
         self.target = target
 

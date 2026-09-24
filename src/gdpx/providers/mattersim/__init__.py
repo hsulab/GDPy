@@ -7,7 +7,7 @@ MATTERSIM_PROVIDER = manager_provider(
     "mattersim",
     "gdpx.providers.mattersim.manager",
     "MatterSimManager",
-    {"ase.calculator":"ase","lammps.potential":"lammps"},
+    {"ase.calculator": ("ase", "graph_pes")},
 )
 
 __all__ = ["MatterSimManager", "MATTERSIM_PROVIDER"]

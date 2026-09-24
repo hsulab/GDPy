@@ -140,6 +140,7 @@ class Lammps(FileIOCalculator):
         read_restart=None,
         units="metal",
         atom_style="atomic",
+        type_charges=None,
         atom_modify=None,
         processors=None,
         newton=None,
@@ -401,7 +402,7 @@ class Lammps(FileIOCalculator):
 
     def _write_output_section(self):
         lines = []
-        if self.task == "min":
+        if self.task in ("min", "spc"):
             lines.append("thermo_style    custom step pe ke etotal temp press vol fmax fnorm")
         elif self.task == "md":
             lines.append("compute mobileTemp mobile temp")
@@ -445,7 +446,9 @@ class Lammps(FileIOCalculator):
 
     def _write_simulation_tasks(self):
         lines = []
-        if self.task == "min":
+        if self.task == "spc":
+            lines.append("run             0")
+        elif self.task == "min":
             if isinstance(self.dynamics, list):
                 lines.append("\n".join(self.dynamics))
             else:

@@ -16,6 +16,7 @@ class ReaxManager(BasePotentialManager):
     valid_combinations = (
         ("xreac", "ase"),
         ("reax/c", "lammps"),
+        ("reax/c", "ase"),
     )
 
     def register_calculator(self, calc_params, *args, **kwargs):

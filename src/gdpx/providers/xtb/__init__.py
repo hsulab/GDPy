@@ -7,7 +7,7 @@ XTB_PROVIDER = manager_provider(
     "xtb",
     "gdpx.providers.xtb.manager",
     "XtbManager",
-    {"ase.calculator":"xtb"},
+    {"ase.calculator": ("xtb", "tblite")},
 )
 
 __all__ = ["XtbManager", "XTB_PROVIDER"]

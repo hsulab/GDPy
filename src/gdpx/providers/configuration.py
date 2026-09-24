@@ -23,7 +23,7 @@ class ComponentConfig:
             raise ProviderConfigurationError("Component provider cannot be empty.")
         if "backend" in self.parameters:
             raise ProviderConfigurationError(
-                "Component parameter `backend` is not supported; select a provider and materialization target instead."
+                "Component parameter `backend` is not supported; use potential.backend instead."
             )
         object.__setattr__(self, "parameters", freeze(self.parameters))
 
@@ -32,6 +32,35 @@ class ComponentConfig:
         if self.method is not None:
             data["method"] = self.method
         data["parameters"] = thaw(self.parameters)
+        return data
+
+
+@dataclass(frozen=True)
+class PotentialConfig(ComponentConfig):
+    backend: Optional[str] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.backend is not None and (not isinstance(self.backend, str) or not self.backend):
+            raise ProviderConfigurationError("Potential backend must be a nonempty string.")
+        if self.provider in ("vasp", "cp2k") and "interface" in self.parameters:
+            raise ProviderConfigurationError(
+                "Move parameters.interface to potential.backend; "
+                "use interactive for shell/interactive interfaces."
+            )
+        if self.provider == "vasp" and "dispersion" in self.parameters:
+            raise ProviderConfigurationError("Move VASP parameters.dispersion to a dftd3 modifier with method: default.")
+        if (self.provider, self.backend) in (("cp2k", "cp2k_shell"), ("vasp", "vasp_interactive")):
+            raise ProviderConfigurationError(
+                f"Backend {self.backend!r} was renamed to interactive; use potential.backend: interactive."
+            )
+        if self.provider == "vasp" and self.backend == "vasp_interactive_disp":
+            raise ProviderConfigurationError("Use potential.backend: interactive and a dftd3 modifier with method: default.")
+
+    def to_dict(self):
+        data = super().to_dict()
+        if self.backend is not None:
+            data["backend"] = self.backend
         return data
 
 
@@ -65,7 +94,7 @@ class SchedulerConfig(ComponentConfig):
 
 @dataclass(frozen=True)
 class RuntimeConfig:
-    potential: ComponentConfig
+    potential: PotentialConfig
     executor: ComponentConfig
     modifiers: Tuple[ComponentConfig, ...] = ()
     scheduler: Optional[SchedulerConfig] = None
@@ -77,6 +106,8 @@ class RuntimeConfig:
             raise ProviderConfigurationError(
                 f"Unsupported runtime schema {self.schema_version}; expected {SCHEMA_VERSION}."
             )
+        if not isinstance(self.potential, PotentialConfig):
+            object.__setattr__(self, "potential", _component(self.potential.to_dict(), "potential"))
         object.__setattr__(self, "modifiers", tuple(self.modifiers))
         object.__setattr__(self, "options", freeze(self.options))
         if self.scheduler is not None:
@@ -117,6 +148,7 @@ class RuntimeConfig:
             self.potential.provider,
             self.potential.parameters,
             method=self.potential.method or "default",
+            backend=self.potential.backend,
         )
 
     def modifier_specs(self) -> Tuple[ModifierSpec, ...]:
@@ -132,12 +164,15 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     provider = data.pop("provider", None)
     method = data.pop("method", None)
     parameters = data.pop("parameters", {})
+    backend = data.pop("backend", None) if label == "potential" else None
     if data:
         raise ProviderConfigurationError(f"Unknown {label} fields: {', '.join(sorted(data))}.")
     if not isinstance(parameters, Mapping):
         raise ProviderConfigurationError(f"{label.capitalize()} parameters must be a mapping.")
     if require_method and not method:
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
+    if label == "potential":
+        return PotentialConfig(str(provider or ""), method, parameters, backend)
     return ComponentConfig(str(provider or ""), method, parameters)
 
 

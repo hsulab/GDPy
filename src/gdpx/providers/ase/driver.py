@@ -39,7 +39,7 @@ def set_calc_state(calc: Calculator, steps: int, timestep: float, stride: int):
 
     if isinstance(
         calc, LinearCombinationCalculator
-    ):  # EnhancedCalculator (vasp+dftd3) or VaspInteractiveWithDispersion
+    ):  # EnhancedCalculator (host + modifiers)
         for subcalc in calc.mixer.calcs:
             more_steps = steps + 2
             set_calc_state(subcalc, more_steps, timestep, stride)

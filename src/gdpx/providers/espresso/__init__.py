@@ -27,6 +27,8 @@ class EspressoPotentialFactory:
 
 
 class EspressoMaterializer:
+    backend = "espresso"
+
     def materialize(self, potential, target=None, **context):
         if not isinstance(potential, EspressoPotential):
             raise TypeError(f"Expected EspressoPotential, got {type(potential).__name__}.")

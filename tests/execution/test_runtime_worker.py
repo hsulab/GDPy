@@ -20,3 +20,5 @@ def test_schema_v3_creates_a_runtime_backed_worker():
     assert worker.batchsize == 2
     assert worker.as_dict()["schema_version"] == 3
     assert worker.as_dict()["potential"]["provider"] == "emt"
+
+    assert worker.as_dict()["potential"]["backend"] == "ase"

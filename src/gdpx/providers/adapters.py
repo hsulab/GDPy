@@ -11,8 +11,10 @@ import copy
 import importlib
 from dataclasses import dataclass
 from typing import Any, Mapping
+from types import MappingProxyType
 
 from .capabilities import CapabilityKind
+from .errors import MaterializationError
 from .provider import Provider
 from .specs import freeze, thaw
 from .targets import AseCalculatorMaterialization, LammpsPotentialMaterialization
@@ -20,6 +22,65 @@ from .targets import AseCalculatorMaterialization, LammpsPotentialMaterializatio
 
 def _load(module: str, attribute: str):
     return getattr(importlib.import_module(module), attribute)
+
+
+@dataclass(frozen=True)
+class BackendMaterializer:
+    """Select an explicitly declared implementation for one executor target."""
+
+    default_backend: str
+    backends: Mapping[str, Any]
+
+    def __post_init__(self):
+        if self.default_backend not in self.backends:
+            raise ValueError("Default backend must have a declared materializer.")
+        object.__setattr__(self, "backends", MappingProxyType(dict(self.backends)))
+
+    def select_backend(self, backend=None):
+        selected = self.default_backend if backend is None else backend
+        if selected not in self.backends:
+            raise MaterializationError(
+                f"Unsupported potential backend {selected!r}; supported backends: {', '.join(self.backends)}."
+            )
+        return selected
+
+    def materialize(self, potential, target=None, *, backend=None, **context):
+        selected = self.select_backend(backend)
+        return self.backends[selected].materialize(potential, target, **context)
+
+
+def select_backend(materializer, backend=None):
+    if isinstance(materializer, BackendMaterializer):
+        return materializer.select_backend(backend)
+    default = getattr(materializer, "backend", None)
+    if backend is not None and backend != default:
+        raise MaterializationError(
+            f"Unsupported potential backend {backend!r}; supported backends: {default or 'not declared'}."
+        )
+    return default
+
+
+def prepare_ase_calculator(calculator):
+    # ASE owns ionic motion; a LAMMPS calculator must only evaluate the geometry.
+    from .lammps.execution import Lammps
+
+    if isinstance(calculator, Lammps):
+        calculator.set(task="spc", steps=0, dynamics="", read_restart=None)
+    return calculator
+
+
+@dataclass(frozen=True)
+class ManagerModifierFactory:
+    module: str
+    manager_class: str
+    backend: str = "ase"
+
+    def create(self, parameters, **context):
+        manager = _load(self.module, self.manager_class)()
+        params = copy.deepcopy(dict(parameters))
+        params["backend"] = self.backend
+        manager.register_calculator(params)
+        return manager.calc
 
 
 @dataclass(frozen=True)
@@ -57,7 +118,7 @@ class ManagerMaterializer:
         parameters["backend"] = self.backend
         manager.register_calculator(parameters)
         if target == "ase.calculator":
-            return AseCalculatorMaterialization(manager.calc)
+            return AseCalculatorMaterialization(prepare_ase_calculator(manager.calc))
         if target == "lammps.potential":
             calculator = manager.calc
             commands = []
@@ -124,14 +185,20 @@ def manager_provider(
     name: str,
     manager_module: str,
     manager_class: str,
-    targets: Mapping[str, str],
+    targets: Mapping[str, str | tuple[str, ...]],
     trainer: tuple[str, str] | None = None,
 ) -> Provider:
     """Build a descriptor from implementation paths declared by one provider."""
     capabilities: dict[CapabilityKind, dict[str, object]] = {
         CapabilityKind.POTENTIAL: {"default": ProviderPotentialFactory(name)},
         CapabilityKind.MATERIALIZER: {
-            target: ManagerMaterializer(name, manager_module, manager_class, backend)
+            target: BackendMaterializer(
+                backend if isinstance(backend, str) else backend[0],
+                {
+                    item: ManagerMaterializer(name, manager_module, manager_class, item)
+                    for item in ((backend,) if isinstance(backend, str) else backend)
+                },
+            )
             for target, backend in targets.items()
         },
     }

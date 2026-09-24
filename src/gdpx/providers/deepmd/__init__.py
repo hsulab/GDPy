@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ..capabilities import CapabilityKind
-from ..adapters import ExecutorFactory, TrainerFactory, add_capabilities, manager_provider
+from ..adapters import BackendMaterializer, prepare_ase_calculator, ExecutorFactory, TrainerFactory, add_capabilities, manager_provider
 from ..provider import Provider
 from ..specs import Artifact, freeze, thaw
 from ..targets import AseCalculatorMaterialization, LammpsPotentialMaterialization
@@ -45,8 +45,8 @@ class DeepMDMaterializer:
         manager.register_calculator(parameters)
         models = manager.calc_params.get("model", ())
         artifacts = tuple(Artifact(pathlib.Path(path), "model") for path in models)
-        if self.backend == "ase":
-            return AseCalculatorMaterialization(manager.calc, artifacts)
+        if target == "ase.calculator" or (target is None and self.backend == "ase"):
+            return AseCalculatorMaterialization(prepare_ase_calculator(manager.calc), artifacts)
         commands = (
             f"pair_style {manager.calc.pair_style}",
             f"pair_coeff {manager.calc.pair_coeff}",
@@ -65,7 +65,7 @@ DEEPMD_PROVIDER = Provider(
     capabilities={
         CapabilityKind.POTENTIAL: {"default": DeepMDPotentialFactory()},
         CapabilityKind.MATERIALIZER: {
-            "ase.calculator": DeepMDMaterializer("ase"),
+            "ase.calculator": BackendMaterializer("ase", {b: DeepMDMaterializer(b) for b in ("ase", "lammps")}),
             "lammps.potential": DeepMDMaterializer("lammps"),
         },
         CapabilityKind.TRAINER: {
@@ -83,7 +83,7 @@ DEEPMD_PROVIDER = add_capabilities(
 
 DEEPMD_JAX_PROVIDER = manager_provider(
     "deepmd_jax", "gdpx.providers.deepmd.deepmd_jax", "DeepmdJaxManager",
-    {"ase.calculator": "ase"},
+    {"ase.calculator": ("ase", "jax")},
     trainer=("gdpx.providers.deepmd.training.deepmd_jax", "DeepmdJaxTrainer"),
 )
 DEEPMD_JAX_PROVIDER = add_capabilities(

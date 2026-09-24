@@ -25,7 +25,7 @@ class BeannManager(BasePotentialManager):
     TRAIN_INPUT_NAME = "input_nn.json"
 
     def __init__(self):
-
+        super().__init__()
         return
 
     def _create_calculator(self, calc_params: dict) -> Calculator:
@@ -36,6 +36,7 @@ class BeannManager(BasePotentialManager):
 
         """
         calc_params = copy.deepcopy(calc_params)
+        calc_params.pop("backend", None)
 
         command = calc_params.pop("command", None)
         directory = calc_params.pop("directory", pathlib.Path.cwd())
@@ -46,7 +47,7 @@ class BeannManager(BasePotentialManager):
             type_map[a] = i
 
         # --- model files
-        model_ = calc_params.get("model", [])
+        model_ = calc_params.pop("model", [])
         if not isinstance(model_, list):
             model_ = [model_]
 

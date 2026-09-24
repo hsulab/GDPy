@@ -33,16 +33,14 @@ class XtbManager(BasePotentialManager):
         if self.calc_backend == "xtb":
             try:
                 from xtb.ase.calculator import XTB
-            except:
-                print("Please install xtb python to use this module.")
-                exit()
+            except ImportError as exc:
+                raise ModuleNotFoundError("Install xtb to use potential.backend: xtb.") from exc
             calc_cls = XTB
         elif self.calc_backend == "tblite":
             try:
                 from tblite.ase import TBLite
-            except:
-                print("Please install xtb python to use this module.")
-                exit()
+            except ImportError as exc:
+                raise ModuleNotFoundError("Install tblite to use potential.backend: tblite.") from exc
             calc_cls = TBLite
         else:
             raise NotImplementedError(

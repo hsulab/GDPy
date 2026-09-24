@@ -31,6 +31,8 @@ class AsePotentialFactory:
 
 
 class AsePotentialMaterializer:
+    backend = "ase"
+
     def materialize(self, potential, target=None, **context):
         if not isinstance(potential, AsePotential):
             raise TypeError(f"Expected AsePotential, got {type(potential).__name__}.")

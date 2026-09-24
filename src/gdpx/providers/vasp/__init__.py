@@ -1,5 +1,7 @@
 """VASP potential materialization and native execution capabilities."""
 
+from ..adapters import BackendMaterializer
+
 import copy
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -13,7 +15,7 @@ from ..targets import AseCalculatorMaterialization, NativeInputMaterialization
 @dataclass(frozen=True)
 class VaspPotential:
     parameters: Mapping[str, Any]
-    interface: str = "vasp"
+
 
     def __post_init__(self):
         object.__setattr__(self, "parameters", freeze(self.parameters))
@@ -22,9 +24,11 @@ class VaspPotential:
 class VaspPotentialFactory:
     def create(self, parameters, **context):
         copied = copy.deepcopy(dict(parameters))
-        interface = copied.pop("interface", copied.pop("backend", "vasp"))
+        if "interface" in copied:
+            raise ValueError("Move parameters.interface to potential.backend; use interactive for shell/interactive interfaces.")
+        copied.pop("backend", None)
         copied.pop("version", None)
-        return VaspPotential(copied, interface)
+        return VaspPotential(copied)
 
 
 class VaspMaterializer:
@@ -37,11 +41,7 @@ class VaspMaterializer:
 
         if not isinstance(potential, VaspPotential):
             raise TypeError(f"Expected VaspPotential, got {type(potential).__name__}.")
-        interface = potential.interface
-        if self.target == "vasp.native":
-            interface = "vasp"
-        elif interface == "vasp":
-            interface = self.default_interface
+        interface = self.default_interface
         parameters = thaw(potential.parameters)
         parameters["backend"] = interface
         manager = VaspManager()
@@ -99,8 +99,8 @@ VASP_PROVIDER = Provider(
     capabilities={
         CapabilityKind.POTENTIAL: {"default": VaspPotentialFactory()},
         CapabilityKind.MATERIALIZER: {
-            "ase.calculator": VaspMaterializer("ase.calculator", "vasp_interactive"),
-            "vasp.native": VaspMaterializer("vasp.native", "vasp"),
+            "ase.calculator": BackendMaterializer("interactive", {"interactive": VaspMaterializer("ase.calculator", "interactive")}),
+            "vasp.native": BackendMaterializer("vasp", {"vasp": VaspMaterializer("vasp.native", "vasp")}),
         },
         CapabilityKind.EXECUTOR: {
             method: VaspExecutorFactory(method) for method in ("spc", "min", "cmin", "md", "freq", "neb")

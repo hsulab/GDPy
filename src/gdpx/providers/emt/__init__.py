@@ -28,6 +28,8 @@ class EmtPotentialFactory:
 
 
 class EmtAseMaterializer:
+    backend = "ase"
+
     target = "ase.calculator"
 
     def materialize(self, potential, target=None, **context):

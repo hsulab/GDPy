@@ -7,7 +7,7 @@ REAX_PROVIDER = manager_provider(
     "reax",
     "gdpx.providers.reax.manager",
     "ReaxManager",
-    {"ase.calculator": "xreac", "lammps.potential": "reax/c"},
+    {"ase.calculator": ("xreac", "reax/c"), "lammps.potential": "reax/c"},
 )
 
 __all__ = ["ReaxManager", "REAX_PROVIDER"]

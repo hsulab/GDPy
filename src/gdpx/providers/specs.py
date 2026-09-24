@@ -50,6 +50,7 @@ class PotentialSpec:
     parameters: Mapping[str, Any] = field(default_factory=dict)
     version: Optional[str] = None
     method: str = "default"
+    backend: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.provider or not self.method:

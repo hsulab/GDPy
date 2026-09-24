@@ -28,47 +28,16 @@ def set_environs(pp_path: str, vdw_path: str) -> None:
     return
 
 
-def instantiate_vasp_interactive_calculator(
-    calc_cls, command: str, calc_params: dict, is_remote: bool, inp_fdict: dict, use_socket: bool
-):
-    """"""
-    # Command must contain the machine prefix, otherwise,
-    # the vasp process will fail.
-    calc = calc_cls(command=command, use_socket=use_socket)
-
-    # Set some default electronic parameters
-    calc.set_xc_params("PBE")  # incar may not set GGA
-    calc.set(lorbit=10)
-    calc.set(gamma=True)
-    if not is_remote and inp_fdict["incar"] is not None:
-        calc.read_incar(inp_fdict["incar"])
-
-    # Set some vasp_interactive parameters
-    calc.set(potim=0.0)
-    calc.set(ibrion=-1)
-    calc.set(ediffg=0)
-    # calc.set(isif=3) # Does not support stress for now...
-
-    set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
-
-    # Update residual params
-    calc.set(**calc_params)
-
-    return calc
-
-
 class VaspManager(BasePotentialManager):
     name = "vasp"
 
     implemented_backends = (
         "vasp",
-        "vasp_interactive",
-        "vasp_interactive_disp",
+        "interactive",
     )
     valid_combinations = (
         ("vasp", "vasp"),
-        ("vasp_interactive", "ase"),
-        ("vasp_interactive_disp", "ase"),
+        ("interactive", "ase"),
     )
 
     def _set_environs(self, pp_path, vdw_path) -> None:
@@ -148,7 +117,7 @@ class VaspManager(BasePotentialManager):
 
             # Update residual params
             calc.set(**calc_params)
-        elif self.calc_backend == "vasp_interactive":
+        elif self.calc_backend == "interactive":
             from vasp_interactive import VaspInteractive
 
             # Command must contain the machine prefix, otherwise,
@@ -172,43 +141,6 @@ class VaspManager(BasePotentialManager):
 
             # Update residual params
             calc.set(**calc_params)
-        elif self.calc_backend == "vasp_interactive_disp":
-            from dftd3.ase import DFTD3
-            from vasp_interactive import VaspInteractive
-
-            from .backend.calculators import VaspInteractiveWithDispersion
-
-            disp_calc_params = calc_params.pop("dispersion", None)
-            if disp_calc_params is None:
-                raise Exception("vasp_interactive_disp must have `dispersion` section in `params`.")
-            dispersion_type = disp_calc_params.pop("type", None)
-            if dispersion_type != "dftd3":
-                raise Exception("vasp_interactive_disp only supports `type` of `dftd3`.")
-            disp_calc = DFTD3(**disp_calc_params)
-
-            vasp_calc = instantiate_vasp_interactive_calculator(
-                VaspInteractive,
-                command=command,
-                calc_params=calc_params,
-                is_remote=is_remote,
-                inp_fdict=inp_fdict,
-                use_socket=use_socket,
-            )
-
-            calc = VaspInteractiveWithDispersion(
-                calcs=[vasp_calc, disp_calc],
-                save_host=True,
-                directory=directory,
-            )
-
-        else:
-            ...  # The backend has already been checked.
-
-        # HACK: Some system-specific electronic structure settings
-        calc.magmom_settings = magmom_init
-
-        calc.dft_plus_u = dft_plus_u
-
         self.calc = calc
 
         return

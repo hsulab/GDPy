@@ -15,6 +15,6 @@ def test_cp2k_potential_is_backend_neutral():
     potential = Cp2kPotentialFactory().create(source)
 
     assert isinstance(potential, Cp2kPotential)
-    assert potential.interface == "cp2k_shell"
+    assert not hasattr(potential, "interface")
     assert "backend" not in potential.parameters
     assert source == {"backend": "cp2k_shell", "cutoff": 400}
