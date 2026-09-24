@@ -1,4 +1,4 @@
-"""reax software provider."""
+"""ReaxFF provider: xreac for ASE and reax/c for LAMMPS."""
 
 from ..adapters import manager_provider
 from .manager import ReaxManager
@@ -7,8 +7,7 @@ REAX_PROVIDER = manager_provider(
     "reax",
     "gdpx.providers.reax.manager",
     "ReaxManager",
-    {"lammps.potential":"lammps"},
+    {"ase.calculator": "xreac", "lammps.potential": "reax/c"},
 )
 
 __all__ = ["ReaxManager", "REAX_PROVIDER"]
-

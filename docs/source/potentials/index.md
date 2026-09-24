@@ -2,9 +2,9 @@
 
 # potentials
 
-A potential component identifies a model family and its model parameters. It
-does not select the software that will execute the calculation. That choice
-belongs to the executor component.
+A potential component identifies a model family (`provider`) and model `parameters`.
+The executor independently identifies the simulation engine (`provider`) and
+task (`method`, such as `min` or `md`).
 
 ```yaml
 potential:
@@ -27,6 +27,25 @@ DeepMD potential -> ase.calculator  -> ASE executor
 ```
 
 An incompatible pairing fails during resolution, before submission.
+
+For ReaxFF, the ASE executor selects xreac:
+
+```yaml
+potential:
+  provider: reax
+  parameters:
+    model: bundled:ffield.reax.HO.2015
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20
+```
+
+Selecting `executor.provider: lammps` instead uses LAMMPS `reax/c` and requires
+a local force-field file. There is one ReaxFF implementation per executor
+target, so no explicit potential backend field is needed.
 
 ## Native software
 
