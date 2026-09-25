@@ -62,6 +62,36 @@ Use `spc` for single-point evaluation, `min` for minimization, and `md`
 for molecular dynamics. Executor parameters are flat settings such as
 `steps`, `fmax`, `constraint`, `ensemble`, and `dump_period`.
 
+## Executor parameter broadcasts
+
+An executor can expand selected parameters into independent runtimes with an
+explicit `broadcast` mapping:
+
+```yaml
+executor:
+  provider: ase
+  method: md
+  parameters:
+    ensemble: nvt
+    controller:
+      name: berendsen
+      params: {}
+  broadcast:
+    temp: [300, 600]
+    controller.params.Tdamp: [50.0, 100.0]
+```
+
+Broadcast paths are relative to `executor.parameters`. Multiple paths form a
+Cartesian product in declaration order, with the rightmost path varying
+fastest. The example therefore creates four runtimes. A broadcast may supply a
+missing final parameter, but every parent mapping or list index must already
+exist. Use nested lists when one alternative is itself a list.
+
+Only executor parameters use this shorthand. Express alternative potentials,
+schedulers, dispatch policies, or complete runtimes with the explicit runtime
+list described in {doc}`compute`. Invalid, empty, or overlapping broadcast
+paths are rejected before workers are created.
+
 Transition-state executors have two shapes. `dimer` is local and consumes
 one replica; `neb` is a path executor and consumes endpoints or an ordered
 image sequence.

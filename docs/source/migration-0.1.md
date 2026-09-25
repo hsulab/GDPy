@@ -89,7 +89,8 @@ dispatch:
 
 Lists represent independent runtimes. Nested lists passed to
 `create_worker_chains` represent ordered chains. There is no implicit
-Cartesian product.
+Cartesian product. Use `executor.broadcast` for an explicit Cartesian sweep of
+executor parameters; ordinary parameter lists remain literal values.
 
 Schema 3 separated the scheduler from its transport. Replace the schema-2
 scheduler providers as follows:

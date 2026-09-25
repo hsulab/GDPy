@@ -36,6 +36,28 @@ and saves every ten steps. `velocity_seed` controls velocity initialization;
 `random_seed` controls the executor’s random generator. Existing input
 velocities are retained unless `ignore_atoms_velocities: true` is set.
 
+To run the same calculation independently at several temperatures, add an
+explicit executor broadcast. Broadcast keys are paths relative to
+`executor.parameters`:
+
+```yaml
+potential:
+  provider: emt
+executor:
+  provider: ase
+  method: md
+  parameters:
+    ensemble: nvt
+    timestep: 1.0
+    steps: 100
+    dump_period: 10
+  broadcast:
+    temp: [300, 600, 900]
+```
+
+This creates three workers in `w0`, `w1`, and `w2`. Lists that are not named
+under `broadcast` remain ordinary executor parameters.
+
 This is a short execution demo, not an equilibrated production trajectory.
 `md-demo/results/end_frames.xyz` contains the final frame; per-calculation
 `traj.xyz` files contain the saved trajectory.
