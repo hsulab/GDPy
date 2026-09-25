@@ -3,14 +3,10 @@
 # Hybrid Monte Carlo
 
 `hybrid_monte_carlo` alternates worker calculations and blocks of MC proposals.
-These examples combine short NVT molecular-dynamics segments with either Cu
-displacements or Cu/Ni identity changes, using EMT for every energy and force
-calculation. Both reuse the periodic 32-atom structures from the other MC demos.
-
-Each cycle runs **20 MD steps → 5 MC proposals**. Five cycles produce 100 MD
-steps and 25 MC proposals, plus the initial single-point evaluation. The
-1200 K temperature, short trajectories, and small cells keep the examples
-inexpensive; the step budgets are not equilibration criteria.
+The examples combine short NVT molecular-dynamics segments with Cu
+displacements, Cu/Ni identity changes, or oxygen exchange on Cu(111). They use
+EMT for the elemental demos and ReaxFF for surface oxidation. Their short
+trajectories and small cells illustrate the workflow rather than equilibration.
 
 GDPy accepts the final structure of each MD segment directly. Only the
 subsequent MC proposals undergo a Metropolis test using potential-energy
@@ -27,8 +23,8 @@ its own thermodynamic settings.
 
 ## Examples
 
-The {doc}`EMT examples <hmc/examples/index>` demonstrate canonical displacement
-moves and semi-grand-canonical identity changes interleaved with MD.
+The {doc}`examples <hmc/examples/index>` demonstrate canonical displacement,
+semi-grand-canonical identity changes, and Cu(111) oxidation interleaved with MD.
 
 ```{toctree}
 :maxdepth: 2

@@ -53,8 +53,9 @@ executor:
 `model` is required. Use `bundled:<filename>` for an xreac parameter file,
 or a local path such as `./ffield.reax`; local paths are expanded and resolved
 to absolute paths. Bundled names are preserved for portability. Available
-bundles are `ffield.reax.HO.2015`, `ffield.reax.CHO.2008`, and
-`ffield.reax.ZnOH.2010`. These do not contain Cu, Ni, or Al parameters.
+bundles are `ffield.reax.HO.2015`, `ffield.reax.CHO.2008`,
+`ffield.reax.CuOHCl.2010`, and `ffield.reax.ZnOH.2010`. The CuOHCl model contains
+Cu; none of these bundled models contains Ni or Al.
 Element coverage alone does not establish a force field's suitability for a study.
 
 Optional parameters are forwarded to xreac: `neighbor_skin` (0.3 Å by default;
