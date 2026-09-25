@@ -2,11 +2,11 @@ import copy
 import itertools
 import pathlib
 import time
+from collections.abc import Mapping
 from typing import Optional, Union
 
 import h5py
 import numpy as np
-import omegaconf
 from ase import Atoms
 from ase.io import read, write
 from joblib import Parallel, delayed
@@ -276,7 +276,7 @@ class compute(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         structures, runtime = input_nodes
-        if isinstance(runtime, dict) or isinstance(runtime, omegaconf.dictconfig.DictConfig):
+        if isinstance(runtime, Mapping):
             runtime = RuntimeVariable.from_mapping(runtime, directory=self.directory)
         return structures, runtime
 

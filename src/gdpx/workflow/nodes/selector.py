@@ -2,7 +2,6 @@ import copy
 import pathlib
 from typing import Mapping, Union
 
-import omegaconf
 from ase.io import read, write
 
 from gdpx.workflow.session.registry import workflow_registers as registers
@@ -31,9 +30,9 @@ class SelectorVariable(Variable):
         # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
         selection = copy.deepcopy(selection)
-        if isinstance(selection, dict) or isinstance(selection, omegaconf.dictconfig.DictConfig):
+        if isinstance(selection, Mapping):
             selection_definitions = [selection]
-        elif isinstance(selection, list) or isinstance(selection, omegaconf.listconfig.ListConfig):
+        elif isinstance(selection, (list, tuple)):
             selection_definitions = selection
         else:
             raise TypeError(f"Unknown type of {selection =}.")
@@ -42,13 +41,7 @@ class SelectorVariable(Variable):
         for params in selection_definitions:
             # Check params type
             assert isinstance(params, Mapping), f"Selector definition must be a Dict, got {type(params)}."
-            if isinstance(params, dict):
-                ...
-            elif isinstance(params, omegaconf.dictconfig.DictConfig):
-                params = omegaconf.OmegaConf.to_container(params, resolve=True)
-            else:
-                raise TypeError(f"Unknown type of {params =}.")
-            assert isinstance(params, dict), f"Selector definition must be a Dict, got {type(params)}."
+            params = dict(params)
             method = params.pop("method", None)
             # Instantiate selector
             selector = create_selector(dict(method=method, **params))
@@ -101,7 +94,7 @@ class select(Operation):
         # - a Dict that defines a single selector
         # - a list of Dict that defines several selectors,
         #   which will be converted into a composed one
-        if isinstance(selector, dict) or isinstance(selector, omegaconf.dictconfig.DictConfig):
+        if isinstance(selector, Mapping):
             selector = SelectorVariable(directory=self.directory / "selector", **selector)
         # self._print(f"{selector = }")
 

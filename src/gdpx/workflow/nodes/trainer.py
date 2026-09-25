@@ -5,8 +5,8 @@
 import copy
 import pathlib
 import re
+from collections.abc import Mapping
 
-import omegaconf
 import yaml
 
 from gdpx.workflow.session.registry import workflow_registers as registers
@@ -91,7 +91,7 @@ class train(Operation):
 
         if isinstance(scheduler, Variable):
             scheduler = scheduler
-        elif isinstance(scheduler, dict) or isinstance(scheduler, omegaconf.DictConfig):
+        elif isinstance(scheduler, Mapping):
             scheduler_params = copy.deepcopy(scheduler)
             scheduler = SchedulerVariable(directory=self.directory, **scheduler_params)
         else:

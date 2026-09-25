@@ -9,7 +9,6 @@ from typing import Protocol, runtime_checkable
 class NodeKind(enum.Enum):
     VARIABLE = "VX"
     OPERATION = "OP"
-    PLACEHOLDER = "PH"
 
 
 @runtime_checkable

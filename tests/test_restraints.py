@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 from ase import Atoms
-from omegaconf import OmegaConf
 
 from gdpx.analysis.descriptors.connectivity import ConnectivityDescriber
 from gdpx.exploration.persist.thanos import dispatch_thanos
@@ -53,10 +52,8 @@ def test_distance_bounds_fall_back_to_covalent_ratio_independently():
     assert restraints[0].distance.maximum == pytest.approx(2.0)
 
 
-def test_restraints_accept_omegaconf_sequences():
-    config = OmegaConf.create(
-        [{"type": "contact_count", "pair": ["C", "O"], "max": 0}]
-    )
+def test_restraints_accept_generic_sequences():
+    config = ({"type": "contact_count", "pair": ["C", "O"], "max": 0},)
     assert len(parse_restraints(config)) == 1
 
 

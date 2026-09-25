@@ -4,10 +4,10 @@
 
 import abc
 import pathlib
+from collections.abc import Mapping
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
-import omegaconf
 
 from . import config
 
@@ -96,7 +96,7 @@ class BaseComponent(abc.ABC):
         # Set up random seeds
         if isinstance(seed, int) or isinstance(seed, np.integer):
             self.rng = np.random.Generator(np.random.PCG64(seed))
-        elif isinstance(seed, dict) or isinstance(seed, omegaconf.DictConfig):
+        elif isinstance(seed, Mapping):
             self.rng = np.random.Generator(np.random.PCG64())
             self.rng.bit_generator.state = seed
         else:

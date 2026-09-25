@@ -5,13 +5,11 @@ from gdpx.core.registry import Registry
 
 VARIABLE_REGISTRY = Registry("variable")
 OPERATION_REGISTRY = Registry("operation")
-PLACEHOLDER_REGISTRY = Registry("placeholder")
 
 
 class workflow_registers:
     variable = VARIABLE_REGISTRY
     operation = OPERATION_REGISTRY
-    placeholder = PLACEHOLDER_REGISTRY
 
     @classmethod
     def get(cls, category: str, name: str, convert_name: bool = True):

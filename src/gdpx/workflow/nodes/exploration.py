@@ -7,8 +7,6 @@ import pathlib
 from collections.abc import Mapping
 from typing import Union
 
-import omegaconf
-
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.factory import create_exploration
 from gdpx.exploration.exploration import BaseExploration
@@ -84,7 +82,7 @@ class explore(Operation):
         """"""
         if scheduler is None:
             scheduler = SchedulerVariable()
-        if isinstance(scheduler, dict) or isinstance(scheduler, omegaconf.DictConfig):
+        if isinstance(scheduler, Mapping):
             scheduler_params = copy.deepcopy(scheduler)
             scheduler = SchedulerVariable(**scheduler_params)
         elif isinstance(scheduler, Variable):

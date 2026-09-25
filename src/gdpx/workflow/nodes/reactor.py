@@ -54,7 +54,7 @@ class pair_stru(Operation):
             pair_structures.append([intermediates[i] for i in p])
 
         # Must update status at the end of forward! Otherwise, the status will be
-        # overwritten in active session by node.reset().
+        # overwritten in repeated workflows by node.reset().
         self.status = "finished"
 
         return AtomsNDArray(pair_structures)

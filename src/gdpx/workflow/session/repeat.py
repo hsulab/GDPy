@@ -12,7 +12,7 @@ from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
-def set_node_directory_in_active_session(
+def set_node_directory_in_repeat_session(
     node: Operation, node_index, working_directory: pathlib.Path
 ) -> None:
     """"""
@@ -24,23 +24,23 @@ def set_node_directory_in_active_session(
     return
 
 
-class ActiveSession(BaseSession):
+class RepeatSession(BaseSession):
 
     def __init__(
         self,
-        steps: int = 2,
+        max_iterations: int = 2,
         reset_random_state: bool = False,
         reset_random_config: tuple[str, int] = ("init", 0),
         directory: Union[str, pathlib.Path] = "./",
     ) -> None:
-        """Initialise an ActiveSession.
+        """Initialise a repeatedly executed workflow session.
 
         Args:
-            steps: Number of active learning steps.
-            reset_random_seed: A tuple of a str and a int.
+            max_iterations: Maximum number of iterations.
+            reset_random_config: Reset mode and first iteration to reset.
 
         """
-        self.steps = steps
+        self.max_iterations = max_iterations
 
         # Some random-related parameters
         self.reset_random_state = reset_random_state
@@ -69,7 +69,7 @@ class ActiveSession(BaseSession):
             )
 
         # Run iterative steps
-        for istep in range(self.steps):
+        for istep in range(self.max_iterations):
             curr_wdir = self.directory / f"iter.{istep:>04d}"
             # Find forward order
             nodes_postorder = traverse_postorder(operation)
@@ -94,7 +94,7 @@ class ActiveSession(BaseSession):
                 nodes_postorder=nodes_postorder,
                 feed_dict=feed_dict,
                 reset_states=True,
-                set_node_dir_func=set_node_directory_in_active_session,
+                set_node_dir_func=set_node_directory_in_repeat_session,
             )
 
             # Check state
@@ -112,15 +112,11 @@ class ActiveSession(BaseSession):
                             converged = node.report_convergence()
                             converged_list.append(converged)
                     if converged_list and all(converged_list):
-                        self._print(
-                            f"Active Session converged at step {istep}."
-                        )
+                        self._print(f"Repeated workflow converged at iteration {istep}.")
                         self.state = SessionState.LoopConverged
                     else:
-                        self._print(
-                            f"Active Session UNconverged at step {istep}."
-                        )
-                        if istep + 1 == self.steps:
+                        self._print(f"Repeated workflow has not converged at iteration {istep}.")
+                        if istep + 1 == self.max_iterations:
                             self.state = SessionState.LoopUnConverged
                         else:
                             ...  # Just StepFinished

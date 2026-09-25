@@ -3,10 +3,10 @@
 
 
 import pathlib
+from collections.abc import Mapping, Sequence
 from typing import Optional, Union
 
 import numpy as np
-import omegaconf
 from ase import Atoms
 from ase.io import read, write
 
@@ -215,7 +215,7 @@ class build(Operation):
     def _preprocess_input_nodes(self, input_nodes):
         """"""
         builder = input_nodes[0]
-        if isinstance(builder, dict) or isinstance(builder, omegaconf.dictconfig.DictConfig):
+        if isinstance(builder, Mapping):
             builder = BuilderVariable(directory=self.directory / "builder", **builder)
 
         return [builder]
@@ -261,9 +261,9 @@ class modify(Operation):
                     fname=substrates,
                 )
             )
-        if isinstance(modifier, dict) or isinstance(modifier, omegaconf.dictconfig.DictConfig):
+        if isinstance(modifier, Mapping):
             modifier = BuilderVariable(directory=self.directory / "modifier", **modifier)
-        elif isinstance(modifier, list) or isinstance(modifier, omegaconf.ListConfig):
+        elif isinstance(modifier, Sequence) and not isinstance(modifier, (str, bytes)):
             modifiers_ = []
             for modifier_ in modifier:
                 modifier_ = BuilderVariable(directory=self.directory / "modifier", **modifier_).value

@@ -10,7 +10,6 @@ from gdpx import config
 
 from .operation import Operation
 from .variable import Variable
-from .placeholder import Placeholder
 from .node import NodeKind, WorkflowNode
 
 
@@ -169,9 +168,7 @@ class BaseSession:
                 )
             )
 
-            if node.node_kind is NodeKind.PLACEHOLDER:
-                node.output = feed_dict[node]
-            elif node.node_kind is NodeKind.VARIABLE:
+            if node.node_kind is NodeKind.VARIABLE:
                 node.output = node.value
             elif node.node_kind is NodeKind.OPERATION:
                 if not isinstance(node, Operation):

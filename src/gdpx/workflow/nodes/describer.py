@@ -1,7 +1,6 @@
 import pathlib
+from collections.abc import Mapping
 from typing import Union
-
-import omegaconf
 
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.factory import create_describer
@@ -38,7 +37,7 @@ class describe(Operation):
         """"""
         structures, describer, worker = input_nodes
 
-        if isinstance(describer, dict) or isinstance(describer, omegaconf.dictconfig.DictConfig):
+        if isinstance(describer, Mapping):
             describer = DescriberVariable(directory=self.directory / "describer", **describer)
 
         return structures, describer, worker

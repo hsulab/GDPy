@@ -127,9 +127,9 @@ class assemble(Operation):
 @registers.operation.register
 class seqrun(Operation):
 
-    def __init__(self, nodes, *args, **kwargs) -> None:
+    def __init__(self, nodes, directory="./", *args, **kwargs) -> None:
         """"""
-        super().__init__(nodes)
+        super().__init__(nodes, directory=directory)
 
         return
 

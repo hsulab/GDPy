@@ -3,11 +3,11 @@
 
 
 import pathlib
+from collections.abc import Sequence
 from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import omegaconf
 from ase import Atoms
 from joblib import Parallel, delayed
 from scipy.optimize import curve_fit
@@ -135,7 +135,7 @@ class MeltingPointValidator(BaseValidator):
 
         self.start = start
 
-        if isinstance(temperatures, list) or isinstance(temperatures, omegaconf.ListConfig):
+        if isinstance(temperatures, Sequence) and not isinstance(temperatures, (str, bytes)):
             temperatures = temperatures
         elif isinstance(temperatures, str):
             temperatures = string_to_array(temperatures)

@@ -12,7 +12,7 @@ from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
-class SequentialSession(BaseSession):
+class OnceSession(BaseSession):
 
     def __init__(self, directory: Union[str, pathlib.Path] = "./") -> None:
         """"""
@@ -43,7 +43,7 @@ class SequentialSession(BaseSession):
             if hasattr(node, "_active") and node._active:
                 node._active = False
                 self._print(
-                    f"Set {node} active to false as it is not supported in a basic session"
+                    f"Set {node} active to false because this workflow runs only once"
                 )
 
         self._run_nodes(

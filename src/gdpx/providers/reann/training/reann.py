@@ -7,9 +7,9 @@ import itertools
 import pathlib
 import re
 import shutil
+from collections.abc import Mapping
 from typing import Optional, Union
 
-import omegaconf
 from ase import Atoms
 
 from gdpx.data.loaders.reann import ReannDataloader
@@ -231,7 +231,7 @@ class ReannTrainer(BasePotentialTrainer):
         )
 
         # self.config = pathlib.Path(self.config).resolve()
-        if isinstance(config, dict) or isinstance(config, omegaconf.dictconfig.DictConfig):
+        if isinstance(config, Mapping):
             self.config = config
         elif isinstance(config, str) or isinstance(config, pathlib.Path):
             self.config = load_reann_input_para(config)

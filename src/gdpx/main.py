@@ -44,23 +44,40 @@ def main():
     # subcommands in the entire workflow
     subparsers = parser.add_subparsers(title="available subcommands", dest="subcommand", help="sub-command help")
 
-    # - run session
-    parser_session = subparsers.add_parser(
-        "session",
-        help="run gdpy session",
-        description="Run a declarative GDPy workflow.",
+    # - declarative workflows
+    parser_workflow = subparsers.add_parser(
+        "workflow",
+        help="validate, inspect, or run a declarative workflow",
+        description="Manage declarative GDPy workflows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser_session.add_argument("SESSION", help="session configuration file (json/yaml)")
-    parser_session.add_argument("--feed", default=None, nargs="+", help="session placeholders")
-    parser_session.add_argument(
-        "--timewait",
-        default=-1,
-        type=float,
-        help="the waiting time between repeated running",
-    )
-    parser_session.add_argument("--timemax", default=-1, type=float, help="the maximum time for the entire session")
-    parser_session.add_argument("--repeats", default=1000, type=int, help="number of repeat times")
+    workflow_commands = parser_workflow.add_subparsers(dest="workflow_action", required=True)
+
+    def add_workflow_source(command):
+        command.add_argument("FILE", help="workflow YAML file")
+        command.add_argument("--profile", default=None, help="configuration profile")
+        command.add_argument(
+            "--set",
+            dest="workflow_overrides",
+            action="append",
+            default=[],
+            metavar="KEY=VALUE",
+            help="override a declared workflow parameter",
+        )
+
+    parser_workflow_run = workflow_commands.add_parser("run", help="run a workflow")
+    add_workflow_source(parser_workflow_run)
+    parser_workflow_run.add_argument("--poll-interval", default=-1, type=float)
+    parser_workflow_run.add_argument("--timeout", default=-1, type=float)
+    parser_workflow_run.add_argument("--max-polls", default=1000, type=int)
+
+    for action, help_text in (
+        ("validate", "validate without constructing workflow nodes"),
+        ("plan", "print dependency and execution order"),
+        ("graph", "print the workflow graph as DOT"),
+    ):
+        command = workflow_commands.add_parser(action, help=help_text)
+        add_workflow_source(command)
 
     # - build structures
     parser_build = subparsers.add_parser(
@@ -236,10 +253,33 @@ def main():
     runtime = parse_input_file(args.runtime) if args.runtime and args.subcommand != "compute" else None
 
     # - use subcommands
-    if args.subcommand == "session":
-        from .cli.session import run_session
+    if args.subcommand == "workflow":
+        from .cli.workflow import (
+            print_workflow_graph,
+            print_workflow_plan,
+            run_workflow,
+            validate_workflow_file,
+        )
 
-        run_session(args.SESSION, args.feed, args.timewait, args.timemax, args.repeats, args.directory)
+        common = {
+            "profile": args.profile,
+            "overrides": args.workflow_overrides,
+        }
+        if args.workflow_action == "run":
+            run_workflow(
+                args.FILE,
+                poll_interval=args.poll_interval,
+                timeout=args.timeout,
+                max_polls=args.max_polls,
+                directory=args.directory,
+                **common,
+            )
+        elif args.workflow_action == "validate":
+            validate_workflow_file(args.FILE, **common)
+        elif args.workflow_action == "plan":
+            print_workflow_plan(args.FILE, **common)
+        else:
+            print_workflow_graph(args.FILE, **common)
     elif args.subcommand == "convert":
         from .cli.convert import convert_dataset
 

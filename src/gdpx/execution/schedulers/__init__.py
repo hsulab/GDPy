@@ -30,10 +30,6 @@ from .pbs import PbsScheduler
 
 REGISTER.register(PbsScheduler)
 
-from .slurm import SlurmScheduler
-
-REGISTER.register(SlurmScheduler)
-
 __all__ = [
     "REGISTER",
     "BaseScheduler",
@@ -43,6 +39,10 @@ __all__ = [
     "SshTransport",
     "SlurmScheduler",
 ]
+
+from .slurm import SlurmScheduler
+
+REGISTER.register(SlurmScheduler)
 
 from .factory import canonicalise_scheduler
 

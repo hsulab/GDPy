@@ -64,7 +64,6 @@ class validate(Operation):
         """
         structures, validator, worker = input_nodes
 
-        # if isinstance(validator, dict) or isinstance(validator, omegaconf.dictconfig.DictConfig):
         if isinstance(validator, Mapping):
             validator = ValidatorVariable(self.directory / "validator", **validator)
             self._print(validator)
@@ -74,7 +73,7 @@ class validate(Operation):
     def _convert_dataset(self, structures):
         """Validator can accept various formats of input structures.
 
-        In an active session, the dataset is dynamic, thus,
+        In a repeated workflow, the dataset is dynamic, thus,
         we need load the dataset before run...
         Validator accepts dict(reference=[], prediction=[])
 
