@@ -18,8 +18,8 @@ gdp -d results -r runtime.yaml compute structures.xyz
 
 ## Runtime layout
 
-A schema-v3 runtime has a `potential`, an `executor`, optional `modifiers`,
-an optional `scheduler`, and optional worker `options`. In a runtime YAML file,
+A runtime has a `potential`, an `executor`, optional `modifiers`, an optional
+`scheduler`, and optional worker `dispatch`. In a runtime YAML file,
 these are top-level keys; do not wrap them in another `runtime` key.
 
 ```yaml

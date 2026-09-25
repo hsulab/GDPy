@@ -23,7 +23,6 @@ show whether `potential.backend` can be omitted.
 ### ase + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: eam
   backend: ase  # Optional; default for the ase executor.
@@ -39,7 +38,6 @@ executor:
 ### lammps + lammps
 
 ```yaml
-schema_version: 3
 potential:
   provider: eam
   backend: lammps  # Optional; default for the lammps executor.

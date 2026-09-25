@@ -32,7 +32,6 @@ show whether `potential.backend` can be omitted.
 ### ase + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: mattersim
   backend: ase  # Optional; default for the ase executor.
@@ -47,7 +46,6 @@ executor:
 ### graph_pes + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: mattersim
   backend: graph_pes  # Required; overrides the default backend for the ase executor.

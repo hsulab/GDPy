@@ -31,7 +31,6 @@ are not interchangeable.
 ### ase + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: allegro
   backend: ase  # Optional; default for the ase executor.
@@ -58,7 +57,6 @@ create a committee; otherwise only the first model is evaluated.
 ### lammps + lammps
 
 ```yaml
-schema_version: 3
 potential:
   provider: allegro
   backend: lammps  # Optional; default for the lammps executor.
@@ -73,7 +71,6 @@ executor:
 ### lammps + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: allegro
   backend: lammps  # Required; the ase executor defaults to ase.

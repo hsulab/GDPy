@@ -1,13 +1,60 @@
 # runtime and executors
 
 A runtime combines a `potential`, an `executor`, optional `modifiers`,
-and an optional `scheduler`. The executor provider selects the software;
-its method selects the calculation. Without a scheduler, execution runs
-directly on the current machine. See {doc}`schedulers` for queue and SSH execution.
+an optional `scheduler`, and a worker `dispatch` policy. The executor provider
+selects the software; its method selects the calculation. Without a scheduler,
+execution runs directly on the current machine. See {doc}`schedulers` for queue
+and SSH execution.
 
-Omitting `schema_version` uses the current configuration schema. Explicit
-unsupported versions are rejected; serialized runtimes and saved compute plans
-still record their schema version.
+The optional `dispatch` section controls worker orchestration. Its defaults are
+`worker: batch`, `batch_size: 1`, `share_workdir: false`, and
+`retain_info: false`. The scheduler remains a separate submission backend, and
+its transport selects the current host or SSH.
+
+For example, this runtime groups up to 16 structures into each worker batch and
+preserves input metadata on collected structures:
+
+```yaml
+potential:
+  provider: emt
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 300
+dispatch:
+  worker: batch
+  batch_size: 16
+  share_workdir: false
+  retain_info: true
+```
+
+Set `share_workdir: true` when all tasks should run as one shared batch and
+store their results in the shared result catalog instead of independent
+calculation directories. In that mode, `batch_size` is overridden by the total
+number of tasks:
+
+```yaml
+dispatch:
+  worker: batch
+  share_workdir: true
+```
+
+Use `worker: single` when each structure must run through an independent local
+worker, as in Monte Carlo exploration:
+
+```yaml
+dispatch:
+  worker: single
+```
+
+`single` is supported by driver runtimes only. Reactor runtimes require
+`worker: batch` and do not support `share_workdir` or `retain_info`.
+
+User-authored runtime files should omit `schema_version` and always use the
+current configuration schema. Serialized runtime snapshots and saved compute
+plans still record a version so incompatible persisted data is rejected.
 
 Use the shared {doc}`units <../units>` unless a parameter specifies otherwise.
 

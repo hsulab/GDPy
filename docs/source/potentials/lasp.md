@@ -23,7 +23,6 @@ show whether `potential.backend` can be omitted.
 ### lasp + lasp
 
 ```yaml
-schema_version: 3
 potential:
   provider: lasp
   backend: lasp  # Optional; default for the lasp executor.
@@ -39,7 +38,6 @@ executor:
 ### lasp + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: lasp
   backend: lasp  # Optional; default for the ase executor.

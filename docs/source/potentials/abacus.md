@@ -23,7 +23,6 @@ show whether `potential.backend` can be omitted.
 ### abacus + abacus
 
 ```yaml
-schema_version: 3
 potential:
   provider: abacus
   backend: abacus  # Optional; default for the abacus executor.
@@ -45,7 +44,6 @@ executor:
 ### abacus + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: abacus
   backend: abacus  # Optional; default for the ase executor.

@@ -26,7 +26,6 @@ show whether `potential.backend` can be omitted.
 ### cp2k + cp2k
 
 ```yaml
-schema_version: 3
 potential:
   provider: cp2k
   backend: cp2k  # Optional; default for the cp2k executor.
@@ -43,7 +42,6 @@ executor:
 ### cp2k + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: cp2k
   backend: cp2k  # Optional; default for the ase executor.
@@ -60,7 +58,6 @@ executor:
 ### interactive + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: cp2k
   backend: interactive  # Required; overrides the default backend for the ase executor.

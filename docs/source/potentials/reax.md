@@ -36,7 +36,6 @@ show whether `potential.backend` can be omitted.
 ### xreac + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: reax
   backend: xreac  # Optional; default for the ase executor.
@@ -73,7 +72,6 @@ benchmark in that directory for the GA example and timing comparison.
 ### reax/c + lammps
 
 ```yaml
-schema_version: 3
 potential:
   provider: reax
   backend: reax/c  # Optional; default for the lammps executor.
@@ -99,7 +97,6 @@ are not compatible with this legacy adapter's hard-coded style.
 ### reax/c + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: reax
   backend: reax/c  # Required; the ase executor defaults to xreac.

@@ -2,9 +2,10 @@
 
 # machine resources
 
-gdpx separates **how** work is dispatched from **where** the dispatch command
-runs. The scheduler provider is `direct`, `slurm`, `lsf`, `pbs`, or a
-third-party queue scheduler. Its nested transport is `local` or `ssh`.
+gdpx separates the submission backend from the host where its command runs.
+The scheduler provider is `direct`, `slurm`, `lsf`, `pbs`, or a third-party
+queue scheduler. Its nested transport is `local` or `ssh`. Worker batching and
+metadata behavior belong to the runtime's separate `dispatch` section.
 
 | Execution path | Scheduler provider | Transport provider |
 | --- | --- | --- |
@@ -137,7 +138,7 @@ scheduler:
 gdpx stages the working tree and runs submission and status commands on the
 remote host. Completed files are synchronized before convergence is checked.
 
-`options.batch_size` controls how many structures are assigned to a queued
+`dispatch.batch_size` controls how many structures are assigned to a queued
 task. Direct execution uses one synchronous batch regardless of transport.
 
 ## Slurm CPU allocation
@@ -159,7 +160,7 @@ scheduler:
       source /path/to/miniconda3/etc/profile.d/conda.sh
       conda activate gdpx
       export OMP_NUM_THREADS=4
-options:
+dispatch:
   batch_size: 10
 ```
 
@@ -204,7 +205,7 @@ scheduler:
       source /path/to/miniconda3/etc/profile.d/conda.sh
       conda activate gdpx-gpu
       export OMP_NUM_THREADS=4
-options:
+dispatch:
   batch_size: 10
 ```
 

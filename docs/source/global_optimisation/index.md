@@ -79,7 +79,6 @@ become the value of `runtime`, indented by two spaces:
 
 ```yaml
 runtime:
-  schema_version: 3
   potential:
     provider: emt
   executor:

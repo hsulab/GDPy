@@ -22,7 +22,6 @@ show whether `potential.backend` can be omitted.
 ### espresso + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: espresso
   backend: espresso  # Optional; default for the ase executor.

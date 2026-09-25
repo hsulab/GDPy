@@ -30,7 +30,6 @@ show whether `potential.backend` can be omitted.
 ### ase + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: tace
   backend: ase  # Optional; default for the ase executor.

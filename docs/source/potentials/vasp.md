@@ -27,7 +27,6 @@ Additional potential parameters are passed to the corresponding calculator;
 ### vasp + vasp
 
 ```yaml
-schema_version: 3
 potential:
   provider: vasp
   backend: vasp  # Optional; default for the vasp executor.
@@ -49,7 +48,6 @@ executor:
 This backend additionally requires the `vasp_interactive` Python package.
 
 ```yaml
-schema_version: 3
 potential:
   provider: vasp
   backend: interactive  # Optional; default for the ase executor.
@@ -71,7 +69,6 @@ executor:
 Add external DFT-D3 through a runtime modifier:
 
 ```yaml
-schema_version: 3
 potential:
   provider: vasp
   backend: interactive  # Optional; default for the ase executor.

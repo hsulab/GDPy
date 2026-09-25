@@ -25,7 +25,6 @@ show whether `potential.backend` can be omitted.
 ### xtb + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: xtb
   backend: xtb  # Optional; default for the ase executor.
@@ -42,7 +41,6 @@ executor:
 ### tblite + ase
 
 ```yaml
-schema_version: 3
 potential:
   provider: xtb
   backend: tblite  # Required; overrides the default backend for the ase executor.

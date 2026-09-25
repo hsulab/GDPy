@@ -57,9 +57,9 @@ detailed balance of biased moves or change MC into an execution method.
 
 ## Runtime configuration
 
-Every runtime is complete. An omitted `schema_version` selects the current
-schema; explicit unsupported versions are rejected. Serialized runtimes and
-saved compute plans retain explicit versions.
+Every runtime is complete. User-authored runtime files omit `schema_version`
+and use the current schema. Serialized runtimes and saved compute plans retain
+explicit versions.
 
 ```
 potential:
@@ -80,7 +80,7 @@ scheduler:
   transport:
     provider: local
     parameters: {}
-options:
+dispatch:
   batch_size: 1
   worker: batch
   share_workdir: false
@@ -91,14 +91,16 @@ Lists represent independent runtimes. Nested lists passed to
 `create_worker_chains` represent ordered chains. There is no implicit
 Cartesian product.
 
-Schema 3 separates dispatch from transport. Replace the schema-2 scheduler
-providers as follows:
+Schema 3 separated the scheduler from its transport. Replace the schema-2
+scheduler providers as follows:
 
 - `provider: local` becomes scheduler `direct` with transport `local`.
 - `provider: remote` becomes the actual scheduler (`direct`, `slurm`, `lsf`,
   or `pbs`) with a nested `ssh` transport.
 
-Schema-2 runtime files and compute plans are not translated automatically.
+Schema 4 also replaces the runtime `options` mapping with the typed `dispatch`
+section shown above. Older runtime files and compute plans are not translated
+automatically.
 
 ## Workflow and CLI
 

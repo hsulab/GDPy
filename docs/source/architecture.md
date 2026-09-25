@@ -61,13 +61,13 @@ The implementation packages are now `providers`, `execution`,
 `exploration`, `sampling`, `workflow`, `structures`, `analysis`, `modifiers`, and
 `data`. Version 0.1 removes the former compatibility packages and global
 registry catalog; integrations enter through the `gdpx.providers` plugin
-group. Runtime input requires explicit `potential`/`executor` component sections.
-An omitted `schema_version` uses the current schema; explicit unsupported
-versions are rejected, and serialized runtimes retain their version.
-Calculators are created only
-after the executor target is known, and unsupported target/modifier
-combinations fail explicitly.
+group. Runtime input requires explicit `potential`/`executor` component
+sections and uses the current schema without a user-authored `schema_version`.
+Serialized runtimes retain their version. Calculators are created only after
+the executor target is known, and unsupported target/modifier combinations fail
+explicitly.
 
-Scheduling has two provider boundaries: a scheduler chooses direct or queued
-dispatch, and its transport chooses the current host or SSH. This keeps host
-location independent of queue semantics and permits every combination.
+Scheduling has two provider boundaries: a scheduler chooses the direct or
+queued submission backend, and its transport chooses the current host or SSH.
+This keeps host location independent of queue semantics and permits every
+combination.

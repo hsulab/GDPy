@@ -69,11 +69,11 @@ fails before submission when the potential cannot produce that interface.
 
 ## Breaking boundary in 0.1
 
-Provider entry points and schema version 3 are the only supported extension
-boundary. The former manager registries, `potter` configuration, and
-`BasePotentialManager.create_driver` API have been removed. An omitted
-`schema_version` selects the current schema. Explicit unsupported versions and
-legacy component keys are rejected rather than implicitly migrated.
+Provider entry points and the current runtime schema are the only supported
+extension boundary. The former manager registries, `potter` configuration, and
+`BasePotentialManager.create_driver` API have been removed. User-authored
+runtime files omit `schema_version`; serialized inputs with unsupported versions
+and legacy component keys are rejected rather than implicitly migrated.
 
 ## Provider boundary
 
