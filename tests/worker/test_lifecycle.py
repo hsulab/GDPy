@@ -1,7 +1,7 @@
 from gdpx.execution import Runtime
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
-from gdpx.providers import ComponentConfig, RuntimeConfig
+from gdpx.providers import ComponentConfig, DispatchConfig, RuntimeConfig
 from gdpx.providers.specs import PotentialSpec
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME
 
@@ -10,7 +10,7 @@ def _runtime(driver, scheduler, *, worker="batch"):
     config = RuntimeConfig(
         potential=ComponentConfig("test"),
         executor=ComponentConfig("test", "run"),
-        options={"worker": worker},
+        dispatch=DispatchConfig(worker=worker),
     )
     return Runtime(
         potential=PotentialSpec("test", {}),
@@ -67,7 +67,7 @@ def test_single_worker_and_conversion(mock_sched, fake_driver, fake_structure, t
 def test_runtime_config_is_the_only_serialized_worker_input(mock_sched, fake_driver, tmp_path):
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     serialized = worker.as_dict()
-    assert serialized["schema_version"] == 3
+    assert serialized["schema_version"] == 4
     assert "potter" not in serialized
     assert "driver" not in serialized
 

@@ -1,7 +1,15 @@
 """Public provider and integration API."""
 
 from .capabilities import CapabilityKind, Factory, Materializer
-from .configuration import ComponentConfig, ModifierConfig, PotentialConfig, RuntimeConfig, SCHEMA_VERSION, SchedulerConfig
+from .configuration import (
+    ComponentConfig,
+    DispatchConfig,
+    ModifierConfig,
+    PotentialConfig,
+    RuntimeConfig,
+    SCHEMA_VERSION,
+    SchedulerConfig,
+)
 from .errors import (
     AmbiguousCapabilityError,
     DuplicateProviderError,
@@ -22,6 +30,7 @@ __all__ = [
     "Artifact",
     "CapabilityKind",
     "ComponentConfig",
+    "DispatchConfig",
     "DuplicateProviderError",
     "Factory",
     "Materialization",

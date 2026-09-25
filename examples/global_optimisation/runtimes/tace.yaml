@@ -1,4 +1,3 @@
-schema_version: 3
 potential:
   provider: tace
   parameters:

@@ -41,7 +41,7 @@ def create_pot_config():
         )
 
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "potential": pot_params,
             "executor": {
                 "provider": backend,

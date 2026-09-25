@@ -2,14 +2,13 @@ method: hybrid_monte_carlo
 random_seed: 1112
 # Initial evaluation and MC trials use the same EMT single-point runtime.
 runtime: &single_point
-  schema_version: 3
   potential:
     provider: emt
   executor:
     provider: ase
     method: spc
     parameters: {}
-  options:
+  dispatch:
     worker: single
 system:
   builder:
@@ -30,7 +29,6 @@ strategy:
   cycle:
     - method: molecular_dynamics
       runtime:
-        schema_version: 3
         potential:
           provider: emt
         executor:

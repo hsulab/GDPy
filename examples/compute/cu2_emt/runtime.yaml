@@ -1,4 +1,3 @@
-schema_version: 3
 potential:
   provider: emt
 executor:
@@ -9,5 +8,5 @@ executor:
     steps: 100
     dump_period: 1
     random_seed: 7
-options:
+dispatch:
   batch_size: 3

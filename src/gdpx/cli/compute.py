@@ -1,4 +1,4 @@
-"""Command-line interface for schema-v3 execution lifecycles."""
+"""Command-line interface for versioned execution lifecycles."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def run_computation(
     worker_index: int = 0,
     job: Optional[Union[str, pathlib.Path]] = None,
 ):
-    """Prepare or advance one explicit schema-v3 compute lifecycle."""
+    """Prepare or advance one explicit compute lifecycle."""
     action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
     plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
 

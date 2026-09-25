@@ -32,7 +32,7 @@ def main():
         "-r",
         "--runtime",
         default=None,
-        help="schema-v3 runtime configuration (json/yaml)",
+        help="runtime configuration (json/yaml)",
     )
 
     parser.add_argument("-nj", "--n_jobs", default=1, type=int, help="number of processors")
@@ -102,7 +102,7 @@ def main():
     parser_compute = subparsers.add_parser(
         "compute",
         help="compute structures with basic methods (MD, MIN, and ...)",
-        description="Execute structures using a schema-v3 runtime.",
+        description="Execute structures using a runtime configuration.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser_compute.add_argument(

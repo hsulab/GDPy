@@ -42,7 +42,7 @@ def test_scheduler_and_transport_resolve_independently(monkeypatch, dispatch, tr
         manager.register(provider)
     parameters = {} if transport == "local" else {"hostname": "cluster", "remote_wdir": "/scratch/jobs"}
     runtime = manager.resolve_runtime({
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "model"},
         "executor": {"provider": "engine", "method": "evaluate", "parameters": {"value": 7}},
         "scheduler": {
@@ -61,7 +61,7 @@ def test_runtime_resolves_from_provider_capabilities_without_mutating_config():
     manager.register(Provider("model", capabilities={CapabilityKind.POTENTIAL: {"default": PotentialFactory()}}))
     manager.register(Provider("engine", capabilities={CapabilityKind.EXECUTOR: {"evaluate": ExecutorFactory()}}))
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "model", "parameters": {}},
         "executor": {"provider": "engine", "method": "evaluate", "parameters": {"value": 7}},
     }
@@ -90,7 +90,7 @@ def test_runtime_uses_selected_potential_method():
 
     runtime = manager.resolve_runtime(
         {
-            "schema_version": 3,
+            "schema_version": 4,
             "potential": {"provider": "model", "method": "chosen", "parameters": {}},
             "executor": {"provider": "engine", "method": "evaluate", "parameters": {"value": chosen}},
         }

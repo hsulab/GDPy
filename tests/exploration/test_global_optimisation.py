@@ -37,7 +37,7 @@ def test_identical_population_can_be_used_by_both_strategies():
     assert isinstance(second, PopulationBasedExploration)
     assert (ga, bh) == originals
     for engine in (first, second):
-        engine.worker = SimpleNamespace(as_dict=lambda: {"schema_version": 3})
+        engine.worker = SimpleNamespace(as_dict=lambda: {"schema_version": 4})
         saved = engine.as_dict()
         assert saved["method"] == "global_optimisation"
         assert set(saved) == {"method", "random_seed", "system", "strategy", "runtime"}

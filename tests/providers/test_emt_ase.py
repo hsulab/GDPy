@@ -10,7 +10,7 @@ from gdpx.providers.emt import EmtPotential
 def test_emt_ase_vertical_slice_resolves_and_evaluates():
     runtime = get_provider_manager().resolve_runtime(
         {
-            "schema_version": 3,
+            "schema_version": 4,
             "potential": {"provider": "emt", "parameters": {}},
             "executor": {"provider": "ase", "method": "spc", "parameters": {}},
         }
@@ -26,7 +26,7 @@ def test_emt_ase_vertical_slice_resolves_and_evaluates():
 def test_nested_executor_parameters_are_thawed_before_factory_use():
     runtime = get_provider_manager().resolve_runtime(
         {
-            "schema_version": 3,
+            "schema_version": 4,
             "potential": {"provider": "emt", "parameters": {}},
             "executor": {
                 "provider": "ase",

@@ -628,7 +628,7 @@ class ReactorBasedWorker(BaseWorker):
     def as_dict(self) -> dict:
         """"""
         worker_params = self.runtime.config.to_dict()
-        worker_params["options"] = {
+        worker_params["dispatch"] = {
             "batch_size": self.batchsize,
             "worker": "batch",
             "share_workdir": False,

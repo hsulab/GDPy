@@ -1,9 +1,8 @@
-schema_version: 3
 potential:
   provider: emt
 executor:
   provider: ase
   method: spc
   parameters: {}
-options:
+dispatch:
   worker: single

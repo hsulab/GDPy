@@ -2,7 +2,6 @@ method: hybrid_monte_carlo
 random_seed: 2026
 
 runtime: &single_point
-  schema_version: 3
   potential: &reax
     provider: reax
     backend: xreac
@@ -13,7 +12,7 @@ runtime: &single_point
     method: spc
     parameters:
       constraint: lowest 4
-  options:
+  dispatch:
     worker: single
 
 system:
@@ -44,7 +43,6 @@ strategy:
   cycle:
     - method: molecular_dynamics
       runtime:
-        schema_version: 3
         potential: *reax
         executor:
           provider: ase

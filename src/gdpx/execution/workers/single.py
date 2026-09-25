@@ -92,7 +92,7 @@ class SingleWorker(DriverBasedWorker):
 
     def as_dict(self) -> dict:
         params = super().as_dict()
-        params["options"]["worker"] = "single"
+        params["dispatch"]["worker"] = "single"
         return params
 
 

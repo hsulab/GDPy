@@ -462,7 +462,7 @@ def test_hopping_with_actual_emt_driver(tmp_path):
     worker = create_worker({
         "potential": {"provider": "emt", "parameters": {}},
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
-        "options": {"worker": "single"},
+        "dispatch": {"worker": "single"},
     })
     atoms = Atoms("Cu2", positions=[[5, 5, 5], [7.4, 5, 5]], tags=[1, 2], cell=[20] * 3)
     atoms.calc = EMT()
@@ -484,7 +484,7 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     runtime = {
         "potential": {"provider": "emt", "parameters": {}},
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
-        "options": {"worker": "single"},
+        "dispatch": {"worker": "single"},
     }
     engine = create_exploration(
         {
@@ -644,7 +644,7 @@ def real_mc_engine(directory, cls=MonteCarlo):
     engine.worker = create_worker(dict(
         potential=dict(provider="emt", parameters={}),
         executor=dict(provider="ase", method="spc", parameters=dict(random_seed=9)),
-        options=dict(worker="single")), directory=directory)
+        dispatch=dict(worker="single")), directory=directory)
     engine.operators = [operator(particles=["Cu"])]
     engine.operators[0].bond_distance_dict = get_bond_distance_dict([29], ratio=1.0)
     engine.operators[0].blmin = get_bond_distance_dict([29], ratio=0.8)

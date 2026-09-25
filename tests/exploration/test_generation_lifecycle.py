@@ -68,7 +68,7 @@ def bh_config(tmp_path, initial=2, generations=0):
     write(source, atom())
     runtime = {"potential": {"provider": "emt", "parameters": {}},
                "executor": {"provider": "ase", "method": "spc", "parameters": {}},
-               "options": {"worker": "single"}}
+               "dispatch": {"worker": "single"}}
     config = {
         'method': 'global_optimisation',
         'system': {

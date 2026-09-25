@@ -17,14 +17,14 @@ from gdpx.execution.lifecycle import (
 
 def _emt_config():
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "emt", "parameters": {}},
         "executor": {
             "provider": "ase",
             "method": "min",
             "parameters": {"dump_period": 1, "steps": 1, "fmax": 0.5, "random_seed": 17},
         },
-        "options": {},
+        "dispatch": {},
     }
 
 
@@ -87,7 +87,7 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
 def test_submit_all_dry_run_scheduler_batches(tmp_path):
     config = _emt_config()
     config["scheduler"] = {"provider": "slurm", "parameters": {"is_dry_run": True}}
-    config["options"] = {"batch_size": 1}
+    config["dispatch"] = {"batch_size": 1}
     second = _cu()
     second.positions[0, 0] = 0.1
     plan = prepare_compute(config, [_cu(), second], tmp_path)
@@ -153,7 +153,7 @@ def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
 
 def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
     config = _emt_config()
-    config["options"] = {"share_workdir": True}
+    config["dispatch"] = {"share_workdir": True}
     plan = prepare_compute(config, [_cu()], tmp_path)
     submit_compute(plan)
     assert json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["results"]

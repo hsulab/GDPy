@@ -5,6 +5,7 @@ import pytest
 from gdpx.providers import (
     AmbiguousCapabilityError,
     CapabilityKind,
+    DispatchConfig,
     DuplicateProviderError,
     MissingCapabilityError,
     Provider,
@@ -125,11 +126,16 @@ def test_provider_manager_introspection_does_not_create_components():
 
 def test_potential_method_round_trips_and_selects_factory():
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "models", "method": "small", "parameters": {}},
         "modifiers": [],
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
-        "options": {},
+        "dispatch": {
+            "worker": "batch",
+            "batch_size": 1,
+            "share_workdir": False,
+            "retain_info": False,
+        },
     }
     config = RuntimeConfig.from_mapping(source)
 
@@ -145,9 +151,9 @@ def test_ambiguous_capability_requires_an_implementation_name():
         manager.require("demo", CapabilityKind.EXECUTOR)
 
 
-def test_schema_v3_is_immutable_and_round_trips():
+def test_schema_v4_is_immutable_and_round_trips():
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "deepmd", "parameters": {"models": ["m.pb"]}},
         "modifiers": [],
         "executor": {"provider": "lammps", "method": "md", "parameters": {"steps": 10}},
@@ -156,20 +162,27 @@ def test_schema_v3_is_immutable_and_round_trips():
             "parameters": {},
             "transport": {"provider": "local", "parameters": {}},
         },
-        "options": {"batch_size": 2},
+        "dispatch": {
+            "worker": "batch",
+            "batch_size": 2,
+            "share_workdir": False,
+            "retain_info": False,
+        },
     }
     original = copy.deepcopy(source)
     config = RuntimeConfig.from_mapping(source)
 
     source["potential"]["parameters"]["models"].append("changed.pb")
+    source["dispatch"]["batch_size"] = 99
 
     assert config.potential.parameters["models"] == ("m.pb",)
+    assert config.dispatch.batch_size == 2
     assert original == config.to_dict()
 
 
-def test_schema_v3_scheduler_defaults_remain_optional():
+def test_schema_v4_scheduler_defaults_remain_optional():
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "models", "parameters": {}},
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
     }
@@ -186,7 +199,7 @@ def test_schema_v3_scheduler_defaults_remain_optional():
 
 
 def test_schema_v2_is_rejected():
-    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 4"):
         RuntimeConfig.from_mapping({"schema_version": 2})
 
 
@@ -202,9 +215,9 @@ def test_malformed_transport_is_rejected(transport):
     ("provider", "message"),
     [("local", "use `direct`"), ("remote", "transport.provider: ssh")],
 )
-def test_schema_v3_rejects_old_scheduler_provider_names(provider, message):
+def test_schema_v4_rejects_old_scheduler_provider_names(provider, message):
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "models", "parameters": {}},
         "executor": {"provider": "engine", "method": "md", "parameters": {}},
         "scheduler": {"provider": provider, "parameters": {}},
@@ -253,10 +266,65 @@ def test_omitted_schema_uses_current_version_and_serializes_explicitly():
     assert RuntimeConfig.from_mapping(config.to_dict()) == config
 
 
-@pytest.mark.parametrize("version", [None, 1, 2, 4, "3"])
+@pytest.mark.parametrize("version", [None, 1, 2, 3, "4"])
 def test_explicit_unsupported_schema_is_rejected(version):
-    with pytest.raises(ProviderConfigurationError, match="schema_version: 3"):
+    with pytest.raises(ProviderConfigurationError, match="schema_version: 4"):
         RuntimeConfig.from_mapping({"schema_version": version})
+
+
+def test_schema_v3_has_targeted_dispatch_migration_error():
+    with pytest.raises(ProviderConfigurationError, match="replace top-level `options` with `dispatch`"):
+        RuntimeConfig.from_mapping({"schema_version": 3, "options": {}})
+
+
+def test_options_field_is_rejected_when_schema_is_omitted():
+    source = {
+        "potential": {"provider": "emt"},
+        "executor": {"provider": "ase", "method": "min"},
+        "options": {"batch_size": 2},
+    }
+    with pytest.raises(ProviderConfigurationError, match="rename it to `dispatch`"):
+        RuntimeConfig.from_mapping(source)
+
+
+def test_options_and_dispatch_cannot_be_combined():
+    source = {
+        "potential": {"provider": "emt"},
+        "executor": {"provider": "ase", "method": "min"},
+        "options": {},
+        "dispatch": {},
+    }
+    with pytest.raises(ProviderConfigurationError, match="rename it to `dispatch`"):
+        RuntimeConfig.from_mapping(source)
+
+
+@pytest.mark.parametrize(
+    ("dispatch", "message"),
+    [
+        ([], "must be a mapping"),
+        ({"worker": "other"}, "Unknown dispatch worker"),
+        ({"batch_size": 0}, "positive integer"),
+        ({"batch_size": True}, "positive integer"),
+        ({"share_workdir": "yes"}, "must be a boolean"),
+        ({"retain_info": 1}, "must be a boolean"),
+        ({"unknown": True}, "Unknown dispatch fields"),
+    ],
+)
+def test_dispatch_validation(dispatch, message):
+    with pytest.raises(ProviderConfigurationError, match=message):
+        DispatchConfig.from_mapping(dispatch)
+
+
+def test_dispatch_defaults_are_typed_and_serialize_explicitly():
+    dispatch = DispatchConfig.from_mapping({})
+
+    assert dispatch == DispatchConfig()
+    assert dispatch.to_dict() == {
+        "worker": "batch",
+        "batch_size": 1,
+        "share_workdir": False,
+        "retain_info": False,
+    }
 
 
 def test_builtin_potentials_are_exposed_through_provider_manager():

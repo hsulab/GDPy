@@ -17,7 +17,7 @@ from gdpx.execution.factory import create_worker, create_workers
 def espresso_spc_config():
     """"""
     params = dict(
-        schema_version=3,
+        schema_version=4,
         potential = dict(
             provider = "espresso",
             parameters = dict(

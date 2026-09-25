@@ -1,4 +1,3 @@
-schema_version: 3
 potential:
   provider: emt
   parameters: {}
@@ -9,4 +8,4 @@ executor:
     dump_period: 1
     steps: 23
     random_seed: 1112
-options: {}
+dispatch: {}

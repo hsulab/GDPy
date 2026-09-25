@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Literal, Mapping, Optional, Tuple
 
 from .errors import ProviderConfigurationError
 from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ class ModifierConfig(ComponentConfig):
 
 @dataclass(frozen=True)
 class SchedulerConfig(ComponentConfig):
-    """A dispatch strategy and the transport used to reach its host."""
+    """A submission backend and the transport used to reach its host."""
 
     transport: Optional[ComponentConfig] = None
 
@@ -109,12 +109,63 @@ class SchedulerConfig(ComponentConfig):
 
 
 @dataclass(frozen=True)
+class DispatchConfig:
+    """Worker orchestration policy for one resolved runtime."""
+
+    worker: Literal["batch", "single"] = "batch"
+    batch_size: int = 1
+    share_workdir: bool = False
+    retain_info: bool = False
+
+    def __post_init__(self) -> None:
+        if self.worker not in ("batch", "single"):
+            raise ProviderConfigurationError(
+                f"Unknown dispatch worker {self.worker!r}; expected 'batch' or 'single'."
+            )
+        if (
+            isinstance(self.batch_size, bool)
+            or not isinstance(self.batch_size, int)
+            or self.batch_size < 1
+        ):
+            raise ProviderConfigurationError(
+                f"Dispatch batch_size must be a positive integer; got {self.batch_size!r}."
+            )
+        for name in ("share_workdir", "retain_info"):
+            value = getattr(self, name)
+            if not isinstance(value, bool):
+                raise ProviderConfigurationError(
+                    f"Dispatch {name} must be a boolean; got {value!r}."
+                )
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> DispatchConfig:
+        if not isinstance(value, Mapping):
+            raise ProviderConfigurationError("Dispatch configuration must be a mapping.")
+        data = copy.deepcopy(dict(value))
+        allowed = {"worker", "batch_size", "share_workdir", "retain_info"}
+        unknown = set(data) - allowed
+        if unknown:
+            raise ProviderConfigurationError(
+                f"Unknown dispatch fields: {', '.join(sorted(unknown))}."
+            )
+        return cls(**data)
+
+    def to_dict(self) -> dict:
+        return {
+            "worker": self.worker,
+            "batch_size": self.batch_size,
+            "share_workdir": self.share_workdir,
+            "retain_info": self.retain_info,
+        }
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
     potential: PotentialConfig
     executor: ComponentConfig
     modifiers: Tuple[ModifierConfig, ...] = ()
     scheduler: Optional[SchedulerConfig] = None
-    options: Mapping[str, Any] = field(default_factory=dict)
+    dispatch: DispatchConfig = field(default_factory=DispatchConfig)
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -128,7 +179,8 @@ class RuntimeConfig:
             item if isinstance(item, ModifierConfig) else _component(item.to_dict(), "modifier")
             for item in self.modifiers
         ))
-        object.__setattr__(self, "options", freeze(self.options))
+        if not isinstance(self.dispatch, DispatchConfig):
+            object.__setattr__(self, "dispatch", DispatchConfig.from_mapping(self.dispatch))
         if self.scheduler is not None:
             object.__setattr__(self, "scheduler", scheduler_component(self.scheduler))
 
@@ -137,6 +189,11 @@ class RuntimeConfig:
         raw = copy.deepcopy(dict(value))
         version = raw.pop("schema_version", SCHEMA_VERSION)
         legacy_fields = sorted({"potter", "driver", "computer", "backend"}.intersection(raw))
+        if version == 3:
+            raise ProviderConfigurationError(
+                "Runtime schema 3 is unsupported; replace top-level `options` with "
+                "`dispatch` and set `schema_version: 4`."
+            )
         if version != SCHEMA_VERSION:
             suffix = f" Legacy fields found: {', '.join(legacy_fields)}." if legacy_fields else ""
             raise ProviderConfigurationError(
@@ -148,7 +205,7 @@ class RuntimeConfig:
                 f"Legacy runtime fields are not supported: {', '.join(legacy_fields)}; "
                 "use potential/executor component sections."
             )
-        return _parse_v3(raw)
+        return _parse_v4(raw)
 
     def to_dict(self) -> dict:
         data = {
@@ -159,7 +216,7 @@ class RuntimeConfig:
         }
         if self.scheduler is not None:
             data["scheduler"] = self.scheduler.to_dict()
-        data["options"] = thaw(self.options)
+        data["dispatch"] = self.dispatch.to_dict()
         return data
 
     def potential_spec(self) -> PotentialSpec:
@@ -227,7 +284,7 @@ def scheduler_component(value: Any) -> SchedulerConfig:
     )
 
 
-def _parse_v3(raw: dict) -> RuntimeConfig:
+def _parse_v4(raw: dict) -> RuntimeConfig:
     try:
         potential = _component(raw.pop("potential"), "potential")
         executor = _component(raw.pop("executor"), "executor", require_method=True)
@@ -239,15 +296,12 @@ def _parse_v3(raw: dict) -> RuntimeConfig:
     modifiers = tuple(_component(item, "modifier") for item in modifiers_value)
     scheduler_value = raw.pop("scheduler", None)
     scheduler = None if scheduler_value is None else scheduler_component(scheduler_value)
-    options = raw.pop("options", {})
-    if not isinstance(options, Mapping):
-        raise ProviderConfigurationError("Runtime options must be a mapping.")
-    allowed_options = {"batch_size", "worker", "share_workdir", "retain_info"}
-    unknown_options = set(options) - allowed_options
-    if unknown_options:
+    if "options" in raw:
         raise ProviderConfigurationError(
-            f"Unknown runtime options: {', '.join(sorted(unknown_options))}."
+            "Runtime field `options` was removed in schema 4; rename it to `dispatch`."
         )
+    dispatch_value = raw.pop("dispatch", {})
+    dispatch = DispatchConfig.from_mapping(dispatch_value)
     if raw:
         raise ProviderConfigurationError(f"Unknown runtime fields: {', '.join(sorted(raw))}.")
-    return RuntimeConfig(potential, executor, modifiers, scheduler, options=options)
+    return RuntimeConfig(potential, executor, modifiers, scheduler, dispatch=dispatch)

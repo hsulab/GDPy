@@ -49,7 +49,7 @@ class RuntimeVariable(Variable):
         executor,
         modifiers=(),
         scheduler=None,
-        options=None,
+        dispatch=None,
         schema_version=SCHEMA_VERSION,
         directory="./",
     ):
@@ -64,7 +64,7 @@ class RuntimeVariable(Variable):
             executor=executor_config,
             modifiers=modifier_configs,
             scheduler=scheduler_config,
-            options=options or {},
+            dispatch=dispatch or {},
             schema_version=schema_version,
         )
         super().__init__(resolve_runtime(self.config), directory=directory)
@@ -77,7 +77,7 @@ class RuntimeVariable(Variable):
             config.executor,
             modifiers=config.modifiers,
             scheduler=config.scheduler,
-            options=config.options,
+            dispatch=config.dispatch,
             schema_version=config.schema_version,
             directory=directory,
         )

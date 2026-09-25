@@ -30,7 +30,7 @@ def run_exploration(
         exp_params: Exploration parameters.
         wait: Time to wait between runs. Defaults to None.
         directory: Directory for the exploration. Defaults to "./".
-        runtime: Optional schema-v3 runtime. If omitted, use ``exp_params.runtime``.
+        runtime: Optional runtime configuration. If omitted, use ``exp_params.runtime``.
         spawn: Comma-separated indices of explorations to run in commandline. Defaults to None.
         input_path: Optional input filename for the run header.
         random_seed: Optional effective global seed for the run header.

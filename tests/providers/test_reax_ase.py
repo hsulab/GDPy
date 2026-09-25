@@ -21,10 +21,16 @@ def test_reax_config_round_trips_without_backend():
     from gdpx.providers import RuntimeConfig
 
     source = {
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "reax", "parameters": {"model": "ffield"}},
         "executor": {"provider": "ase", "method": "min", "parameters": {}},
-        "modifiers": [], "options": {},
+        "modifiers": [],
+        "dispatch": {
+            "worker": "batch",
+            "batch_size": 1,
+            "share_workdir": False,
+            "retain_info": False,
+        },
     }
     config = RuntimeConfig.from_mapping(source)
     assert config.to_dict() == source
@@ -35,7 +41,7 @@ def test_lammps_executor_selects_reax_c(tmp_path):
     model = tmp_path / "ffield"
     model.touch()
     runtime = get_provider_manager().resolve_runtime({
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "reax", "parameters": {
             "model": str(model), "type_list": ["H", "O"], "command": "lmp",
         }},
@@ -84,7 +90,7 @@ def test_real_xreac_runtime_matches_core_units_and_forces():
     from ase.units import kcal, mol
 
     runtime = get_provider_manager().resolve_runtime({
-        "schema_version": 3,
+        "schema_version": 4,
         "potential": {"provider": "reax", "parameters": {"model": "bundled:ffield.reax.HO.2015"}},
         "executor": {"provider": "ase", "method": "spc", "parameters": {}},
     })

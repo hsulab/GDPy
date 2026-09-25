@@ -22,7 +22,7 @@ def config(scheduler="direct"):
     return dict(potential=dict(provider="emt", parameters={}),
                 executor=dict(provider="ase", method="spc", parameters=dict(random_seed=9)),
                 scheduler=dict(provider=scheduler, parameters={"is_dry_run": True} if scheduler != "direct" else {}),
-                options={})
+                dispatch={})
 
 
 def atom(x=0.12345678901234567):
@@ -53,7 +53,7 @@ def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
 
 def test_catalog_provenance_preserves_types_and_spaces(tmp_path):
     params = config()
-    params["options"]["retain_info"] = True
+    params["dispatch"]["retain_info"] = True
     worker = create_worker(params, directory=tmp_path)
     atoms = atom()
     atoms.info.update(confid=72, label="a label with spaces", scores=[1, 2], active=True)
@@ -68,7 +68,7 @@ def test_catalog_provenance_preserves_types_and_spaces(tmp_path):
 
 def test_shared_results_preserve_calculator_data(tmp_path):
     params = config()
-    params["options"]["share_workdir"] = True
+    params["dispatch"]["share_workdir"] = True
     worker = create_worker(params, directory=tmp_path)
     worker.run([atom(), atom(0.2)])
     frames = [trajectory[0] for trajectory in worker.retrieve()]
@@ -218,7 +218,7 @@ def test_legacy_manifest_argument_requires_fresh_folder(tmp_path):
 
 def test_missing_remote_results_allow_inspection_to_continue(tmp_path):
     params = config("slurm")
-    params["options"]["share_workdir"] = True
+    params["dispatch"]["share_workdir"] = True
     worker = create_worker(params, directory=tmp_path)
     worker.run([atom()])
     job = worker.job_store.get_running()[0]
@@ -257,7 +257,7 @@ def test_changed_calculation_set_leaves_metadata_and_scripts_unchanged(tmp_path,
     elif change == "seed":
         extra["rng_states"] = [123, 456]
     elif change == "batch":
-        params["options"]["batch_size"] = 2
+        params["dispatch"]["batch_size"] = 2
     restarted = create_worker(params, directory=tmp_path)
     if change == "mapping":
         restarted._make_task_plan = lambda size: [(0, 1), (0, 0)]

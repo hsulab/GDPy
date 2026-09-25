@@ -1,4 +1,3 @@
-schema_version: 3
 potential:
   provider: emt
   parameters: {}
@@ -10,4 +9,4 @@ executor:
     fmax: 0.000000000001
     steps: 23
     random_seed: 1112
-options: {}
+dispatch: {}

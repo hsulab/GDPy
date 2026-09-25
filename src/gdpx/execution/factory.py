@@ -1,4 +1,4 @@
-"""Create execution workers from resolved schema-v3 runtimes."""
+"""Create execution workers from resolved runtimes."""
 
 from __future__ import annotations
 
@@ -37,13 +37,11 @@ def create_worker(
 ) -> BaseWorker:
     """Create exactly one worker from one complete runtime."""
     runtime = _resolve(value)
-    options = dict(runtime.config.options)
-    batch_size = options.pop("batch_size", 1)
-    worker_kind = options.pop("worker", "batch")
-    share_workdir = options.pop("share_workdir", False)
-    retain_info = options.pop("retain_info", False)
-    if options:
-        raise TypeError(f"Unknown runtime options: {', '.join(sorted(options))}.")
+    dispatch = runtime.config.dispatch
+    batch_size = dispatch.batch_size
+    worker_kind = dispatch.worker
+    share_workdir = dispatch.share_workdir
+    retain_info = dispatch.retain_info
 
     if isinstance(runtime.executor, BaseDriver):
         if worker_kind == "single":
@@ -57,6 +55,10 @@ def create_worker(
     elif isinstance(runtime.executor, BaseReactor):
         if worker_kind != "batch":
             raise ValueError("Reactor runtimes support only the 'batch' worker kind.")
+        if share_workdir:
+            raise ValueError("Reactor runtimes do not support dispatch.share_workdir.")
+        if retain_info:
+            raise ValueError("Reactor runtimes do not support dispatch.retain_info.")
         worker = ReactorBasedWorker(runtime=runtime)
     else:
         raise TypeError(f"Unsupported runtime executor {type(runtime.executor).__name__}.")

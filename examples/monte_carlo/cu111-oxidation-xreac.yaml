@@ -2,7 +2,6 @@ method: monte_carlo
 random_seed: 2026
 
 runtime:
-  schema_version: 3
   potential:
     provider: reax
     backend: xreac
@@ -13,7 +12,7 @@ runtime:
     method: spc
     parameters:
       constraint: lowest 4
-  options:
+  dispatch:
     worker: single
 
 system:
