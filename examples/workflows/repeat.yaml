@@ -1,0 +1,23 @@
+# Minimal repeated-workflow example.
+# Run with: gdp workflow run examples/workflows/repeat.yaml --set input=structures.xyz
+parameters:
+  input: ./structures.xyz
+
+workflow:
+  mode: repeat
+  targets: save
+  max_iterations: 3
+  reset_random_state: false
+
+steps:
+  load:
+    __type__: read_stru
+    options:
+      fname: {$param: input}
+
+  save:
+    __type__: write_stru
+    inputs:
+      structures: load
+    options:
+      dump_last: false

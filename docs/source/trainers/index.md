@@ -81,5 +81,5 @@ the value of `numb_steps`.
 
 ## Use Scheduler
 
-If the training is too time-consuming, one can use `gdp session` to access a workflow that
-defines a training operation. See instructions in the `Session` section.
+For long-running training, use `gdp workflow run` with a workflow that defines
+a `train` step. See {ref}`sessions` for the configuration format and commands.

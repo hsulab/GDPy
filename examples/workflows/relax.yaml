@@ -1,0 +1,49 @@
+# Run with: gdp workflow run examples/workflows/relax.yaml
+parameters:
+  structures: ./structures.xyz
+
+workflow:
+  mode: once
+  targets: trajectories
+
+resources:
+  emt:
+    __type__: potential
+    options:
+      provider: emt
+
+  minimizer:
+    __type__: executor
+    options:
+      provider: ase
+      method: min
+      parameters:
+        fmax: 0.05
+        steps: 100
+
+  relaxation:
+    __type__: runtime
+    inputs:
+      potential: emt
+      executor: minimizer
+    options:
+      dispatch:
+        worker: batch
+        batch_size: 8
+
+steps:
+  structures:
+    __type__: read_stru
+    options:
+      fname: {$param: structures}
+
+  relax:
+    __type__: compute
+    inputs:
+      structures: structures
+      runtime: relaxation
+
+  trajectories:
+    __type__: extract
+    inputs:
+      compute: relax

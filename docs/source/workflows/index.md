@@ -1,6 +1,7 @@
 # workflows
 
-This section includes several oft-used `sessions` (workflows).
+This section describes common scientific workflows. For the declarative YAML
+format and `gdp workflow` commands, see {ref}`sessions`.
 
 ## List of Workflows
 
