@@ -1,6 +1,7 @@
 import copy
 import enum
 import shutil
+from collections.abc import Mapping
 from contextlib import nullcontext
 
 import numpy as np
@@ -26,6 +27,130 @@ from .output import mc_box, report_outcome, report_setup, report_status
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
 MCStepState = enum.Enum("MCStepState", ("UNFINISHED", "FINISHED", "FAILED", "EARLYSTOPPED"))
+
+
+_EXCHANGE_OPERATORS = {
+    "exchange", "biased_volume_exchange", "cavity_exchange", "adsorbate_exchange",
+}
+
+
+def create_monte_carlo(
+    system, strategy, convergence=None, checkpoint=None, output=None,
+    random_seed=None, directory="./",
+):
+    """Create standard MC from its public single-system configuration."""
+    if not isinstance(system, Mapping):
+        raise TypeError("monte_carlo system must be a mapping.")
+    unknown = system.keys() - {"builder", "ensemble", "ignore_atoms_tags"}
+    if unknown:
+        raise ValueError(f"Unsupported monte_carlo system settings: {', '.join(sorted(unknown))}.")
+    if "builder" not in system:
+        raise ValueError("monte_carlo requires system.builder.")
+    if not isinstance(system.get("ignore_atoms_tags", True), bool):
+        raise TypeError("system.ignore_atoms_tags must be a boolean.")
+    if not isinstance(strategy, Mapping):
+        raise TypeError("monte_carlo strategy must be a mapping.")
+    unknown = strategy.keys() - {"operators"}
+    if unknown:
+        raise ValueError(f"Unsupported monte_carlo strategy settings: {', '.join(sorted(unknown))}.")
+    operators = strategy.get("operators")
+    if not isinstance(operators, list) or not operators:
+        raise ValueError("monte_carlo requires a nonempty strategy.operators list.")
+
+    ensemble = system.get("ensemble")
+    if not isinstance(ensemble, Mapping):
+        raise ValueError("monte_carlo requires system.ensemble.")
+    unknown = ensemble.keys() - {"method", "temperature", "chemical_potentials"}
+    if unknown:
+        raise ValueError(f"Unsupported ensemble settings: {', '.join(sorted(unknown))}.")
+    ensemble_method = ensemble.get("method")
+    allowed_ensembles = {"canonical", "semi_grand_canonical", "grand_canonical"}
+    if ensemble_method not in allowed_ensembles:
+        raise ValueError(
+            "system.ensemble.method must be canonical, semi_grand_canonical, or grand_canonical."
+        )
+    temperature = ensemble.get("temperature")
+    if not isinstance(temperature, (int, float)) or not np.isfinite(temperature) or temperature <= 0:
+        raise ValueError("system.ensemble.temperature must be finite and positive.")
+    chemical_potentials = ensemble.get("chemical_potentials", {})
+    if not isinstance(chemical_potentials, Mapping) or any(
+        not isinstance(name, str) or not isinstance(value, (int, float)) or not np.isfinite(value)
+        for name, value in chemical_potentials.items()
+    ):
+        raise ValueError("system.ensemble.chemical_potentials must map particle names to finite values.")
+    if ensemble_method == "canonical" and chemical_potentials:
+        raise ValueError("The canonical ensemble does not accept chemical_potentials.")
+    if ensemble_method != "canonical" and not chemical_potentials:
+        raise ValueError(f"The {ensemble_method} ensemble requires chemical_potentials.")
+
+    resolved_operators = copy.deepcopy(operators)
+    for operator in resolved_operators:
+        if not isinstance(operator, Mapping):
+            raise TypeError("Every strategy operator must be a mapping.")
+        if "temperature" in operator or "chempots" in operator:
+            raise ValueError(
+                "Move operator temperature and chempots to system.ensemble; "
+                "operators contain proposal settings only."
+            )
+        operator["temperature"] = float(temperature)
+        name = operator.get("method", "move")
+        particles = operator.get("particles", [])
+        if name == "swap_type":
+            if ensemble_method not in {"semi_grand_canonical", "grand_canonical"}:
+                raise ValueError("swap_type requires a semi_grand_canonical or grand_canonical ensemble.")
+            missing = [particle for particle in particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+        elif name in _EXCHANGE_OPERATORS:
+            if ensemble_method != "grand_canonical":
+                raise ValueError(f"{name} requires a grand_canonical ensemble.")
+            missing = [particle for particle in particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+        elif name == "react":
+            if ensemble_method != "grand_canonical":
+                raise ValueError("react requires a grand_canonical ensemble.")
+            reaction = operator.get("reaction", {})
+            reaction_particles = reaction.get("particles", [])
+            missing = [particle for particle in reaction_particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            if "chempot_0" in reaction:
+                raise ValueError("Move reaction.chempot_0 to system.ensemble.chemical_potentials.")
+            reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
+
+    checkpoint = {} if checkpoint is None else checkpoint
+    output = {} if output is None else output
+    if not isinstance(checkpoint, Mapping) or checkpoint.keys() - {"period"}:
+        raise ValueError("checkpoint accepts only period.")
+    if not isinstance(output, Mapping) or output.keys() - {"dump_period"}:
+        raise ValueError("output accepts only dump_period.")
+    ckpt_period = checkpoint.get("period", 100)
+    dump_period = output.get("dump_period", 1)
+    if not isinstance(ckpt_period, int) or ckpt_period <= 0:
+        raise ValueError("checkpoint.period must be a positive integer.")
+    if not isinstance(dump_period, int) or dump_period <= 0:
+        raise ValueError("output.dump_period must be a positive integer.")
+    if convergence is None:
+        convergence = {"steps": 1}
+    if not isinstance(convergence, Mapping):
+        raise TypeError("monte_carlo convergence must be a mapping.")
+
+    engine = MonteCarlo(
+        builder=system["builder"], operators=resolved_operators,
+        convergence=copy.deepcopy(dict(convergence)), random_seed=random_seed,
+        dump_period=dump_period, ckpt_period=ckpt_period,
+        ignore_atoms_tags=system.get("ignore_atoms_tags", True),
+        should_retry=False, restart=False, directory=directory,
+    )
+    engine.system_config = {
+        "ensemble": copy.deepcopy(dict(ensemble)),
+        "ignore_atoms_tags": system.get("ignore_atoms_tags", True),
+    }
+    engine.strategy_config = copy.deepcopy(dict(strategy))
+    return engine
 
 
 def convert_blmin_to_str(blmin: dict) -> str:
@@ -599,9 +724,20 @@ class MonteCarlo(BaseExploration):
         potential = self.worker.runtime.provider_potential
         if hasattr(potential, "remove_loaded_models"):
             potential.remove_loaded_models()
-        operators = []
-        for op in self.operators:
-            operators.append(op.as_dict())
+        if hasattr(self, "system_config"):
+            system = copy.deepcopy(self.system_config)
+            system["builder"] = self.builder.as_dict()
+            return copy.deepcopy({
+                "method": "monte_carlo",
+                "random_seed": self.random_seed,
+                "system": system,
+                "strategy": self.strategy_config,
+                "convergence": self.convergence,
+                "checkpoint": {"period": self.ckpt_period},
+                "output": {"dump_period": self.dump_period},
+                "runtime": self.worker.as_dict(),
+            })
+        operators = [op.as_dict() for op in self.operators]
         recipe = {
             "random_seed": self.random_seed,
             "builder": self.builder.as_dict(),

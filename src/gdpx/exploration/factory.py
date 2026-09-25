@@ -13,7 +13,6 @@ from .exploration import BaseExploration
 
 
 RECIPE_METHODS = {
-    "monte_carlo",
     "simulated_annealing",
 }
 
@@ -64,10 +63,18 @@ def create_exploration(config):
         validate_strategy(parameters.get("strategy"))
         if "population" not in parameters:
             raise ValueError("global_optimisation requires population settings.")
+    if method == "monte_carlo" and "recipe" in parameters:
+        raise ValueError(
+            "monte_carlo no longer uses a recipe wrapper; move the builder and ensemble "
+            "under system, operators under strategy, and convergence to the top level."
+        )
     broadcast = parameters.pop('broadcast', None)
     if 'broadcast' in config:
-        if method not in RECIPE_METHODS | {"global_optimisation"}:
-            raise ValueError(f'Broadcast is only supported for global_optimisation and recipe-based explorations, not {method!r}.')
+        if method not in RECIPE_METHODS | {"global_optimisation", "monte_carlo"}:
+            raise ValueError(
+                f"Broadcast is only supported for global_optimisation, monte_carlo, "
+                f"and recipe-based explorations, not {method!r}."
+            )
         if not isinstance(broadcast, Mapping) or not broadcast:
             raise ValueError('broadcast must be a nonempty mapping of recipe paths to value lists.')
     parameters = _recipe_parameters(method, parameters)
@@ -130,6 +137,11 @@ def _create_exploration(method, parameters):
     if parameters.get("builder") is not None:
         parameters["builder"] = canonicalise_builder(parameters["builder"])
         parameters["builder"].set_rng(seed=random_seed)
+    elif method == "monte_carlo" and isinstance(parameters.get("system"), Mapping):
+        system = parameters["system"]
+        if system.get("builder") is not None:
+            system["builder"] = canonicalise_builder(system["builder"])
+            system["builder"].set_rng(seed=random_seed)
     exploration = REGISTER[method](**parameters)
     if isinstance(exploration, Iterable) and not isinstance(exploration, BaseExploration):
         return list(exploration)

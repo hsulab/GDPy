@@ -40,6 +40,10 @@ class ExplorationVariable(Variable):
                 }
         if isinstance(kwargs.get("builder"), Variable):
             kwargs["builder"] = kwargs["builder"].value
+        system = kwargs.get("system")
+        if isinstance(system, Mapping) and isinstance(system.get("builder"), Variable):
+            kwargs["system"] = copy.deepcopy(dict(system))
+            kwargs["system"]["builder"] = system["builder"].value
         exploration = create_exploration(kwargs)
 
         super().__init__(initial_value=exploration, directory=directory)

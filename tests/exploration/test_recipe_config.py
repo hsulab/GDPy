@@ -1,3 +1,4 @@
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -93,14 +94,8 @@ class SerializableBuilder(Serializable):
         self.random_seed = seed
 
 
-@pytest.mark.parametrize(
-    "method",
-    [
-        "monte_carlo",
-        "simulated_annealing",
-    ],
-)
-def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
+def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch):
+    method = "simulated_annealing"
     captured = {}
     exploration = object()
 
@@ -117,7 +112,6 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
                 "random_seed": 17,
                 "operators": [],
                 "convergence": {"steps": 2},
-                **({"population": {}} if method == "basin_hopping" else {}),
             },
         }
     )
@@ -127,7 +121,6 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
         "random_seed": 17,
         "operators": [],
         "convergence": {"steps": 2},
-        **({"population": {}} if method == "basin_hopping" else {}),
     }
 
 
@@ -144,7 +137,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch, method):
                 "random_seed": 7,
                 "recipe": {"operators": [], "convergence": {}},
             },
-            "move these top-level keys into 'recipe': random_seed",
+            "no longer uses a recipe wrapper",
         ),
         ({"method": "simulated_annealing", "recipe": []}, "must be a mapping"),
     ],
@@ -625,7 +618,7 @@ def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, mo
     assert len(population._prepare_current_population(database, 1, builders, operators, reloaded)) == 4
 
 
-def test_monte_carlo_serialization_uses_recipe_and_runtime():
+def test_monte_carlo_serialization_uses_structured_system_and_runtime():
     engine = object.__new__(MonteCarlo)
     engine.random_seed = 11
     engine.builder = Serializable({"method": "builder"})
@@ -638,12 +631,72 @@ def test_monte_carlo_serialization_uses_recipe_and_runtime():
     engine.ignore_atoms_tags = True
     engine.should_retry = False
     engine.restart = False
+    engine.system_config = {
+        "ensemble": {"method": "canonical", "temperature": 500.0},
+        "ignore_atoms_tags": True,
+    }
+    engine.strategy_config = {"operators": [{"method": "move", "particles": ["Cu"]}]}
 
     config = engine.as_dict()
 
-    assert list(config) == ["method", "recipe", "runtime"]
-    assert config["recipe"]["random_seed"] == 11
-    assert config["recipe"]["operators"] == [{"method": "move"}]
+    assert config["method"] == "monte_carlo"
+    assert config["random_seed"] == 11
+    assert config["system"]["builder"] == {"method": "builder"}
+    assert config["system"]["ensemble"] == {"method": "canonical", "temperature": 500.0}
+    assert config["strategy"] == {"operators": [{"method": "move", "particles": ["Cu"]}]}
+    assert config["checkpoint"] == {"period": 10}
+    assert config["output"] == {"dump_period": 2}
+    assert config["runtime"] == {"schema_version": 3}
+
+
+def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
+    config = {
+        "method": "monte_carlo",
+        "random_seed": 7,
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {
+                "method": "semi_grand_canonical",
+                "temperature": 900.0,
+                "chemical_potentials": {"H": 0.1, "He": 0.4},
+            },
+        },
+        "strategy": {
+            "operators": [
+                {"method": "swap_type", "particles": ["H", "He"], "skip_distance_check": True},
+            ],
+        },
+        "convergence": {"steps": 2},
+    }
+    original = copy.deepcopy(config)
+    engine = create_exploration(config)
+    assert engine.operators[0].temperature == 900.0
+    assert engine.operators[0].chempots == [0.1, 0.4]
+    assert config == original
+
+
+@pytest.mark.parametrize("change,message", [
+    (lambda c: c["system"].pop("ensemble"), "requires system.ensemble"),
+    (lambda c: c["system"]["ensemble"].update(method="unknown"), "ensemble.method"),
+    (lambda c: c["strategy"]["operators"][0].update(temperature=500), "Move operator temperature"),
+    (lambda c: c["system"]["ensemble"]["chemical_potentials"].pop("He"), "Missing chemical potentials"),
+])
+def test_monte_carlo_rejects_inconsistent_structured_config(change, message):
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {
+                "method": "semi_grand_canonical",
+                "temperature": 900.0,
+                "chemical_potentials": {"H": 0.1, "He": 0.4},
+            },
+        },
+        "strategy": {"operators": [{"method": "swap_type", "particles": ["H", "He"]}]},
+    }
+    change(config)
+    with pytest.raises((TypeError, ValueError), match=message):
+        create_exploration(config)
 
 
 def test_other_global_optimisers_serialize_the_recipe():
