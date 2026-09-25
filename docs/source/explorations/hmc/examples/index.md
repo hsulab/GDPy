@@ -3,9 +3,11 @@
 # Examples
 
 The EMT examples alternate **20 NVT MD steps and five MC proposals** per cycle,
-for five cycles at 1200 K. The ReaxFF example alternates MD with oxygen exchange
-on Cu(111). Each input includes initialization, MD, and MC runtimes. Run the
-commands on each example page from the GDPy repository root.
+for five cycles at 1200 K. Each input includes initialization, MD, and MC
+runtimes. Run the commands on each example page from the GDPy repository root.
+
+For Cu(111) oxidation with xreac, use the short
+{doc}`grand-canonical MC example <../../mc/examples/cu111-oxidation-xreac>`.
 
 Read the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle
 configuration, sampling limitations, output interpretation, and restart details.
@@ -15,5 +17,4 @@ configuration, sampling limitations, output interpretation, and restart details.
 
 canonical
 semi-grand-canonical
-cu111-oxidation-reax
 ```
