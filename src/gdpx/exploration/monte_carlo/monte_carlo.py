@@ -35,8 +35,7 @@ _EXCHANGE_OPERATORS = {
 
 
 def create_monte_carlo(
-    system, strategy, convergence=None, checkpoint=None, output=None,
-    random_seed=None, directory="./",
+    system, strategy, random_seed=None, directory="./",
 ):
     """Create standard MC from its public single-system configuration."""
     if not isinstance(system, Mapping):
@@ -50,7 +49,7 @@ def create_monte_carlo(
         raise TypeError("system.ignore_atoms_tags must be a boolean.")
     if not isinstance(strategy, Mapping):
         raise TypeError("monte_carlo strategy must be a mapping.")
-    unknown = strategy.keys() - {"operators"}
+    unknown = strategy.keys() - {"operators", "steps", "earlystop", "dump_period", "ckpt_period"}
     if unknown:
         raise ValueError(f"Unsupported monte_carlo strategy settings: {', '.join(sorted(unknown))}.")
     operators = strategy.get("operators")
@@ -121,22 +120,18 @@ def create_monte_carlo(
                 raise ValueError("Move reaction.chempot_0 to system.ensemble.chemical_potentials.")
             reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
 
-    checkpoint = {} if checkpoint is None else checkpoint
-    output = {} if output is None else output
-    if not isinstance(checkpoint, Mapping) or checkpoint.keys() - {"period"}:
-        raise ValueError("checkpoint accepts only period.")
-    if not isinstance(output, Mapping) or output.keys() - {"dump_period"}:
-        raise ValueError("output accepts only dump_period.")
-    ckpt_period = checkpoint.get("period", 100)
-    dump_period = output.get("dump_period", 1)
+    steps = strategy.get("steps", 1)
+    dump_period = strategy.get("dump_period", 1)
+    ckpt_period = strategy.get("ckpt_period", 100)
+    if not isinstance(steps, int) or steps < 0:
+        raise ValueError("strategy.steps must be a non-negative integer.")
     if not isinstance(ckpt_period, int) or ckpt_period <= 0:
-        raise ValueError("checkpoint.period must be a positive integer.")
+        raise ValueError("strategy.ckpt_period must be a positive integer.")
     if not isinstance(dump_period, int) or dump_period <= 0:
-        raise ValueError("output.dump_period must be a positive integer.")
-    if convergence is None:
-        convergence = {"steps": 1}
-    if not isinstance(convergence, Mapping):
-        raise TypeError("monte_carlo convergence must be a mapping.")
+        raise ValueError("strategy.dump_period must be a positive integer.")
+    convergence = {"steps": steps}
+    if "earlystop" in strategy:
+        convergence["earlystop"] = copy.deepcopy(strategy["earlystop"])
 
     engine = MonteCarlo(
         builder=system["builder"], operators=resolved_operators,
@@ -727,14 +722,17 @@ class MonteCarlo(BaseExploration):
         if hasattr(self, "system_config"):
             system = copy.deepcopy(self.system_config)
             system["builder"] = self.builder.as_dict()
+            strategy = copy.deepcopy(self.strategy_config)
+            strategy["steps"] = self.convergence["steps"]
+            if "earlystop" in self.convergence:
+                strategy["earlystop"] = copy.deepcopy(self.convergence["earlystop"])
+            strategy["dump_period"] = self.dump_period
+            strategy["ckpt_period"] = self.ckpt_period
             return copy.deepcopy({
                 "method": "monte_carlo",
                 "random_seed": self.random_seed,
                 "system": system,
-                "strategy": self.strategy_config,
-                "convergence": self.convergence,
-                "checkpoint": {"period": self.ckpt_period},
-                "output": {"dump_period": self.dump_period},
+                "strategy": strategy,
                 "runtime": self.worker.as_dict(),
             })
         operators = [op.as_dict() for op in self.operators]

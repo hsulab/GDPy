@@ -66,8 +66,18 @@ def create_exploration(config):
     if method == "monte_carlo" and "recipe" in parameters:
         raise ValueError(
             "monte_carlo no longer uses a recipe wrapper; move the builder and ensemble "
-            "under system, operators under strategy, and convergence to the top level."
+            "under system and all sampling settings under strategy."
         )
+    if method == "monte_carlo":
+        moved = parameters.keys() & {"convergence", "output", "checkpoint"}
+        if moved:
+            destinations = {
+                "convergence": "strategy.steps (and strategy.earlystop)",
+                "output": "strategy.dump_period",
+                "checkpoint": "strategy.ckpt_period",
+            }
+            migration = ", ".join(f"{key} -> {destinations[key]}" for key in sorted(moved))
+            raise ValueError(f"Move monte_carlo settings under strategy: {migration}.")
     broadcast = parameters.pop('broadcast', None)
     if 'broadcast' in config:
         if method not in RECIPE_METHODS | {"global_optimisation", "monte_carlo"}:

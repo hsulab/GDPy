@@ -19,7 +19,7 @@ EXAMPLES = ROOT / "examples" / "monte_carlo"
 def test_emt_mc_example_runs_with_scheduler_metadata(tmp_path, monkeypatch, name):
     monkeypatch.chdir(ROOT)
     recipe = yaml.safe_load((EXAMPLES / f"{name}.yaml").read_text())
-    recipe["convergence"]["steps"] = 2
+    recipe["strategy"]["steps"] = 2
     runtime = yaml.safe_load((EXAMPLES / "emt.yaml").read_text())
     run_exploration(recipe, runtime=runtime, directory=tmp_path)
     assert (tmp_path / "_meta" / "_scheduler.json").is_file()

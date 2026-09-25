@@ -643,9 +643,15 @@ def test_monte_carlo_serialization_uses_structured_system_and_runtime():
     assert config["random_seed"] == 11
     assert config["system"]["builder"] == {"method": "builder"}
     assert config["system"]["ensemble"] == {"method": "canonical", "temperature": 500.0}
-    assert config["strategy"] == {"operators": [{"method": "move", "particles": ["Cu"]}]}
-    assert config["checkpoint"] == {"period": 10}
-    assert config["output"] == {"dump_period": 2}
+    assert config["strategy"] == {
+        "operators": [{"method": "move", "particles": ["Cu"]}],
+        "steps": 5,
+        "dump_period": 2,
+        "ckpt_period": 10,
+    }
+    assert "convergence" not in config
+    assert "checkpoint" not in config
+    assert "output" not in config
     assert config["runtime"] == {"schema_version": 3}
 
 
@@ -662,17 +668,40 @@ def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
             },
         },
         "strategy": {
+            "steps": 2,
             "operators": [
                 {"method": "swap_type", "particles": ["H", "He"], "skip_distance_check": True},
             ],
         },
-        "convergence": {"steps": 2},
     }
     original = copy.deepcopy(config)
     engine = create_exploration(config)
     assert engine.operators[0].temperature == 900.0
     assert engine.operators[0].chempots == [0.1, 0.4]
+    assert engine.convergence == {"steps": 2}
     assert config == original
+
+
+@pytest.mark.parametrize(
+    "legacy, destination",
+    [
+        ({"convergence": {"steps": 2}}, "strategy.steps"),
+        ({"output": {"dump_period": 2}}, "strategy.dump_period"),
+        ({"checkpoint": {"period": 2}}, "strategy.ckpt_period"),
+    ],
+)
+def test_monte_carlo_rejects_legacy_run_sections(legacy, destination):
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "canonical", "temperature": 900.0},
+        },
+        "strategy": {"operators": [{"method": "move", "particles": ["H"]}]},
+        **legacy,
+    }
+    with pytest.raises(ValueError, match=destination):
+        create_exploration(config)
 
 
 @pytest.mark.parametrize("change,message", [
