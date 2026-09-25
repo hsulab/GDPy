@@ -4,8 +4,9 @@
 
 `hybrid_monte_carlo` alternates worker calculations and blocks of MC proposals.
 The examples combine short NVT molecular-dynamics segments with Cu
-displacements or Cu/Ni identity changes using EMT. Their short trajectories
-and small cells illustrate the workflow rather than equilibration.
+displacements or Cu/Ni identity changes using EMT, and oxygen exchange on
+Cu(111) using xreac. Their short trajectories and small cells illustrate the
+workflow rather than equilibration.
 
 GDPy accepts the final structure of each MD segment directly. Only the
 subsequent MC proposals undergo a Metropolis test using potential-energy
@@ -22,9 +23,8 @@ its own thermodynamic settings.
 
 ## Examples
 
-The {doc}`examples <hmc/examples/index>` demonstrate canonical displacement and
-semi-grand-canonical identity changes. For Cu(111) oxidation with xreac, use
-the short {doc}`grand-canonical MC example <mc/examples/cu111-oxidation-xreac>`.
+The {doc}`examples <hmc/examples/index>` demonstrate canonical displacement,
+semi-grand-canonical identity changes, and Cu(111) oxidation with xreac.
 
 ```{toctree}
 :maxdepth: 2
