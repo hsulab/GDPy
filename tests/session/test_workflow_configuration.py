@@ -113,6 +113,39 @@ steps:
     assert spec.resources["value"].options["value"] == 7
 
 
+def test_workflow_executor_resource_broadcasts_runtime_parameters(tmp_path):
+    path = _write(
+        tmp_path / "workflow.yaml",
+        """
+workflow: {targets: result}
+resources:
+  potential:
+    __type__: potential
+    options: {provider: emt}
+  executor:
+    __type__: executor
+    options:
+      provider: ase
+      method: md
+      parameters: {ensemble: nvt, steps: 1}
+      broadcast: {temp: [300, 600]}
+  runtime:
+    __type__: runtime
+    inputs: {potential: potential, executor: executor}
+steps:
+  result:
+    __type__: workflow_test_add
+    inputs: {value: runtime}
+    options: {amount: 0}
+""",
+    )
+
+    compiled = compile_workflow(load_workflow(path), tmp_path / "run")
+
+    runtimes = compiled.nodes["runtime"].value
+    assert [runtime.config.executor.parameters["temp"] for runtime in runtimes] == [300, 600]
+
+
 def test_compiled_workflow_runs_with_stable_directory(tmp_path):
     path = _write(
         tmp_path / "example.yaml",

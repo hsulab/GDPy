@@ -17,16 +17,18 @@ from typing import Iterable, Optional, Union
 from ase import Atoms
 from ase.io import write
 
-from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.execution.factory import create_worker, create_workers
-from gdpx.providers import RuntimeConfig
+from gdpx.execution.fingerprint import (
+    normalise_value,
+    payload_digest,
+    read_structure_inputs,
+    structure_digest,
+)
+from gdpx.execution.output import get_reporter, reporting_session
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.metadata import WorkerMetadata
-
-from gdpx.execution.output import get_reporter, reporting_session
-from gdpx.execution.fingerprint import (
-    normalise_value, payload_digest, structure_digest, read_structure_inputs,
-)
+from gdpx.providers import expand_runtime_configs
+from gdpx.structures.builders.factory import canonicalise_builder
 
 PLAN_SCHEMA_VERSION = 6
 DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "inputs.json"
@@ -148,17 +150,15 @@ def _normalise_config(config: Union[str, pathlib.Path, dict, list]) -> Union[dic
         parsed = parse_input_file(config)
     else:
         parsed = config
-    if not isinstance(parsed, (dict, list)):
+    if not isinstance(parsed, (dict, list, tuple)):
         raise ComputeLifecycleError(f"Compute configuration must be a mapping or list, got {type(parsed).__name__}.")
-    configs = copy.deepcopy(parsed if isinstance(parsed, list) else [parsed])
-    normalised = []
-    for item in configs:
-        if not isinstance(item, dict):
-            raise ComputeLifecycleError("Every compute configuration must be a mapping.")
-        normalised.append(RuntimeConfig.from_mapping(item).to_dict())
+    configs = expand_runtime_configs(copy.deepcopy(parsed))
+    normalised = [item.to_dict() for item in configs]
     # Plans are JSON artifacts. Convert pathlib and scalar-like configuration
     # values once here so an in-memory plan and a reloaded plan compare equally.
-    value = normalised if isinstance(parsed, list) else normalised[0]
+    executor = parsed.get("executor") if isinstance(parsed, dict) else None
+    has_broadcast = isinstance(executor, dict) and executor.get("broadcast") is not None
+    value = normalised if isinstance(parsed, (list, tuple)) or has_broadcast else normalised[0]
     return normalise_value(value)
 
 

@@ -50,6 +50,25 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
     assert prepare_compute(config, [_cu()], tmp_path).plan_id == plan.plan_id
 
 
+def test_prepare_expands_executor_broadcast_like_an_explicit_runtime_list(tmp_path):
+    config = _emt_config()
+    config["executor"]["broadcast"] = {"steps": [1, 2]}
+    original = copy.deepcopy(config)
+    broadcast = prepare_compute(config, [_cu()], tmp_path / "broadcast")
+    explicit_configs = []
+    for steps in (1, 2):
+        item = _emt_config()
+        item["executor"]["parameters"]["steps"] = steps
+        explicit_configs.append(item)
+    explicit = prepare_compute(explicit_configs, [_cu()], tmp_path / "explicit")
+
+    assert config == original
+    assert broadcast.config == explicit.config
+    assert len(broadcast.workers) == 2
+    assert [worker.directory for worker in broadcast.workers] == ["w0", "w1"]
+    assert all("broadcast" not in item["executor"] for item in broadcast.config)
+
+
 def test_prepare_rejects_a_different_plan_in_same_directory(tmp_path):
     prepare_compute(_emt_config(), [_cu()], tmp_path)
     changed = _cu()

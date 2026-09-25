@@ -10,9 +10,10 @@ import pathlib
 from ase import Atoms
 from ase.io import read, write
 
-from gdpx.structures.builders.factory import canonicalise_builder
-from gdpx.execution.factory import create_worker, create_worker_chains, create_workers
+from gdpx.execution.factory import create_worker_chains, create_workers
 from gdpx.execution.reactor import BaseReactor
+from gdpx.providers import expand_runtime_configs
+from gdpx.structures.builders.factory import canonicalise_builder
 from gdpx.utils.parser import parse_input_file
 
 
@@ -27,11 +28,11 @@ def create_runtime_workers(config):
         config = parse_input_file(input_fpath=config)
     config = copy.deepcopy(config)
     if isinstance(config, dict):
-        return [create_worker(config)]
+        return create_workers(expand_runtime_configs(config))
     if isinstance(config, list) and config:
         if isinstance(config[0], list):
             return create_worker_chains(config)
-        return create_workers(config)
+        return create_workers(expand_runtime_configs(config))
     raise TypeError(f"Runtime configuration must be a non-empty mapping or list, got {type(config).__name__}.")
 
 

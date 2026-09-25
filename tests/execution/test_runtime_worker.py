@@ -1,4 +1,5 @@
 from gdpx.execution.factory import create_worker
+from gdpx.execution.lifecycle import create_runtime_workers
 
 
 def test_schema_v4_creates_a_runtime_backed_worker():
@@ -22,3 +23,19 @@ def test_schema_v4_creates_a_runtime_backed_worker():
     assert worker.as_dict()["potential"]["provider"] == "emt"
 
     assert worker.as_dict()["potential"]["backend"] == "ase"
+
+
+def test_runtime_service_expands_executor_broadcast():
+    config = {
+        "potential": {"provider": "emt"},
+        "executor": {
+            "provider": "ase",
+            "method": "min",
+            "parameters": {},
+            "broadcast": {"steps": [1, 2]},
+        },
+    }
+
+    workers = create_runtime_workers(config)
+
+    assert [worker.runtime.config.executor.parameters["steps"] for worker in workers] == [1, 2]

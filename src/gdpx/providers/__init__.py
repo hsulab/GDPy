@@ -2,13 +2,14 @@
 
 from .capabilities import CapabilityKind, Factory, Materializer
 from .configuration import (
+    SCHEMA_VERSION,
     ComponentConfig,
     DispatchConfig,
     ModifierConfig,
     PotentialConfig,
     RuntimeConfig,
-    SCHEMA_VERSION,
     SchedulerConfig,
+    expand_runtime_configs,
 )
 from .errors import (
     AmbiguousCapabilityError,
@@ -52,5 +53,6 @@ __all__ = [
     "SchedulerConfig",
     "TrainingSpec",
     "UnknownProviderError",
+    "expand_runtime_configs",
     "get_provider_manager",
 ]
