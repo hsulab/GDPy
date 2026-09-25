@@ -15,9 +15,9 @@ gdp -d run-mc-hybrid-semi-grand-canonical \
 python examples/monte_carlo/inspect_run.py run-mc-hybrid-semi-grand-canonical
 ```
 
-The current `swap_type` proposal-count limitation remains when identity
-changes are combined with MD. This is a demonstration of variable-composition
-MD/MC, not a validated semi-grand-canonical equilibrium calculation.
+`swap_type` includes its reverse/forward proposal-count correction. This short
+run demonstrates variable-composition MD/MC; quantitative work still requires
+equilibration and autocorrelation analysis.
 
-See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for procedure
+See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle
 settings, runtime roles, sampling limitations, outputs, and restart behaviour.

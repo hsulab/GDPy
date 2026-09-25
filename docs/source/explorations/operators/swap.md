@@ -6,9 +6,9 @@ Rearrange two particle types while preserving their total counts.
 
 ## Configuration
 
-Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. Preset MC sets temperature under
-`system.ensemble`; custom MC and the other methods add it to the operator:
+Place this fragment under `strategy.operators`. Preset MC and hybrid MC set
+temperature under `system.ensemble`; custom MC/HMC and basin hopping add it to
+the operator:
 
 ```yaml
 - method: swap

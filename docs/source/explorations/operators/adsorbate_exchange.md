@@ -7,10 +7,9 @@ existing tagged adsorbate.
 
 ## Configuration
 
-Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. Preset MC reads temperature and
-chemical potentials from `system.ensemble`; custom MC and the other methods add
-them to the operator:
+Place this fragment under `strategy.operators`. Preset MC and hybrid MC read
+temperature and chemical potentials from `system.ensemble`; custom MC/HMC and
+basin hopping add them to the operator:
 
 ```yaml
 - method: adsorbate_exchange
@@ -27,7 +26,7 @@ them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One supported adsorbate species | Required |
-| `chempots` | Chemical potential for custom MC, BH, and hybrid MC; preset MC uses the ensemble mapping | Required outside preset MC |
+| `chempots` | Chemical potential for custom MC/HMC and BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
 | `anchors` | Surface-site settings, or a one-entry list of settings | Required |
 | `use_ads` | Use an adsorbate representation with binding information; must remain enabled | `true` |
 | `anchors.group` | Group expression selecting surface atoms | Supply explicitly |

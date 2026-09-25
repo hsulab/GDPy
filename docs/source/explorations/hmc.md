@@ -21,6 +21,9 @@ not a Hamiltonian Monte Carlo sampler. The {ref}`MC sampling limitations
 
 See the shared {ref}`sampling-operators` reference for available moves and
 their configuration, particle selection, and acceptance rules.
+Hybrid MC uses the same preset and custom `system.ensemble` configuration as
+standard MC. The ensemble controls the MC acceptance rules; the MD runtime has
+its own thermodynamic settings.
 
 ## Examples
 
@@ -34,47 +37,49 @@ moves and semi-grand-canonical identity changes interleaved with MD.
 hmc/examples/index
 ```
 
-## Configure the procedure
+## Configure the cycle
 
-Hybrid MC currently takes its method settings at the top level, without a
-`recipe` wrapper. Its three runtime roles are distinct:
+Hybrid MC places the initial structure and MC ensemble under `system`, and its
+cycle budget, operators, and ordered cycle under `strategy`. Its three
+runtime roles are distinct:
 
 | Setting | Role |
 | --- | --- |
 | `runtime` | Evaluates the starting structure before the first cycle |
-| `extra_workers.md` | Runs each MD segment |
-| `extra_workers.mc` | Evaluates each proposed MC structure |
+| A `molecular_dynamics` stage runtime | Runs one MD segment |
+| A `monte_carlo` stage runtime | Evaluates that stage's proposed structures |
 
 The YAML anchor `&single_point` and alias `*single_point` reuse one runtime for
 initialization and MC evaluation. Both examples contain every required runtime,
 so no `--runtime` argument is needed. If supplied, `--runtime` replaces only the
-initialization runtime; it does not replace entries in `extra_workers`. Keep
-all three potentials and their energy references consistent.
+initialization runtime. Keep all stage potentials and energy references
+consistent.
 
-`procedure` lists operations in execution order:
+`strategy.cycle` lists explicit stages in execution order:
 
-- `worker_md` runs the runtime stored under `extra_workers.md` once and takes
-  its final structure forward.
-- `[monte_carlo, worker_mc]` performs `num_mcmoves` proposals using the operators
-  and the runtime stored under `extra_workers.mc`.
+- `method: molecular_dynamics` runs its inline `runtime` once and takes the
+  final structure forward. Its executor method must be `md`.
+- `method: monte_carlo` performs the stage's `steps` proposals using
+  `strategy.operators` and its inline single-point runtime. Its executor method
+  must be `spc`.
 
 Each MC block selects operators using their normalized `probability` weights.
-`num_mcmoves` applies to each MC block, while `convergence.steps` counts complete
-passes through `procedure`. Repeating a procedure entry executes it again in
-a separate calculation directory. Use simple worker names such as `md` and
-`mc`; the `worker_` prefix refers to the corresponding `extra_workers` key.
+`strategy.steps` counts complete passes through the cycle. Each MC stage
+has its own proposal count, so repeated MC stages may use different lengths.
+Repeating a stage executes it again in a separate calculation directory.
+`strategy.ckpt_period` controls checkpoints in completed-cycle units.
 
 The MD executor's `steps` counts integration steps and `timestep` is in fs.
 `temp` sets its temperature in kelvin and should agree with the MC operators'
-`temperature`. Langevin `friction` is in fs⁻¹. `velocity_seed` controls velocity
-initialization and the MD `random_seed` controls its random generator; the
-top-level `random_seed` controls MC proposals and acceptance. Existing nonzero
-velocities are reused by default. These seeds make the demos reproducible but
-do not establish statistical convergence.
+ensemble temperature when using a preset ensemble. Langevin `friction` is in
+fs⁻¹. `velocity_seed` controls velocity initialization and the MD `random_seed`
+controls its random generator; the top-level `random_seed` controls MC proposals
+and acceptance. Existing nonzero velocities are reused by default. These seeds
+make the demos reproducible but do not establish statistical convergence.
 
 The MC operators disable geometry filtering and use one proposal attempt.
 An invalid hybrid MC proposal consumes its place in the MC block and keeps
-the current state; `should_retry` does not introduce retries inside that block.
+the current state.
 
 ## Outputs and restart
 
@@ -84,7 +89,7 @@ For an uninterrupted five-cycle run:
   full MD/MC cycle. Intermediate MD frames and individual MC decisions are not
   separate frames in this file.
 - `opstat.txt` contains **25 MC decision rows** plus its header. For these
-  single-block procedures, the step column labels MC attempts 0–24, not cycles.
+  single-block cycles, the step column labels MC attempts 0–24, not cycles.
   MD segments do not add decision rows.
 - `mc_attempts.xyz` contains the initial structure only in the current hybrid
   implementation; use the per-proposal calculations to inspect MC trials.
@@ -94,11 +99,14 @@ For an uninterrupted five-cycle run:
   evaluation. The remaining cycle and proposal indices follow the same pattern.
 
 The MD runtime's `dump_period: 5` saves frames within MD calculations. Hybrid
-MC's top-level `dump_period` currently does not prune procedure directories;
-all are retained. `ckpt_period: 1` requests a checkpoint after every full cycle.
-A pending procedure also forces a checkpoint when its cycle is committed.
+MC retains all stage directories. `strategy.ckpt_period: 1` requests a
+checkpoint after every full cycle. A pending stage also forces a checkpoint
+when its cycle is committed.
 
 Resume by rerunning the same command with the same output directory and inputs.
-A pending calculation retains its cycle, procedure entry, and MC proposal index,
+A pending calculation retains its cycle, stage, and MC proposal index,
 so completed work is not redrawn. Completed cycles resume from their checkpoint.
-Use a new output directory when changing the procedure, runtimes, or operators.
+Use a new output directory when changing the cycle, runtimes, or operators.
+Flat hybrid inputs using `builder`, `operators`, `extra_workers`, or
+`num_mcmoves` are no longer accepted; migrate them to `system` and `strategy`
+and start a new output directory.

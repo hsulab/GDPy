@@ -15,5 +15,5 @@ gdp -d run-mc-hybrid-canonical explore examples/monte_carlo/hybrid-canonical.yam
 python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical
 ```
 
-See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for procedure
+See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle
 settings, runtime roles, sampling limitations, outputs, and restart behaviour.

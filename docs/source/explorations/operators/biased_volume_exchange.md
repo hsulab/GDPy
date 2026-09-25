@@ -7,10 +7,9 @@ acceptance factor.
 
 ## Configuration
 
-Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. Preset MC reads temperature and
-chemical potentials from `system.ensemble`; custom MC and the other methods add
-them to the operator:
+Place this fragment under `strategy.operators`. Preset MC and hybrid MC read
+temperature and chemical potentials from `system.ensemble`; custom MC/HMC and
+basin hopping add them to the operator:
 
 ```yaml
 - method: biased_volume_exchange
@@ -26,7 +25,7 @@ them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | Chemical potential for custom MC, BH, and hybrid MC; preset MC uses the ensemble mapping | Required outside preset MC |
+| `chempots` | Chemical potential for custom MC/HMC and BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection

@@ -55,7 +55,7 @@ The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands
 for canonical, semi-grand-canonical, and grand-canonical MC with single-point energies.
 The {doc}`hybrid MC examples <hmc/examples/index>` combine short EMT molecular
 dynamics segments with displacement or identity-change MC blocks. Their guide
-covers procedure configuration, the three runtime roles, cycle-level output,
+covers cycle configuration, the three runtime roles, cycle-level output,
 and restart behaviour.
 
 ```{toctree}
@@ -158,7 +158,7 @@ preserved without copying the entire structure before serialization.
 previous committed checkpoints are retained; a damaged latest snapshot falls
 back to the previous one. A queued move also retains its pending state until
 its resolution is committed, forcing a checkpoint even between ordinary
-checkpoint steps. Hybrid MC commits this state after its complete procedure.
+checkpoint steps. Hybrid MC commits this state after its complete cycle.
 Older pickle checkpoints are not loaded; use a new output directory for those
 runs.
 
