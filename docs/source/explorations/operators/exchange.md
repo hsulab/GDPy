@@ -7,8 +7,9 @@ Insert or remove one particle to search across compositions.
 ## Configuration
 
 Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. MC reads temperature and chemical
-potentials from `system.ensemble`; the other methods add them to the operator:
+under top-level `operators` for hybrid MC. Preset MC reads temperature and
+chemical potentials from `system.ensemble`; custom MC and the other methods add
+them to the operator:
 
 ```yaml
 - method: exchange
@@ -24,7 +25,7 @@ potentials from `system.ensemble`; the other methods add them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | Chemical potential for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
+| `chempots` | Chemical potential for custom MC, BH, and hybrid MC; preset MC uses the ensemble mapping | Required outside preset MC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection

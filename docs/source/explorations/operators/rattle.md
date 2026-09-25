@@ -8,8 +8,8 @@ several local environments to change before relaxation.
 ## Configuration
 
 Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. MC sets temperature under
-`system.ensemble`; the other methods add it to the operator:
+under top-level `operators` for hybrid MC. Preset MC sets temperature under
+`system.ensemble`; custom MC and the other methods add it to the operator:
 
 ```yaml
 - method: rattle

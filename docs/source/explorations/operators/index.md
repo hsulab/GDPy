@@ -11,10 +11,10 @@ execution, invalid-proposal handling, and result storage.
 ## Configuration
 
 MC and basin hopping configure proposals under `strategy.operators`; hybrid MC
-uses a top-level `operators` list. MC defines temperature and chemical
-potentials under `system.ensemble`. Basin hopping and hybrid MC keep those
-acceptance settings on each operator. For example, this MC fragment displaces
-a copper atom:
+uses a top-level `operators` list. Preset MC ensembles define temperature and
+chemical potentials under `system.ensemble`. Custom MC, basin hopping, and
+hybrid MC keep those acceptance settings on each operator. For example, this
+MC fragment displaces a copper atom:
 
 ```yaml
 strategy:
@@ -77,7 +77,7 @@ react
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `temperature` | Acceptance temperature for BH and hybrid MC; standard MC uses `system.ensemble.temperature` | 300.0 |
+| `temperature` | Acceptance temperature for custom MC, BH, and hybrid MC; preset MC uses `system.ensemble.temperature` | 300.0 |
 | `region` | Region used to select particles and, for exchange, place insertions | Automatic region |
 | `covalent_ratio` | Lower/upper distance-check factors relative to covalent radii | `[0.8, 2.0]` |
 | `allow_isolated` | Permit isolated particles in proposal distance checks | `false` |

@@ -13,6 +13,7 @@ external simulation executable is needed.
 | Canonical (NVT) | Species counts, volume, temperature | Positions | `move`, `rattle`; `swap` for alloys |
 | Semi-grand-canonical | Total atom count, volume, temperature, chemical-potential differences | Species identities and optionally positions | `swap_type`, optionally `move` |
 | Grand-canonical (μVT) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `exchange`, optionally `move` |
+| Custom | Defined by each operator | Depends on configured operators | Any compatible mixture |
 
 `swap` exchanges the positions of unlike particles
 and preserves composition; `swap_type` changes one atom's element and therefore
@@ -26,6 +27,27 @@ quantitative equilibrium sampling.
 
 See the shared {ref}`sampling-operators` reference for available moves and
 their configuration, particle selection, and acceptance rules.
+
+Use `system.ensemble.method: custom` when operators need different temperatures
+or chemical potentials. In custom mode, put `temperature`, `chempots`, and
+`reaction.chempot_0` directly on the relevant operators. GDPy then skips the
+cross-operator ensemble checks and does not inject thermodynamic settings. The
+resulting mixture is user-defined and may not sample one thermodynamic ensemble.
+
+```yaml
+system:
+  ensemble:
+    method: custom
+strategy:
+  operators:
+    - method: move
+      particles: [Cu, Ni]
+      temperature: 600.0
+    - method: swap_type
+      particles: [Cu, Ni]
+      temperature: 1200.0
+      chempots: [0.0, 0.2]
+```
 
 ## Examples
 
@@ -46,9 +68,10 @@ mc/examples/index
 ## Proposal settings
 
 `probability` is a relative operator-selection weight; the weights are
-normalised automatically. Temperature and chemical potentials are defined once
-under `system.ensemble`. Use consistent regions when combining moves and
-exchange; see {ref}`region-definitions` for region definitions.
+normalised automatically. Preset ensembles define temperature and chemical
+potentials once under `system.ensemble`; custom ensembles define them on each
+operator. Use consistent regions when combining moves and exchange; see
+{ref}`region-definitions` for region definitions.
 
 These demos set `skip_distance_check: true` so the energy evaluation, rather
 than repeated geometry filtering, decides whether a trial is acceptable.

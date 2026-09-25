@@ -8,8 +8,9 @@ fixed. This provides composition changes without insertion or removal.
 ## Configuration
 
 Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. MC reads temperature and chemical
-potentials from `system.ensemble`; the other methods add them to the operator:
+under top-level `operators` for hybrid MC. Preset MC reads temperature and
+chemical potentials from `system.ensemble`; custom MC and the other methods add
+them to the operator:
 
 ```yaml
 - method: swap_type
@@ -21,7 +22,7 @@ potentials from `system.ensemble`; the other methods add them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | At least two distinct atomic chemical symbols | Required |
-| `chempots` | Chemical potentials for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
+| `chempots` | Chemical potentials for custom MC, BH, and hybrid MC; preset MC uses the ensemble mapping | Required outside preset MC |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.

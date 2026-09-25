@@ -8,8 +8,9 @@ stoichiometric reaction, allowing both forward and reverse proposals.
 ## Configuration
 
 Place this fragment under `strategy.operators` for MC or basin hopping, or
-under top-level `operators` for hybrid MC. MC reads temperature and standard
-chemical potentials from `system.ensemble`; the other methods add them to the operator:
+under top-level `operators` for hybrid MC. Preset MC reads temperature and
+standard chemical potentials from `system.ensemble`; custom MC and the other
+methods add them to the operator:
 
 ```yaml
 - method: react
@@ -28,10 +29,10 @@ chemical potentials from `system.ensemble`; the other methods add them to the op
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `reaction.particles` | Ordered species participating in the reaction | Required |
-| `reaction.chempot_0` | Standard chemical potentials for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
+| `reaction.chempot_0` | Standard chemical potentials for custom MC, BH, and hybrid MC; preset MC uses the ensemble mapping | Required outside preset MC |
 | `reaction.coefficients` | Signed integer coefficients: negative for reactants, positive for products | Required |
 | `region` | Particle selection and acceptance-volume region | Required |
-| `temperature` | Acceptance temperature for BH and hybrid MC; standard MC uses the ensemble | Required outside standard MC |
+| `temperature` | Acceptance temperature for custom MC, BH, and hybrid MC; preset MC uses the ensemble | Required outside preset MC |
 | `pressure` | Operator pressure setting in bar | 1.0 |
 | `use_bias` | Use estimated empty volume instead of geometric volume | `true` |
 
