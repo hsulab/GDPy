@@ -1,9 +1,9 @@
-method: monte_carlo
+method: hybrid_monte_carlo
 random_seed: 2026
 
-runtime:
+runtime: &single_point
   schema_version: 3
-  potential:
+  potential: &reax
     provider: reax
     backend: xreac
     parameters:
@@ -27,8 +27,8 @@ system:
       O: -2.0
 
 strategy:
-  steps: 3
-  ckpt_period: 3
+  steps: 1
+  ckpt_period: 1
   operators:
     - method: exchange
       particles: [O]
@@ -40,3 +40,28 @@ strategy:
           - [0.0, 4.42745271, 0.0]
           - [0.0, 0.0, 4.5]
       max_random_attempts: 1
+  cycle:
+    - method: molecular_dynamics
+      runtime:
+        schema_version: 3
+        potential: *reax
+        executor:
+          provider: ase
+          method: md
+          parameters:
+            ensemble: nvt
+            temp: 600.0
+            timestep: 0.25
+            steps: 40
+            dump_period: 5
+            velocity_seed: 2026
+            random_seed: 2026
+            remove_rotation: false
+            constraint: lowest 4
+            controller:
+              name: langevin
+              params:
+                friction: 0.01
+    - method: monte_carlo
+      steps: 3
+      runtime: *single_point
