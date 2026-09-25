@@ -84,7 +84,7 @@ For an uninterrupted five-cycle run:
 - `mc.xyz` contains **six frames**: the initial state and one state after each
   full MD/MC cycle. Intermediate MD frames and individual MC decisions are not
   separate frames in this file.
-- `opstat.txt` contains **25 MC decision rows** plus its header. For these
+- `mcmoves.log` contains **25 MC decision rows** plus its header. For these
   single-block cycles, the step column labels MC attempts 0–24, not cycles.
   MD segments do not add decision rows.
 - `mc_attempts.xyz` contains the initial structure only in the current hybrid
