@@ -51,12 +51,12 @@ A top-level `broadcast` mapping expands one recipe into independent searches:
 ```yaml
 method: global_optimisation
 broadcast:
-  population.builders.random.composition:
+  system.builders.random.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
 strategy:
   method: basin_hopping
-  # Full builder, population, operators, and convergence settings.
+  # Full system, operators, and convergence settings.
 ```
 
 Run the complete supplied Cu–Ni example from the repository root:

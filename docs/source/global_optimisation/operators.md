@@ -4,28 +4,29 @@
 
 GA operators control how gdpx recognises duplicate structures, combines
 parents, and modifies offspring. Population comparison is configured under
-`population.comparator`; `operators` contains crossover and mutation. See the
+`system.comparator`; `strategy.operators` contains crossover and mutation. See the
 shared {ref}`global-optimisation-population` reference.
 
 ```yaml
-population:
+system:
   comparator:
     method: interatomic_distance
-operators:
-  crossover:
-    method: cut_and_splice
-  mutation:
-    - method: rattle
-      probability: 1.0
-    - method: cluster_rotation
-      probability: 0.5
+strategy:
+  operators:
+    crossover:
+      method: cut_and_splice
+    mutation:
+      - method: rattle
+        probability: 1.0
+      - method: cluster_rotation
+        probability: 0.5
 ```
 
 When several mutations are configured, `probability` gives their relative selection
 weights. Builder-derived values such as minimum bond distances, the substrate,
 and the number of optimised atoms are supplied to compatible operators
 automatically. Periodicity and fragment preservation are configured once as
-`population.periodic` and `population.preserve_fragments`. Both default to
+`system.periodic` and `system.preserve_fragments`. Both default to
 `true`; set either value explicitly to `false` when the searched system or its
 operators require it.
 

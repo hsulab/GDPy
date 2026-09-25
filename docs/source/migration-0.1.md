@@ -21,17 +21,18 @@ Use the package that owns the concept:
 ## Basin hopping and shared moves
 
 GA and BH now use `method: global_optimisation` and a `strategy.method` of
-`genetic_algorithm` or `basin_hopping`. Remove the `recipe` wrapper: keep shared
-population, objective, convergence, seed, and archive settings at the top level.
-Move operators and method-specific settings under `strategy`. GA generation
+`genetic_algorithm` or `basin_hopping`. Remove the `recipe` wrapper: put
+population construction under `system`, and put objective, convergence,
+archive, operators, and method-specific settings under `strategy`. Keep the
+seed at the top level. GA generation
 policies move from `population.generation` to `strategy`; `population.name` is
 removed because crossover compatibility is automatic. See
 {doc}`global_optimisation/population` for the complete migration table.
 
 The former concurrent-hopping search is the `basin_hopping` strategy. Configure
 initialization and batched hop calculations with the top-level `runtime`;
-`recipe.mcworker` is no longer accepted. MC and simulated annealing continue to
-use their existing `recipe` wrappers.
+`recipe.mcworker` is no longer accepted. MC also uses `system` and `strategy`;
+simulated annealing retains its `recipe` wrapper.
 The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
 
 The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations
@@ -106,7 +107,7 @@ schema-1 compute plans are not accepted.
 ## Global-optimisation objectives
 
 Genetic algorithms and concurrent hopping configure search scoring with the
-`objective` mapping (top-level for global optimisation; inside `recipe` for MC). The former names are not accepted:
+`strategy.objective` mapping for global optimisation. The former names are not accepted:
 
 - `property` is now `objective`.
 - `chempot` is now `chemical_potentials`.
@@ -115,11 +116,12 @@ Energy is the default objective and should be omitted. A composition-dependent
 objective has the following form:
 
 ```yaml
-objective:
-  target: formation_energy
-  chemical_potentials:
-    Cu: -3.50
-    O: -4.95
+strategy:
+  objective:
+    target: formation_energy
+    chemical_potentials:
+      Cu: -3.50
+      O: -4.95
 ```
 
 ## Global-optimisation database

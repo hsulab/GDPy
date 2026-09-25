@@ -69,7 +69,7 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
 
 - method: This must be `global_optimisation`; set `strategy.method: genetic_algorithm`.
 
-- population.builders:
+- system.builders:
 
   > Define named builders that can initialise the population and complete later
   > generations. See {ref}`random-builders` for more details.
@@ -80,15 +80,15 @@ The GA input file `./config.yaml` uses the common global-optimisation layout:
 
 gdpx stores explored structures and restart metadata in `candidates.db` inside
 the exploration directory; its name is not configurable. The remaining entries
-below are top-level settings, except for the algorithm-specific `strategy` section:
+are split between `system` and `strategy`:
 
-- objective: Optional search target. It defaults to `energy`, so the section can
+- strategy.objective: Optional search target. It defaults to `energy`, so the section can
   be omitted for ordinary energy minimisation. Composition-dependent targets
   use `chemical_potentials` to rank candidates with different compositions.
 
-- convergence: Convergence criteria, e.g., the maximum number of generation.
+- strategy.convergence: Convergence criteria, e.g., the maximum number of generations.
 
-- population: Define how to create and organise a population. See the shared
+- system: Define how to create and organise a population. See the shared
   {ref}`global-optimisation-population` reference, including `retained_size`.
 
   > - periodic and preserve_fragments:
@@ -132,7 +132,7 @@ below are top-level settings, except for the algorithm-specific `strategy` secti
 ```yaml
 method: global_optimisation
 random_seed: 127
-population:
+system:
   comparator:
     dE: 0.015
     method: interatomic_distance
@@ -156,10 +156,10 @@ population:
         size: 5
   generation:
     total_size: 5
-convergence:
-  generation: 2
 strategy:
   method: genetic_algorithm
+  convergence:
+    generation: 2
   operators:
     crossover:
       method: cut_and_splice

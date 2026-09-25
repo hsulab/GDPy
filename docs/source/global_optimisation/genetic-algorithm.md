@@ -33,7 +33,7 @@ Two text files retain the candidate details outside the console boxes:
   across all generations, with timestamp, candidate ID, fitness (`raw_score`),
   extinction flag, and species counts. Fitness is maximised; it is distinct from
   the minimised objective shown in the generation box. Searches with
-  `population.preserve_fragments: true` report fragment/species counts; other
+  `system.preserve_fragments: true` report fragment/species counts; other
   searches report elemental atom counts, regardless of crossover provenance tags.
 
 These files are regenerated from committed database records at generation and

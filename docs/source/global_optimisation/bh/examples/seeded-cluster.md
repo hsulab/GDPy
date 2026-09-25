@@ -78,7 +78,7 @@ export and the output layout.
 
 ## Supply your own seeds
 
-Replace `population.builders.seeds.frames` with your structure-file path and
+Replace `system.builders.seeds.frames` with your structure-file path and
 set `indices` to the frames you want to include. Update the `seeds` allocation
 and `initial.total_size` together if the number of selected frames changes.
 Keep the cell, periodicity, composition, and tags consistent with the intended

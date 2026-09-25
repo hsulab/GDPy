@@ -19,22 +19,20 @@ determines how they are evaluated.
 
 ## Configuration at a glance
 
-Search settings are top-level fields in the exploration YAML; there is no
-`recipe` wrapper.
+Search configuration follows the same three-section layout as MC: `method`,
+`system`, and `strategy`. There is no `recipe` wrapper.
 
 | Section | Purpose |
 | --- | --- |
-| `population` | Named builders, initialization, retained population size, generation size, comparison, and extinction rules. |
-| `strategy` | `method: genetic_algorithm` or `method: basin_hopping`, with its operators and search policies. |
-| `objective` | Candidate ranking; defaults to energy. Composition-dependent targets can include chemical potentials. |
-| `convergence` | When to stop; `generation: 0` performs initialization only. |
+| `system` | Named builders, initialization, retained population size, generation size, comparison, and extinction rules. |
+| `strategy` | Algorithm method, operators, search policies, objective, convergence, and archive behavior. |
 | `random_seed` | Reproducible search random streams. |
 | `runtime` | Potential and executor used to evaluate candidates; can instead be supplied in a separate file. |
 | `scheduler` | Where the exploration loop runs; defaults to direct execution. |
 
-`population.initial.total_size` is the number of initial candidates.
-`population.retained_size` is the maximum number kept for selection and defaults
-to `population.generation.total_size`. The generation size counts offspring for
+`system.initial.total_size` is the number of initial candidates.
+`system.retained_size` is the maximum number kept for selection and defaults
+to `system.generation.total_size`. The generation size counts offspring for
 GA and chains for BH. For BH, `strategy.steps_per_chain` counts attempted
 proposals per chain per generation, including rejected and invalid proposals.
 
@@ -43,7 +41,7 @@ proposals per chain per generation, including rejected and invalid proposals.
 These two layouts run the same Cu₈ basin-hopping search with ASE's EMT potential.
 The search builds four initial structures, retains up to two distinct candidates,
 and launches two chains of ten steps in generation 1. BH defaults to one hopping
-generation when `convergence` is omitted. The EMT runtime relaxes initial
+generation when `strategy.convergence` is omitted. The EMT runtime relaxes initial
 structures and valid trials with a force tolerance of 0.05 eV/Å.
 
 ### Separate `expo.yaml` and `runtime.yaml`
@@ -106,12 +104,14 @@ relaxation used by both strategies. See {doc}`runtime and executors
 
 ## Switch to a genetic algorithm
 
-Keep the shared `population` and chosen runtime layout. Replace the BH
+Keep the shared `system` and chosen runtime layout. Replace the BH
 `strategy` section with:
 
 ```yaml
 strategy:
   method: genetic_algorithm
+  convergence:
+    generation: 1
   reproduction:
     size: 2
     mutation_probability: 0.5
@@ -126,13 +126,6 @@ strategy:
       method: cut_and_splice
     mutation:
       method: rattle
-```
-
-Also add the required GA convergence setting at the top level:
-
-```yaml
-convergence:
-  generation: 1
 ```
 
 This produces two offspring after initialization. Parent compatibility follows

@@ -12,6 +12,6 @@ This prevents duplicate structures from dominating the population.
 | `nnmat` | Compares nearest-neighbour matrices to detect differences in atomic distribution and structure. |
 
 `interatomic_distance` derives its minimum-image behavior from
-`population.periodic` and supports parallel fingerprint generation with
+`system.periodic` and supports parallel fingerprint generation with
 `n_jobs`. Its default thresholds are
 `pair_cor_cum_diff: 0.015`, `pair_cor_max: 0.7`, and `dE: 0.02` eV.

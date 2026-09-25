@@ -24,21 +24,22 @@ bh/examples/index
 See the shared {ref}`global-optimisation-population` reference for population
 configuration. The recipe uses these settings:
 
-- `population`: `retained_size`, named `builders`, `initial` allocations,
+- `system`: `retained_size`, named `builders`, `initial` allocations,
   `generation.total_size`, comparator, and extinction settings.
 - `strategy.operators`: weighted moves; see {ref}`sampling-operators` for configuration and {ref}`bh-operator-logs` for move logs.
 - `strategy.steps_per_chain`: attempted proposals per chain per generation; a non-negative integer.
   Rejected and invalid proposals count; the starting structure does not. The
   progress header labels this value `steps/chain`.
 - `strategy.selection.replace`: sample chain starts with replacement; defaults to `false`.
-- `convergence.generation`: final generation number; defaults to `1`.
-- `objective`: energy or formation-energy ranking, with chemical potentials
+- `strategy.convergence.generation`: final generation number; defaults to `1`.
+- `strategy.objective`: energy or formation-energy ranking, with chemical potentials
   for the latter.
 
 By default, generation 0 generates and minimizes the initial structures, then
 selects chain starts once for generation 1. Each chain advances through its own
-accept/reject decisions for `steps_per_chain` proposals. Omit `convergence` to use
-this default. Set `convergence.generation: 0` for initialization only; larger
+accept/reject decisions for `steps_per_chain` proposals. Omit
+`strategy.convergence` to use this default. Set
+`strategy.convergence.generation: 0` for initialization only; larger
 values add population reselection between search generations.
 
 This self-contained Cu₈ example generates four random structures using
@@ -110,7 +111,7 @@ rules remain stored but are ineligible for selection.
 
 ## Extinction and replacement chains
 
-Configure extinction rules with `population.thanos`. Every evaluated
+Configure extinction rules with `system.thanos`. Every evaluated
 trial receives an extinction flag after its MC acceptance decision, and remains
 in the database regardless of either result.
 

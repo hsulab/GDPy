@@ -30,7 +30,7 @@ nickel atoms. The finite move budget keeps this demonstration short.
 ## Chemical potentials and ranking
 
 The exchange operator uses `chempots: [-0.5]`, in eV per Ni atom, for acceptance.
-Population ranking uses `objective.target: formation_energy` with the same Ni
+Population ranking uses `strategy.objective.target: formation_energy` with the same Ni
 chemical potential and a zero Cu reference:
 
 ```text

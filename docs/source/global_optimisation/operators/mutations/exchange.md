@@ -12,30 +12,29 @@ This example allows one to four independently tagged Cu atoms and one to four
 independently tagged O atoms:
 
 ```yaml
-population:
-  name: variable
+system:
   # builders, initial population, and generation settings
 
-operators:
-  mutation:
-    method: exchange
-    species: [Cu, O]
-    num_min_max:
-      - [1.0, 4.0]
-      - [1.0, 4.0]
-    region:
-      method: lattice
-      origin: [0.0, 0.0, 4.6]
-      cell:
-        - [5.1, 0.0, 0.0]
-        - [0.0, 4.4, 0.0]
-        - [0.0, 0.0, 4.5]
-
-objective:
-  target: cohesive_energy
-  chemical_potentials:
-    Cu: -3.50
-    O: -4.95
+strategy:
+  objective:
+    target: cohesive_energy
+    chemical_potentials:
+      Cu: -3.50
+      O: -4.95
+  operators:
+    mutation:
+      method: exchange
+      species: [Cu, O]
+      num_min_max:
+        - [1.0, 4.0]
+        - [1.0, 4.0]
+      region:
+        method: lattice
+        origin: [0.0, 0.0, 4.6]
+        cell:
+          - [5.1, 0.0, 0.0]
+          - [0.0, 4.4, 0.0]
+          - [0.0, 0.0, 4.5]
 ```
 
 The entries in `num_min_max` correspond to `species` in the same order. Each

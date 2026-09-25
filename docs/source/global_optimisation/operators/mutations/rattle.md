@@ -42,7 +42,7 @@ is rejected by the minimum-distance checks.
 
 ## Atoms, fragments, and substrate
 
-With the default `population.preserve_fragments: true`, all atoms sharing one
+With the default `system.preserve_fragments: true`, all atoms sharing one
 positive ASE tag receive the same displacement. The mutation therefore moves
 that fragment rigidly without changing its internal geometry. An independently
 tagged atom behaves as a one-atom fragment. Set fragment preservation to

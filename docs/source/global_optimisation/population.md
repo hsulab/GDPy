@@ -9,12 +9,13 @@ similar; extinction rules exclude candidates that are no longer eligible.
 
 ## Shared search configuration
 
-Both algorithms use `method: global_optimisation`. Search settings are top-level;
-there is no `recipe` wrapper. `population` describes initialization and the
-retained candidate pool, while `strategy.method` selects `genetic_algorithm` or
-`basin_hopping`. `objective`, `convergence`, `random_seed`, and `use_archive` are
-shared search settings. Calculation `runtime` and exploration `scheduler` remain
-separate top-level execution settings.
+Both algorithms use `method: global_optimisation` with `system` and `strategy`
+sections; there is no `recipe` wrapper. `system` describes initialization and
+the retained candidate pool, while `strategy.method` selects
+`genetic_algorithm` or `basin_hopping`. `strategy.objective`,
+`strategy.convergence`, and `strategy.use_archive` are shared search settings.
+`random_seed`, calculation `runtime`, and exploration `scheduler` remain
+separate top-level settings.
 
 GA puts `operators`, `reproduction`, `mutation`, `completion`, and optional
 `substrate` compatibility settings inside `strategy`. BH puts `operators`,
@@ -35,9 +36,9 @@ There is no composition-group balancing or population-wide constant/variable mod
 
 | Setting | Meaning |
 | --- | --- |
-| `population.initial.total_size` | Number of candidates generated for initialization |
-| `population.retained_size` | Maximum number of distinct candidates retained for parent selection |
-| `population.generation.total_size` | New candidates per generation for GA; independent chains per generation for BH |
+| `system.initial.total_size` | Number of candidates generated for initialization |
+| `system.retained_size` | Maximum number of distinct candidates retained for parent selection |
+| `system.generation.total_size` | New candidates per generation for GA; independent chains per generation for BH |
 
 All three sizes must be positive integers, but need not be equal or ordered.
 `retained_size` defaults to `generation.total_size`. The retained pool may be
@@ -54,7 +55,7 @@ own reproduction and mutation policies to produce the requested generation.
 Both methods use named `builders` and exact `initial.builder_allocations`:
 
 ```yaml
-population:
+system:
   retained_size: 2
   builders:
     random:
@@ -89,14 +90,14 @@ GA's `preserve_fragments` setting controls its genetic operators.
 
 ## Comparison and selection
 
-`population.comparator.method` defaults to `interatomic_distance`. Other search
+`system.comparator.method` defaults to `interatomic_distance`. Other search
 comparators are `ofp`, `nnmat`, and `atoms` (exact ASE Atoms equality). Existing
 analysis comparator methods are also available.
 
 Candidates are ranked by descending objective score and duplicates removed.
 Fitness includes similarity counts across eligible search history. GA additionally
 uses pairing participation; BH does not. Equal scores receive equal base fitness
-before history weighting. Optional `population.thanos` callbacks apply extinction
+before history weighting. Optional `system.thanos` callbacks apply extinction
 rules in both methods.
 
 GA uses `strategy.reproduction`, `strategy.mutation`, and
@@ -112,18 +113,22 @@ minima at the start of the next generation.
 | Previous setting | Replacement |
 | --- | --- |
 | `method: genetic_algorithm` or `method: basin_hopping` | `method: global_optimisation` and `strategy.method` |
-| `recipe` wrapper | Move its shared settings to the top level |
+| Top-level `population` | `system` |
+| Top-level `objective` | `strategy.objective` |
+| Top-level `convergence` | `strategy.convergence` |
+| Top-level `use_archive` | `strategy.use_archive` |
+| `recipe` wrapper | Move system and algorithm settings into `system` and `strategy` |
 | `recipe.operators` | `strategy.operators` |
 | GA `population.generation.reproduction/mutation/completion` | Corresponding sections under `strategy` |
 | GA `population.substrate` | `strategy.substrate` |
 | GA `population.name` | Remove; crossover compatibility is automatic |
 | BH `recipe.num_mcmoves` or `strategy.num_mcmoves` | `strategy.steps_per_chain` |
 | BH `recipe.selection` | `strategy.selection` |
-| BH `population.initial_size` | `population.initial.total_size` |
-| BH `population.population_size` | `population.retained_size` |
-| BH `population.generation_size` | `population.generation.total_size` |
-| BH `population.random_offspring_generator` or recipe `builder` | `population.builders` and `initial.builder_allocations` |
-| GA `operators.comparator` or `operators.mobile.comparator` | `population.comparator` |
+| BH `population.initial_size` | `system.initial.total_size` |
+| BH `population.population_size` | `system.retained_size` |
+| BH `population.generation_size` | `system.generation.total_size` |
+| BH `population.random_offspring_generator` or recipe `builder` | `system.builders` and `system.initial.builder_allocations` |
+| GA `operators.comparator` or `operators.mobile.comparator` | `system.comparator` |
 | BH comparator `name` | comparator `method` |
 
 Old YAML fields raise migration errors rather than silently changing meaning.

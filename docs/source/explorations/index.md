@@ -38,16 +38,18 @@ The exploration layer owns proposal state, convergence, and selection. The
 execution layer owns materialization, job submission, restart, and result
 collection.
 
-Global-optimisation inputs use top-level `population` and `strategy` sections.
-The strategy selects GA or BH and owns its operators and generation policies.
+Global-optimisation inputs use `system` and `strategy` sections. The system
+owns population construction; the strategy selects GA or BH and owns its
+operators, generation policies, objective, convergence, and archive behavior.
 Runtime and optional scheduler configuration remain separate execution concerns.
-MC and simulated annealing retain their `recipe` wrappers.
+MC uses the same `method`/`system`/`strategy` layout; simulated annealing retains
+its `recipe` wrapper.
 
 ```yaml
 method: global_optimisation
 runtime: {}
 random_seed: 7
-population:
+system:
   builders:
     random: {}
 strategy:

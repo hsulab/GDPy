@@ -39,7 +39,7 @@ it is not an MD thermostat or a claim of thermal equilibrium sampling.
 The separate runtime relaxes the initial population and every valid trial
 using EMT and a force tolerance of 0.05 eV/Å. Every relaxed trial endpoint is stored, whether accepted or rejected,
 without another relaxation. The search adds up to twenty trial minima, for at
-most 24 evaluated structures including initialization. The omitted `convergence`
+most 24 evaluated structures including initialization. The omitted `strategy.convergence`
 uses the default final generation of 1; generation 0 is initialization. Stored
 discoveries do not replace chain states: MC acceptance determines each next state.
 
@@ -79,6 +79,6 @@ up to its last committed round and after generation finalization.
 
 The small population and ten-move chains keep this example short. Increase
 `steps_per_chain` for longer chains, or adjust the initial population and number of
-chains for a broader search. Setting `convergence.generation` above 1 additionally
+chains for a broader search. Setting `strategy.convergence.generation` above 1 additionally
 reselects chain starts from the accumulated minima between search generations.
 The demonstration does not establish the global minimum of Cu₈.
