@@ -95,14 +95,21 @@ class BasicExchangeOperator(BaseMCOperator):
             if rn_ex < 0.5:
                 self._print(self.indent + "...insert...")
                 self._state["operation"] = "insert"
+                self._state["proposal_ratio"] = 1.0
                 new_atoms = self._insert(atoms, particle, particle_instance, rng)
             else:
                 self._print(self.indent + "...remove...")
                 self._state["operation"] = "remove"
+                # The reverse move is forced insertion after removing the last
+                # particle, whereas this deletion branch was selected with 1/2.
+                self._state["proposal_ratio"] = 2.0 if num_particles == 1 else 1.0
                 new_atoms = self._remove(atoms, particle, rng)
         else:
             self._print(self.indent + "...insert...")
             self._state["operation"] = "insert"
+            # Insertion is forced here, but the reverse deletion from N=1 is
+            # selected with probability 1/2.
+            self._state["proposal_ratio"] = 0.5
             new_atoms = self._insert(atoms, particle, particle_instance, rng)
 
         return new_atoms

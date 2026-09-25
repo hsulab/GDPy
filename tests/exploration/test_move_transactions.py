@@ -177,6 +177,10 @@ def test_acceptance_rules_preserve_formulas_and_do_not_mutate_metadata():
     assert metadata == original
     metadata["operation"] = "remove"
     assert rule.probability(metadata, 0, 1) == pytest.approx(2 * 2 * 2 / 4 * np.exp(-1.3))
+    metadata.update(operation="insert", num_particles=0, proposal_ratio=0.5)
+    assert rule.probability(metadata, 0, 1) == pytest.approx(0.5 * 4 / 2 / 2 * np.exp(-0.7))
+    metadata.update(operation="remove", num_particles=1, proposal_ratio=2.0)
+    assert rule.probability(metadata, 0, 1) == pytest.approx(2 * 2 * 2 / 4 * np.exp(-1.3))
     rule = SemiGrandAcceptance(temperature, ("H", "He"), (0.1, 0.4))
     assert rule.probability(dict(first_ptype="H", second_ptype="He"), 0, 1) == pytest.approx(np.exp(-0.7))
     metadata = dict(first_ptype="H", second_ptype="He", proposal_ratio=3.0)
@@ -193,6 +197,17 @@ def test_swap_type_records_reverse_over_forward_proposal_ratio(symbols, expected
     proposal = op.propose(atoms, np.random.default_rng(2))
     assert proposal.valid
     assert proposal.metadata["proposal_ratio"] == pytest.approx(expected)
+    proposal.rollback()
+
+
+@pytest.mark.parametrize("symbols,expected", [("", 0.5), ("H", 2.0)])
+def test_exchange_records_boundary_proposal_ratio(symbols, expected):
+    atoms = Atoms(symbols, positions=np.zeros((len(symbols), 3)), cell=[20] * 3)
+    atoms.set_tags(np.arange(len(atoms)))
+    op = operator("exchange", particles=["H"], chempots=[0.0])
+    proposal = op.propose(atoms, np.random.default_rng(0))
+    assert proposal.valid
+    assert proposal.metadata["proposal_ratio"] == expected
     proposal.rollback()
 
 

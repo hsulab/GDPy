@@ -41,9 +41,13 @@ class ExchangeAcceptance(AcceptanceRule):
     def factors(self, metadata):
         count, volume = metadata["num_particles"], metadata["volume"]
         symmetry = metadata.get("symm_factor", 1.0)
+        proposal_ratio = metadata.get("proposal_ratio", 1.0)
         if metadata["operation"] == "insert":
-            return volume / (count + 1) / self.cubic_wavelength / symmetry, -self.chemical_potential
-        return symmetry * count * self.cubic_wavelength / volume, self.chemical_potential
+            return (
+                proposal_ratio * volume / (count + 1) / self.cubic_wavelength / symmetry,
+                -self.chemical_potential,
+            )
+        return proposal_ratio * symmetry * count * self.cubic_wavelength / volume, self.chemical_potential
 
 
 @dataclass(frozen=True)
