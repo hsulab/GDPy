@@ -60,8 +60,9 @@ consistent.
   must be `spc`.
 
 Each MC block selects operators using their normalized `probability` weights.
-`strategy.steps` counts complete passes through the cycle. Each MC stage
-has its own proposal count, so repeated MC stages may use different lengths.
+`strategy.convergence.steps` counts complete passes through the cycle. An optional
+`strategy.convergence.earlystop` applies the shared MC early-stop criteria. Each
+MC stage has its own proposal count, so repeated MC stages may use different lengths.
 Repeating a stage executes it again in a separate calculation directory.
 `strategy.ckpt_period` controls checkpoints in completed-cycle units.
 

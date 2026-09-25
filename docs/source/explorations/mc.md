@@ -130,8 +130,9 @@ Each output directory contains:
   previous/trial energies.
 - `calculations/step.NNNN/`: retained runtime calculations.
 
-`strategy.steps: 100` is the attempted-step budget. The examples retain all
-calculation steps with `strategy.dump_period: 1`;
+`strategy.convergence.steps: 100` is the attempted-step budget. An optional
+`strategy.convergence.earlystop` uses the existing early-stop criteria. The
+examples retain all calculation steps with `strategy.dump_period: 1`;
 increasing it prunes intermediate calculation directories, **not** frames in
 `mc.xyz`. `strategy.ckpt_period` controls checkpoint frequency independently.
 

@@ -33,6 +33,9 @@ The former concurrent-hopping search is the `basin_hopping` strategy. Configure
 initialization and batched hop calculations with the top-level `runtime`;
 `recipe.mcworker` is no longer accepted. MC also uses `system` and `strategy`;
 simulated annealing retains its `recipe` wrapper.
+For standard and hybrid MC, move the run budget and optional early-stop settings
+from `strategy.steps` and `strategy.earlystop` to
+`strategy.convergence.steps` and `strategy.convergence.earlystop`.
 The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
 
 The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations
