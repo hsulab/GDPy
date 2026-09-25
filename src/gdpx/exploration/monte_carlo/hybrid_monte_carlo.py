@@ -17,6 +17,7 @@ from .monte_carlo import MCStepState, MonteCarlo, resolve_monte_carlo_system
 from ..move_step import _store_pending, read_pending, run_worker_move
 from ..checkpoint import read_snapshot
 from ..sampling import parse_operators
+from .output import report_hybrid_intro
 
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
@@ -101,6 +102,7 @@ def create_hybrid_monte_carlo(system, strategy, random_seed=None, directory="./"
 
 class HybridMonteCarlo(MonteCarlo):
     runtime_method_name = "hybrid_monte_carlo"
+    INFO_NAME = "mcmoves.log"
 
     def __init__(self, cycle, *args, **kwargs):
         """"""
@@ -146,6 +148,10 @@ class HybridMonteCarlo(MonteCarlo):
 
         # check if subprocedures in the procedure are all valid
         procedure_steps, self._protype_workers = self._parse_cycle()
+        report_hybrid_intro(
+            self.cycle, self.convergence["steps"], self.random_seed,
+            self.TRAJ_NAME, self.INFO_NAME,
+        )
 
         # enter the main loop
         converged = self.read_convergence()

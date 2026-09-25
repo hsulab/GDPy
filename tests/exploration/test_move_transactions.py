@@ -338,7 +338,7 @@ def mc_engine(directory, cls=MonteCarlo):
     engine.worker = SingleTestWorker(-1)
     write(directory / "mc.xyz", engine.atoms)
     write(directory / "mc_attempts.xyz", engine.atoms)
-    (directory / "opstat.txt").write_text("#Step\n")
+    (directory / engine.INFO_NAME).write_text("#Step\n")
     return engine
 
 
@@ -760,7 +760,10 @@ def test_hybrid_full_cycles_count_steps_once_with_repeated_procedures(tmp_path):
     assert engine.read_convergence()
     assert len(read(engine.directory / "mc.xyz", ":")) == 3  # initial + two complete cycles
     assert len(engine.get_workers()) == 13  # initial + (two excursions + four proposals) per cycle
-    attempts = [int(line.split()[0]) for line in (engine.directory / "opstat.txt").read_text().splitlines()[1:]]
+    attempts = [
+        int(line.split()[0])
+        for line in (engine.directory / engine.INFO_NAME).read_text().splitlines()[1:]
+    ]
     assert attempts == list(range(8))
     before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
     engine._run()

@@ -6,7 +6,7 @@ import pytest
 
 from gdpx import config
 from gdpx.core.output import Box
-from gdpx.exploration.monte_carlo.output import mc_box, report_outcome
+from gdpx.exploration.monte_carlo.output import mc_box, report_hybrid_intro, report_outcome
 
 
 @pytest.mark.parametrize("accepted,valid,decision,current", [
@@ -73,3 +73,33 @@ def test_mc_box_ascii_fallback(caplog, monkeypatch):
             record.getMessage().encode("ascii")
     finally:
         config.logger.removeHandler(caplog.handler)
+
+
+def test_hybrid_intro_reports_cycle_and_outputs(caplog):
+    cycle = [
+        {
+            "method": "molecular_dynamics",
+            "runtime": {"executor": {
+                "provider": "ase", "method": "md",
+                "parameters": {"steps": 20, "temp": 1200.0},
+            }},
+        },
+        {
+            "method": "monte_carlo",
+            "steps": 5,
+            "runtime": {"executor": {
+                "provider": "ase", "method": "spc", "parameters": {},
+            }},
+        },
+    ]
+    config.logger.addHandler(caplog.handler)
+    try:
+        report_hybrid_intro(cycle, 10, 1112, "mc.xyz", "mcmoves.log")
+    finally:
+        config.logger.removeHandler(caplog.handler)
+    text = caplog.text
+    assert "hybrid monte carlo | intro" in text
+    assert "cycle budget: 10 | random seed: 1112" in text
+    assert "stage 0: molecular_dynamics | 20 MD steps at 1200 K | ase/md" in text
+    assert "stage 1: monte_carlo | 5 MC proposals | ase/spc" in text
+    assert "outputs: trajectory mc.xyz | MC moves mcmoves.log" in text

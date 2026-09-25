@@ -35,7 +35,8 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
         assert all(a.get_chemical_formula() == "Cu32" for a in frames)
     else:
         assert all(set(a.symbols) <= {"Cu", "Ni"} for a in frames)
-    assert len((tmp_path / "opstat.txt").read_text().splitlines()) == 5
+    assert len((tmp_path / "mcmoves.log").read_text().splitlines()) == 5
+    assert not (tmp_path / "opstat.txt").exists()
     assert len(read(tmp_path / "mc_attempts.xyz", ":")) == 1
     for cycle in (1, 2):
         path = tmp_path / "calculations" / f"step.{cycle:04d}"

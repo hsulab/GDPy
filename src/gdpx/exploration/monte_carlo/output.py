@@ -7,9 +7,8 @@ from gdpx.core.output import Box, quiet_logging
 
 
 @contextmanager
-def mc_box(title):
-    """Nest worker reports and close the container even on failure."""
-    box = Box(f"monte carlo | {title}")
+def _progress_box(method, title):
+    box = Box(f"{method} | {title}")
     try:
         with box.as_parent(), quiet_logging():
             yield box
@@ -19,6 +18,20 @@ def mc_box(title):
         raise
     finally:
         box.border("bottom")
+
+
+@contextmanager
+def mc_box(title):
+    """Nest worker reports and close the container even on failure."""
+    with _progress_box("monte carlo", title) as box:
+        yield box
+
+
+@contextmanager
+def hmc_box(title):
+    """Create a hybrid-MC progress container."""
+    with _progress_box("hybrid monte carlo", title) as box:
+        yield box
 
 
 def report_setup(operators, probabilities, steps, seed):
@@ -36,6 +49,27 @@ def report_setup(operators, probabilities, steps, seed):
             box.line("region: " + json.dumps(params["region"], sort_keys=True))
             box.line(f"distance checks: {'off' if operator.skip_distance_check else 'on'} | "
                      f"proposal attempts: {operator.MAX_RANDOM_ATTEMPTS}")
+
+
+def report_hybrid_intro(cycle, cycles, seed, trajectory, move_log):
+    """Summarize the hybrid cycle and its primary outputs."""
+    with hmc_box("intro") as box:
+        box.line(f"cycle budget: {cycles} | random seed: {seed}")
+        for index, stage in enumerate(cycle):
+            method = stage["method"]
+            executor = stage["runtime"]["executor"]
+            if method == "molecular_dynamics":
+                parameters = executor.get("parameters", {})
+                detail = f"{parameters.get('steps', '?')} MD steps"
+                if "temp" in parameters:
+                    detail += f" at {parameters['temp']:g} K"
+            else:
+                detail = f"{stage['steps']} MC proposals"
+            box.line(
+                f"stage {index}: {method} | {detail} | "
+                f"{executor.get('provider', '?')}/{executor['method']}"
+            )
+        box.line(f"outputs: trajectory {trajectory} | MC moves {move_log}")
 
 
 def report_status(status, detail):
