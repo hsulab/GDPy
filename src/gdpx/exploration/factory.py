@@ -72,7 +72,7 @@ def create_exploration(config):
         moved = parameters.keys() & {"convergence", "output", "checkpoint"}
         if moved:
             destinations = {
-                "convergence": "strategy.steps (and strategy.earlystop)",
+                "convergence": "strategy.convergence",
                 "output": "strategy.dump_period",
                 "checkpoint": "strategy.ckpt_period",
             }

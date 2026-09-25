@@ -20,7 +20,7 @@ EXAMPLES = ROOT / "examples" / "monte_carlo"
 def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
     monkeypatch.chdir(ROOT)
     params = yaml.safe_load((EXAMPLES / f"hybrid-{name}.yaml").read_text())
-    params["strategy"]["steps"] = 2
+    params["strategy"]["convergence"]["steps"] = 2
     params["strategy"]["cycle"][1]["steps"] = 2
     params["strategy"]["cycle"][0]["runtime"]["executor"]["parameters"].update(
         steps=2, dump_period=1
@@ -56,9 +56,14 @@ def test_hybrid_serialization_preserves_mc_settings(monkeypatch):
     params = yaml.safe_load((EXAMPLES / "hybrid-canonical.yaml").read_text())
     runtime = copy.deepcopy(params.pop("runtime"))
     params["system"]["ignore_atoms_tags"] = False
+    original = copy.deepcopy(params)
     engine = create_exploration(params)
+    assert params == original
     engine.register_worker(create_worker(runtime))
     saved = engine.as_dict()
+    assert saved["strategy"]["convergence"] == engine.convergence
+    assert "steps" not in saved["strategy"]
+    assert "earlystop" not in saved["strategy"]
     saved_runtime = saved.pop("runtime")
     restored = create_exploration(saved)
     restored.register_worker(create_worker(saved_runtime))
@@ -119,6 +124,20 @@ def test_hybrid_preset_ensemble_rejects_distance_filtering(monkeypatch):
         create_exploration(params)
 
 
+@pytest.mark.parametrize("convergence", [None, {}])
+def test_hybrid_defaults_to_one_convergence_cycle(monkeypatch, convergence):
+    monkeypatch.chdir(ROOT)
+    params = yaml.safe_load((EXAMPLES / "hybrid-canonical.yaml").read_text())
+    params.pop("runtime")
+    params["strategy"].pop("convergence")
+    if convergence is not None:
+        params["strategy"]["convergence"] = convergence
+
+    engine = create_exploration(params)
+
+    assert engine.convergence == {"steps": 1}
+
+
 def test_hybrid_rejects_flat_legacy_config():
     with pytest.raises(ValueError, match="inline strategy.cycle stages"):
         create_exploration({
@@ -129,3 +148,42 @@ def test_hybrid_rejects_flat_legacy_config():
             "num_mcmoves": 2,
             "extra_workers": {},
         })
+
+
+@pytest.mark.parametrize(
+    "setting, destination",
+    [
+        ({"steps": 2}, "strategy.convergence.steps"),
+        ({"earlystop": {}}, "strategy.convergence.earlystop"),
+    ],
+)
+def test_hybrid_rejects_flat_convergence_settings(
+    monkeypatch, setting, destination,
+):
+    monkeypatch.chdir(ROOT)
+    params = yaml.safe_load((EXAMPLES / "hybrid-canonical.yaml").read_text())
+    params.pop("runtime")
+    params["strategy"].pop("convergence")
+    params["strategy"].update(setting)
+
+    with pytest.raises(ValueError, match=destination):
+        create_exploration(params)
+
+
+@pytest.mark.parametrize(
+    "convergence, message",
+    [
+        (None, "strategy.convergence must be a mapping"),
+        ({"steps": True}, "strategy.convergence.steps"),
+        ({"steps": -1}, "strategy.convergence.steps"),
+        ({"unknown": 1}, "Unsupported hybrid_monte_carlo strategy.convergence"),
+    ],
+)
+def test_hybrid_rejects_invalid_convergence(monkeypatch, convergence, message):
+    monkeypatch.chdir(ROOT)
+    params = yaml.safe_load((EXAMPLES / "hybrid-canonical.yaml").read_text())
+    params.pop("runtime")
+    params["strategy"]["convergence"] = convergence
+
+    with pytest.raises((TypeError, ValueError), match=message):
+        create_exploration(params)

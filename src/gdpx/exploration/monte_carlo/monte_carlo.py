@@ -131,31 +131,57 @@ def resolve_monte_carlo_system(system, operators, method_name="monte_carlo"):
     return resolved_operators, copy.deepcopy(dict(ensemble))
 
 
+def resolve_monte_carlo_convergence(convergence, method_name="monte_carlo"):
+    """Validate and copy the public convergence settings shared by MC methods."""
+    if not isinstance(convergence, Mapping):
+        raise TypeError(f"{method_name} strategy.convergence must be a mapping.")
+    unknown = convergence.keys() - {"steps", "earlystop"}
+    if unknown:
+        raise ValueError(
+            f"Unsupported {method_name} strategy.convergence settings: "
+            f"{', '.join(sorted(unknown))}."
+        )
+    steps = convergence.get("steps", 1)
+    if not isinstance(steps, int) or isinstance(steps, bool) or steps < 0:
+        raise ValueError("strategy.convergence.steps must be a non-negative integer.")
+    resolved = {"steps": steps}
+    if "earlystop" in convergence:
+        resolved["earlystop"] = copy.deepcopy(convergence["earlystop"])
+    return resolved
+
+
 def create_monte_carlo(
     system, strategy, random_seed=None, directory="./",
 ):
     """Create standard MC from its public single-system configuration."""
     if not isinstance(strategy, Mapping):
         raise TypeError("monte_carlo strategy must be a mapping.")
-    unknown = strategy.keys() - {"operators", "steps", "earlystop", "dump_period", "ckpt_period"}
+    moved = strategy.keys() & {"steps", "earlystop"}
+    if moved:
+        destinations = {
+            "steps": "strategy.convergence.steps",
+            "earlystop": "strategy.convergence.earlystop",
+        }
+        migration = ", ".join(
+            f"strategy.{key} -> {destinations[key]}" for key in sorted(moved)
+        )
+        raise ValueError(f"Move monte_carlo convergence settings: {migration}.")
+    unknown = strategy.keys() - {"operators", "convergence", "dump_period", "ckpt_period"}
     if unknown:
         raise ValueError(f"Unsupported monte_carlo strategy settings: {', '.join(sorted(unknown))}.")
     resolved_operators, ensemble = resolve_monte_carlo_system(
         system, strategy.get("operators"), "monte_carlo"
     )
 
-    steps = strategy.get("steps", 1)
     dump_period = strategy.get("dump_period", 1)
     ckpt_period = strategy.get("ckpt_period", 100)
-    if not isinstance(steps, int) or steps < 0:
-        raise ValueError("strategy.steps must be a non-negative integer.")
     if not isinstance(ckpt_period, int) or ckpt_period <= 0:
         raise ValueError("strategy.ckpt_period must be a positive integer.")
     if not isinstance(dump_period, int) or dump_period <= 0:
         raise ValueError("strategy.dump_period must be a positive integer.")
-    convergence = {"steps": steps}
-    if "earlystop" in strategy:
-        convergence["earlystop"] = copy.deepcopy(strategy["earlystop"])
+    convergence = resolve_monte_carlo_convergence(
+        strategy.get("convergence", {}), "monte_carlo"
+    )
 
     engine = MonteCarlo(
         builder=system["builder"], operators=resolved_operators,
@@ -746,9 +772,7 @@ class MonteCarlo(BaseExploration):
             system = copy.deepcopy(self.system_config)
             system["builder"] = self.builder.as_dict()
             strategy = copy.deepcopy(self.strategy_config)
-            strategy["steps"] = self.convergence["steps"]
-            if "earlystop" in self.convergence:
-                strategy["earlystop"] = copy.deepcopy(self.convergence["earlystop"])
+            strategy["convergence"] = copy.deepcopy(self.convergence)
             strategy["dump_period"] = self.dump_period
             strategy["ckpt_period"] = self.ckpt_period
             return copy.deepcopy({

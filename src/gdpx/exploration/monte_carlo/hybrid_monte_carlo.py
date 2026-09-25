@@ -13,7 +13,10 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
-from .monte_carlo import MCStepState, MonteCarlo, resolve_monte_carlo_system
+from .monte_carlo import (
+    MCStepState, MonteCarlo, resolve_monte_carlo_convergence,
+    resolve_monte_carlo_system,
+)
 from ..move_step import _store_pending, read_pending, run_worker_move
 from ..checkpoint import read_snapshot
 from ..sampling import parse_operators
@@ -35,7 +38,17 @@ def create_hybrid_monte_carlo(system, strategy, random_seed=None, directory="./"
     """Create hybrid MC from a structured system and explicit cycle stages."""
     if not isinstance(strategy, Mapping):
         raise TypeError("hybrid_monte_carlo strategy must be a mapping.")
-    unknown = strategy.keys() - {"operators", "cycle", "steps", "earlystop", "ckpt_period"}
+    moved = strategy.keys() & {"steps", "earlystop"}
+    if moved:
+        destinations = {
+            "steps": "strategy.convergence.steps",
+            "earlystop": "strategy.convergence.earlystop",
+        }
+        migration = ", ".join(
+            f"strategy.{key} -> {destinations[key]}" for key in sorted(moved)
+        )
+        raise ValueError(f"Move hybrid_monte_carlo convergence settings: {migration}.")
+    unknown = strategy.keys() - {"operators", "cycle", "convergence", "ckpt_period"}
     if unknown:
         raise ValueError(
             f"Unsupported hybrid_monte_carlo strategy settings: {', '.join(sorted(unknown))}."
@@ -44,10 +57,7 @@ def create_hybrid_monte_carlo(system, strategy, random_seed=None, directory="./"
         system, strategy.get("operators"), "hybrid_monte_carlo"
     )
 
-    cycles = strategy.get("steps", 1)
     ckpt_period = strategy.get("ckpt_period", 100)
-    if not isinstance(cycles, int) or isinstance(cycles, bool) or cycles < 0:
-        raise ValueError("strategy.steps must be a non-negative integer.")
     if not isinstance(ckpt_period, int) or isinstance(ckpt_period, bool) or ckpt_period <= 0:
         raise ValueError("strategy.ckpt_period must be a positive integer.")
 
@@ -82,9 +92,9 @@ def create_hybrid_monte_carlo(system, strategy, random_seed=None, directory="./"
                 f"{expected_executor}, got {actual_executor!r}."
             )
 
-    convergence = {"steps": cycles}
-    if "earlystop" in strategy:
-        convergence["earlystop"] = copy.deepcopy(strategy["earlystop"])
+    convergence = resolve_monte_carlo_convergence(
+        strategy.get("convergence", {}), "hybrid_monte_carlo"
+    )
     engine = HybridMonteCarlo(
         builder=system["builder"], operators=resolved_operators,
         convergence=convergence, cycle=resolved_cycle,
@@ -327,9 +337,7 @@ class HybridMonteCarlo(MonteCarlo):
         system = copy.deepcopy(self.system_config)
         system["builder"] = self.builder.as_dict()
         strategy = copy.deepcopy(self.strategy_config)
-        strategy["steps"] = self.convergence["steps"]
-        if "earlystop" in self.convergence:
-            strategy["earlystop"] = copy.deepcopy(self.convergence["earlystop"])
+        strategy["convergence"] = copy.deepcopy(self.convergence)
         strategy["ckpt_period"] = self.ckpt_period
         strategy["cycle"] = copy.deepcopy(self.cycle)
         return {

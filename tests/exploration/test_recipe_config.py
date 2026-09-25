@@ -625,7 +625,7 @@ def test_monte_carlo_serialization_uses_structured_system_and_runtime():
     engine.worker = Serializable({"schema_version": 3})
     engine.worker.runtime = SimpleNamespace(provider_potential=object())
     engine.operators = [Serializable({"method": "move"})]
-    engine.convergence = {"steps": 5}
+    engine.convergence = {"steps": 5, "earlystop": {"energy_per_atom": -2.0}}
     engine.dump_period = 2
     engine.ckpt_period = 10
     engine.ignore_atoms_tags = True
@@ -645,14 +645,89 @@ def test_monte_carlo_serialization_uses_structured_system_and_runtime():
     assert config["system"]["ensemble"] == {"method": "canonical", "temperature": 500.0}
     assert config["strategy"] == {
         "operators": [{"method": "move", "particles": ["Cu"]}],
-        "steps": 5,
+        "convergence": {"steps": 5, "earlystop": {"energy_per_atom": -2.0}},
         "dump_period": 2,
         "ckpt_period": 10,
     }
-    assert "convergence" not in config
+    assert "steps" not in config["strategy"]
     assert "checkpoint" not in config
     assert "output" not in config
     assert config["runtime"] == {"schema_version": 3}
+
+
+@pytest.mark.parametrize("convergence", [None, {}])
+def test_monte_carlo_defaults_to_one_convergence_step(convergence):
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "custom"},
+        },
+        "strategy": {"operators": [
+            {"method": "move", "particles": ["H"], "temperature": 300.0},
+        ]},
+    }
+    if convergence is not None:
+        config["strategy"]["convergence"] = convergence
+
+    engine = create_exploration(config)
+
+    assert engine.convergence == {"steps": 1}
+
+
+@pytest.mark.parametrize(
+    "convergence, message",
+    [
+        (None, "strategy.convergence must be a mapping"),
+        ({"steps": True}, "strategy.convergence.steps"),
+        ({"steps": -1}, "strategy.convergence.steps"),
+        ({"steps": 1.5}, "strategy.convergence.steps"),
+        ({"unknown": 1}, "Unsupported monte_carlo strategy.convergence"),
+    ],
+)
+def test_monte_carlo_rejects_invalid_convergence(convergence, message):
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "custom"},
+        },
+        "strategy": {
+            "convergence": convergence,
+            "operators": [
+                {"method": "move", "particles": ["H"], "temperature": 300.0},
+            ],
+        },
+    }
+
+    with pytest.raises((TypeError, ValueError), match=message):
+        create_exploration(config)
+
+
+@pytest.mark.parametrize(
+    "setting, destination",
+    [
+        ({"steps": 2}, "strategy.convergence.steps"),
+        ({"earlystop": {}}, "strategy.convergence.earlystop"),
+    ],
+)
+def test_monte_carlo_rejects_flat_convergence_settings(setting, destination):
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "custom"},
+        },
+        "strategy": {
+            "operators": [
+                {"method": "move", "particles": ["H"], "temperature": 300.0},
+            ],
+            **setting,
+        },
+    }
+
+    with pytest.raises(ValueError, match=destination):
+        create_exploration(config)
 
 
 def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
@@ -668,7 +743,7 @@ def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
             },
         },
         "strategy": {
-            "steps": 2,
+            "convergence": {"steps": 2},
             "operators": [
                 {"method": "swap_type", "particles": ["H", "He"]},
             ],
@@ -729,7 +804,7 @@ def test_monte_carlo_preset_ensemble_rejects_distance_filtering():
 @pytest.mark.parametrize(
     "legacy, destination",
     [
-        ({"convergence": {"steps": 2}}, "strategy.steps"),
+        ({"convergence": {"steps": 2}}, "strategy.convergence"),
         ({"output": {"dump_period": 2}}, "strategy.dump_period"),
         ({"checkpoint": {"period": 2}}, "strategy.ckpt_period"),
     ],

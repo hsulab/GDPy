@@ -11,7 +11,8 @@ system:
       Cu: 0.0
       Ni: 0.0
 strategy:
-  steps: 100
+  convergence:
+    steps: 100
   dump_period: 1
   ckpt_period: 10
   operators:

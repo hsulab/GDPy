@@ -19,7 +19,8 @@ system:
     method: canonical
     temperature: 1200.0
 strategy:
-  steps: 5
+  convergence:
+    steps: 5
   ckpt_period: 1
   operators:
     - method: move

@@ -22,7 +22,8 @@ system:
       Cu: 0.0
       Ni: 0.0
 strategy:
-  steps: 5
+  convergence:
+    steps: 5
   ckpt_period: 1
   operators:
     - method: swap_type

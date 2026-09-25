@@ -27,7 +27,8 @@ system:
       O: -2.0
 
 strategy:
-  steps: 1
+  convergence:
+    steps: 1
   ckpt_period: 1
   operators:
     - method: exchange
