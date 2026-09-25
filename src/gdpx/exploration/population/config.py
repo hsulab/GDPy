@@ -31,20 +31,20 @@ class PopulationConfig:
 
     def __init__(self, params, rng=None):
         if not isinstance(params, Mapping):
-            raise ValueError("population must be a mapping.")
+            raise ValueError("system must be a mapping.")
         for key in ("name", "substrate"):
             if key in params:
                 replacement = ("remove it; crossover parent compatibility is automatic" if key == "name"
                                else "move it to strategy.substrate")
-                raise ValueError(f"population.{key} is no longer supported; {replacement}.")
+                raise ValueError(f"system.{key} is no longer supported; {replacement}.")
         generation = params.get("generation")
         if isinstance(generation, Mapping):
             moved = {"reproduction", "mutation", "completion"} & generation.keys()
             if moved:
                 raise ValueError("Move GA population policies: " + ", ".join(
-                    f"population.generation.{key} -> strategy.{key}" for key in sorted(moved)))
+                    f"system.generation.{key} -> strategy.{key}" for key in sorted(moved)))
         if "database_fname" in params:
-            raise ValueError("population.database_fname is no longer configurable; remove it.")
+            raise ValueError("system.database_fname is no longer configurable; remove it.")
         replacements = {
             "initial_size": "initial.total_size",
             "generation_size": "generation.total_size",
@@ -54,28 +54,28 @@ class PopulationConfig:
         old = replacements.keys() & params.keys()
         if old:
             migration = ", ".join(f"{key} -> {replacements[key]}" for key in sorted(old))
-            raise ValueError(f"Legacy population keys are not supported: {migration}.")
+            raise ValueError(f"Legacy system keys are not supported: {migration}.")
         obsolete = {"init", "gen", "pmut", "pmut_custom", "random_generator", "reproduction"} & params.keys()
         if obsolete:
-            raise ValueError("Legacy GA population keys are not supported: " + ", ".join(sorted(obsolete)) +
-                             "; use population.initial, population.generation.total_size, and strategy policies.")
+            raise ValueError("Legacy GA system keys are not supported: " + ", ".join(sorted(obsolete)) +
+                             "; use system.initial, system.generation.total_size, and strategy policies.")
         self.rng = np.random.default_rng() if rng is None else rng
         for section in ("initial", "generation"):
             if not isinstance(params.get(section), Mapping):
-                raise ValueError(f"population.{section} must be a mapping.")
+                raise ValueError(f"system.{section} must be a mapping.")
         old_initial = {"size", "seed_file", "sources", "fallback_builder"} & params["initial"].keys()
         if old_initial:
-            raise ValueError("Legacy population.initial keys are not supported: " + ", ".join(sorted(old_initial)) +
+            raise ValueError("Legacy system.initial keys are not supported: " + ", ".join(sorted(old_initial)) +
                              "; use total_size and builder_allocations.")
         old_generation = {"reprod", "mutate", "max_random_try", "max_reprod_try", "size", "random"}
         old_generation &= params["generation"].keys()
         if old_generation:
-            raise ValueError("Legacy population.generation keys are not supported: " +
+            raise ValueError("Legacy system.generation keys are not supported: " +
                              ", ".join(sorted(old_generation)) +
                              "; use total_size and put production policies under strategy.")
-        self.init_size = self._positive_integer(params["initial"].get("total_size"), "initial.total_size")
-        self.gen_size = self._positive_integer(params["generation"].get("total_size"), "generation.total_size")
-        self.retained_size = self._positive_integer(params.get("retained_size", self.gen_size), "population.retained_size")
+        self.init_size = self._positive_integer(params["initial"].get("total_size"), "system.initial.total_size")
+        self.gen_size = self._positive_integer(params["generation"].get("total_size"), "system.generation.total_size")
+        self.retained_size = self._positive_integer(params.get("retained_size", self.gen_size), "system.retained_size")
         self.initial_builder_allocations = self._parse_builder_allocations(
             params["initial"].get("builder_allocations"), self.init_size
         )
@@ -92,13 +92,13 @@ class PopulationConfig:
     def initialise_builders(self, params, streams):
         configs = params.get("builders")
         if not isinstance(configs, Mapping) or not configs:
-            raise ValueError("Population configuration requires a non-empty 'builders' mapping.")
+            raise ValueError("Global-optimisation system requires a non-empty 'builders' mapping.")
         if not all(isinstance(name, str) and name for name in configs):
             raise ValueError("Population builder names must be non-empty strings.")
         reference = params.get("reference_builder", "random")
         if not isinstance(reference, str) or reference not in configs:
             raise ValueError(
-                "population.reference_builder must name one of population.builders; "
+            "system.reference_builder must name one of system.builders; "
                 "GDPy defaults reference_builder to 'random'."
             )
         self.reference_builder_name = reference
@@ -110,8 +110,8 @@ class PopulationConfig:
                 old = {"pbc", "use_tags"} & config.keys()
                 if old:
                     raise ValueError(
-                        f"Population builder {name!r} contains population-owned keys: "
-                        "pbc -> population.periodic, use_tags -> population.preserve_fragments."
+                        f"System builder {name!r} contains system-owned keys: "
+                        "pbc -> system.periodic, use_tags -> system.preserve_fragments."
                     )
                 builder_class = BUILDER_REGISTER[config.get("method", "direct")]
                 if "pbc" in inspect.signature(builder_class.__init__).parameters:
@@ -148,7 +148,7 @@ class PopulationConfig:
     def _boolean_setting(params: Mapping, key: str, default: bool) -> bool:
         value = params.get(key, default)
         if not isinstance(value, bool):
-            raise ValueError(f"population.{key} must be a boolean; got {value!r}.")
+            raise ValueError(f"system.{key} must be a boolean; got {value!r}.")
         return value
 
     @staticmethod
@@ -165,7 +165,7 @@ class PopulationConfig:
 
     def _parse_builder_allocations(self, allocations, total_size: int) -> list[dict]:
         if not isinstance(allocations, list) or not allocations:
-            raise ValueError("initial.builder_allocations must be a non-empty list.")
+            raise ValueError("system.initial.builder_allocations must be a non-empty list.")
         parsed = []
         names = set()
         for index, allocation in enumerate(allocations):
@@ -174,19 +174,19 @@ class PopulationConfig:
                 or not isinstance(allocation.get("builder"), str)
                 or not allocation["builder"]
             ):
-                raise ValueError(f"initial.builder_allocations[{index}] requires a builder name.")
-            size = self._nonnegative_integer(allocation.get("size"), f"initial.builder_allocations[{index}].size")
+                raise ValueError(f"system.initial.builder_allocations[{index}] requires a builder name.")
+            size = self._nonnegative_integer(allocation.get("size"), f"system.initial.builder_allocations[{index}].size")
             maximum_attempts = allocation.get("maximum_attempts", size * self.MAX_ATTEMPTS_MULTIPLIER)
             maximum_attempts = self._nonnegative_integer(
-                maximum_attempts, f"initial.builder_allocations[{index}].maximum_attempts"
+                maximum_attempts, f"system.initial.builder_allocations[{index}].maximum_attempts"
             )
             name = allocation["builder"]
             if name in names:
-                raise ValueError(f"initial.builder_allocations repeats builder {name!r}.")
+                raise ValueError(f"system.initial.builder_allocations repeats builder {name!r}.")
             names.add(name)
             parsed.append(dict(builder=name, size=size, maximum_attempts=maximum_attempts))
         if sum(x["size"] for x in parsed) != total_size:
-            raise ValueError("initial builder allocation sizes must sum to initial.total_size.")
+            raise ValueError("system.initial builder allocation sizes must sum to system.initial.total_size.")
         return parsed
 
     def _generate_from_builder(self, name: str, builder, size: int, maximum_attempts: int) -> list[Atoms]:
@@ -220,25 +220,25 @@ class PopulationConfig:
         if not np.array_equal(atoms.get_pbc(), expected_pbc):
             raise ValueError(
                 f"{location} has periodic boundary conditions {atoms.get_pbc().tolist()}, "
-                f"but population.periodic is {self.periodic}."
+                f"but system.periodic is {self.periodic}."
             )
         if self.preserve_fragments and not atoms.has("tags"):
             raise ValueError(
-                f"{location} has no explicit ASE tags, but population.preserve_fragments is true."
+                f"{location} has no explicit ASE tags, but system.preserve_fragments is true."
             )
         if self.preserve_fragments:
             tags = atoms.get_tags()
             if np.any(tags < 0) or not np.any(tags > 0):
                 raise ValueError(
                     f"{location} must use tag 0 only for substrate atoms and positive tags "
-                    "for mobile fragments when population.preserve_fragments is true."
+                    "for mobile fragments when system.preserve_fragments is true."
                 )
 
     @staticmethod
     def _require_builders(builders: Mapping, names) -> None:
         missing = sorted(set(names) - set(builders))
         if missing:
-            raise ValueError(f"Unknown population builders: {', '.join(missing)}.")
+            raise ValueError(f"Unknown system builders: {', '.join(missing)}.")
 
     def _prepare_initial_population(self, builders: Mapping) -> list[Atoms]:
         """Build the initial population from explicit, strictly sized allocations."""
@@ -264,4 +264,3 @@ class PopulationConfig:
                 origin=f"InitialBuilder:{builder_name}", extinct=0
             )
         return cleaned
-

@@ -58,11 +58,11 @@ def create_exploration(config):
         raise ValueError(f"Use method: global_optimisation with strategy.method: {selected}; "
                          "remove the recipe wrapper and move algorithm settings under strategy.")
     if method == "global_optimisation":
-        from .population.exploration import reject_legacy_settings, validate_strategy
+        from .population.exploration import reject_legacy_settings, split_global_strategy
         reject_legacy_settings(parameters)
-        validate_strategy(parameters.get("strategy"))
-        if "population" not in parameters:
-            raise ValueError("global_optimisation requires population settings.")
+        split_global_strategy(parameters.get("strategy"))
+        if "system" not in parameters:
+            raise ValueError("global_optimisation requires system settings.")
     if method == "monte_carlo" and "recipe" in parameters:
         raise ValueError(
             "monte_carlo no longer uses a recipe wrapper; move the builder and ensemble "

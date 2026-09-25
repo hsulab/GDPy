@@ -1,10 +1,10 @@
 method: global_optimisation
 broadcast:
-  population.builders.random.composition:
+  system.builders.random.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
 random_seed: 7
-population:
+system:
   comparator:
     method: interatomic_distance
   builders:
@@ -23,10 +23,10 @@ population:
       - {builder: random, size: 2}
   generation:
     total_size: 2
-convergence:
-  generation: 1
 strategy:
   method: basin_hopping
+  convergence:
+    generation: 1
   operators:
     - method: move
       particles: [Cu, Ni]

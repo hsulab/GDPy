@@ -26,12 +26,12 @@ def cluster(oo=False):
 
 def test_demo_thanos_checks_oo_even_with_shared_tags():
     config = yaml.safe_load((EXAMPLES / 'explorations/basin_hopping/cu4o4_thanos.yaml').read_text())
-    thanos = config['population']['thanos']
+    thanos = config['system']['thanos']
     assert thanos['restraints'][0]['distance']['max'] == DEMO['OO_CUTOFF']
     extinct = dispatch_thanos(**thanos)
     assert extinct(cluster()) == 0
     assert extinct(cluster(oo=True)) == 1
-    assert config['population']['builders']['random']['method'] == 'random_structure_improved'
+    assert config['system']['builders']['random']['method'] == 'random_structure_improved'
 
 
 @pytest.mark.parametrize('accepted,extinct,continued,success', [

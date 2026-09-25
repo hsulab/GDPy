@@ -21,7 +21,7 @@ def capture(monkeypatch):
 
 
 def test_cartesian_order_paths_and_independent_overrides(capture):
-    source = dict(method='global_optimisation', random_seed=1, population={},
+    source = dict(method='global_optimisation', random_seed=1, system={},
                   strategy=dict(method='basin_hopping', operators=[dict(temperature=500, particles=['Cu'])]),
                   broadcast={'random_seed': [7, 17], 'strategy.operators.0.temperature': [300, 600],
                              'strategy.operators.0.particles': [['Cu', 'Ni']]})
@@ -65,20 +65,22 @@ def test_invalid_broadcast_before_construction(monkeypatch, broadcast):
 
 
 def test_composition_replaces_entire_mapping(capture):
-    source = dict(method='global_optimisation', population={'composition': {'Cu': 8, 'Au': 1}}, strategy={'method': 'basin_hopping'},
-                  broadcast={'population.composition': [{'Cu': 6, 'Ni': 2}, {'Cu': 4, 'Ni': 4}]})
+    source = dict(method='global_optimisation', system={'composition': {'Cu': 8, 'Au': 1}}, strategy={'method': 'basin_hopping'},
+                  broadcast={'system.composition': [{'Cu': 6, 'Ni': 2}, {'Cu': 4, 'Ni': 4}]})
     results = create_exploration(source)
-    assert [r.params['population']['composition'] for r in results] == [{'Cu': 6, 'Ni': 2}, {'Cu': 4, 'Ni': 4}]
-    results[0].params['population']['composition']['Cu'] = 99
-    assert source['broadcast']['population.composition'][0]['Cu'] == 6
-    assert results[1].params['population']['composition']['Cu'] == 4
+    assert [r.params['system']['composition'] for r in results] == [{'Cu': 6, 'Ni': 2}, {'Cu': 4, 'Ni': 4}]
+    results[0].params['system']['composition']['Cu'] = 99
+    assert source['broadcast']['system.composition'][0]['Cu'] == 6
+    assert results[1].params['system']['composition']['Cu'] == 4
 
 
 def test_ga_implicit_broadcast_is_flattened_inside_explicit_sweep(monkeypatch):
     from gdpx.exploration.genetic_algorithm import engine
     monkeypatch.setattr(engine, 'GeneticAlgorithmEngine', lambda **kw: SimpleNamespace(params=kw))
     source = parse_input_file(EXAMPLES / 'explorations/genetic_algorithm/cu7ni6.yaml')
-    source['objective'] = {'target': 'formation_energy', 'chemical_potentials': {'Cu': [-3, -2], 'Ni': -4}}
+    source['strategy']['objective'] = {
+        'target': 'formation_energy', 'chemical_potentials': {'Cu': [-3, -2], 'Ni': -4},
+    }
     source['broadcast'] = {'random_seed': [7, 17]}
     results = create_exploration(source)
     assert [(r.params['random_seed'], r.params['objective']['chemical_potentials']['Cu']) for r in results] == [
@@ -95,7 +97,7 @@ def test_real_composition_example_serializes_resolved_recipes():
         exploration.register_worker(create_worker(copy.deepcopy(runtime)))
         saved = exploration.as_dict()
         assert 'broadcast' not in saved
-        assert saved['population']['builders']['random']['composition'] == composition
+        assert saved['system']['builders']['random']['composition'] == composition
         saved.pop('runtime')
         restored = create_exploration(saved)
         assert not isinstance(restored, list)

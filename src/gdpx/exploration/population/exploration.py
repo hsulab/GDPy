@@ -9,6 +9,9 @@ from .comparators import create_population_comparator
 from .random import RandomStreamRegistry
 
 
+SHARED_STRATEGY_SETTINGS = ("objective", "convergence", "use_archive")
+
+
 def validate_strategy(strategy, method=None):
     if not isinstance(strategy, Mapping):
         raise ValueError("global_optimisation requires a strategy mapping with strategy.method.")
@@ -35,15 +38,41 @@ def validate_strategy(strategy, method=None):
     return copy.deepcopy(dict(strategy))
 
 
+def split_global_strategy(strategy):
+    """Separate public shared settings from one algorithm strategy."""
+    if not isinstance(strategy, Mapping):
+        raise ValueError("global_optimisation requires a strategy mapping with strategy.method.")
+    public = copy.deepcopy(dict(strategy))
+    shared = {key: public.pop(key) for key in SHARED_STRATEGY_SETTINGS if key in public}
+    return validate_strategy(public), shared
+
+
 def reject_legacy_settings(parameters):
+    moved_sections = {
+        "population": "system",
+        "objective": "strategy.objective",
+        "convergence": "strategy.convergence",
+        "use_archive": "strategy.use_archive",
+    }
+    moved_top_level = moved_sections.keys() & parameters.keys()
+    if moved_top_level:
+        raise ValueError(
+            "Move global_optimisation settings into the three-section layout: "
+            + ", ".join(
+                f"{key} -> {moved_sections[key]}" for key in sorted(moved_top_level)
+            )
+        )
     if "num_mcmoves" in parameters:
         raise ValueError("num_mcmoves moved to strategy.steps_per_chain.")
     if "mcworker" in parameters:
         raise ValueError("BH mcworker was removed; move calculation settings into top-level runtime.")
     if "builder" in parameters:
-        raise ValueError("Use population.builders and population.initial.builder_allocations instead of builder.")
+        raise ValueError("Use system.builders and system.initial.builder_allocations instead of builder.")
     if "recipe" in parameters:
-        raise ValueError("global_optimisation has no recipe wrapper; move recipe fields to the top level.")
+        raise ValueError(
+            "global_optimisation has no recipe wrapper; move population construction "
+            "under system and search settings under strategy."
+        )
     moved = {"operators", "steps_per_chain", "selection", "reproduction", "mutation", "completion", "substrate"}
     moved &= parameters.keys()
     if moved:
@@ -54,13 +83,14 @@ def reject_legacy_settings(parameters):
 
 
 def create_global_optimisation(
-    population, strategy, convergence=None, objective=None, random_seed=None, use_archive=True,
+    system, strategy, random_seed=None,
 ):
-    """Dispatch a resolved search configuration without changing its public shape."""
-    strategy = validate_strategy(strategy)
+    """Dispatch a three-section global-optimisation configuration."""
+    strategy, shared = split_global_strategy(strategy)
+    convergence = shared.get("convergence")
     common = dict(
-        population=population, strategy=strategy, objective=objective,
-        random_seed=random_seed, use_archive=use_archive,
+        population=system, strategy=strategy, objective=shared.get("objective"),
+        random_seed=random_seed, use_archive=shared.get("use_archive", True),
     )
     if strategy["method"] == "genetic_algorithm":
         from ..genetic_algorithm.engine import GeneticAlgorithmBroadcaster
@@ -103,12 +133,18 @@ class PopulationBasedExploration(BaseExploration):
         """Validate population-dependent policies before constructing builders."""
 
     def serialise_search(self, parameters):
-        result = {key: copy.deepcopy(value) for key, value in parameters.items() if key != "population"}
-        result["population"] = self.population_config.serialise(parameters["population"])
+        result = copy.deepcopy(parameters)
+        population = result.pop("population")
+        strategy = result.pop("strategy")
+        for key in SHARED_STRATEGY_SETTINGS:
+            if key in result:
+                strategy[key] = result.pop(key)
+        system = self.population_config.serialise(population)
         reference = getattr(self, "reference_builder_name", "random")
         if reference != "random":
-            result["population"]["reference_builder"] = reference
+            system["reference_builder"] = reference
         return dict(
             method="global_optimisation", random_seed=self.random_seed,
-            **result, runtime=copy.deepcopy(self.worker.as_dict()),
+            system=system, strategy=strategy, **result,
+            runtime=copy.deepcopy(self.worker.as_dict()),
         )

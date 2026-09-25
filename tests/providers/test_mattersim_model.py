@@ -48,10 +48,10 @@ def test_water_cluster_example_and_small_mattersim_runtime():
     with path.open() as stream:
         config = yaml.safe_load(stream)
 
-    builder = config["population"]["builders"]["random"]
+    builder = config["system"]["builders"]["random"]
     assert builder["composition"] == {"H2O": 4}
-    assert config["population"].get("periodic", True) is True
-    assert config["population"].get("preserve_fragments", True) is True
+    assert config["system"].get("periodic", True) is True
+    assert config["system"].get("preserve_fragments", True) is True
     assert config["strategy"]["operators"]["crossover"]["method"] == (
         "cut_and_splice"
     )

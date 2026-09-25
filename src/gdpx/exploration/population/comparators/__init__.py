@@ -19,12 +19,12 @@ def create_population_comparator(config, periodic=True, rng=None):
     if not isinstance(config, Mapping):
         if hasattr(config, "looks_like"):
             return config
-        raise TypeError("population.comparator must be a mapping or comparator instance.")
+        raise TypeError("system.comparator must be a mapping or comparator instance.")
     params = copy.deepcopy(dict(config))
     if "name" in params:
-        raise ValueError("population.comparator.name is not supported; use method.")
+        raise ValueError("system.comparator.name is not supported; use method.")
     if {"pbc", "mic", "rng"} & params.keys():
-        raise ValueError("Population comparator periodicity and RNG are population-owned; use population.periodic.")
+        raise ValueError("Population comparator periodicity and RNG are system-owned; use system.periodic.")
     method = params.pop("method", None)
     if method not in COMPARATORS:
         from gdpx.analysis.comparators import REGISTER

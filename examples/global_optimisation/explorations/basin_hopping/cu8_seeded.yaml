@@ -1,6 +1,6 @@
 method: global_optimisation
 random_seed: 7
-population:
+system:
   retained_size: 4
   builders:
     random:
@@ -29,6 +29,8 @@ population:
     method: interatomic_distance
 strategy:
   method: basin_hopping
+  convergence:
+    generation: 1
   steps_per_chain: 5
   operators:
     - method: move
@@ -38,5 +40,3 @@ strategy:
       covalent_ratio: [0.6, 2.0]
       max_random_attempts: 100
       probability: 1.0
-convergence:
-  generation: 1

@@ -1,6 +1,6 @@
 method: global_optimisation
 random_seed: 7
-population:
+system:
   comparator:
     method: interatomic_distance
   builders:
@@ -21,15 +21,15 @@ population:
       - {builder: random, size: 4}
   generation:
     total_size: 2
-objective:
-  target: formation_energy
-  chemical_potentials:
-    Cu: 0.0
-    Ni: -0.5
-convergence:
-  generation: 1
 strategy:
   method: basin_hopping
+  objective:
+    target: formation_energy
+    chemical_potentials:
+      Cu: 0.0
+      Ni: -0.5
+  convergence:
+    generation: 1
   operators:
     - method: exchange
       particles: [Ni]

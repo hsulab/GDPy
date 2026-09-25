@@ -44,6 +44,14 @@ class ExplorationVariable(Variable):
         if isinstance(system, Mapping) and isinstance(system.get("builder"), Variable):
             kwargs["system"] = copy.deepcopy(dict(system))
             kwargs["system"]["builder"] = system["builder"].value
+        elif isinstance(system, Mapping) and isinstance(system.get("builders"), Mapping):
+            builders = system["builders"]
+            if any(isinstance(builder, Variable) for builder in builders.values()):
+                kwargs["system"] = copy.deepcopy(dict(system))
+                kwargs["system"]["builders"] = {
+                    name: builder.value if isinstance(builder, Variable) else builder
+                    for name, builder in builders.items()
+                }
         exploration = create_exploration(kwargs)
 
         super().__init__(initial_value=exploration, directory=directory)

@@ -1,6 +1,6 @@
 method: global_optimisation
 random_seed: 7
-population:
+system:
   initial:
     total_size: 4
     builder_allocations:

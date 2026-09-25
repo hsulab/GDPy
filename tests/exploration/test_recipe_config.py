@@ -68,8 +68,8 @@ def test_two_builder_co_example_has_compatible_fragment_order(tmp_path, monkeypa
     recipe = yaml.safe_load(
         (root / 'examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml').read_text(),
     )
-    population = PopulationConfig(recipe['population'])
-    builders = population.initialise_builders(recipe['population'], RandomStreamRegistry(recipe['random_seed']))
+    population = PopulationConfig(recipe['system'])
+    builders = population.initialise_builders(recipe['system'], RandomStreamRegistry(recipe['random_seed']))
     for name, builder in builders.items():
         builder.directory = tmp_path / name
     frames = population._prepare_initial_population(builders)
@@ -227,7 +227,7 @@ def test_searches_reject_configurable_database_names():
             strategy=_minimal_ga_strategy('random'),
         )
 
-    with pytest.raises(ValueError, match="population.database_fname is no longer configurable"):
+    with pytest.raises(ValueError, match="system.database_fname is no longer configurable"):
         PopulationConfig({"database_fname": "custom.db"})
 
 
@@ -349,11 +349,11 @@ def test_ga_population_defaults_system_description_to_true():
     assert disabled.preserve_fragments is False
 
     mixed_periodic = dict(base, periodic=[True, True, False])
-    with pytest.raises(ValueError, match="population.periodic must be a boolean"):
+    with pytest.raises(ValueError, match="system.periodic must be a boolean"):
         PopulationConfig(mixed_periodic)
 
     invalid_fragments = dict(base, preserve_fragments="yes")
-    with pytest.raises(ValueError, match="population.preserve_fragments must be a boolean"):
+    with pytest.raises(ValueError, match="system.preserve_fragments must be a boolean"):
         PopulationConfig(invalid_fragments)
 
 
@@ -382,7 +382,7 @@ def test_population_candidate_validation_uses_system_description():
 
 @pytest.mark.parametrize(
     ("key", "replacement"),
-    [("pbc", "population.periodic"), ("use_tags", "population.preserve_fragments")],
+    [("pbc", "system.periodic"), ("use_tags", "system.preserve_fragments")],
 )
 def test_ga_rejects_population_owned_builder_keys(key, replacement):
     population = _minimal_ga_population("random")
@@ -420,7 +420,7 @@ def test_ga_injects_default_system_settings_into_compatible_builders():
     assert engine.builders["random"].use_tags is True
 
     engine.worker = Serializable({"schema_version": 3})
-    serialised_population = engine.as_dict()["population"]
+    serialised_population = engine.as_dict()["system"]
     assert "periodic" not in serialised_population
     assert "preserve_fragments" not in serialised_population
 
@@ -444,8 +444,8 @@ def test_ga_fragment_policy_configures_and_rejects_operators():
         engine._configure_fragment_policy(incompatible, "operators.mobile.mutation[1]")
 
     for key, value, replacement in (
-        ("use_tags", True, "population.preserve_fragments"),
-        ("pbc", True, "population.periodic"),
+        ("use_tags", True, "system.preserve_fragments"),
+        ("pbc", True, "system.periodic"),
     ):
         with pytest.raises(ValueError, match=replacement):
             engine._reject_population_owned_operator_keys(
@@ -517,18 +517,18 @@ def test_ga_serialization_uses_recipe_and_runtime():
     assert config["method"] == "global_optimisation"
     assert "recipe" not in config
     assert config["random_seed"] == 7
-    assert config["population"]["builders"] == {
+    assert config["system"]["builders"] == {
         "random": {"method": "random_structure_improved"},
         "imported": {"method": "direct"},
     }
-    assert "reference_builder" not in config["population"]
+    assert "reference_builder" not in config["system"]
     assert "params" not in config
     assert "worker" not in config
-    assert "objective" not in config
+    assert "objective" not in config["strategy"]
     assert "database" not in config
 
     engine.reference_builder_name = "imported"
-    assert engine.as_dict()["population"]["reference_builder"] == "imported"
+    assert engine.as_dict()["system"]["reference_builder"] == "imported"
 
 
 class FixedBuilder:
@@ -814,8 +814,8 @@ def test_other_global_optimisers_serialize_the_recipe():
     annealing_config = annealing.as_dict()
 
     assert concurrent_config["random_seed"] == 13
-    assert concurrent_config["population"]["retained_size"] == 1
-    assert concurrent_config["objective"] == {
+    assert concurrent_config["system"]["retained_size"] == 1
+    assert concurrent_config["strategy"]["objective"] == {
         "target": "formation_energy",
         "chemical_potentials": {"O": -4.95},
     }

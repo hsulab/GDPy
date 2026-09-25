@@ -78,7 +78,7 @@ def test_bh_migration_names_replacement(old, new):
 
 def test_comparator_location_migration():
     for operators in [{"comparator": {}}, {"mobile": {"comparator": {}}}]:
-        with pytest.raises(ValueError, match="population.comparator"):
+        with pytest.raises(ValueError, match="system.comparator"):
             GeneticAlgorithmEngine(population=settings(), strategy={"method": "genetic_algorithm", "operators": operators}, convergence={})
 
 
@@ -185,8 +185,8 @@ def test_example_population_round_trip_and_config_immutability(example, runtime_
     engine.register_worker(create_worker(runtime))
     saved = engine.as_dict()
     assert config == original
-    assert saved["population"]["retained_size"] == 2
-    assert saved["population"]["comparator"] == {"method": "interatomic_distance"}
+    assert saved["system"]["retained_size"] == 2
+    assert saved["system"]["comparator"] == {"method": "interatomic_distance"}
     saved.pop("runtime")
     rebuilt = create_exploration(saved)
     if isinstance(rebuilt, list):

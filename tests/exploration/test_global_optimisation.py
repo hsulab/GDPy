@@ -30,7 +30,7 @@ def engine_for(parameters):
 def test_identical_population_can_be_used_by_both_strategies():
     ga = config()
     bh = config("basin_hopping")
-    bh["population"] = copy.deepcopy(ga["population"])
+    bh["system"] = copy.deepcopy(ga["system"])
     originals = copy.deepcopy((ga, bh))
     first, second = engine_for(ga), engine_for(bh)
     assert isinstance(first, PopulationBasedExploration)
@@ -40,22 +40,30 @@ def test_identical_population_can_be_used_by_both_strategies():
         engine.worker = SimpleNamespace(as_dict=lambda: {"schema_version": 3})
         saved = engine.as_dict()
         assert saved["method"] == "global_optimisation"
+        assert set(saved) == {"method", "random_seed", "system", "strategy", "runtime"}
         assert "recipe" not in saved and "operators" not in saved
         assert saved["strategy"]["method"] in ("genetic_algorithm", "basin_hopping")
+        assert saved["strategy"]["convergence"] == {"generation": 1}
+        assert saved["strategy"]["use_archive"] is True
+        assert "objective" not in saved["strategy"]
         saved.pop("runtime")
         assert type(engine_for(saved)) is type(engine)
 
 
 @pytest.mark.parametrize("change,message", [
     (lambda c: c.pop("strategy"), "strategy mapping"),
+    (lambda c: c.update(population=c.pop("system")), "population -> system"),
+    (lambda c: c.update(convergence=c["strategy"].pop("convergence")), "convergence -> strategy.convergence"),
+    (lambda c: c.update(objective={"target": "energy"}), "objective -> strategy.objective"),
+    (lambda c: c.update(use_archive=False), "use_archive -> strategy.use_archive"),
     (lambda c: c["strategy"].pop("method"), "strategy.method"),
     (lambda c: c["strategy"].update(method=[]), "strategy.method"),
     (lambda c: c["strategy"].update(method="unknown"), "strategy.method"),
     (lambda c: c.update(recipe={}), "no recipe wrapper"),
     (lambda c: c.update(operators={}), "strategy.operators"),
-    (lambda c: c["population"].update(name="variable"), "compatibility is automatic"),
-    (lambda c: c["population"].update(substrate={}), "strategy.substrate"),
-    (lambda c: c["population"]["generation"].update(mutation={}), "strategy.mutation"),
+    (lambda c: c["system"].update(name="variable"), "compatibility is automatic"),
+    (lambda c: c["system"].update(substrate={}), "strategy.substrate"),
+    (lambda c: c["system"]["generation"].update(mutation={}), "strategy.mutation"),
     (lambda c: c["strategy"].update(selection={"group_by_composition": False}), "automatically"),
     (lambda c: c["strategy"].update(steps_per_chain=1), "Unsupported"),
     (lambda c: c["strategy"].update(operators=[]), "must be a mapping"),
@@ -89,6 +97,7 @@ def test_generation_uses_operator_compatibility(allow_variable, difference):
         first.set_tags([0, 1])
         second.set_tags([0, 1])
     strategy = config()["strategy"]
+    strategy.pop("convergence")
     strategy["substrate"] = {"distance_tolerance": 0.1 if difference in ("substrate", "empty_substrate") else -1.0}
     population = SimpleNamespace(candidates=(first, second), similarity_counts={})
     observed = []
@@ -101,7 +110,7 @@ def test_generation_uses_operator_compatibility(allow_variable, difference):
         raise StopSelection
 
     manager = GeneticGenerationManager(
-        strategy, PopulationConfig(config()["population"]), population,
+        strategy, PopulationConfig(config()["system"]), population,
         SimpleNamespace(select_pair=inspect_pair), np.random.default_rng(1))
     pairing = SimpleNamespace()
     if allow_variable is not None:

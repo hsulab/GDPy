@@ -111,7 +111,7 @@ class BasinHopping(PopulationBasedExploration):
         """Initialise BasinHopping.
 
         Args:
-            builder: Removed; use population.builders.
+            builder: Removed; use system.builders.
             strategy: Move operators, chain length, and chain-start selection.
             population: Population parameters.
 
@@ -142,7 +142,7 @@ class BasinHopping(PopulationBasedExploration):
         if isinstance(generation, bool) or not isinstance(generation, int) or generation < 0:
             raise ValueError("BH convergence.generation must be a non-negative integer.")
         if builder is not None:
-            raise ValueError("BH builder moved to population.builders and initial.builder_allocations.")
+            raise ValueError("BH builder moved to system.builders and system.initial.builder_allocations.")
         objective = normalise_objective(objective, {"energy", "formation_energy"})
         super().__init__(population, strategy, *args, **kwargs)
 

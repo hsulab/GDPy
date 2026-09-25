@@ -1,6 +1,6 @@
 method: global_optimisation
 random_seed: 67
-population:
+system:
   comparator:
     method: interatomic_distance
   builders:
@@ -25,15 +25,15 @@ population:
         size: 8
   generation:
     total_size: 4
-objective:
-  target: cohesive_energy
-  chemical_potentials:
-    Cu: -3.50
-    O: -4.95
-convergence:
-  generation: 1
 strategy:
   method: genetic_algorithm
+  objective:
+    target: cohesive_energy
+    chemical_potentials:
+      Cu: -3.50
+      O: -4.95
+  convergence:
+    generation: 1
   operators:
     mutation:
       - method: exchange

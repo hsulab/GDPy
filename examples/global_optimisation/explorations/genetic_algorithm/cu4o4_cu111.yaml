@@ -1,6 +1,6 @@
 method: global_optimisation
 random_seed: 41
-population:
+system:
   comparator:
     method: interatomic_distance
   builders:
@@ -25,10 +25,10 @@ population:
         size: 4
   generation:
     total_size: 2
-convergence:
-  generation: 1
 strategy:
   method: genetic_algorithm
+  convergence:
+    generation: 1
   operators:
     crossover:
       method: cut_and_splice

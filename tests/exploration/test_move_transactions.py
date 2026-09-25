@@ -489,18 +489,18 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
     engine = create_exploration(
         {
             'method': 'global_optimisation',
-            'population': {
+            'system': {
                 'periodic': False,
                 'retained_size': 1,
                 'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
                 'generation': {'total_size': 3},
                 'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
             },
-            'convergence': {'generation': 1},
             'random_seed': 7,
-            'use_archive': False,
             'strategy': {
                 'method': 'basin_hopping',
+                'convergence': {'generation': 1},
+                'use_archive': False,
                 'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
                 'steps_per_chain': 2,
             },

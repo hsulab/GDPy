@@ -320,7 +320,7 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
         if len(selected_candidates) != self.population_config.init_size:
             raise RuntimeError(
                 f"Active population contains {len(selected_candidates)} structures; "
-                f"initial.total_size requires {self.population_config.init_size}."
+                f"system.initial.total_size requires {self.population_config.init_size}."
             )
         name = "active_population"
         self.builders[name] = canonicalise_builder(
@@ -679,7 +679,7 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
             (f"operators.{group}", operators.get(group, {})) for group in ("mobile", "custom")
         ]:
             if isinstance(config, Mapping) and "comparator" in config:
-                raise ValueError(f"{path}.comparator moved to population.comparator.")
+                raise ValueError(f"{path}.comparator moved to system.comparator.")
 
     def _register_operators(self):
         """"""
@@ -849,20 +849,20 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
         population_owned = {"pbc", "use_tags"}.intersection(params)
         if population_owned:
             migrations = {
-                "pbc": "population.periodic",
-                "use_tags": "population.preserve_fragments",
+                "pbc": "system.periodic",
+                "use_tags": "system.preserve_fragments",
             }
             details = ", ".join(
                 f"{key} -> {migrations[key]}" for key in sorted(population_owned)
             )
-            raise ValueError(f"{path} contains population-owned keys: {details}.")
+            raise ValueError(f"{path} contains system-owned keys: {details}.")
 
     def _configure_fragment_policy(self, operator, path: str) -> None:
         supports_fragments = getattr(operator, "supports_fragment_preservation", False)
         if self.preserve_fragments and not supports_fragments:
             raise ValueError(
                 f"{path} uses {operator.__class__.__name__}, which cannot guarantee "
-                "population.preserve_fragments=true."
+                "system.preserve_fragments=true."
             )
         if getattr(operator, "fragment_mode_configurable", False):
             operator.use_tags = self.preserve_fragments

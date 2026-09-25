@@ -69,7 +69,7 @@ def instantiate_a_genetic_operator(
     }:
         raise ValueError(
             f"Crossover {method!r} is no longer supported; use 'cut_and_splice' "
-            "with population.periodic=true and population.preserve_fragments=true "
+            "with system.periodic=true and system.preserve_fragments=true "
             "for isolated clusters."
         )
     if method is None:

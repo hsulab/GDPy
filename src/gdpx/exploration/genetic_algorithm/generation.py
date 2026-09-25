@@ -122,7 +122,7 @@ class GeneticGenerationManager:
         self.gen_rep_size = self.config._nonnegative_integer(reproduction_params.get("size", 0), "reproduction.size")
         self.gen_mut_size = self.config._nonnegative_integer(mutation_params.get("size", 0), "mutation.size")
         if self.gen_rep_size + self.gen_mut_size > self.config.gen_size:
-            raise ValueError("strategy reproduction and mutation sizes exceed population.generation.total_size.")
+            raise ValueError("strategy reproduction and mutation sizes exceed system.generation.total_size.")
         self.gen_rep_max_try = self._attempts(reproduction_params, self.gen_rep_size, "reproduction")
         self.gen_mut_max_try = self._attempts(mutation_params, self.gen_mut_size, "mutation")
         self.completion_builder_proportions = self._parse_builder_proportions(

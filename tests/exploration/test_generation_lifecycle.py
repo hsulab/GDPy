@@ -71,18 +71,18 @@ def bh_config(tmp_path, initial=2, generations=0):
                "options": {"worker": "single"}}
     config = {
         'method': 'global_optimisation',
-        'population': {
+        'system': {
             'periodic': False,
             'retained_size': 1,
             'initial': {'total_size': initial, 'builder_allocations': [{'builder': 'random', 'size': initial}]},
             'generation': {'total_size': 2},
             'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
         },
-        'convergence': {'generation': generations},
         'random_seed': 7,
-        'use_archive': False,
         'strategy': {
             'method': 'basin_hopping',
+            'convergence': {'generation': generations},
+            'use_archive': False,
             'operators': [{'method': 'move', 'particles': ['Cu'], 'max_disp': 0.05, 'skip_distance_check': True}],
             'steps_per_chain': 2,
         },
@@ -132,7 +132,7 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
-        config.update(convergence={"generation": 0}, use_archive=False)
+        config["strategy"].update(convergence={"generation": 0}, use_archive=False)
     engine = make_engine(config, runtime, tmp_path / "run")
     original = GlobalOptimisationDatabase.add_relaxed_step
     calls = []
@@ -183,7 +183,7 @@ def test_restart_between_generations_preserves_search_trajectory(tmp_path, monke
         path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml"
         config = yaml.safe_load(path.read_text())
         runtime = yaml.safe_load((path.parents[2] / "runtimes/emt.yaml").read_text())
-        config.update(convergence={"generation": 2}, use_archive=False)
+        config["strategy"].update(convergence={"generation": 2}, use_archive=False)
     baseline = make_engine(config, runtime, tmp_path / "baseline")
     baseline.run()
     interrupted = make_engine(config, runtime, tmp_path / "interrupted")
@@ -332,8 +332,8 @@ class HistoryWorker:
 @pytest.mark.parametrize("accept_uphill", [False, True])
 def test_every_minimum_is_available_to_next_population(tmp_path, accept_uphill):
     config, runtime = bh_config(tmp_path, generations=2 if accept_uphill else 1)
-    config["population"]["comparator"] = {"method": "atoms"}
-    config["population"]["retained_size"] = 1 if accept_uphill else 10
+    config["system"]["comparator"] = {"method": "atoms"}
+    config["system"]["retained_size"] = 1 if accept_uphill else 10
     config["strategy"]["operators"][0]["temperature"] = 1e12 if accept_uphill else 1e-6
     engine = make_engine(config, runtime, tmp_path / "search")
     worker = HistoryWorker([0., -10., -1., -2., -3.])
@@ -391,13 +391,13 @@ def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, 
 def test_bh_default_generation_and_serialization(tmp_path, convergence):
     config, runtime = bh_config(tmp_path)
     if convergence is None:
-        config.pop("convergence")
+        config["strategy"].pop("convergence")
     else:
-        config["convergence"] = convergence
+        config["strategy"]["convergence"] = convergence
     engine = make_engine(config, runtime, tmp_path / "search")
     assert engine.convergence == {"generation": 1}
     serialized = engine.as_dict()
-    assert serialized["convergence"] == {"generation": 1}
+    assert serialized["strategy"]["convergence"] == {"generation": 1}
     serialized.pop("runtime")
     assert create_exploration(serialized).convergence == {"generation": 1}
     engine.run()
@@ -406,13 +406,13 @@ def test_bh_default_generation_and_serialization(tmp_path, convergence):
     assert db.connection.count(relaxed=1, generation=1) == 4
     assert db.get_generation_plan(2) is None
     if convergence is not None:
-        assert config["convergence"] == convergence
+        assert config["strategy"]["convergence"] == convergence
 
 
 @pytest.mark.parametrize("generation", [-1, 1.5, True, "1", None])
 def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
     config, _ = bh_config(tmp_path)
-    config["convergence"] = {"generation": generation}
+    config["strategy"]["convergence"] = {"generation": generation}
     with pytest.raises(ValueError, match="convergence.generation.*non-negative integer"):
         create_exploration(config)
 
@@ -420,7 +420,7 @@ def test_bh_rejects_invalid_generation_limits(tmp_path, generation):
 def test_bh_default_generation_resumes_without_reselecting_starts(tmp_path, monkeypatch):
     import gdpx.exploration.basin_hopping.chain as chain
     config, runtime = bh_config(tmp_path)
-    config.pop("convergence")
+    config["strategy"].pop("convergence")
     baseline = make_engine(config, runtime, tmp_path / "baseline")
     baseline.run()
     interrupted = make_engine(config, runtime, tmp_path / "interrupted")
@@ -645,7 +645,7 @@ def test_bh_selection_invalid_config(tmp_path, selection):
 @pytest.mark.parametrize('replace', [False, True])
 def test_bh_generation_and_extinction_share_selection_policy(tmp_path, monkeypatch, replace):
     config, runtime = bh_config(tmp_path, generations=1)
-    config['population']['retained_size'] = 2
+    config['system']['retained_size'] = 2
     config["strategy"]["selection"] = {'replace': replace}
     engine = extinction_engine(config, runtime, tmp_path / 'run', HistoryWorker([0., -1., 0.]),
                                lambda a: int(a.get_potential_energy() == -1.))
