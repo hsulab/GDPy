@@ -7,14 +7,13 @@ fixed. This provides composition changes without insertion or removal.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and chemical
+potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: swap_type
   particles: [Cu, Ni]
-  chempots: [0.0, -0.5]
-  temperature: 1000.0
 ```
 
 ## Settings
@@ -22,7 +21,7 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | At least two distinct atomic chemical symbols | Required |
-| `chempots` | Chemical potentials in eV, in the same order as `particles` | Required |
+| `chempots` | Chemical potentials for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
@@ -41,6 +40,8 @@ are not reinitialized for the new species. Ensure the runtime potential supports
 all configured elements.
 
 Acceptance uses the energy change with the chemical-potential offset
-`mu_before - mu_after`, at the configured temperature. The values above are
-illustrative search settings, not calibrated reservoir chemical potentials.
+`mu_before - mu_after`, at the configured temperature. It also includes the
+reverse/forward proposal ratio from selecting a species and then one atom of
+that species. Chemical potentials must use the same energy reference as the
+runtime potential.
 For fixed-composition positional swaps, use {doc}`swap`.

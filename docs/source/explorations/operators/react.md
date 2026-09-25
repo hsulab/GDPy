@@ -7,16 +7,15 @@ stoichiometric reaction, allowing both forward and reverse proposals.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and standard
+chemical potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: react
   reaction:
     particles: [H2, O2, H2O]
-    chempot_0: [0.0, 0.0, 0.0]
     coefficients: [-2, -1, 2]
-  temperature: 1000.0
   use_bias: false
   region:
     method: sphere
@@ -29,10 +28,10 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `reaction.particles` | Ordered species participating in the reaction | Required |
-| `reaction.chempot_0` | Standard chemical potentials in eV per particle, in the same order | Required |
+| `reaction.chempot_0` | Standard chemical potentials for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 | `reaction.coefficients` | Signed integer coefficients: negative for reactants, positive for products | Required |
 | `region` | Particle selection and acceptance-volume region | Required |
-| `temperature` | Acceptance temperature in K | Required |
+| `temperature` | Acceptance temperature for BH and hybrid MC; standard MC uses the ensemble | Required outside standard MC |
 | `pressure` | Operator pressure setting in bar | 1.0 |
 | `use_bias` | Use estimated empty volume instead of geometric volume | `true` |
 

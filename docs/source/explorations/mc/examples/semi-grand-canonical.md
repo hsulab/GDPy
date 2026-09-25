@@ -8,13 +8,14 @@ $N=32$ stays fixed while the Cu/Ni counts fluctuate.
 :language: yaml
 ```
 
-`chempots` is in eV per atom and follows the order of `particles`. For an
+`system.ensemble.chemical_potentials` maps each species to eV per atom. For an
 A → B change the implemented rule uses
 $\Delta E - (\mu_B-\mu_A)$ in place of $\Delta E$ in the Metropolis
-exponent. Increasing `chempots[1]` relative to `chempots[0]` therefore favours
-Ni. Only the difference matters: `[0.0, 0.2]` and `[1.0, 1.2]` give the same
+exponent, together with the reverse/forward proposal-count ratio. Increasing
+the Ni value relative to Cu therefore favours Ni. Only the difference matters:
+`{Cu: 0.0, Ni: 0.2}` and `{Cu: 1.0, Ni: 1.2}` give the same
 chemical contribution. The demonstration uses equal chemical potentials;
-this does not impose equal concentrations. The proposal limitation described in the {ref}`Monte Carlo guide <monte-carlo>` still applies even with single-point energies.
+this does not impose equal concentrations.
 
 ## Run
 

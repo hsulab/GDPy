@@ -6,15 +6,15 @@ Rearrange two particle types while preserving their total counts.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC sets temperature under
+`system.ensemble`; the other methods add it to the operator:
 
 ```yaml
 - method: swap
   particles: [Cu, Ni]
   swap_mode: atomic
   check_used_pairs: true
-  temperature: 500.0
 ```
 
 ## Settings

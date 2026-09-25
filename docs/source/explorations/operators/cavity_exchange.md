@@ -7,16 +7,15 @@ cavity count in exchange acceptance.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and chemical
+potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: cavity_exchange
   particles: [Ni]
-  chempots: [-0.5]
   num_trials: 50
   cavity_distance: [2.0, null]
-  temperature: 1000.0
   region:
     method: sphere
     origin: [10.0, 10.0, 10.0]
@@ -28,7 +27,7 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | One chemical potential in eV per particle | Required |
+| `chempots` | Chemical potential for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 | `num_trials` | Number of trial points; supply a positive integer | Required |
 | `cavity_distance` | Absolute `[minimum, maximum]` distances in Å; `null` maximum disables the isolation check | Uses `covalent_ratio` |

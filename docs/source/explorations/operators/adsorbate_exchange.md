@@ -7,14 +7,13 @@ existing tagged adsorbate.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and chemical
+potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: adsorbate_exchange
   particles: [CO]
-  chempots: [-0.5]
-  temperature: 500.0
   anchors:
     group: "`symbol Cu`"
     cutoff: 3.0
@@ -27,7 +26,7 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One supported adsorbate species | Required |
-| `chempots` | One chemical potential in eV per adsorbate | Required |
+| `chempots` | Chemical potential for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 | `anchors` | Surface-site settings, or a one-entry list of settings | Required |
 | `use_ads` | Use an adsorbate representation with binding information; must remain enabled | `true` |
 | `anchors.group` | Group expression selecting surface atoms | Supply explicitly |

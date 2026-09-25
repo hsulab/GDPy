@@ -10,7 +10,7 @@ $\Delta E = E_\mathrm{trial} - E_\mathrm{current}$.
 :language: yaml
 ```
 
-`temperature` is in kelvin and `max_disp` is in Å. The small displacement
+`system.ensemble.temperature` is in kelvin and `max_disp` is in Å. The small displacement
 keeps the demonstration near the initial lattice. No volume-changing move is
 used: setting an operator's `pressure` does not turn this into NPT sampling.
 

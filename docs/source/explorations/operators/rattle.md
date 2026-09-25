@@ -7,15 +7,15 @@ several local environments to change before relaxation.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC sets temperature under
+`system.ensemble`; the other methods add it to the operator:
 
 ```yaml
 - method: rattle
   particles: [Cu, Ni]
   rattle_strength: 0.8
   rattle_prop: 0.4
-  temperature: 500.0
 ```
 
 ## Settings

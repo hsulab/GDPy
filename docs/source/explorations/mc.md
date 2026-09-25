@@ -3,10 +3,10 @@
 # Monte Carlo (MC)
 
 Monte Carlo proposes structural changes and accepts or rejects them using
-energies from a runtime. Choose the ensemble through `recipe.operators`;
-there is no separate `ensemble` key. The {doc}`examples <mc/examples/index>` use ASE EMT and
-single-point energies, so no model download or external simulation executable
-is needed. Install GDPy as described in {doc}`../installation` first.
+single-point energies from a runtime. Configure the initial structure and
+thermodynamic ensemble under `system`, and proposals under `strategy.operators`.
+The {doc}`examples <mc/examples/index>` use ASE EMT, so no model download or
+external simulation executable is needed.
 
 | Ensemble | Fixed quantities | What changes | Operators |
 | --- | --- | --- | --- |
@@ -18,14 +18,11 @@ is needed. Install GDPy as described in {doc}`../installation` first.
 and preserves composition; `swap_type` changes one atom's element and therefore
 changes composition. The latter currently supports individual atoms only.
 
-These are short workflow demonstrations, not equilibrated production studies.
-The current implementation is an exploration method and its historical
-acceptance rules do not establish detailed balance for every proposal. In
-particular, `swap_type` chooses a species first and then an atom of that species,
-but its acceptance rule omits the resulting proposal-count ratio. `exchange`
-forces insertion when no exchangeable particles remain, without correcting the
-change in insertion/deletion proposal probabilities at that boundary. Do not
-use these semi-grand/grand-canonical demos as validated equilibrium samplers.
+`swap_type` includes the reverse/forward proposal-count ratio required by its
+species-first selection. `exchange` includes the insertion/deletion branch
+ratio when no exchangeable particles remain. Biased operators and repeated
+geometry attempts need separate detailed-balance analysis before use for
+quantitative equilibrium sampling.
 
 See the shared {ref}`sampling-operators` reference for available moves and
 their configuration, particle selection, and acceptance rules.
@@ -49,23 +46,21 @@ mc/examples/index
 ## Proposal settings
 
 `probability` is a relative operator-selection weight; the weights are
-normalised automatically. Keep temperatures consistent across operators in
-one simulation. Use consistent regions when combining moves and exchange;
-see {ref}`region-definitions` for region definitions.
+normalised automatically. Temperature and chemical potentials are defined once
+under `system.ensemble`. Use consistent regions when combining moves and
+exchange; see {ref}`region-definitions` for region definitions.
 
 These demos set `skip_distance_check: true` so the energy evaluation, rather
 than repeated geometry filtering, decides whether a trial is acceptable.
-`max_random_attempts: 1` and `should_retry: false` avoid retrying failed
-proposals until a valid move is found. Failed proposals count as steps and
-retain the current state. These choices remove geometry-retry bias but do
-not fix the semi-grand/exchange proposal limitations above.
+`max_random_attempts: 1` avoids retrying until a valid move is found. Failed
+proposals count as steps and retain the current state.
 
 With distance checks enabled, `covalent_ratio` sets lower and upper
 multipliers of covalent bond distances. Such filters and retries can change
 the proposal distribution and should not be assumed to preserve equilibrium
 sampling. They can be useful for structure search.
 
-MC assigns distinct atomic tags by default. If `ignore_atoms_tags: false`,
+MC assigns distinct atomic tags by default. If `system.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated
 as one particle. `swap_type` requires single-atom particles.
 
@@ -78,7 +73,6 @@ For collective displacements, replace a `move` entry with:
   particles: [Cu]
   rattle_strength: 0.1
   rattle_prop: 0.4
-  temperature: 1200.0
   probability: 1.0
   skip_distance_check: true
   max_random_attempts: 1
@@ -87,9 +81,9 @@ For collective displacements, replace a `move` entry with:
 Each eligible particle is selected independently with `rattle_prop`. Each
 Cartesian displacement component is uniform between `-rattle_strength` and
 `+rattle_strength` Å, rather than Gaussian. Tagged molecules translate rigidly.
-Empty or invalid proposals exhaust the attempt limit and are handled according
-to `should_retry`. MC and BH share these moves and acceptance rules, but BH
-does not inherit from MC.
+Empty or invalid proposals exhaust the attempt limit and retain the current
+state. MC and BH share these moves and acceptance rules, but BH does not
+inherit from MC.
 
 ## Inspect the results
 
@@ -97,8 +91,7 @@ Terminal output groups setup, initialization, each MC step, and completion in
 boxes. Worker evaluations appear inside the corresponding initialization or
 step box. Each step reports its operator, acceptance decision, previous and
 trial energies, current energy, and atom count. Waiting evaluations and invalid
-proposals are labelled separately; an invalid proposal also reports whether
-the step will be retried. Use `gdp --debug ...` for detailed proposal diagnostics.
+proposals are labelled separately. Use `gdp --debug ...` for detailed proposal diagnostics.
 Restart messages identify the checkpoint or pending step being resumed.
 
 Each output directory contains:
@@ -113,9 +106,9 @@ Each output directory contains:
 - `calculations/step.NNNN/`: retained runtime calculations.
 
 `convergence.steps: 100` is a step budget, not a test of statistical convergence.
-The examples retain all calculation steps with `dump_period: 1`; increasing
-`dump_period` prunes intermediate calculation directories, **not** frames in
-`mc.xyz`. `ckpt_period` controls checkpoint frequency independently.
+The examples retain all calculation steps with `output.dump_period: 1`;
+increasing it prunes intermediate calculation directories, **not** frames in
+`mc.xyz`. `checkpoint.period` controls checkpoint frequency independently.
 
 Inspect energy and composition from the repository root:
 
@@ -138,7 +131,7 @@ JSON metadata and uncompressed NumPy `.npz` arrays, without pickle. Arrays,
 constraints, cached results, operator configuration, and random state are
 preserved without copying the entire structure before serialization.
 
-`ckpt_period` controls ordinary checkpoint frequency. Only the latest and
+`checkpoint.period` controls ordinary checkpoint frequency. Only the latest and
 previous committed checkpoints are retained; a damaged latest snapshot falls
 back to the previous one. A queued move also retains its pending state until
 its resolution is committed, forcing a checkpoint even between ordinary

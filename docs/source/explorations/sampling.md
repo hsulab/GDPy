@@ -9,10 +9,9 @@ and grand-canonical Monte Carlo. The selected
 {doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
 
 Unlike {doc}`basin hopping <../global_optimisation/basin_hopping>`, Boltzmann
-sampling may not relax every trial to a local minimum. It accepts or rejects
-trials so that the sampled states retain the target ensemble distribution.
-Basin hopping instead transforms the energy landscape to search for low-energy
-structures.
+sampling evaluates each trial without relaxation and accepts or rejects it for
+the configured ensemble. Basin hopping uses the same kinds of proposals but
+relaxes trials to local minima and ranks them for structure search.
 
 ## Demo
 

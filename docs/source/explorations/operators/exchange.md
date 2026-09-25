@@ -6,14 +6,13 @@ Insert or remove one particle to search across compositions.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and chemical
+potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: exchange
   particles: [Ni]
-  chempots: [-0.5]
-  temperature: 1000.0
   region:
     method: sphere
     origin: [10.0, 10.0, 10.0]
@@ -25,7 +24,7 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | One chemical potential in eV per particle | Required |
+| `chempots` | Chemical potential for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
@@ -42,7 +41,9 @@ Failed insertion gives an invalid proposal. Inserted particles receive a new tag
 Acceptance includes the energy difference, chemical potential, region volume,
 particle count, and thermal wavelength at the configured temperature. The
 chemical-potential energy offset is `-mu` for insertion and `+mu` for removal.
-The volume is the full geometric region volume.
+The volume is the full geometric region volume. At the zero-particle boundary,
+acceptance also accounts for forced insertion and the half-probability reverse
+deletion branch.
 
 Use a separate operator entry for each exchangeable species. Builder composition
 ranges apply only to initialization and do not constrain later exchange moves.

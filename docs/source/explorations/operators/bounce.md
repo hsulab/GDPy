@@ -7,8 +7,9 @@ atoms away when the displacement brings them too close.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC sets temperature under
+`system.ensemble`; the other methods add it to the operator:
 
 ```yaml
 - method: bounce
@@ -17,7 +18,6 @@ or under top-level `operators` for hybrid MC:
   bias_ratio: 0.8
   max_disp: 0.8
   repulsion_strength: 1.0
-  temperature: 500.0
 ```
 
 ## Settings

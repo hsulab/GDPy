@@ -7,14 +7,13 @@ acceptance factor.
 
 ## Configuration
 
-Place this fragment under `recipe.operators` for MC or `strategy.operators` for basin hopping,
-or under top-level `operators` for hybrid MC:
+Place this fragment under `strategy.operators` for MC or basin hopping, or
+under top-level `operators` for hybrid MC. MC reads temperature and chemical
+potentials from `system.ensemble`; the other methods add them to the operator:
 
 ```yaml
 - method: biased_volume_exchange
   particles: [Ni]
-  chempots: [-0.5]
-  temperature: 1000.0
   region:
     method: sphere
     origin: [10.0, 10.0, 10.0]
@@ -26,7 +25,7 @@ or under top-level `operators` for hybrid MC:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | One chemical potential in eV per particle | Required |
+| `chempots` | Chemical potential for BH and hybrid MC; standard MC uses the ensemble mapping | Required outside standard MC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection

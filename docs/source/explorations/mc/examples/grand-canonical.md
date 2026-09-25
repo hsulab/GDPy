@@ -29,7 +29,10 @@ $$
 Here $N$ counts exchangeable Cu particles in the region, not the Au atom,
 and $\Lambda$ is the thermal de Broglie wavelength calculated from particle
 mass and temperature. One `exchange` operator accepts exactly one particle
-type and one chemical potential. Increasing `chempots[0]` favours insertion.
+type. At $N=0$, forced insertion adds a factor of $1/2$; the reverse removal
+from $N=1$ adds a factor of 2. These factors account for the unequal branch
+probabilities at the boundary. Increasing the Cu value in
+`system.ensemble.chemical_potentials` favours insertion.
 Unlike the semi-grand case, the absolute chemical potential matters and must
 use the same energy reference as the potential. The value 2.0 eV is chosen
 for this EMT demonstration, not calibrated to an experimental reservoir or
