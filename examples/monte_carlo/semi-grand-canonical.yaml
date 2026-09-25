@@ -11,6 +11,9 @@ system:
       Cu: 0.0
       Ni: 0.0
 strategy:
+  steps: 100
+  dump_period: 1
+  ckpt_period: 10
   operators:
     - method: move
       particles: [Cu, Ni]
@@ -23,9 +26,3 @@ strategy:
       probability: 0.5
       skip_distance_check: true
       max_random_attempts: 1
-convergence:
-  steps: 100
-output:
-  dump_period: 1
-checkpoint:
-  period: 10

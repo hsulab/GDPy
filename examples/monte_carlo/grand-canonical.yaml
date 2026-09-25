@@ -10,6 +10,9 @@ system:
     chemical_potentials:
       Cu: 2.0
 strategy:
+  steps: 100
+  dump_period: 1
+  ckpt_period: 10
   operators:
     - method: exchange
       particles: [Cu]
@@ -19,9 +22,3 @@ strategy:
         cell: [8, 0, 0, 0, 8, 0, 0, 0, 8]
       skip_distance_check: true
       max_random_attempts: 1
-convergence:
-  steps: 100
-output:
-  dump_period: 1
-checkpoint:
-  period: 10

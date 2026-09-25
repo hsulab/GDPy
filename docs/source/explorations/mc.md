@@ -4,7 +4,7 @@
 
 Monte Carlo proposes structural changes and accepts or rejects them using
 single-point energies from a runtime. Configure the initial structure and
-thermodynamic ensemble under `system`, and proposals under `strategy.operators`.
+thermodynamic ensemble under `system`, and run settings and proposals under `strategy`.
 The {doc}`examples <mc/examples/index>` use ASE EMT, so no model download or
 external simulation executable is needed.
 
@@ -105,10 +105,10 @@ Each output directory contains:
   previous/trial energies.
 - `calculations/step.NNNN/`: retained runtime calculations.
 
-`convergence.steps: 100` is a step budget, not a test of statistical convergence.
-The examples retain all calculation steps with `output.dump_period: 1`;
+`strategy.steps: 100` is the attempted-step budget. The examples retain all
+calculation steps with `strategy.dump_period: 1`;
 increasing it prunes intermediate calculation directories, **not** frames in
-`mc.xyz`. `checkpoint.period` controls checkpoint frequency independently.
+`mc.xyz`. `strategy.ckpt_period` controls checkpoint frequency independently.
 
 Inspect energy and composition from the repository root:
 
@@ -131,7 +131,7 @@ JSON metadata and uncompressed NumPy `.npz` arrays, without pickle. Arrays,
 constraints, cached results, operator configuration, and random state are
 preserved without copying the entire structure before serialization.
 
-`checkpoint.period` controls ordinary checkpoint frequency. Only the latest and
+`strategy.ckpt_period` controls ordinary checkpoint frequency. Only the latest and
 previous committed checkpoints are retained; a damaged latest snapshot falls
 back to the previous one. A queued move also retains its pending state until
 its resolution is committed, forcing a checkpoint even between ordinary

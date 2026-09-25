@@ -8,15 +8,12 @@ system:
     method: canonical
     temperature: 1200.0
 strategy:
+  steps: 100
+  dump_period: 1
+  ckpt_period: 10
   operators:
     - method: move
       particles: [Cu]
       max_disp: 0.1
       skip_distance_check: true
       max_random_attempts: 1
-convergence:
-  steps: 100
-output:
-  dump_period: 1
-checkpoint:
-  period: 10
