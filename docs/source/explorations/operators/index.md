@@ -81,7 +81,7 @@ react
 | `region` | Region used to select particles and, for exchange, place insertions | Automatic region |
 | `covalent_ratio` | Lower/upper distance-check factors relative to covalent radii | `[0.8, 2.0]` |
 | `allow_isolated` | Permit isolated particles in proposal distance checks | `false` |
-| `skip_distance_check` | Skip proposal distance checks where supported | `false` |
+| `skip_distance_check` | Skip proposal distance checks where supported; forced `true` by preset MC ensembles | `false` (`custom`) |
 | `max_random_attempts` | Maximum proposal attempts where supported | 1000 |
 
 `particles` contains chemical symbols or supported molecular formulas. Atoms

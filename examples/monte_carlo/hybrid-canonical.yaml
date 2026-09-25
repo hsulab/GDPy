@@ -25,7 +25,6 @@ strategy:
     - method: move
       particles: [Cu]
       max_disp: 0.1
-      skip_distance_check: true
       max_random_attempts: 1
   cycle:
     - method: molecular_dynamics

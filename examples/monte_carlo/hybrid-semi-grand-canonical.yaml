@@ -27,7 +27,6 @@ strategy:
   operators:
     - method: swap_type
       particles: [Cu, Ni]
-      skip_distance_check: true
       max_random_attempts: 1
   cycle:
     - method: molecular_dynamics

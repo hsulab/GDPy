@@ -73,15 +73,18 @@ potentials once under `system.ensemble`; custom ensembles define them on each
 operator. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
-These demos set `skip_distance_check: true` so the energy evaluation, rather
-than repeated geometry filtering, decides whether a trial is acceptable.
-`max_random_attempts: 1` avoids retrying until a valid move is found. Failed
-proposals count as steps and retain the current state.
+Canonical, semi-grand-canonical, and grand-canonical ensembles automatically
+disable proposal distance checks. They reject `skip_distance_check: false`
+because geometry filtering changes the proposal distribution and breaks
+detailed balance. The energy evaluation decides whether each trial is
+accepted.
 
-With distance checks enabled, `covalent_ratio` sets lower and upper
-multipliers of covalent bond distances. Such filters and retries can change
-the proposal distribution and should not be assumed to preserve equilibrium
-sampling. They can be useful for structure search.
+The `custom` ensemble permits distance checks for structure search. There,
+`covalent_ratio` sets lower and upper multipliers of covalent bond distances,
+and `skip_distance_check` defaults to `false`. These filtered proposals do not
+represent equilibrium sampling. `max_random_attempts: 1` avoids retrying until
+a valid move is found. Failed proposals count as steps and retain the current
+state.
 
 MC assigns distinct atomic tags by default. If `system.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated
@@ -97,7 +100,6 @@ For collective displacements, replace a `move` entry with:
   rattle_strength: 0.1
   rattle_prop: 0.4
   probability: 1.0
-  skip_distance_check: true
   max_random_attempts: 1
 ```
 

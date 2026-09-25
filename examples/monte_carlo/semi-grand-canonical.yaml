@@ -18,11 +18,9 @@ strategy:
     - method: move
       particles: [Cu, Ni]
       max_disp: 0.1
-      skip_distance_check: true
       max_random_attempts: 1
       probability: 0.5
     - method: swap_type
       particles: [Cu, Ni]
       probability: 0.5
-      skip_distance_check: true
       max_random_attempts: 1

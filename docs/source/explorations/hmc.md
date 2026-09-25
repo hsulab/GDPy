@@ -73,9 +73,10 @@ controls its random generator; the top-level `random_seed` controls MC proposals
 and acceptance. Existing nonzero velocities are reused by default. These seeds
 make the demos reproducible but do not establish statistical convergence.
 
-The MC operators disable geometry filtering and use one proposal attempt.
-An invalid hybrid MC proposal consumes its place in the MC block and keeps
-the current state.
+Preset ensembles automatically disable MC geometry filtering to preserve
+detailed balance. The `custom` ensemble may enable it for structure search.
+The examples use one proposal attempt. An invalid hybrid MC proposal consumes
+its place in the MC block and keeps the current state.
 
 ## Outputs and restart
 
