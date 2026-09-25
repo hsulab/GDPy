@@ -7,6 +7,8 @@ import yaml
 from ase.io import read
 
 from gdpx.cli.explore import run_exploration
+from gdpx.execution.factory import create_worker
+from gdpx.exploration.factory import create_exploration
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,3 +38,14 @@ def test_emt_mc_example_runs_with_scheduler_metadata(tmp_path, monkeypatch, name
     before = (tmp_path / "mc.xyz").read_bytes()
     run_exploration(recipe, runtime=runtime, directory=tmp_path)
     assert (tmp_path / "mc.xyz").read_bytes() == before
+
+
+def test_monte_carlo_requires_single_point_runtime():
+    recipe = yaml.safe_load((EXAMPLES / "canonical.yaml").read_text())
+    runtime = yaml.safe_load((EXAMPLES / "emt.yaml").read_text())
+    engine = create_exploration(recipe)
+    engine.register_worker(create_worker(runtime))
+
+    runtime["executor"].update(method="min", parameters={"fmax": 0.05})
+    with pytest.raises(ValueError, match="requires runtime.executor.method: spc"):
+        engine.register_worker(create_worker(runtime))

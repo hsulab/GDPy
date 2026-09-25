@@ -20,6 +20,8 @@ MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
 
 class HybridMonteCarlo(MonteCarlo):
+    requires_single_point_runtime = False
+
     def __init__(self, procedure, num_mcmoves: int, extra_workers={}, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)

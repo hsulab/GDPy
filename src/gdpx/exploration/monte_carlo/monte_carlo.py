@@ -56,6 +56,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
 
 class MonteCarlo(BaseExploration):
     restart = False
+    requires_single_point_runtime = True
 
     #: Prefix of the working directory.
     WDIR_PREFIX: str = "cand"
@@ -111,6 +112,19 @@ class MonteCarlo(BaseExploration):
             self.convergence["steps"] = 1
 
         return
+
+    def register_worker(self, worker, *args, **kwargs) -> None:
+        """Attach an energy-only runtime for ordinary Monte Carlo."""
+        candidate = worker[0] if isinstance(worker, list) and worker else worker
+        if self.requires_single_point_runtime:
+            method = getattr(getattr(getattr(candidate, "runtime", None), "config", None), "executor", None)
+            method = getattr(method, "method", None)
+            if method != "spc":
+                raise ValueError(
+                    "monte_carlo requires runtime.executor.method: spc so trial structures "
+                    "are evaluated without relaxation or dynamics."
+                )
+        super().register_worker(worker, *args, **kwargs)
 
     def _init_structure(self):
         with mc_box("initialization") as box:
