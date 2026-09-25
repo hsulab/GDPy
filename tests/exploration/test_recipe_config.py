@@ -682,6 +682,33 @@ def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
     assert config == original
 
 
+def test_monte_carlo_custom_ensemble_keeps_per_operator_thermodynamics():
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "custom"},
+        },
+        "strategy": {
+            "operators": [
+                {"method": "move", "particles": ["H"], "temperature": 300.0},
+                {
+                    "method": "swap_type",
+                    "particles": ["H", "He"],
+                    "temperature": 900.0,
+                    "chempots": [0.1, 0.4],
+                },
+            ],
+        },
+    }
+    original = copy.deepcopy(config)
+    engine = create_exploration(config)
+    assert [operator.temperature for operator in engine.operators] == [300.0, 900.0]
+    assert engine.operators[1].chempots == [0.1, 0.4]
+    assert engine.system_config["ensemble"] == {"method": "custom"}
+    assert config == original
+
+
 @pytest.mark.parametrize(
     "legacy, destination",
     [
@@ -725,6 +752,19 @@ def test_monte_carlo_rejects_inconsistent_structured_config(change, message):
     }
     change(config)
     with pytest.raises((TypeError, ValueError), match=message):
+        create_exploration(config)
+
+
+def test_monte_carlo_custom_ensemble_rejects_global_thermodynamics():
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "custom", "temperature": 900.0},
+        },
+        "strategy": {"operators": [{"method": "move", "particles": ["H"]}]},
+    }
+    with pytest.raises(ValueError, match="custom ensemble accepts only method"):
         create_exploration(config)
 
 

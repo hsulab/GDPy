@@ -63,62 +63,72 @@ def create_monte_carlo(
     if unknown:
         raise ValueError(f"Unsupported ensemble settings: {', '.join(sorted(unknown))}.")
     ensemble_method = ensemble.get("method")
-    allowed_ensembles = {"canonical", "semi_grand_canonical", "grand_canonical"}
+    allowed_ensembles = {"canonical", "semi_grand_canonical", "grand_canonical", "custom"}
     if ensemble_method not in allowed_ensembles:
         raise ValueError(
-            "system.ensemble.method must be canonical, semi_grand_canonical, or grand_canonical."
+            "system.ensemble.method must be canonical, semi_grand_canonical, "
+            "grand_canonical, or custom."
         )
-    temperature = ensemble.get("temperature")
-    if not isinstance(temperature, (int, float)) or not np.isfinite(temperature) or temperature <= 0:
-        raise ValueError("system.ensemble.temperature must be finite and positive.")
-    chemical_potentials = ensemble.get("chemical_potentials", {})
-    if not isinstance(chemical_potentials, Mapping) or any(
-        not isinstance(name, str) or not isinstance(value, (int, float)) or not np.isfinite(value)
-        for name, value in chemical_potentials.items()
-    ):
-        raise ValueError("system.ensemble.chemical_potentials must map particle names to finite values.")
-    if ensemble_method == "canonical" and chemical_potentials:
-        raise ValueError("The canonical ensemble does not accept chemical_potentials.")
-    if ensemble_method != "canonical" and not chemical_potentials:
-        raise ValueError(f"The {ensemble_method} ensemble requires chemical_potentials.")
-
     resolved_operators = copy.deepcopy(operators)
     for operator in resolved_operators:
         if not isinstance(operator, Mapping):
             raise TypeError("Every strategy operator must be a mapping.")
-        if "temperature" in operator or "chempots" in operator:
+
+    if ensemble_method == "custom":
+        if ensemble.keys() - {"method"}:
             raise ValueError(
-                "Move operator temperature and chempots to system.ensemble; "
-                "operators contain proposal settings only."
+                "The custom ensemble accepts only method; configure temperature and "
+                "chemical potentials on each operator."
             )
-        operator["temperature"] = float(temperature)
-        name = operator.get("method", "move")
-        particles = operator.get("particles", [])
-        if name == "swap_type":
-            if ensemble_method not in {"semi_grand_canonical", "grand_canonical"}:
-                raise ValueError("swap_type requires a semi_grand_canonical or grand_canonical ensemble.")
-            missing = [particle for particle in particles if particle not in chemical_potentials]
-            if missing:
-                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
-        elif name in _EXCHANGE_OPERATORS:
-            if ensemble_method != "grand_canonical":
-                raise ValueError(f"{name} requires a grand_canonical ensemble.")
-            missing = [particle for particle in particles if particle not in chemical_potentials]
-            if missing:
-                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
-        elif name == "react":
-            if ensemble_method != "grand_canonical":
-                raise ValueError("react requires a grand_canonical ensemble.")
-            reaction = operator.get("reaction", {})
-            reaction_particles = reaction.get("particles", [])
-            missing = [particle for particle in reaction_particles if particle not in chemical_potentials]
-            if missing:
-                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-            if "chempot_0" in reaction:
-                raise ValueError("Move reaction.chempot_0 to system.ensemble.chemical_potentials.")
-            reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
+    else:
+        temperature = ensemble.get("temperature")
+        if not isinstance(temperature, (int, float)) or not np.isfinite(temperature) or temperature <= 0:
+            raise ValueError("system.ensemble.temperature must be finite and positive.")
+        chemical_potentials = ensemble.get("chemical_potentials", {})
+        if not isinstance(chemical_potentials, Mapping) or any(
+            not isinstance(name, str) or not isinstance(value, (int, float)) or not np.isfinite(value)
+            for name, value in chemical_potentials.items()
+        ):
+            raise ValueError("system.ensemble.chemical_potentials must map particle names to finite values.")
+        if ensemble_method == "canonical" and chemical_potentials:
+            raise ValueError("The canonical ensemble does not accept chemical_potentials.")
+        if ensemble_method != "canonical" and not chemical_potentials:
+            raise ValueError(f"The {ensemble_method} ensemble requires chemical_potentials.")
+
+        for operator in resolved_operators:
+            if "temperature" in operator or "chempots" in operator:
+                raise ValueError(
+                    "Move operator temperature and chempots to system.ensemble, or use "
+                    "system.ensemble.method: custom for per-operator values."
+                )
+            operator["temperature"] = float(temperature)
+            name = operator.get("method", "move")
+            particles = operator.get("particles", [])
+            if name == "swap_type":
+                if ensemble_method not in {"semi_grand_canonical", "grand_canonical"}:
+                    raise ValueError("swap_type requires a semi_grand_canonical or grand_canonical ensemble.")
+                missing = [particle for particle in particles if particle not in chemical_potentials]
+                if missing:
+                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+                operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+            elif name in _EXCHANGE_OPERATORS:
+                if ensemble_method != "grand_canonical":
+                    raise ValueError(f"{name} requires a grand_canonical ensemble.")
+                missing = [particle for particle in particles if particle not in chemical_potentials]
+                if missing:
+                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+                operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+            elif name == "react":
+                if ensemble_method != "grand_canonical":
+                    raise ValueError("react requires a grand_canonical ensemble.")
+                reaction = operator.get("reaction", {})
+                reaction_particles = reaction.get("particles", [])
+                missing = [particle for particle in reaction_particles if particle not in chemical_potentials]
+                if missing:
+                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+                if "chempot_0" in reaction:
+                    raise ValueError("Move reaction.chempot_0 to system.ensemble.chemical_potentials.")
+                reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
 
     steps = strategy.get("steps", 1)
     dump_period = strategy.get("dump_period", 1)
