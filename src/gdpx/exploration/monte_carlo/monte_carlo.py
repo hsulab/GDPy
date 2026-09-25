@@ -2,7 +2,6 @@ import copy
 import enum
 import shutil
 from collections.abc import Mapping
-from contextlib import nullcontext
 
 import numpy as np
 from ase import Atoms, data
@@ -352,9 +351,7 @@ class MonteCarlo(BaseExploration):
 
     def run(self, *args, **kwargs):
         """Run MonteCarlo simulation."""
-        # Subclasses such as hybrid MC still own their procedure-level output.
-        logging_context = quiet_logging() if type(self)._run is MonteCarlo._run else nullcontext()
-        with logging_context:
+        with quiet_logging():
             return self._run_with_worker(*args, **kwargs)
 
     def _run_with_worker(self, *args, **kwargs):

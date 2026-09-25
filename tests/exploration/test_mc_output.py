@@ -6,6 +6,7 @@ import pytest
 
 from gdpx import config
 from gdpx.core.output import Box
+from gdpx.exploration.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
 from gdpx.exploration.monte_carlo.output import mc_box, report_hybrid_intro, report_outcome
 
 
@@ -103,3 +104,26 @@ def test_hybrid_intro_reports_cycle_and_outputs(caplog):
     assert "stage 0: molecular_dynamics | 20 MD steps at 1200 K | ase/md" in text
     assert "stage 1: monte_carlo | 5 MC proposals | ase/spc" in text
     assert "outputs: trajectory mc.xyz | MC moves mcmoves.log" in text
+
+
+def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
+    engine = object.__new__(HybridMonteCarlo)
+
+    def run_with_worker():
+        config.logger.info("particles in system: Cu 8")
+        config.logger.info("succeed to insert after 2 attempts")
+        with mc_box("visible") as box:
+            box.line("concise progress")
+
+    engine._run_with_worker = run_with_worker
+    original_level = config.logger.level
+    config.logger.setLevel(logging.INFO)
+    config.logger.addHandler(caplog.handler)
+    try:
+        engine.run()
+    finally:
+        config.logger.removeHandler(caplog.handler)
+        config.logger.setLevel(original_level)
+    assert "particles in system" not in caplog.text
+    assert "succeed to insert" not in caplog.text
+    assert "concise progress" in caplog.text
