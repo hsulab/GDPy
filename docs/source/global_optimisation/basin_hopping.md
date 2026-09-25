@@ -12,7 +12,7 @@ and select another suitable runtime in a new output directory.
 evaluates candidates using execution workers, and ranks them using the search
 objective. It inherits `PopulationBasedExploration`, independently of MC.
 
-Basin hopping reuses the {ref}`sampling-operators` documented under Canonical Sampling. Configure those same moves in `strategy.operators`. With a minimization
+Basin hopping reuses the {ref}`sampling-operators` documented under Boltzmann Sampling. Configure those same moves in `strategy.operators`. With a minimization
 runtime, BH relaxes valid trials before the chain's acceptance decision.
 
 ```{toctree}

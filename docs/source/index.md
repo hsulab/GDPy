@@ -100,10 +100,11 @@ command: gdp explore <explorations/index>
 ```
 
 ```{toctree}
-:caption: 'Canonical Sampling:'
+:caption: 'Boltzmann Sampling:'
 :maxdepth: 4
 :titlesonly:
 
+overview <explorations/sampling>
 monte carlo <explorations/mc>
 hybrid monte carlo <explorations/hmc>
 operators <explorations/operators/index>

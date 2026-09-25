@@ -4,7 +4,7 @@
   {# Keep Sphinx-generated links and active-page state. Group the exploration
      captions into a primary section with two secondary, non-clickable dividers. #}
   {% set primary = '<p class="caption" role="heading"><span class="caption-text">Explore Structures:</span></p>' %}
-  {% set sampling = '<p class="caption" role="heading"><span class="caption-text">Canonical Sampling:</span></p>' %}
+  {% set sampling = '<p class="caption" role="heading"><span class="caption-text">Boltzmann Sampling:</span></p>' %}
   {% set optimisation = '<p class="caption" role="heading"><span class="caption-text">Global Optimisation:</span></p>' %}
   {% set following = '<p class="caption" role="heading"><span class="caption-text">Advanced Guides:</span></p>' %}
   {% set navigation = super() %}
@@ -14,7 +14,7 @@
   {% endfor %}
   {{ commands.navigation
      | replace(primary, '<section class="nav-exploration" aria-labelledby="nav-exploration-title"><p class="caption" role="heading" aria-level="2" id="nav-exploration-title"><span class="caption-text">Explore Structures:</span></p>')
-     | replace(sampling, '<section class="nav-subsection" aria-labelledby="nav-sampling-title"><p class="caption nav-secondary-caption" role="heading" aria-level="3" id="nav-sampling-title"><span class="caption-text">Canonical Sampling</span></p>')
+     | replace(sampling, '<section class="nav-subsection" aria-labelledby="nav-sampling-title"><p class="caption nav-secondary-caption" role="heading" aria-level="3" id="nav-sampling-title"><span class="caption-text">Boltzmann Sampling</span></p>')
      | replace(optimisation, '</section><section class="nav-subsection" aria-labelledby="nav-optimisation-title"><p class="caption nav-secondary-caption" role="heading" aria-level="3" id="nav-optimisation-title"><span class="caption-text">Global Optimisation</span></p>')
      | replace(following, '</section></section>' ~ following)
      | safe }}
