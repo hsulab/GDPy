@@ -670,7 +670,7 @@ def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
         "strategy": {
             "steps": 2,
             "operators": [
-                {"method": "swap_type", "particles": ["H", "He"], "skip_distance_check": True},
+                {"method": "swap_type", "particles": ["H", "He"]},
             ],
         },
     }
@@ -678,6 +678,7 @@ def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
     engine = create_exploration(config)
     assert engine.operators[0].temperature == 900.0
     assert engine.operators[0].chempots == [0.1, 0.4]
+    assert engine.operators[0].skip_distance_check is True
     assert engine.convergence == {"steps": 2}
     assert config == original
 
@@ -705,8 +706,24 @@ def test_monte_carlo_custom_ensemble_keeps_per_operator_thermodynamics():
     engine = create_exploration(config)
     assert [operator.temperature for operator in engine.operators] == [300.0, 900.0]
     assert engine.operators[1].chempots == [0.1, 0.4]
+    assert all(operator.skip_distance_check is False for operator in engine.operators)
     assert engine.system_config["ensemble"] == {"method": "custom"}
     assert config == original
+
+
+def test_monte_carlo_preset_ensemble_rejects_distance_filtering():
+    config = {
+        "method": "monte_carlo",
+        "system": {
+            "builder": {"method": "read_stru", "fname": "unused.xyz"},
+            "ensemble": {"method": "canonical", "temperature": 300.0},
+        },
+        "strategy": {"operators": [{
+            "method": "move", "particles": ["H"], "skip_distance_check": False,
+        }]},
+    }
+    with pytest.raises(ValueError, match="distance-filtered proposals break detailed balance"):
+        create_exploration(config)
 
 
 @pytest.mark.parametrize(

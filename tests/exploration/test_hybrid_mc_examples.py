@@ -110,6 +110,15 @@ def test_hybrid_custom_ensemble_keeps_operator_temperature(monkeypatch):
     assert engine.operators[0].temperature == 750.0
 
 
+def test_hybrid_preset_ensemble_rejects_distance_filtering(monkeypatch):
+    monkeypatch.chdir(ROOT)
+    params = yaml.safe_load((EXAMPLES / "hybrid-canonical.yaml").read_text())
+    params.pop("runtime")
+    params["strategy"]["operators"][0]["skip_distance_check"] = False
+    with pytest.raises(ValueError, match="distance-filtered proposals break detailed balance"):
+        create_exploration(params)
+
+
 def test_hybrid_rejects_flat_legacy_config():
     with pytest.raises(ValueError, match="inline strategy.cycle stages"):
         create_exploration({

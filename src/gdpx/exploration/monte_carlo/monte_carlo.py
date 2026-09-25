@@ -92,6 +92,13 @@ def resolve_monte_carlo_system(system, operators, method_name="monte_carlo"):
                     "Move operator temperature and chempots to system.ensemble, or use "
                     "system.ensemble.method: custom for per-operator values."
                 )
+            if operator.get("skip_distance_check", True) is not True:
+                raise ValueError(
+                    "Preset ensembles require skip_distance_check: true because "
+                    "distance-filtered proposals break detailed balance; use the "
+                    "custom ensemble for structure-search proposals."
+                )
+            operator["skip_distance_check"] = True
             operator["temperature"] = float(temperature)
             name = operator.get("method", "move")
             particles = operator.get("particles", [])
