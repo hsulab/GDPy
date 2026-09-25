@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
+import copy
 import functools
+from collections.abc import Mapping
 
 from ase import Atoms
 from ase.io import write
@@ -11,7 +13,7 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
-from .monte_carlo import MCStepState, MonteCarlo
+from .monte_carlo import MCStepState, MonteCarlo, resolve_monte_carlo_system
 from ..move_step import _store_pending, read_pending, run_worker_move
 from ..checkpoint import read_snapshot
 from ..sampling import parse_operators
@@ -19,63 +21,117 @@ from ..sampling import parse_operators
 MC_EARLYSTOP_FNAME = "MC_EARLY_STOPPED"
 
 
-class HybridMonteCarlo(MonteCarlo):
-    requires_single_point_runtime = False
+def _runtime_executor_method(runtime, path):
+    if not isinstance(runtime, Mapping):
+        raise TypeError(f"{path} must be a runtime mapping.")
+    executor = runtime.get("executor")
+    if not isinstance(executor, Mapping) or not isinstance(executor.get("method"), str):
+        raise ValueError(f"{path} requires executor.method.")
+    return executor["method"]
 
-    def __init__(self, procedure, num_mcmoves: int, extra_workers={}, *args, **kwargs):
+
+def create_hybrid_monte_carlo(system, strategy, random_seed=None, directory="./"):
+    """Create hybrid MC from a structured system and explicit cycle stages."""
+    if not isinstance(strategy, Mapping):
+        raise TypeError("hybrid_monte_carlo strategy must be a mapping.")
+    unknown = strategy.keys() - {"operators", "cycle", "steps", "earlystop", "ckpt_period"}
+    if unknown:
+        raise ValueError(
+            f"Unsupported hybrid_monte_carlo strategy settings: {', '.join(sorted(unknown))}."
+        )
+    resolved_operators, ensemble = resolve_monte_carlo_system(
+        system, strategy.get("operators"), "hybrid_monte_carlo"
+    )
+
+    cycles = strategy.get("steps", 1)
+    ckpt_period = strategy.get("ckpt_period", 100)
+    if not isinstance(cycles, int) or isinstance(cycles, bool) or cycles < 0:
+        raise ValueError("strategy.steps must be a non-negative integer.")
+    if not isinstance(ckpt_period, int) or isinstance(ckpt_period, bool) or ckpt_period <= 0:
+        raise ValueError("strategy.ckpt_period must be a positive integer.")
+
+    cycle = strategy.get("cycle")
+    if not isinstance(cycle, list) or not cycle:
+        raise ValueError("hybrid_monte_carlo requires a nonempty strategy.cycle list.")
+    resolved_cycle = copy.deepcopy(cycle)
+    for index, stage in enumerate(resolved_cycle):
+        path = f"strategy.cycle.{index}"
+        if not isinstance(stage, Mapping):
+            raise TypeError(f"{path} must be a mapping.")
+        method = stage.get("method")
+        if method == "molecular_dynamics":
+            unknown = stage.keys() - {"method", "runtime"}
+            expected_executor = "md"
+        elif method == "monte_carlo":
+            unknown = stage.keys() - {"method", "runtime", "steps"}
+            expected_executor = "spc"
+            moves = stage.get("steps")
+            if not isinstance(moves, int) or isinstance(moves, bool) or moves < 0:
+                raise ValueError(f"{path}.steps must be a non-negative integer.")
+        else:
+            raise ValueError(
+                f"{path}.method must be molecular_dynamics or monte_carlo."
+            )
+        if unknown:
+            raise ValueError(f"Unsupported {path} settings: {', '.join(sorted(unknown))}.")
+        actual_executor = _runtime_executor_method(stage.get("runtime"), f"{path}.runtime")
+        if actual_executor != expected_executor:
+            raise ValueError(
+                f"{path} with method {method} requires runtime.executor.method: "
+                f"{expected_executor}, got {actual_executor!r}."
+            )
+
+    convergence = {"steps": cycles}
+    if "earlystop" in strategy:
+        convergence["earlystop"] = copy.deepcopy(strategy["earlystop"])
+    engine = HybridMonteCarlo(
+        builder=system["builder"], operators=resolved_operators,
+        convergence=convergence, cycle=resolved_cycle,
+        random_seed=random_seed, dump_period=1, ckpt_period=ckpt_period,
+        ignore_atoms_tags=system.get("ignore_atoms_tags", True),
+        should_retry=False, restart=False, directory=directory,
+    )
+    engine.system_config = {
+        "ensemble": ensemble,
+        "ignore_atoms_tags": system.get("ignore_atoms_tags", True),
+    }
+    engine.strategy_config = copy.deepcopy(dict(strategy))
+    return engine
+
+
+class HybridMonteCarlo(MonteCarlo):
+    runtime_method_name = "hybrid_monte_carlo"
+
+    def __init__(self, cycle, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
+        self.cycle = copy.deepcopy(cycle)
 
-        self.procedure = procedure
-
-        self.num_mcmoves = num_mcmoves
-
-        self.extra_workers = extra_workers
-
-        return
-
-    def _parse_procedure(self):
-        """Parse the procedure for workers and steps."""
+    def _parse_cycle(self):
+        """Parse one cycle into workers and executable stages."""
         prototype_workers, procedure_steps = [], []
-        for subprocedure in self.procedure:
-            if isinstance(subprocedure, list):
-                assert len(subprocedure) == 2 and subprocedure[0] == "monte_carlo", ""
-                worker_name = subprocedure[1].split("_")[1]
-                runtime_config = self.extra_workers.get(worker_name, None)
-                if runtime_config is not None:
-                    subworker = create_worker(runtime_config)
-                    if isinstance(subworker, DriverBasedWorker):
-                        self._print("Convert a DriverBasedWorker to a SingleWorker.")
-                        subworker = SingleWorker.from_a_worker(subworker)
-                    assert isinstance(subworker, SingleWorker), (
-                        f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
-                    )
-                    subworker.directory = self.directory / "mc"
-                    subproc_func = functools.partial(self._irun_metropolis, worker=subworker)
-                    procedure_steps.append(("mc", subproc_func))
-                    prototype_workers.append(subworker)
-                else:
-                    raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
-            elif subprocedure.startswith("worker"):
-                worker_name = subprocedure.split("_")[1]
-                runtime_config = self.extra_workers.get(worker_name, None)
-                if runtime_config is not None:
-                    subworker = create_worker(runtime_config)
-                    assert subworker is not None, f"Unknown worker {worker_name} in extra_workers."
-                    # if isinstance(subworker, DriverBasedWorker):
-                    #     self._print("Convert a DriverBasedWorker to a SingleWorker.")
-                    #     subworker = SingleWorker.from_a_worker(subworker)
-                    # assert isinstance(
-                    #     subworker, SingleWorker
-                    # ), f"{self.__class__.__name__} only supports SingleWorker (set use_single=True) but {subprocedure} is not."
-                    subworker.directory = self.directory / worker_name
-                    subproc_func = functools.partial(self._irun_dynamics, worker=subworker)
-                    procedure_steps.append((worker_name, subproc_func))
-                    prototype_workers.append(subworker)
-                else:
-                    raise RuntimeError(f"Unknown subprocedure with worker {subprocedure}.")
+        moves_per_cycle = sum(
+            stage.get("steps", 0) for stage in self.cycle
+            if stage["method"] == "monte_carlo"
+        )
+        move_offset = 0
+        for stage in self.cycle:
+            subworker = create_worker(stage["runtime"])
+            method = stage["method"]
+            if method == "molecular_dynamics":
+                assert isinstance(subworker, DriverBasedWorker)
+                subproc_func = functools.partial(self._irun_dynamics, worker=subworker)
+                procedure_steps.append((method, subproc_func))
             else:
-                raise RuntimeError(f"Unknown subprocedure {subprocedure}.")
+                assert isinstance(subworker, SingleWorker)
+                subproc_func = functools.partial(
+                    self._irun_metropolis, worker=subworker,
+                    num_mcmoves=stage["steps"], move_offset=move_offset,
+                    moves_per_cycle=moves_per_cycle,
+                )
+                procedure_steps.append((method, subproc_func))
+                move_offset += stage["steps"]
+            prototype_workers.append(subworker)
 
         return procedure_steps, prototype_workers
 
@@ -89,7 +145,7 @@ class HybridMonteCarlo(MonteCarlo):
             op.indent = "  "
 
         # check if subprocedures in the procedure are all valid
-        procedure_steps, self._protype_workers = self._parse_procedure()
+        procedure_steps, self._protype_workers = self._parse_cycle()
 
         # enter the main loop
         converged = self.read_convergence()
@@ -224,12 +280,15 @@ class HybridMonteCarlo(MonteCarlo):
 
         return step_state
 
-    def _irun_metropolis(self, step: int, name: str, worker: SingleWorker) -> MCStepState:
+    def _irun_metropolis(
+        self, step: int, name: str, worker: SingleWorker,
+        num_mcmoves: int, move_offset: int = 0, moves_per_cycle: int = 0,
+    ) -> MCStepState:
         """Run a sequence of proposals, resuming a pending attempt without redrawing."""
         directory = self._procedure_directory(step)
         context = getattr(self, "_resume_context", None)
         start = context["index"] if context else 0
-        for i in range(start, self.num_mcmoves):
+        for i in range(start, num_mcmoves):
             worker.directory = directory / f"proposal.{i:04d}"
             worker.wdir_name = "cand0"
             result = run_worker_move(
@@ -244,7 +303,8 @@ class HybridMonteCarlo(MonteCarlo):
                 self.energy_stored = result.energy
                 return MCStepState.UNFINISHED
             self._resume_context = None
-            self._save_step_info(result.operator, (step - 1) * self.num_mcmoves + i,
+            attempt = (step - 1) * moves_per_cycle + move_offset + i
+            self._save_step_info(result.operator, attempt,
                                  result.accepted, self.energy_stored, result.energy, result.diagnostic)
             if result.accepted:
                 self.energy_stored = result.energy
@@ -254,24 +314,25 @@ class HybridMonteCarlo(MonteCarlo):
         return MCStepState.FINISHED
 
     def as_dict(self) -> dict:
-        """Return a dictionary representation of the object."""
-        common = super().as_dict()
-        recipe = common["recipe"]
-        # Hybrid Monte Carlo has not migrated to the recipe input yet. Keep its
-        # existing flat serialization until that method adopts the shared schema.
-        d = {
+        """Return the public structured hybrid MC configuration."""
+        potential = self.worker.runtime.provider_potential
+        if hasattr(potential, "remove_loaded_models"):
+            potential.remove_loaded_models()
+        system = copy.deepcopy(self.system_config)
+        system["builder"] = self.builder.as_dict()
+        strategy = copy.deepcopy(self.strategy_config)
+        strategy["steps"] = self.convergence["steps"]
+        if "earlystop" in self.convergence:
+            strategy["earlystop"] = copy.deepcopy(self.convergence["earlystop"])
+        strategy["ckpt_period"] = self.ckpt_period
+        strategy["cycle"] = copy.deepcopy(self.cycle)
+        return {
             "method": "hybrid_monte_carlo",
-            **recipe,
-            "runtime": common["runtime"],
+            "random_seed": self.random_seed,
+            "system": system,
+            "strategy": strategy,
+            "runtime": self.worker.as_dict(),
         }
-        d.update(
-            {
-                "procedure": self.procedure,
-                "num_mcmoves": self.num_mcmoves,
-                "extra_workers": self.extra_workers,
-            }
-        )
-        return d
 
 
 if __name__ == "__main__":

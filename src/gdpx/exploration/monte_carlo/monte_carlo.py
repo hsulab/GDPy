@@ -34,27 +34,19 @@ _EXCHANGE_OPERATORS = {
 }
 
 
-def create_monte_carlo(
-    system, strategy, random_seed=None, directory="./",
-):
-    """Create standard MC from its public single-system configuration."""
+def resolve_monte_carlo_system(system, operators, method_name="monte_carlo"):
+    """Validate a structured MC system and resolve ensemble operator settings."""
     if not isinstance(system, Mapping):
-        raise TypeError("monte_carlo system must be a mapping.")
+        raise TypeError(f"{method_name} system must be a mapping.")
     unknown = system.keys() - {"builder", "ensemble", "ignore_atoms_tags"}
     if unknown:
-        raise ValueError(f"Unsupported monte_carlo system settings: {', '.join(sorted(unknown))}.")
+        raise ValueError(f"Unsupported {method_name} system settings: {', '.join(sorted(unknown))}.")
     if "builder" not in system:
-        raise ValueError("monte_carlo requires system.builder.")
+        raise ValueError(f"{method_name} requires system.builder.")
     if not isinstance(system.get("ignore_atoms_tags", True), bool):
         raise TypeError("system.ignore_atoms_tags must be a boolean.")
-    if not isinstance(strategy, Mapping):
-        raise TypeError("monte_carlo strategy must be a mapping.")
-    unknown = strategy.keys() - {"operators", "steps", "earlystop", "dump_period", "ckpt_period"}
-    if unknown:
-        raise ValueError(f"Unsupported monte_carlo strategy settings: {', '.join(sorted(unknown))}.")
-    operators = strategy.get("operators")
     if not isinstance(operators, list) or not operators:
-        raise ValueError("monte_carlo requires a nonempty strategy.operators list.")
+        raise ValueError(f"{method_name} requires a nonempty strategy.operators list.")
 
     ensemble = system.get("ensemble")
     if not isinstance(ensemble, Mapping):
@@ -130,6 +122,22 @@ def create_monte_carlo(
                     raise ValueError("Move reaction.chempot_0 to system.ensemble.chemical_potentials.")
                 reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
 
+    return resolved_operators, copy.deepcopy(dict(ensemble))
+
+
+def create_monte_carlo(
+    system, strategy, random_seed=None, directory="./",
+):
+    """Create standard MC from its public single-system configuration."""
+    if not isinstance(strategy, Mapping):
+        raise TypeError("monte_carlo strategy must be a mapping.")
+    unknown = strategy.keys() - {"operators", "steps", "earlystop", "dump_period", "ckpt_period"}
+    if unknown:
+        raise ValueError(f"Unsupported monte_carlo strategy settings: {', '.join(sorted(unknown))}.")
+    resolved_operators, ensemble = resolve_monte_carlo_system(
+        system, strategy.get("operators"), "monte_carlo"
+    )
+
     steps = strategy.get("steps", 1)
     dump_period = strategy.get("dump_period", 1)
     ckpt_period = strategy.get("ckpt_period", 100)
@@ -187,6 +195,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
 class MonteCarlo(BaseExploration):
     restart = False
     requires_single_point_runtime = True
+    runtime_method_name = "monte_carlo"
 
     #: Prefix of the working directory.
     WDIR_PREFIX: str = "cand"
@@ -251,7 +260,7 @@ class MonteCarlo(BaseExploration):
             method = getattr(method, "method", None)
             if method != "spc":
                 raise ValueError(
-                    "monte_carlo requires runtime.executor.method: spc so trial structures "
+                    f"{self.runtime_method_name} requires runtime.executor.method: spc so trial structures "
                     "are evaluated without relaxation or dynamics."
                 )
         super().register_worker(worker, *args, **kwargs)

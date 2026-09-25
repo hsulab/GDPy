@@ -78,6 +78,19 @@ def create_exploration(config):
             }
             migration = ", ".join(f"{key} -> {destinations[key]}" for key in sorted(moved))
             raise ValueError(f"Move monte_carlo settings under strategy: {migration}.")
+    if method == "hybrid_monte_carlo":
+        legacy = parameters.keys() & {
+            "builder", "operators", "procedure", "num_mcmoves", "extra_workers",
+            "convergence", "ckpt_period", "dump_period", "ignore_atoms_tags",
+            "should_retry", "restart", "recipe",
+        }
+        if legacy:
+            raise ValueError(
+                "hybrid_monte_carlo now requires system and strategy mappings; move builder "
+                "and ensemble under system, move operators and cycle settings under strategy, "
+                "and replace procedure/num_mcmoves/extra_workers with inline "
+                f"strategy.cycle stages (legacy keys: {', '.join(sorted(legacy))})."
+            )
     broadcast = parameters.pop('broadcast', None)
     if 'broadcast' in config:
         if method not in RECIPE_METHODS | {"global_optimisation", "monte_carlo"}:
@@ -147,7 +160,7 @@ def _create_exploration(method, parameters):
     if parameters.get("builder") is not None:
         parameters["builder"] = canonicalise_builder(parameters["builder"])
         parameters["builder"].set_rng(seed=random_seed)
-    elif method == "monte_carlo" and isinstance(parameters.get("system"), Mapping):
+    elif method in {"monte_carlo", "hybrid_monte_carlo"} and isinstance(parameters.get("system"), Mapping):
         system = parameters["system"]
         if system.get("builder") is not None:
             system["builder"] = canonicalise_builder(system["builder"])

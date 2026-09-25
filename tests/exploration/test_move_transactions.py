@@ -368,16 +368,15 @@ def test_mc_legacy_checkpoint_rejected_before_unpickling(tmp_path):
 
 def test_hybrid_pending_move_resumes_at_its_original_index(tmp_path, monkeypatch):
     engine = mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
-    engine.num_mcmoves = 2
     engine.worker.waiting = True
     original = engine.atoms.positions.copy()
-    assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.UNFINISHED
+    assert engine._irun_metropolis(1, "mc", engine.worker, 2, moves_per_cycle=2) == MCStepState.UNFINISHED
     np.testing.assert_array_equal(engine.atoms.positions, original)
     from gdpx.exploration.move_step import read_pending
     engine.atoms, pending = read_pending(engine.directory / "pending-hybrid", engine.rng)
     engine._resume_context = pending["context"]
     engine.worker.waiting = False
-    assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.FINISHED
+    assert engine._irun_metropolis(1, "mc", engine.worker, 2, moves_per_cycle=2) == MCStepState.FINISHED
     assert engine.worker.calls == 2
     assert engine._resume_context is None
 
@@ -404,13 +403,12 @@ def test_all_move_settings_roundtrip_without_mutating_input():
 
 def test_hybrid_completed_checkpoint_restores_state_and_output(tmp_path):
     engine = mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
-    engine.num_mcmoves = 2
-    assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.FINISHED
+    assert engine._irun_metropolis(1, "mc", engine.worker, 2, moves_per_cycle=2) == MCStepState.FINISHED
     engine._save_checkpoint(1)
     expected = {name: a.copy() for name, a in engine.atoms.arrays.items()}
     rng_state = copy.deepcopy(engine.rng.bit_generator.state)
     output = (engine.directory / "mc.xyz").read_bytes()
-    assert engine._irun_metropolis(2, "mc", engine.worker) == MCStepState.FINISHED
+    assert engine._irun_metropolis(2, "mc", engine.worker, 2, moves_per_cycle=2) == MCStepState.FINISHED
     engine._load_checkpoint()
     assert engine.start_step == 1
     assert_arrays(engine.atoms, expected)
@@ -676,12 +674,13 @@ def test_real_mc_steps_have_independent_frozen_sets_and_recover(tmp_path):
 
 def test_real_hybrid_repeated_procedures_have_distinct_folders(tmp_path):
     engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
-    engine.num_mcmoves = 2
     engine._protype_workers = [engine.worker] * 4
     for index in range(4):
         engine._procedure_index = index
         if index % 2:
-            assert engine._irun_metropolis(1, "mc", engine.worker) == MCStepState.FINISHED
+            assert engine._irun_metropolis(
+                1, "mc", engine.worker, 2, move_offset=index - 1, moves_per_cycle=4
+            ) == MCStepState.FINISHED
         else:
             assert engine._irun_dynamics(1, "md", engine.worker) == MCStepState.FINISHED
     workers = engine.get_workers()
@@ -739,15 +738,30 @@ def test_hybrid_full_cycles_count_steps_once_with_repeated_procedures(tmp_path):
 
     engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
     engine.ignore_atoms_tags = False
-    engine.num_mcmoves = 2
-    engine.procedure = ["worker_md", ["monte_carlo", "worker_mc"],
-                        "worker_md", ["monte_carlo", "worker_mc"]]
-    engine.extra_workers = {"md": engine.worker.as_dict(), "mc": engine.worker.as_dict()}
+    spc_runtime = engine.worker.as_dict()
+    md_runtime = copy.deepcopy(spc_runtime)
+    md_runtime["executor"] = {
+        "provider": "ase",
+        "method": "md",
+        "parameters": {
+            "ensemble": "nvt", "temp": 300.0, "timestep": 1.0, "steps": 1,
+            "remove_rotation": False,
+            "controller": {"name": "langevin", "params": {"friction": 0.01}},
+        },
+    }
+    engine.cycle = [
+        {"method": "molecular_dynamics", "runtime": md_runtime},
+        {"method": "monte_carlo", "steps": 2, "runtime": spc_runtime},
+        {"method": "molecular_dynamics", "runtime": md_runtime},
+        {"method": "monte_carlo", "steps": 2, "runtime": spc_runtime},
+    ]
     engine.convergence = {"steps": 2}
     engine._run()
     assert engine.read_convergence()
     assert len(read(engine.directory / "mc.xyz", ":")) == 3  # initial + two complete cycles
     assert len(engine.get_workers()) == 13  # initial + (two excursions + four proposals) per cycle
+    attempts = [int(line.split()[0]) for line in (engine.directory / "opstat.txt").read_text().splitlines()[1:]]
+    assert attempts == list(range(8))
     before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
     engine._run()
     assert {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()} == before
