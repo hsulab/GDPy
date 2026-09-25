@@ -1,7 +1,7 @@
 (ga-supported-cluster-adsorbate-example)=
 (ga-adsorbate-insertion-example)=
 
-# supported cluster with an adsorbate
+# CO–Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001) supported adsorbate
 
 This example searches for low-energy structures of CO adsorbed on a supported
 Cu4 cluster. Two builders contribute four candidates each to one initial

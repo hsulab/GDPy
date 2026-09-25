@@ -1,6 +1,6 @@
 (ga-bulk-example)=
 
-# bulk crystal
+# Cu<sub>4</sub> bulk crystal
 
 This minimal example searches for low-energy periodic cells containing four Cu
 atoms. The `random_bulk` builder samples both atomic positions and cell shapes,

@@ -74,7 +74,7 @@ runtime roles, outputs, and restart behavior.
 See the {ref}`genetic-algorithm guide <genetic-algorithm>` for the search
 configuration shared by these examples.
 
-## Basin hopping
+## basin hopping (bh)
 
 | Example | System | Focus |
 | --- | --- | --- |

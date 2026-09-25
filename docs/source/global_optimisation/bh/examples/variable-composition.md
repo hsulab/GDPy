@@ -1,6 +1,6 @@
 (bh-variable-composition-example)=
 
-# variable-composition cu₆niₓ clusters
+# Cu<sub>6</sub>Ni<sub>x</sub> clusters
 
 This example changes composition during a single basin-hopping search. It
 starts with six copper atoms and one to three nickel atoms, then attempts Ni

@@ -1,6 +1,6 @@
 (ga-cluster-example)=
 
-# cluster
+# Cu<sub>8</sub> cluster
 
 This minimal example searches for low-energy structures of an 8-atom copper
 cluster. Random Cu8 candidates are generated inside a spherical region, then

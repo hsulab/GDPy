@@ -1,6 +1,6 @@
 (bh-cuox-thanos-example)=
 
-# cu₄o₄: extinguishing o–o bonds
+# Cu<sub>4</sub>O<sub>4</sub> cluster with O–O extinction
 
 This example exercises Thanos on a gas-phase Cu₄O₄ cluster using MatterSim.
 The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell, avoiding

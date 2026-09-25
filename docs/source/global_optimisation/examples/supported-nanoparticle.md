@@ -1,6 +1,6 @@
 (ga-supported-nanoparticle-example)=
 
-# supported nanoparticle
+# Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001) supported cluster
 
 This example searches for low-energy Cu4 nanoparticles supported on
 α-Al₂O₃(0001), which is the basal surface corresponding to `(111)` in the

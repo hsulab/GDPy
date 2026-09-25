@@ -1,6 +1,6 @@
 (bh-seeded-cu8-example)=
 
-# cu₈ with random and seeded initialization
+# Seeded Cu<sub>8</sub> cluster
 
 This example starts one basin-hopping search from **two random structures and
 two seed structures**. It uses two named builders in the same population:
