@@ -40,7 +40,7 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
     assert len(read(tmp_path / "mc_attempts.xyz", ":")) == 1
     for cycle in (1, 2):
         path = tmp_path / "calculations" / f"step.{cycle:04d}"
-        assert (path / "procedure.0000" / "excurs" / "_meta" / "inputs.json").is_file()
+        assert (path / "procedure.0000" / "_meta" / "inputs.json").is_file()
         assert len(list((path / "procedure.0001").glob("proposal.*/_meta/inputs.json"))) == 2
     saved = json.loads(next((tmp_path / "_meta").glob("exp-*.json")).read_text())
     assert "runtime" in saved and "worker" not in saved

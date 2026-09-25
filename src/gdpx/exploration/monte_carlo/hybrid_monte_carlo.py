@@ -248,7 +248,7 @@ class HybridMonteCarlo(MonteCarlo):
     def _irun_dynamics(self, step: int, name: str, worker: DriverBasedWorker) -> MCStepState:
         """"""
         self._print(f">>>>> {name.upper()} ")
-        worker.directory = self._procedure_directory(step) / "excurs"
+        worker.directory = self._procedure_directory(step)
         context = dict(step=step, procedure_index=getattr(self, "_procedure_index", 0), kind="dynamics")
         pending_path = self.directory / "pending-hybrid"
         if getattr(self, "_resume_context", None) == context:

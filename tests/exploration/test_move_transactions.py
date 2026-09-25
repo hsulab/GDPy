@@ -759,7 +759,7 @@ def test_hybrid_full_cycles_count_steps_once_with_repeated_procedures(tmp_path):
     engine._run()
     assert engine.read_convergence()
     assert len(read(engine.directory / "mc.xyz", ":")) == 3  # initial + two complete cycles
-    assert len(engine.get_workers()) == 13  # initial + (two excursions + four proposals) per cycle
+    assert len(engine.get_workers()) == 13  # initial + (two MD segments + four proposals) per cycle
     attempts = [
         int(line.split()[0])
         for line in (engine.directory / engine.INFO_NAME).read_text().splitlines()[1:]
