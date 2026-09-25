@@ -11,6 +11,8 @@ gdp -d results -r runtime.yaml compute structures.xyz
 Use a different directory when changing the structures or runtime: an existing
 compute plan rejects conflicting inputs.
 
+(compute-copper-dimers-example)=
+
 ## Simple example: copper dimers
 
 The repository includes a ready-to-run example in `examples/compute/cu2_emt/`.

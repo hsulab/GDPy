@@ -40,6 +40,7 @@ installation.md
 :maxdepth: 2
 
 units
+quick-examples
 ```
 
 ```{toctree}

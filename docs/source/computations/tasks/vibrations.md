@@ -1,3 +1,5 @@
+(compute-vibrations-example)=
+
 # vibrational analysis
 
 Native `vasp` and `cp2k` executors provide the `freq` task. Start from a relaxed

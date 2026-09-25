@@ -1,5 +1,7 @@
 # transition states and paths
 
+(compute-neb-example)=
+
 ## NEB: a surface-diffusion path
 
 NEB needs an ordered path or two endpoints with the same atom ordering and
@@ -55,6 +57,8 @@ pass a nested Python list to this worker.
 
 Inspect the image trajectories in `neb-demo` and check convergence before
 using the energy profile as a barrier.
+
+(compute-dimer-example)=
 
 ## Dimer: a local transition-state search
 
