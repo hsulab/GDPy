@@ -182,7 +182,10 @@ def test_acceptance_rules_preserve_formulas_and_do_not_mutate_metadata():
     metadata.update(operation="remove", num_particles=1, proposal_ratio=2.0)
     assert rule.probability(metadata, 0, 1) == pytest.approx(2 * 2 * 2 / 4 * np.exp(-1.3))
     rule = SemiGrandAcceptance(temperature, ("H", "He"), (0.1, 0.4))
-    assert rule.probability(dict(first_ptype="H", second_ptype="He"), 0, 1) == pytest.approx(np.exp(-0.7))
+    metadata = dict(first_ptype="H", second_ptype="He", proposal_ratio=1.0)
+    assert rule.probability(metadata, 0, 1) == pytest.approx(np.exp(-0.7))
+    with pytest.raises(ValueError, match="predates detailed-balance metadata"):
+        rule.probability(dict(first_ptype="H", second_ptype="He"), 0, 1)
     metadata = dict(first_ptype="H", second_ptype="He", proposal_ratio=3.0)
     assert rule.probability(metadata, 0, 2) == pytest.approx(3.0 * np.exp(-1.7))
     rule = ReactionAcceptance(temperature, (-1, 1), (0.0, 0.0))

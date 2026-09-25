@@ -58,7 +58,12 @@ class SemiGrandAcceptance(AcceptanceRule):
     def factors(self, metadata):
         before = self.particles.index(metadata["first_ptype"])
         after = self.particles.index(metadata["second_ptype"])
-        return metadata.get("proposal_ratio", 1.0), (
+        if "proposal_ratio" not in metadata:
+            raise ValueError(
+                "Pending swap_type proposal predates detailed-balance metadata; "
+                "start a new run."
+            )
+        return metadata["proposal_ratio"], (
             self.chemical_potentials[before] - self.chemical_potentials[after]
         )
 
