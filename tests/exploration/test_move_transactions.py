@@ -179,8 +179,21 @@ def test_acceptance_rules_preserve_formulas_and_do_not_mutate_metadata():
     assert rule.probability(metadata, 0, 1) == pytest.approx(2 * 2 * 2 / 4 * np.exp(-1.3))
     rule = SemiGrandAcceptance(temperature, ("H", "He"), (0.1, 0.4))
     assert rule.probability(dict(first_ptype="H", second_ptype="He"), 0, 1) == pytest.approx(np.exp(-0.7))
+    metadata = dict(first_ptype="H", second_ptype="He", proposal_ratio=3.0)
+    assert rule.probability(metadata, 0, 2) == pytest.approx(3.0 * np.exp(-1.7))
     rule = ReactionAcceptance(temperature, (-1, 1), (0.0, 0.0))
     assert rule.probability({'direction': 1, 'particle_numbers': [1, 4], 'volume': 2}, 0, 1) == pytest.approx(0.2 * np.exp(-1))
+
+
+@pytest.mark.parametrize("symbols,expected", [("H" * 31 + "He", 1 / 16), ("H" * 32, 16.0)])
+def test_swap_type_records_reverse_over_forward_proposal_ratio(symbols, expected):
+    atoms = Atoms(symbols, positions=np.zeros((32, 3)), cell=[20] * 3)
+    atoms.set_tags(np.arange(32))
+    op = operator("swap_type", particles=["H", "He"], chempots=[0.0, 0.0])
+    proposal = op.propose(atoms, np.random.default_rng(2))
+    assert proposal.valid
+    assert proposal.metadata["proposal_ratio"] == pytest.approx(expected)
+    proposal.rollback()
 
 
 class Worker:

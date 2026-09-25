@@ -54,7 +54,9 @@ class SemiGrandAcceptance(AcceptanceRule):
     def factors(self, metadata):
         before = self.particles.index(metadata["first_ptype"])
         after = self.particles.index(metadata["second_ptype"])
-        return 1.0, self.chemical_potentials[before] - self.chemical_potentials[after]
+        return metadata.get("proposal_ratio", 1.0), (
+            self.chemical_potentials[before] - self.chemical_potentials[after]
+        )
 
 
 @dataclass(frozen=True)

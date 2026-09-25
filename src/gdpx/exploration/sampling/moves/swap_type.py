@@ -110,6 +110,11 @@ class SwapTypeOperator(BaseMCOperator):
             # Compute concentration
             num_first_ptype = len(self._curr_tags_dict.get(first_ptype, []))
             num_second_ptype = len(self._curr_tags_dict.get(second_ptype, []))
+            num_ptypes_after = num_ptypes_in_region
+            if num_first_ptype == 1:
+                num_ptypes_after -= 1
+            if num_second_ptype == 0:
+                num_ptypes_after += 1
             prev_x = num_first_ptype / (num_first_ptype + num_second_ptype)
             curr_x = (num_first_ptype - 1) / (num_first_ptype + num_second_ptype)
             self._state = {
@@ -118,6 +123,10 @@ class SwapTypeOperator(BaseMCOperator):
                 "picked_atom_index": pick_one[0],
                 "num_first_ptype": num_first_ptype - 1,
                 "num_second_ptype": num_second_ptype + 1,
+                "proposal_ratio": (
+                    num_ptypes_in_region * num_first_ptype
+                    / (num_ptypes_after * (num_second_ptype + 1))
+                ),
                 "dX": curr_x - prev_x,
             }
             break

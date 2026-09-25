@@ -108,7 +108,10 @@ class BaseMCOperator(abc.ABC):
                 if trial is not atoms:
                     raise RuntimeError("Moves must return their borrowed Atoms object.")
                 # Only scalar acceptance context escapes the short-lived attempt.
-                keys = ("operation", "num_particles", "volume", "symm_factor", "first_ptype", "second_ptype")
+                keys = (
+                    "operation", "num_particles", "volume", "symm_factor",
+                    "first_ptype", "second_ptype", "proposal_ratio",
+                )
                 proposal.metadata = {key: attempt._state[key] for key in keys if key in attempt._state}
                 if self.name == "react":
                     proposal.metadata.update(direction=attempt._direction,
@@ -298,4 +301,3 @@ class BaseMCOperator(abc.ABC):
         params = copy.deepcopy(params)
 
         return params
-
