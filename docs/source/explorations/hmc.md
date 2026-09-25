@@ -91,7 +91,7 @@ For an uninterrupted five-cycle run:
 - `mc_attempts.xyz` contains the initial structure only in the current hybrid
   implementation; use the per-proposal calculations to inspect MC trials.
 - `calculations/step.0000/` stores the initial evaluation.
-- `calculations/step.0001/procedure.0000/excurs/` stores the first MD segment.
+- `calculations/step.0001/procedure.0000/` stores the first MD segment.
 - `calculations/step.0001/procedure.0001/proposal.0000/` stores the first MC
   evaluation. The remaining cycle and proposal indices follow the same pattern.
 
