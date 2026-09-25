@@ -2,8 +2,10 @@
 
 # Examples
 
-These EMT demos cover canonical, semi-grand-canonical, and grand-canonical MC. Read the {ref}`Monte Carlo guide <monte-carlo>` for
-proposal settings, sampling limitations, output files, and restart behaviour.
+These examples cover canonical, semi-grand-canonical, and grand-canonical MC
+with EMT, plus a short Cu(111) oxidation run with xreac. Read the
+{ref}`Monte Carlo guide <monte-carlo>` for proposal settings, sampling
+limitations, output files, and restart behaviour.
 
 ## Run the EMT examples
 
@@ -43,4 +45,5 @@ and include their own initialization, MD, and MC runtimes.
 canonical
 semi-grand-canonical
 grand-canonical
+cu111-oxidation-xreac
 ```
