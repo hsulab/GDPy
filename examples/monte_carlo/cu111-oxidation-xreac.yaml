@@ -1,0 +1,41 @@
+method: monte_carlo
+random_seed: 2026
+
+runtime:
+  schema_version: 3
+  potential:
+    provider: reax
+    backend: xreac
+    parameters:
+      model: bundled:ffield.reax.CuOHCl.2010
+  executor:
+    provider: ase
+    method: spc
+    parameters: {}
+  options:
+    worker: single
+
+system:
+  builder:
+    method: read_stru
+    fname: examples/global_optimisation/assets/cu111_p2x2_3layer.xyz
+  ensemble:
+    method: grand_canonical
+    temperature: 600.0
+    chemical_potentials:
+      O: -2.0
+
+strategy:
+  steps: 3
+  ckpt_period: 3
+  operators:
+    - method: exchange
+      particles: [O]
+      region:
+        method: lattice
+        origin: [0.0, 0.0, 6.7]
+        cell:
+          - [5.11238203, 0.0, 0.0]
+          - [0.0, 4.42745271, 0.0]
+          - [0.0, 0.0, 4.5]
+      max_random_attempts: 1
