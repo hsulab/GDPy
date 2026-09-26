@@ -160,7 +160,9 @@ def _create_exploration(method, parameters):
     if parameters.get("builder") is not None:
         parameters["builder"] = canonicalise_builder(parameters["builder"])
         parameters["builder"].set_rng(seed=random_seed)
-    elif method in {"monte_carlo", "hybrid_monte_carlo"} and isinstance(parameters.get("system"), Mapping):
+    elif method in {"monte_carlo", "hybrid_monte_carlo", "umbrella_sampling"} and isinstance(
+        parameters.get("system"), Mapping
+    ):
         system = parameters["system"]
         if system.get("builder") is not None:
             system["builder"] = canonicalise_builder(system["builder"])

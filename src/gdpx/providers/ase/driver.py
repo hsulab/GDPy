@@ -159,6 +159,9 @@ def save_trajectory(atoms, traj_fpath) -> None:
     atoms_to_save.info["step"] = atoms.info["step"]
     if EARLYSTOP_KEY in atoms.info:
         atoms_to_save.info[EARLYSTOP_KEY] = atoms.info[EARLYSTOP_KEY]
+    for key in GDPCONFIG.UMBRELLA_FRAME_KEYS:
+        if key in atoms.info:
+            atoms_to_save.info[key] = atoms.info[key]
 
     # - save special keys and arrays from calc
     num_atoms = len(atoms)

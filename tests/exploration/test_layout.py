@@ -215,6 +215,43 @@ def test_active_workflow_uses_previous_layout(tmp_path, count):
     assert operation.status == 'finished'
 
 
+def test_workflow_explore_accepts_runtime_input(tmp_path):
+    from gdpx.execution.workers.drive import DriverBasedWorker
+    from gdpx.workflow.nodes.exploration import explore
+    from gdpx.workflow.session.variable import Variable
+
+    class RegisteredExploration(Exploration):
+        def register_worker(self, worker):
+            self.registered_worker = worker
+
+    runtime = {
+        'potential': {'provider': 'emt'},
+        'executor': {
+            'provider': 'ase',
+            'method': 'md',
+            'parameters': {
+                'ensemble': 'nvt',
+                'temp': 300.0,
+                'timestep': 0.1,
+                'steps': 1,
+                'controller': {'name': 'berendsen', 'params': {'Tdamp': 10.0}},
+            },
+        },
+        'dispatch': {'worker': 'single'},
+    }
+    exploration = RegisteredExploration()
+    operation = explore(
+        Variable(exploration),
+        runtime=Variable(runtime),
+        directory=tmp_path / 'explore',
+    )
+
+    operation.forward(exploration, runtime, DirectScheduler())
+
+    assert isinstance(exploration.registered_worker, DriverBasedWorker)
+    assert operation.status == 'finished'
+
+
 def test_multi_spawn_uses_saved_padding(tmp_path, monkeypatch):
     from gdpx.cli import explore
     exploration_layout(tmp_path, 100, create=True)

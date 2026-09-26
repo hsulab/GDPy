@@ -36,11 +36,33 @@ def group_structures(structures: AtomsNDArray, group_by: Optional[str] = None):
             else:
                 ...
             marker_groups = group_structures_by_chemical_formula(structures, symbol_list, padding_width)
+        elif group_by.startswith("info "):
+            parts = group_by.split()
+            if len(parts) != 2:
+                raise ValueError("Information grouping must use 'info <key>'.")
+            marker_groups = group_structures_by_info(structures, parts[1])
         else:
             raise Exception(f"Unsupported group_by {group_by}.")
     else:
         marker_groups = dict(all=structures.markers)
 
+    return marker_groups
+
+
+def group_structures_by_info(structures: AtomsNDArray, key: str):
+    """Group marked structures by one required ``Atoms.info`` value."""
+    marker_groups = {}
+    for marker in np.argwhere(structures.markers):
+        atoms = structures[tuple(marker.tolist())]
+        if key not in atoms.info:
+            raise KeyError(f"{key} does not exist in atoms.info.")
+        value = atoms.info[key]
+        if isinstance(value, np.generic):
+            value = value.item()
+        try:
+            marker_groups.setdefault(value, []).append(marker.tolist())
+        except TypeError as error:
+            raise TypeError(f"atoms.info[{key!r}] must be a scalar hashable value.") from error
     return marker_groups
 
 

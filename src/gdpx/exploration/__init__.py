@@ -11,5 +11,6 @@ REGISTER.register_lazy("hybrid_monte_carlo", "gdpx.exploration.monte_carlo.hybri
 REGISTER.register_lazy("monte_carlo", "gdpx.exploration.monte_carlo.monte_carlo", "create_monte_carlo")
 REGISTER.register_lazy("simulated_annealing", "gdpx.exploration.simulated_annealing.simulated_annealing", "SimulatedAnnealing")
 REGISTER.register_lazy("artificial_reaction", "gdpx.exploration.artificial_force.afir", "AFIRSearch")
+REGISTER.register_lazy("umbrella_sampling", "gdpx.exploration.umbrella_sampling", "create_umbrella_sampling")
 
 __all__ = ["Exploration", "ExplorationResult", "ExplorationStrategy", "Proposal", "REGISTER"]

@@ -18,6 +18,8 @@ RETAINED_INFO_NAMES: list[str] = [
     "max_devi_e", "min_devi_e", "avg_devi_e",
     "max_devi_v", "min_devi_v", "avg_devi_v",
     "max_devi_f", "min_devi_f", "avg_devi_f",
+    "umbrella_center", "umbrella_kspring",
+    "umbrella_window", "umbrella_replica", "umbrella_seed_index",
 ]
 
 #: The retained data types in atoms.info.
@@ -26,6 +28,8 @@ RETAINED_INFO_DTYPES: list[str] = [
     "f", "f", "f",
     "f", "f", "f",
     "f", "f", "f",
+    "f", "f",
+    "i8", "i8", "i8",
 ]
 
 #: Saved calculated property names.

@@ -7,13 +7,15 @@ import pathlib
 from collections.abc import Mapping
 from typing import Union
 
-from gdpx.workflow.session.registry import workflow_registers as registers
-from gdpx.workflow.factory import create_exploration
+from gdpx.execution.factory import create_worker
+from gdpx.execution.runtime import Runtime
+from gdpx.execution.workers.explore import ExplorationBasedWorker
 from gdpx.exploration.exploration import BaseExploration
 from gdpx.exploration.layout import exploration_layout
+from gdpx.workflow.factory import create_exploration
 from gdpx.workflow.session.operation import Operation
+from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import DummyVariable, Variable
-from gdpx.execution.workers.explore import ExplorationBasedWorker
 
 from .scheduler import SchedulerVariable
 
@@ -72,6 +74,7 @@ class explore(Operation):
         self,
         exploration,
         worker=DummyVariable(),
+        runtime=None,
         scheduler=None,
         wait_time=60,
         active: bool = False,
@@ -90,6 +93,10 @@ class explore(Operation):
         else:
             raise Exception(f"Unknown {scheduler} for the scheduler.")
 
+        if runtime is not None:
+            if not isinstance(worker, DummyVariable):
+                raise ValueError("explore accepts either runtime or worker, not both.")
+            worker = runtime
         input_nodes = [exploration, worker, scheduler]
         super().__init__(input_nodes, directory)
 
@@ -124,6 +131,8 @@ class explore(Operation):
                     if hasattr(current, "update_active_params"):
                         current.update_active_params(previous / directories[i])
 
+        if isinstance(dyn_worker, (Runtime, Mapping)):
+            dyn_worker = create_worker(dyn_worker)
         self._print(f"{dyn_worker=}")
         for exploration in explorations:
             if hasattr(exploration, "register_worker"):
