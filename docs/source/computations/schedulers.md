@@ -2,82 +2,63 @@
 
 # machine resources
 
-gdpx separates the submission backend from the host where its command runs.
-The scheduler provider is `direct`, `slurm`, `lsf`, `pbs`, or a third-party
-queue scheduler. Its nested transport is `local` or `ssh`. Worker batching and
-metadata behavior belong to the runtime's separate `dispatch` section.
+gdpx separates the scheduler that starts work from the transport used to reach
+the execution host. Worker batching and metadata behavior belong to the
+runtime's separate `dispatch` section.
+
+## Choose a scheduler
+
+| Scheduler | Use it for |
+| --- | --- |
+| {doc}`direct` | Synchronous execution on the local machine or over SSH. |
+| {doc}`slurm` | Slurm allocations, CPU/GPU resources, and concurrent job steps. |
+| {doc}`pbs` | PBS queue submission and resource directives. |
+| {doc}`lsf` | LSF queue submission and resource directives. |
+
+If the entire `scheduler` section is omitted, gdpx uses the `direct` scheduler
+with the local transport. Third-party plugins may provide other schedulers.
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+direct.md
+slurm.md
+pbs.md
+lsf.md
+```
+
+## Scheduler and transport
+
+The scheduler provider selects how work starts. Its optional nested transport
+selects where the scheduler command runs.
 
 | Execution path | Scheduler provider | Transport provider |
 | --- | --- | --- |
 | Run directly on this machine | `direct` | `local` |
 | Run directly over SSH | `direct` | `ssh` |
-| Submit to a queue on this machine | `slurm`, `lsf`, or `pbs` | `local` |
-| Submit to a queue over SSH | `slurm`, `lsf`, or `pbs` | `ssh` |
+| Submit locally to a queue | `slurm`, `pbs`, or `lsf` | `local` |
+| Submit to a remote queue | `slurm`, `pbs`, or `lsf` | `ssh` |
 
-If the entire `scheduler` section is omitted, gdpx uses direct execution with
-the local transport. If only `transport` is omitted, the transport is local.
-
-## Local CPU and GPU runs
-
-Run a task directly after activating its environment:
-
-```shell
-conda activate gdpx
-OMP_NUM_THREADS=4 gdp -d local-min -r examples/compute/tasks/relaxation.yaml compute examples/compute/tasks/dimers.xyz
-```
-
-Generate the demo structures first as described in {doc}`tasks/index`.
-`OMP_NUM_THREADS` limits threads only for libraries that honor it; it does not
-make independent structures run in parallel. Direct execution uses one
-synchronous batch.
-
-For a GPU model, configure a GPU-capable potential. For example, save as
-`gpu.yaml` and use a compatible local TACE checkpoint:
-
-```yaml
-potential:
-  provider: tace
-  parameters:
-    model: ./model.pt
-    device: cuda
-executor:
-  provider: ase
-  method: spc
-  parameters: {}
-```
-
-```shell
-CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=4 gdp -d gpu-results -r gpu.yaml compute structures.xyz
-```
-
-Install the model’s dependencies and a compatible accelerator stack in that
-environment. `CUDA_VISIBLE_DEVICES` selects visible GPUs, while the potential’s
-`device` setting selects the calculator device. Merely requesting a GPU does
-not turn a CPU-only calculator such as EMT into a GPU calculator.
-
-## Direct execution on this machine
+If `transport` is omitted, it defaults to local execution. An explicit local
+transport looks like:
 
 ```yaml
 scheduler:
-  provider: direct
+  provider: slurm
   parameters: {}
   transport:
     provider: local
     parameters: {}
 ```
 
-gdpx calls the calculation in the current process and waits for it to finish.
-Activate the required environment before starting gdpx; `environs` contains
-shell commands for generated scripts and does not modify an in-process callback.
-
-## Direct execution over SSH
+For remote execution, install SSH support with `pip install gdpx[remote]` and
+configure the same scheduler with an SSH transport:
 
 ```yaml
 scheduler:
-  provider: direct
-  parameters:
-    environs: |
-      conda activate gdpx
+  provider: slurm
+  parameters: {}
   transport:
     provider: ssh
     parameters:
@@ -85,220 +66,43 @@ scheduler:
       remote_wdir: /scratch/user/gdpx
 ```
 
-Install SSH support with `pip install gdpx[remote]`. gdpx stages the working
-tree, runs the generated script over SSH, and keeps the SSH command open until
-the calculation finishes. A later status or collection operation synchronizes
-the results back to the initiating machine. gdpx must be installed and
-available on the remote command's `PATH`.
+gdpx stages the working tree into `remote_wdir/<job-name>`, runs submission and
+status commands remotely, and synchronizes completed outputs before checking
+convergence. gdpx must be installed and available on the remote `PATH`.
 
-SSH uses Paramiko's normal local username, key-file, and agent discovery. The
-existing `<HOSTNAME>_PASSWORD` environment-variable convention may be used for
-password authentication. `remote_wdir` must be an absolute POSIX path.
-`hostname` is passed directly to Paramiko; OpenSSH aliases, jump hosts, and
-additional connection fields are not interpreted by this transport.
+SSH uses Paramiko's username, key-file, and agent discovery. The existing
+`<HOSTNAME>_PASSWORD` environment-variable convention may be used for password
+authentication. `remote_wdir` must be an absolute POSIX path. OpenSSH aliases,
+jump hosts, and extra connection fields are not interpreted by this transport.
+Paths outside the staged tree are not transferred or rewritten, so models,
+datasets, and executables must already be accessible on the remote host.
 
-Staging copies the working tree into `remote_wdir/<job-name>`. Paths in model,
-dataset, or executable settings outside that tree are not automatically
-rewritten or transferred; arrange for those resources to be accessible on the
-remote host. Direct jobs remain attached to the SSH command, so this mode does
-not provide a detached job that survives loss of the connection.
+Direct SSH jobs remain attached to the SSH command and do not survive a lost
+connection. Queue jobs are detached by the remote scheduler after submission.
 
-## Queue submission on this machine
+## Batches and application launchers
 
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    partition: compute
-    ntasks: 1
-    time: "1:00:00"
-  transport:
-    provider: local
-    parameters: {}
-```
+`dispatch.batch_size` controls how many structures belong to one scheduler job.
+It is not a CPU or GPU count. Calculations in a batch run sequentially unless a
+supported scheduler configures `concurrent_tasks`.
 
-The queue command, such as `sbatch`, runs on the current machine.
+For external MPI applications, `machine_prefix` wraps the application command.
+For example, use `machine_prefix: srun --exact -n 4 -c 1` with a bare
+`command: vasp_std`; do not wrap `gdp` itself with a multi-rank launcher.
+Resource syntax and concurrency behavior are documented on each scheduler page.
 
-## Queue submission over SSH
+## Queue lifecycle
 
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    partition: compute
-    ntasks: 1
-    time: "1:00:00"
-  transport:
-    provider: ssh
-    parameters:
-      hostname: cluster.example
-      remote_wdir: /scratch/user/gdpx
-```
-
-gdpx stages the working tree and runs submission and status commands on the
-remote host. Completed files are synchronized before convergence is checked.
-
-`dispatch.batch_size` controls how many structures are assigned to a queued
-task. Direct execution uses one batch regardless of transport. By default the
-calculations in that batch run sequentially; `concurrent_tasks` can opt into
-bounded concurrent execution as described below.
-
-## Slurm CPU allocation
-
-Append this scheduler to a task runtime when launching from a cluster login
-node with local access to `sbatch`:
-
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    partition: compute
-    nodes: 1
-    ntasks: 1
-    cpus-per-task: 4
-    mem-per-cpu: 2G
-    time: "01:00:00"
-    environs: |
-      source /path/to/miniconda3/etc/profile.d/conda.sh
-      conda activate gdpx
-      export OMP_NUM_THREADS=4
-dispatch:
-  batch_size: 10
-```
-
-Replace the partition and environment paths with your site settings. Hyphenated
-keys such as `cpus-per-task` are scheduler parameters, not executor settings.
-This example requests one process with four CPU threads per queued job.
-`batch_size: 10` groups up to ten structures into a job; it is not a CPU count.
-
-For an MPI simulator, request the required allocation and set the scheduler's
-`machine_prefix`, such as `machine_prefix: srun --exact -n 4 -c 1`. Keep the
-potential command itself as `vasp_std` or the corresponding simulator command;
-the scheduler allocation alone does not add an MPI launcher.
-
-Prepare, submit, inspect, and collect using the same output directory:
+Prepare, review, submit, inspect, and collect a queued calculation using one
+output directory:
 
 ```shell
-gdp -d queued-results -r queued.yaml compute prepare structures.xyz
+gdp -d queued-results -r runtime.yaml compute prepare structures.xyz
 gdp -d queued-results compute submit
 gdp -d queued-results compute status
 gdp -d queued-results compute collect
 ```
 
-`prepare` writes inputs without submitting a job. Inspect the generated script
-before submission. Collect after jobs finish; failed or unconverged jobs need
-inspection before an explicit `compute resubmit --batch 0`.
-
-## Slurm GPU allocation
-
-For a GPU-capable potential, use a site-appropriate GPU partition and request
-a GPU in the same runtime:
-
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    partition: gpu
-    nodes: 1
-    ntasks: 1
-    cpus-per-task: 4
-    gres: gpu:1
-    time: "01:00:00"
-    environs: |
-      source /path/to/miniconda3/etc/profile.d/conda.sh
-      conda activate gdpx-gpu
-      export OMP_NUM_THREADS=4
-dispatch:
-  batch_size: 10
-```
-
-The queue normally sets device visibility. Do not override its assigned GPU
-IDs with the workstation example’s `CUDA_VISIBLE_DEVICES=0`. Select a suitable
-calculator device under the potential parameters. This allocation supplies
-one GPU per job; gdpx does not automatically split a model across multiple GPUs.
-
-## Concurrent calculations in one allocation
-
-Slurm and direct schedulers accept `concurrent_tasks`, the maximum number of
-independent calculations run at once inside one batch. `dispatch.batch_size`
-remains the total number assigned to the allocation. For example, a batch of
-100 structures with `concurrent_tasks: 4` runs in 25 bounded waves. The generated
-script uses loops, so its size does not grow with the batch.
-
-For 256 allocated CPUs and four concurrent pure-MPI VASP calculations using
-64 ranks each:
-
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    nodes: 2                  # Adjust for the site's cores per node.
-    ntasks: 256
-    ntasks-per-node: 128
-    cpus-per-task: 1
-    time: "03:00:00"
-    concurrent_tasks: 4
-    machine_prefix: >-
-      srun --exact -N 1 -n 64 -c 1 --cpu-bind=cores
-    environs: |
-      export OMP_NUM_THREADS=1
-dispatch:
-  batch_size: 100
-```
-
-The step size is `ntasks * cpus-per-task`: `srun -n 64 -c 1` uses 64 CPUs,
-whereas `srun -n 64 -c 4` uses all 256 CPUs and permits only one such step in
-this allocation. GDPy does not derive or validate this arithmetic; the total
-resources of simultaneous steps must fit the allocation.
-
-The same mechanism supports external GPU applications. Request all GPUs in the
-allocation, make each `machine_prefix` step request one GPU, and set
-`concurrent_tasks` to the number of steps that fit:
-
-```yaml
-scheduler:
-  provider: slurm
-  parameters:
-    nodes: 1
-    ntasks-per-node: 4
-    cpus-per-task: 32
-    gpus-per-task: 1
-    concurrent_tasks: 4
-    machine_prefix: >-
-      srun --exact -N 1 -n 1 -c 32 --gpus-per-task=1
-dispatch:
-  batch_size: 8
-```
-
-`machine_prefix` wraps the external VASP/LAMMPS command, not `gdp`; wrapping
-`gdp` with `srun -n 64` would start 64 duplicate controllers. Concurrent shared
-working directories are rejected. Python-native GPU calculators do not use the
-external command prefix, so per-task GPU isolation for them is not provided by
-this option. PBS and LSF currently require `concurrent_tasks: 1`.
-
-## PBS and LSF
-
-The resource keys follow the selected scheduler’s own directives. For example:
-
-```yaml
-scheduler:
-  provider: pbs
-  parameters:
-    q: workq
-    l: "select=1:ncpus=4:mem=8gb,walltime=01:00:00"
-```
-
-```yaml
-scheduler:
-  provider: lsf
-  parameters:
-    q: normal
-    n: 4
-    W: "1:00"
-    R: "span[hosts=1]"
-```
-
-These are scheduler fragments to combine with a potential and executor.
-Queue names and resource syntax depend on the site. Add `environs` to activate
-the required software and add `transport: {provider: ssh}` with the hostname
-and remote working directory as shown above when submission must happen remotely.
+`prepare` writes reviewable job scripts without submitting them. Failed or
+unconverged jobs require inspection before an explicit resubmission such as
+`gdp -d queued-results compute resubmit --batch 0`.

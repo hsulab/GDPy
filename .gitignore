@@ -24,6 +24,7 @@ cand*
 *.pbs
 *.slurm
 slurm.*
+!docs/source/computations/slurm.md
 *.data
 *.lammps
 *.png
