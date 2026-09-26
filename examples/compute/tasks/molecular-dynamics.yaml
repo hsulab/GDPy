@@ -4,14 +4,21 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    temp: 300
-    timestep: 1.0
-    steps: 100
-    dump_period: 10
-    velocity_seed: 7
     random_seed: 7
-    controller:
-      name: berendsen
-      params:
-        Tdamp: 100.0
+    setup:
+      ensemble: nvt
+      timestep: 1.0
+      velocities:
+        initialize: if_missing
+        seed: 7
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+        parameters:
+          Tdamp: 100.0
+    output:
+      trajectory:
+        period: 10
+    stop:
+      steps: 100

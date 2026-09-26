@@ -6,7 +6,7 @@ from typing import Any, Mapping, Union
 
 from gdpx.providers.adapters import BackendFactory, BackendMaterializer, select_backend
 from gdpx.providers.capabilities import CapabilityKind
-from gdpx.providers.configuration import RuntimeConfig
+from gdpx.providers.configuration import RuntimeConfig, resolve_executor_parameters
 from gdpx.providers.errors import MaterializationError, MissingCapabilityError
 from gdpx.providers.specs import Materialization, thaw
 from gdpx.providers.targets import AseCalculatorMaterialization
@@ -29,6 +29,9 @@ class RuntimeResolver:
         executor_factory = self.providers.require(
             config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
         )
+        executor_parameters = resolve_executor_parameters(
+            thaw(config.executor.parameters), config.executor.method
+        )
         target = getattr(executor_factory, "target", None)
         modifier_instances = ()
         if target is None:
@@ -38,7 +41,7 @@ class RuntimeResolver:
                 target=f"{config.executor.provider}.legacy",
                 payload=getattr(potential, "calc", potential),
             )
-            executor = executor_factory.create(thaw(config.executor.parameters), potential=potential)
+            executor = executor_factory.create(executor_parameters, potential=potential)
         else:
             try:
                 materializer = self.providers.require(
@@ -64,7 +67,7 @@ class RuntimeResolver:
             modifier_instances, config = self._create_modifiers(config)
             materialization = self._apply_modifiers(materialization, target, modifier_instances)
             executor = executor_factory.create(
-                thaw(config.executor.parameters),
+                executor_parameters,
                 potential=potential,
                 materialization=materialization,
             )

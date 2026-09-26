@@ -4,11 +4,15 @@ executor:
   provider: ase
   method: neb
   parameters:
-    nimages: 5
-    interpolation:
-      mic: false
-    climb: false
-    fmax: 0.08
-    steps: 100
-    dump_period: 5
-    constraint: "1:8"
+    setup:
+      nimages: 5
+      interpolation:
+        mic: false
+      climb: false
+      constraint: "1:8"
+    output:
+      trajectory:
+        period: 5
+    stop:
+      fmax: 0.08
+      steps: 100

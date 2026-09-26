@@ -7,18 +7,25 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    temp: 300.0
-    timestep: 0.25
-    steps: 20
-    dump_period: 5
-    velocity_seed: 7
     random_seed: 7
-    constraint: lowest 4
-    controller:
-      name: berendsen
-      params:
-        Tdamp: 100.0
+    setup:
+      ensemble: nvt
+      timestep: 0.25
+      constraint: lowest 4
+      velocities:
+        initialize: if_missing
+        seed: 7
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300.0
+        parameters:
+          Tdamp: 100.0
+    output:
+      trajectory:
+        period: 5
+    stop:
+      steps: 20
 modifiers:
   - provider: builtin
     method: distance_harmonic

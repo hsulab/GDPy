@@ -14,6 +14,7 @@ import numpy as np
 from ase.io import read, write
 
 from gdpx.execution.factory import create_worker
+from gdpx.providers.configuration import EXECUTOR_PARAMETER_SECTIONS, resolve_executor_parameters
 from gdpx.structures.groups import evaluate_group_expression
 
 from .exploration import BaseExploration
@@ -121,7 +122,9 @@ class UmbrellaSampling(BaseExploration):
         config = self.worker.runtime.config
         if config.executor.provider != "ase" or config.executor.method != "md":
             raise ValueError("umbrella_sampling requires an ASE MD runtime.")
-        steps = config.executor.parameters.get("steps")
+        steps = resolve_executor_parameters(
+            config.executor.parameters, config.executor.method
+        ).get("steps")
         _positive_integer(steps, "runtime.executor.parameters.steps")
         if any(modifier.method == "distance_harmonic" for modifier in config.modifiers):
             raise ValueError(
@@ -243,10 +246,18 @@ class UmbrellaSampling(BaseExploration):
     def _runtime_for(self, record, phase):
         config = copy.deepcopy(self.worker.as_dict())
         parameters = config["executor"]["parameters"]
-        if phase == "equilibration":
-            parameters["steps"] = self.equilibration_steps
-        parameters["velocity_seed"] = int(record[f"{phase}_velocity_seed"])
-        parameters["random_seed"] = int(record[f"{phase}_random_seed"])
+        if EXECUTOR_PARAMETER_SECTIONS.intersection(parameters):
+            setup = parameters.setdefault("setup", {})
+            velocities = setup.setdefault("velocities", {})
+            if phase == "equilibration":
+                parameters.setdefault("stop", {})["steps"] = self.equilibration_steps
+            velocities["seed"] = int(record[f"{phase}_velocity_seed"])
+            parameters["random_seed"] = int(record[f"{phase}_random_seed"])
+        else:
+            if phase == "equilibration":
+                parameters["steps"] = self.equilibration_steps
+            parameters["velocity_seed"] = int(record[f"{phase}_velocity_seed"])
+            parameters["random_seed"] = int(record[f"{phase}_random_seed"])
         config.setdefault("modifiers", []).append(
             {
                 "provider": "builtin",

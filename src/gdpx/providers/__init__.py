@@ -10,6 +10,7 @@ from .configuration import (
     RuntimeConfig,
     SchedulerConfig,
     expand_runtime_configs,
+    resolve_executor_parameters,
 )
 from .errors import (
     AmbiguousCapabilityError,
@@ -55,4 +56,5 @@ __all__ = [
     "UnknownProviderError",
     "expand_runtime_configs",
     "get_provider_manager",
+    "resolve_executor_parameters",
 ]

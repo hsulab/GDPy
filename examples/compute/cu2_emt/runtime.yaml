@@ -4,9 +4,12 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 100
-    dump_period: 1
     random_seed: 7
+    output:
+      trajectory:
+        period: 1
+    stop:
+      fmax: 0.05
+      steps: 100
 dispatch:
   batch_size: 3

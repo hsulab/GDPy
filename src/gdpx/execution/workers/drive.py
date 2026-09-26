@@ -22,6 +22,7 @@ from gdpx.execution.driver import BaseDriver
 from gdpx.execution.output import get_reporter, worker_output
 from .registry import WORKER_REGISTRY
 from gdpx.execution.runtime import Runtime
+from gdpx.providers.configuration import resolve_executor_parameters
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
 from gdpx.utils.profiler import CustomTimer
 
@@ -569,7 +570,10 @@ class DriverBasedWorker(BaseWorker):
                     batches=[self._job_payload(identifier, batch, index) for index, batch in enumerate(batches)],
                     machine_prefix=self.scheduler.machine_prefix,
                     reuse_saved_seeds=not rng_states and
-                    self.runtime.config.executor.parameters.get("random_seed") is None)
+                    resolve_executor_parameters(
+                        self.runtime.config.executor.parameters,
+                        self.runtime.config.executor.method,
+                    ).get("random_seed") is None)
 
     # ------------------------------------------------------------------
     # Run
@@ -589,7 +593,10 @@ class DriverBasedWorker(BaseWorker):
         get_reporter(self).configure(selected)
 
         if not self.is_spawned:
-            implicit_seed = self.runtime.config.executor.parameters.get("random_seed") is None
+            implicit_seed = resolve_executor_parameters(
+                self.runtime.config.executor.parameters,
+                self.runtime.config.executor.method,
+            ).get("random_seed") is None
             self._run_by_scheduler(
                 identifier, frames, batches, target_batch=target_batch,
                 reuse_saved_seeds=not rng_states and implicit_seed,

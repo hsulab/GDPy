@@ -11,6 +11,135 @@ from .errors import ProviderConfigurationError
 from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 
 SCHEMA_VERSION = 4
+EXECUTOR_PARAMETER_SECTIONS = frozenset({"setup", "output", "stop"})
+EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
+
+
+def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
+    """Translate structured public executor parameters for existing providers."""
+    data = copy.deepcopy(thaw(parameters))
+    sections = EXECUTOR_PARAMETER_SECTIONS.intersection(data)
+    if not sections:
+        return data
+    extra = set(data) - EXECUTOR_PARAMETER_SECTIONS - EXECUTOR_PARAMETER_GLOBALS
+    if extra:
+        raise ProviderConfigurationError(
+            "Do not mix flat and structured executor parameters; move "
+            f"{', '.join(sorted(extra))} under setup, output, or stop."
+        )
+    for name in EXECUTOR_PARAMETER_SECTIONS:
+        if name in data and not isinstance(data[name], Mapping):
+            raise ProviderConfigurationError(f"Executor parameters.{name} must be a mapping.")
+
+    setup = copy.deepcopy(dict(data.get("setup", {})))
+    output = copy.deepcopy(dict(data.get("output", {})))
+    stop = copy.deepcopy(dict(data.get("stop", {})))
+    resolved: dict[str, Any] = {}
+
+    def merge(values: Mapping[str, Any], source: str) -> None:
+        duplicate = set(resolved).intersection(values)
+        if duplicate:
+            raise ProviderConfigurationError(
+                f"Duplicate executor parameter in {source}: {', '.join(sorted(duplicate))}."
+            )
+        resolved.update(copy.deepcopy(dict(values)))
+
+    merge({name: data[name] for name in EXECUTOR_PARAMETER_GLOBALS if name in data}, "parameters")
+
+    velocities = setup.pop("velocities", None)
+    regulator = setup.pop("regulator", None)
+    optimizer = setup.pop("optimizer", None)
+    if regulator is not None and optimizer is not None:
+        raise ProviderConfigurationError("Executor setup cannot define both regulator and optimizer.")
+    merge(setup, "setup")
+
+    if velocities is not None:
+        if not isinstance(velocities, Mapping):
+            raise ProviderConfigurationError("Executor setup.velocities must be a mapping.")
+        velocities = copy.deepcopy(dict(velocities))
+        initialize = velocities.pop("initialize", "if_missing")
+        if initialize not in ("if_missing", "always"):
+            raise ProviderConfigurationError(
+                "Executor setup.velocities.initialize must be 'if_missing' or 'always'."
+            )
+        translated = {"ignore_atoms_velocities": initialize == "always"}
+        for public, internal in {
+            "seed": "velocity_seed",
+            "remove_translation": "remove_translation",
+            "remove_rotation": "remove_rotation",
+        }.items():
+            if public in velocities:
+                translated[internal] = velocities.pop(public)
+        if "temperature" in velocities:
+            translated["temp"] = velocities.pop("temperature")
+        if velocities:
+            raise ProviderConfigurationError(
+                f"Unknown executor velocity fields: {', '.join(sorted(velocities))}."
+            )
+        merge(translated, "setup.velocities")
+
+    choice = regulator if regulator is not None else optimizer
+    if choice is not None:
+        label = "regulator" if regulator is not None else "optimizer"
+        if not isinstance(choice, Mapping):
+            raise ProviderConfigurationError(f"Executor setup.{label} must be a mapping.")
+        choice = copy.deepcopy(dict(choice))
+        name = choice.pop("name", None)
+        parameters_ = choice.pop("parameters", {})
+        targets = choice.pop("targets", {}) if label == "regulator" else {}
+        if not isinstance(name, str) or not name:
+            raise ProviderConfigurationError(f"Executor setup.{label}.name must be a nonempty string.")
+        if not isinstance(parameters_, Mapping) or not isinstance(targets, Mapping):
+            raise ProviderConfigurationError(f"Executor setup.{label} parameters and targets must be mappings.")
+        if choice:
+            raise ProviderConfigurationError(
+                f"Unknown executor {label} fields: {', '.join(sorted(choice))}."
+            )
+        merge({"controller": {"name": name, "params": copy.deepcopy(dict(parameters_))}}, f"setup.{label}")
+        if label == "regulator":
+            unknown_targets = set(targets) - {"temperature", "pressure"}
+            if unknown_targets:
+                raise ProviderConfigurationError(
+                    f"Unknown regulator targets: {', '.join(sorted(unknown_targets))}."
+                )
+            translated_targets = {}
+            if "temperature" in targets:
+                translated_targets["temp"] = targets["temperature"]
+            if "pressure" in targets:
+                translated_targets["press"] = targets["pressure"]
+            merge(translated_targets, "setup.regulator.targets")
+
+    unknown_output = set(output) - {"trajectory", "checkpoint"}
+    if unknown_output:
+        raise ProviderConfigurationError(f"Unknown executor output fields: {', '.join(sorted(unknown_output))}.")
+    trajectory = output.get("trajectory", {})
+    checkpoint = output.get("checkpoint", {})
+    if not isinstance(trajectory, Mapping) or set(trajectory) - {"period"}:
+        raise ProviderConfigurationError("Executor output.trajectory accepts only period.")
+    if not isinstance(checkpoint, Mapping) or set(checkpoint) - {"period", "keep"}:
+        raise ProviderConfigurationError("Executor output.checkpoint accepts only period and keep.")
+    translated_output = {}
+    if "period" in trajectory:
+        translated_output["dump_period"] = trajectory["period"]
+    if "period" in checkpoint:
+        translated_output["ckpt_period"] = checkpoint["period"]
+    if "keep" in checkpoint:
+        translated_output["ckpt_number"] = checkpoint["keep"]
+    merge(translated_output, "output")
+    merge(stop, "stop")
+
+    if method == "md":
+        ensemble = resolved.get("ensemble", "nve")
+        has_regulator = regulator is not None
+        has_temperature = "temp" in resolved and has_regulator
+        has_pressure = "press" in resolved and has_regulator
+        if ensemble == "nve" and has_regulator:
+            raise ProviderConfigurationError("NVE executor setup must not define a regulator.")
+        if ensemble == "nvt" and (not has_temperature or has_pressure):
+            raise ProviderConfigurationError("NVT executor setup requires only a temperature regulator target.")
+        if ensemble == "npt" and (not has_temperature or not has_pressure):
+            raise ProviderConfigurationError("NPT executor setup requires temperature and pressure regulator targets.")
+    return resolved
 
 
 def _broadcast_target(parameters: Any, parts: tuple[str, ...], label: str):
@@ -374,6 +503,8 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         raise ProviderConfigurationError(f"{label.capitalize()} parameters must be a mapping.")
     if require_method and not method:
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
+    if label == "executor":
+        resolve_executor_parameters(parameters, method)
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
     if label == "modifier":
