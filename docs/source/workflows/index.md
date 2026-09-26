@@ -21,6 +21,7 @@ gdp workflow status workflow.yaml
 
 operations
 active-learning
+active-learning-emt-nnp
 compute_select
 react
 explore_GA

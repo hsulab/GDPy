@@ -65,8 +65,9 @@ The original variables are represented as typed resources:
   reusable objects consumed by steps.
 - `current_potential`, `training_data`, and `test_data` are committed state
   values used to rebuild dependent resources for every iteration.
-- Dataset transfer writes immutable iteration deltas and returns named training
-  and test snapshots; it never modifies the initial dataset directories.
+- Dataset transfer writes new extxyz shards into central, system-specific
+  artifact directories and returns named training and test snapshots. Initial
+  datasets remain in place and are referenced by their root paths.
 
 The training step initializes from the models in `current_potential`. Its output
 becomes the next iteration's potential, so there is no `active` flag, model-path
@@ -149,3 +150,30 @@ iterations run. Re-running the same command resumes from the saved iteration
 state rather than replacing completed calculation directories.
 The state manifest is committed before an iteration is marked finished, so an
 interrupted iteration cannot publish a partial dataset or potential.
+
+## Durable artifacts
+
+Loop state is a small pointer layer over append-only artifacts:
+
+```text
+<run>/
+├── artifacts/
+│   ├── datasets/<state>/
+│   │   ├── systems/<system>/{0000,0001,...}.xyz
+│   │   └── versions/{initial,0000,0001,...}.yaml
+│   └── models/<state>/
+│       ├── initial.yaml
+│       └── iterations/{0000,0001,...}.yaml
+└── state/
+    ├── initial.yaml
+    ├── current.yaml
+    └── iterations/{0000,0001,...}.yaml
+```
+
+Dataset version manifests are provider-independent. The initial manifest stores
+the existing dataset root without enumerating its files, while later versions
+group only newly collected extxyz shard paths by system. Trainers may
+materialize provider-specific inputs such as DeepMD data from that canonical
+snapshot. Model manifests similarly record the potential configuration and
+refer to model files by path. Artifact content is not copied or hashed, avoiding
+full scans of large datasets and checkpoints during state commits.
