@@ -11,11 +11,18 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    timestep: 1.0
-    steps: 1000
+    setup:
+      ensemble: nvt
+      timestep: 1.0
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+        parameters: {}
+    stop:
+      steps: 1000
   broadcast:
-    temp: [300, 600, 900]
+    setup.regulator.targets.temperature: [300, 600, 900]
 ```
 
 With `gdp compute`, the resolved runtimes use `w0`, `w1`, and `w2` in the same
@@ -33,13 +40,17 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    controller:
-      name: berendsen
-      params: {}
+    setup:
+      ensemble: nvt
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+        parameters:
+          Tdamp: 50.0
   broadcast:
-    temp: [300, 600]
-    controller.params.Tdamp: [50.0, 100.0]
+    setup.regulator.targets.temperature: [300, 600]
+    setup.regulator.parameters.Tdamp: [50.0, 100.0]
 ```
 
 The combinations are `(300, 50)`, `(300, 100)`, `(600, 50)`, and

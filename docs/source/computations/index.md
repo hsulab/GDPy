@@ -33,8 +33,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 100
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 The potential supplies energies and forces. The executor controls the

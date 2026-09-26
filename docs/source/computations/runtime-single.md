@@ -2,8 +2,8 @@
 
 A single runtime defines exactly one potential/executor pairing. Use `spc` for
 single-point evaluation, `min` for minimization, and `md` for molecular
-dynamics. Executor parameters are settings such as `steps`, `fmax`,
-`constraint`, `ensemble`, and `dump_period`.
+dynamics. Executor parameters use the common `setup`, `output`, and `stop`
+sections. Provider adapters translate those public sections into native settings.
 
 The {doc}`potential guides <../potentials/providers>` describe the model-specific
 part of the configuration. A registered pairing does not guarantee that every
@@ -68,8 +68,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 300
+    stop:
+      fmax: 0.05
+      steps: 300
 modifiers:
   - provider: builtin
     method: distance_harmonic

@@ -27,10 +27,17 @@ resources:
       provider: ase
       method: md
       parameters:
-        ensemble: nvt
-        steps: 1000
+        setup:
+          ensemble: nvt
+          regulator:
+            name: berendsen
+            targets:
+              temperature: 300
+            parameters: {}
+        stop:
+          steps: 1000
       broadcast:
-        temp: [300, 600]
+        setup.regulator.targets.temperature: [300, 600]
 
   production_md:
     __type__: executor
@@ -38,10 +45,17 @@ resources:
       provider: ase
       method: md
       parameters:
-        ensemble: nvt
-        steps: 10000
+        setup:
+          ensemble: nvt
+          regulator:
+            name: berendsen
+            targets:
+              temperature: 300
+            parameters: {}
+        stop:
+          steps: 10000
       broadcast:
-        temp: [300, 600]
+        setup.regulator.targets.temperature: [300, 600]
 
   equilibrate:
     __type__: runtime

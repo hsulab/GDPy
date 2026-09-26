@@ -12,17 +12,24 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    temp: 300
-    timestep: 1.0
-    steps: 100
-    dump_period: 10
-    velocity_seed: 7
     random_seed: 7
-    controller:
-      name: berendsen
-      params:
-        Tdamp: 100.0
+    setup:
+      ensemble: nvt
+      timestep: 1.0
+      velocities:
+        initialize: if_missing
+        seed: 7
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+        parameters:
+          Tdamp: 100.0
+    output:
+      trajectory:
+        period: 10
+    stop:
+      steps: 100
 ```
 
 From the repository root:
@@ -31,10 +38,11 @@ From the repository root:
 gdp -d md-demo -r examples/compute/tasks/molecular-dynamics.yaml compute examples/compute/tasks/md.xyz
 ```
 
-`temp` is in K, `timestep` and `Tdamp` are in fs. This example runs 100 fs
-and saves every ten steps. `velocity_seed` controls velocity initialization;
-`random_seed` controls the executor’s random generator. Existing input
-velocities are retained unless `ignore_atoms_velocities: true` is set.
+The regulator temperature is in K; `timestep` and `Tdamp` are in fs. This
+example runs 100 fs and saves every ten steps. `velocities.seed` controls
+velocity initialization; the parameters-level `random_seed` controls the
+executor’s random generator. `initialize: if_missing` retains existing nonzero
+velocities.
 
 To run the same calculation independently at several temperatures, add an
 explicit executor broadcast. Broadcast keys are paths relative to
@@ -47,12 +55,21 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: nvt
-    timestep: 1.0
-    steps: 100
-    dump_period: 10
+    setup:
+      ensemble: nvt
+      timestep: 1.0
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+        parameters: {}
+    output:
+      trajectory:
+        period: 10
+    stop:
+      steps: 100
   broadcast:
-    temp: [300, 600, 900]
+    setup.regulator.targets.temperature: [300, 600, 900]
 ```
 
 This creates three workers in `w0`, `w1`, and `w2`. Lists that are not named
@@ -64,8 +81,8 @@ This is a short execution demo, not an equilibrated production trajectory.
 
 ## Other ensembles
 
-For NVE, set `ensemble: nve` and remove `controller`; gdpx uses velocity Verlet.
-`temp` then controls initial velocities, not a thermostat target.
+For NVE, set `setup.ensemble: nve`, omit the regulator, and put the initial
+temperature under `setup.velocities`; gdpx uses velocity Verlet.
 
 The registered ASE NPT configuration has this shape:
 
@@ -74,23 +91,30 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble: npt
-    temp: 300
-    press: 1.0
-    timestep: 1.0
-    steps: 100
-    dump_period: 10
-    velocity_seed: 7
-    controller:
-      name: berendsen
-      params:
-        Tdamp: 100.0
-        Pdamp: 1000.0
-        compressibility: 0.000001
+    setup:
+      ensemble: npt
+      timestep: 1.0
+      velocities:
+        initialize: if_missing
+        seed: 7
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 300
+          pressure: 1.0
+        parameters:
+          Tdamp: 100.0
+          Pdamp: 1000.0
+          compressibility: 0.000001
+    output:
+      trajectory:
+        period: 10
+    stop:
+      steps: 100
 ```
 
-`press` is in bar. NPT requires a stress-capable potential and a suitable
-periodic bulk structure. The current ASE Berendsen adapter has a known
+The pressure target is in bar. NPT requires a stress-capable potential and a
+suitable periodic bulk structure. The current ASE Berendsen adapter has a known
 compressibility conversion defect: it multiplies the supplied value by itself
 before converting from inverse bar. The configuration above documents its
 interface, but should not be used for quantitative NPT work until that adapter

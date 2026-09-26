@@ -14,8 +14,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 300
+    stop:
+      fmax: 0.05
+      steps: 300
 ```
 
 Choose the guide that matches how the runtime will be used:
@@ -46,3 +47,14 @@ version so incompatible persisted data can be rejected.
 
 Use the shared {doc}`units <../units>` unless a parameter explicitly documents
 another unit.
+
+Executor parameters are organized consistently across tasks:
+
+- `random_seed` controls all stochastic behavior unless a subsection overrides it.
+- `setup` selects the algorithm and initial calculation state.
+- `output` controls trajectories and restart checkpoints.
+- `stop` contains step limits and convergence criteria.
+
+Molecular dynamics may add `setup.velocities` and `setup.regulator`; fixed-cell
+and cell minimization may add `setup.optimizer`. Flat executor parameters remain
+accepted for compatibility, but they cannot be mixed with the structured form.

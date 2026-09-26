@@ -15,8 +15,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 300
+    stop:
+      fmax: 0.05
+      steps: 300
 dispatch:
   worker: batch
   batch_size: 16
