@@ -139,7 +139,9 @@ gdpx stages the working tree and runs submission and status commands on the
 remote host. Completed files are synchronized before convergence is checked.
 
 `dispatch.batch_size` controls how many structures are assigned to a queued
-task. Direct execution uses one synchronous batch regardless of transport.
+task. Direct execution uses one batch regardless of transport. By default the
+calculations in that batch run sequentially; `concurrent_tasks` can opt into
+bounded concurrent execution as described below.
 
 ## Slurm CPU allocation
 
@@ -169,9 +171,10 @@ keys such as `cpus-per-task` are scheduler parameters, not executor settings.
 This example requests one process with four CPU threads per queued job.
 `batch_size: 10` groups up to ten structures into a job; it is not a CPU count.
 
-For an MPI simulator, request the required `ntasks` and configure its launch
-command under the potential, such as `command: srun vasp_std`. The scheduler
-allocation alone does not add an MPI launcher to the calculator command.
+For an MPI simulator, request the required allocation and set the scheduler's
+`machine_prefix`, such as `machine_prefix: srun --exact -n 4 -c 1`. Keep the
+potential command itself as `vasp_std` or the corresponding simulator command;
+the scheduler allocation alone does not add an MPI launcher.
 
 Prepare, submit, inspect, and collect using the same output directory:
 
@@ -213,6 +216,65 @@ The queue normally sets device visibility. Do not override its assigned GPU
 IDs with the workstation example’s `CUDA_VISIBLE_DEVICES=0`. Select a suitable
 calculator device under the potential parameters. This allocation supplies
 one GPU per job; gdpx does not automatically split a model across multiple GPUs.
+
+## Concurrent calculations in one allocation
+
+Slurm and direct schedulers accept `concurrent_tasks`, the maximum number of
+independent calculations run at once inside one batch. `dispatch.batch_size`
+remains the total number assigned to the allocation. For example, a batch of
+100 structures with `concurrent_tasks: 4` runs in 25 bounded waves. The generated
+script uses loops, so its size does not grow with the batch.
+
+For 256 allocated CPUs and four concurrent pure-MPI VASP calculations using
+64 ranks each:
+
+```yaml
+scheduler:
+  provider: slurm
+  parameters:
+    nodes: 2                  # Adjust for the site's cores per node.
+    ntasks: 256
+    ntasks-per-node: 128
+    cpus-per-task: 1
+    time: "03:00:00"
+    concurrent_tasks: 4
+    machine_prefix: >-
+      srun --exact -N 1 -n 64 -c 1 --cpu-bind=cores
+    environs: |
+      export OMP_NUM_THREADS=1
+dispatch:
+  batch_size: 100
+```
+
+The step size is `ntasks * cpus-per-task`: `srun -n 64 -c 1` uses 64 CPUs,
+whereas `srun -n 64 -c 4` uses all 256 CPUs and permits only one such step in
+this allocation. GDPy does not derive or validate this arithmetic; the total
+resources of simultaneous steps must fit the allocation.
+
+The same mechanism supports external GPU applications. Request all GPUs in the
+allocation, make each `machine_prefix` step request one GPU, and set
+`concurrent_tasks` to the number of steps that fit:
+
+```yaml
+scheduler:
+  provider: slurm
+  parameters:
+    nodes: 1
+    ntasks-per-node: 4
+    cpus-per-task: 32
+    gpus-per-task: 1
+    concurrent_tasks: 4
+    machine_prefix: >-
+      srun --exact -N 1 -n 1 -c 32 --gpus-per-task=1
+dispatch:
+  batch_size: 8
+```
+
+`machine_prefix` wraps the external VASP/LAMMPS command, not `gdp`; wrapping
+`gdp` with `srun -n 64` would start 64 duplicate controllers. Concurrent shared
+working directories are rejected. Python-native GPU calculators do not use the
+external command prefix, so per-task GPU isolation for them is not provided by
+this option. PBS and LSF currently require `concurrent_tasks: 1`.
 
 ## PBS and LSF
 
