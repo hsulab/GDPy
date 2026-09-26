@@ -102,7 +102,7 @@ class explore(Operation):
 
         return
 
-    def forward(self, exploration, dyn_worker, scheduler, continuation):
+    def forward(self, exploration, dyn_worker, scheduler, continuation=None):
         """Explore an exploration and forward results for further analysis.
 
         Returns:
@@ -125,7 +125,10 @@ class explore(Operation):
         if len(continuations) != len(explorations):
             raise ValueError("Exploration continuation count does not match explorations.")
         for current, previous in zip(explorations, continuations):
-            current.restore_continuation(previous)
+            if hasattr(current, "restore_continuation"):
+                current.restore_continuation(previous)
+            elif previous is not None:
+                raise TypeError(f"{type(current).__name__} does not support workflow continuation.")
 
         if isinstance(dyn_worker, (Runtime, Mapping)):
             dyn_worker = create_worker(dyn_worker)
@@ -148,7 +151,12 @@ class explore(Operation):
         else:
             return NamedOutputs(results=[], continuation=continuation)
 
-        next_continuations = tuple(current.capture_continuation() for current in explorations)
+        next_continuations = tuple(
+            current.capture_continuation()
+            if hasattr(current, "capture_continuation")
+            else None
+            for current in explorations
+        )
         continuation_output = next_continuations[0] if len(next_continuations) == 1 else next_continuations
         return NamedOutputs(results=basic_workers, continuation=continuation_output)
 
