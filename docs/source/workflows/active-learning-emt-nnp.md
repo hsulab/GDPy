@@ -29,6 +29,9 @@ This is intentionally the smallest closed data-and-model loop. It labels every
 sampled frame and does not include uncertainty selection. A production workflow
 would normally insert selection between `sample` and `label`.
 
+The dependency-ordered step directories are `0000.read`, `0001.sample`,
+`0002.label`, `0003.collect`, and `0004.train`.
+
 The loop runs three iterations. Its durable outputs are centralized without
 duplicating trained models:
 

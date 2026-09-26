@@ -7,16 +7,16 @@ parameters:
 
 workflow:
   mode: repeat
-  targets: train_nnp
+  targets: train
   max_iterations: 3
 
 state:
   potential:
     initial: seed_nnp
-    update: train_nnp
+    update: train
   training_data:
     initial: seed_data
-    update: {node: update_data, output: dataset}
+    update: {node: collect, output: dataset}
 
 resources:
   seed_data:
@@ -98,7 +98,7 @@ resources:
       executor: spc
 
 steps:
-  initial_structure:
+  read:
     __type__: read_stru
     options:
       fname: {$param: initial_structure}
@@ -106,7 +106,7 @@ steps:
   sample:
     __type__: compute
     inputs:
-      structures: initial_structure
+      structures: read
       runtime: sampling_runtime
 
   label:
@@ -115,7 +115,7 @@ steps:
       structures: sample
       runtime: labeling_runtime
 
-  update_data:
+  collect:
     __type__: transfer
     inputs:
       structures: label
@@ -126,10 +126,10 @@ steps:
       suffix: bulk
       version: emt
 
-  train_nnp:
+  train:
     __type__: train
     inputs:
-      dataset: {node: update_data, output: dataset}
+      dataset: {node: collect, output: dataset}
       trainer: nnp_trainer
       potential: potential
     options:
