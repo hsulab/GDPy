@@ -230,7 +230,7 @@ def main():
         config.GRNG = np.random.default_rng(random_seed)
     else:
         random_seed = config._random_seed
-    state_print = config._debug if args.subcommand == "explore" else config._print
+    state_print = config._debug if args.subcommand in {"explore", "compute"} else config._print
     state_print(f"GLOBAL RANDOM SEED : {random_seed}")
 
     rng_state = config.GRNG.bit_generator.state
@@ -321,6 +321,11 @@ def main():
             job=args.job,
             task=args.task,
             worker_index=args.worker,
+            random_provenance={
+                "global_seed": random_seed,
+                "seed_source": "command_line" if args.random_seed is not None else "generated",
+                "bit_generator": type(config.GRNG.bit_generator).__name__,
+            },
         )
     elif args.subcommand == "validate":
         from .cli.validate import run_validation
@@ -332,10 +337,11 @@ def main():
         ...
 
     # Report the end random state
-    config._print(f"GLOBAL RANDOM SEED : {random_seed}")
+    end_state_print = config._debug if args.subcommand == "compute" else config._print
+    end_state_print(f"GLOBAL RANDOM SEED : {random_seed}")
     rng_state = config.GRNG.bit_generator.state
     for l in dictionary_to_string(rng_state).split("\n"):
-        config._print(l)
+        end_state_print(l)
 
     return
 

@@ -41,10 +41,12 @@ def run_computation(
     worker_index: int = 0,
     job: Optional[Union[str, pathlib.Path]] = None,
     task: Optional[int] = None,
+    random_provenance: Optional[dict] = None,
 ):
     """Prepare or advance one explicit compute lifecycle."""
     action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
     plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
+    compute_plan = None
 
     if job is not None:
         if action != "run" or plan is not None:
@@ -91,7 +93,10 @@ def run_computation(
     if action == "prepare":
         if runtime is None:
             raise RuntimeError("`gdp compute prepare` requires `--runtime`.")
-        result = prepare_compute(load_runtime_input(runtime), structures[1:], directory)
+        result = prepare_compute(
+            load_runtime_input(runtime), structures[1:], directory,
+            random_provenance=random_provenance,
+        )
     elif action == "submit":
         result = submit_compute(plan_path, batches=None if batch is None else [batch])
     elif action == "run":
@@ -107,7 +112,10 @@ def run_computation(
     else:
         if runtime is None:
             raise RuntimeError("`gdp compute` requires `--runtime`.")
-        compute_plan = prepare_compute(load_runtime_input(runtime), structures, directory)
+        compute_plan = prepare_compute(
+            load_runtime_input(runtime), structures, directory,
+            random_provenance=random_provenance,
+        )
         if spawn:
             result = submit_compute(compute_plan, batches=None if batch is None else [batch])
         else:
@@ -126,5 +134,10 @@ def run_computation(
         box.line(f'plan: {result.path}')
     else:
         box.line(f'worker: {result.worker}   batch: {result.batch}   finished: {str(result.finished).lower()}')
+    seed_plan = result if hasattr(result, 'workers') else compute_plan
+    if seed_plan is not None:
+        task_count = sum(len(batch.tasks) for worker in seed_plan.workers for batch in worker.batches)
+        task_label = 'task' if task_count == 1 else 'tasks'
+        box.line(f'random seeds: {task_count} {task_label} recorded in {seed_plan.structure_file}')
     box.border('bottom')
     return result

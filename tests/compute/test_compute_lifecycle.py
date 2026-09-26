@@ -50,6 +50,89 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
     assert prepare_compute(config, [_cu()], tmp_path).plan_id == plan.plan_id
 
 
+def test_prepare_persists_random_provenance_with_resolved_task_seeds(tmp_path):
+    provenance = {
+        "global_seed": 12345,
+        "seed_source": "command_line",
+        "bit_generator": "PCG64",
+    }
+
+    plan = prepare_compute(
+        _emt_config(), [_cu()], tmp_path, random_provenance=provenance
+    )
+    loaded = load_compute_plan(tmp_path)
+
+    assert plan.random_provenance == loaded.random_provenance == provenance
+    assert isinstance(loaded.workers[0].batches[0].tasks[0].random_seed, int)
+
+
+def test_compute_prepare_reports_persisted_task_seeds_only(tmp_path, monkeypatch):
+    from gdpx.cli import compute as compute_cli
+
+    lines = []
+
+    class RecordingBox:
+        def __init__(self, title):
+            lines.append(title)
+
+        def line(self, message):
+            lines.append(message)
+
+        def border(self, kind):
+            pass
+
+    monkeypatch.setattr(compute_cli, "Box", RecordingBox)
+    compute_cli.run_computation(
+        ["prepare", _cu()],
+        _emt_config(),
+        directory=tmp_path,
+        random_provenance={"global_seed": 12345, "bit_generator": "PCG64"},
+    )
+
+    assert "random seeds: 1 task recorded in _meta/inputs.json" in lines
+    assert not any("GLOBAL RANDOM SEED" in line or "bit_generator:" in line for line in lines)
+
+
+def test_compute_global_rng_states_are_debug_only(tmp_path, monkeypatch):
+    import sys
+
+    from gdpx import config
+    from gdpx import main as main_module
+    from gdpx.cli import compute as compute_cli
+
+    messages = []
+    diagnostics = []
+    call = {}
+    monkeypatch.setattr(config, "_print", messages.append)
+    monkeypatch.setattr(config, "_debug", diagnostics.append)
+    monkeypatch.setattr(compute_cli, "run_computation", lambda *args, **kwargs: call.update(kwargs))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "gdp",
+            "--random_seed",
+            "12345",
+            "--directory",
+            str(tmp_path),
+            "--log",
+            "",
+            "compute",
+            "status",
+        ],
+    )
+
+    main_module.main()
+
+    assert not any("GLOBAL RANDOM SEED" in message for message in messages)
+    assert sum("GLOBAL RANDOM SEED : 12345" in message for message in diagnostics) == 2
+    assert call["random_provenance"] == {
+        "global_seed": 12345,
+        "seed_source": "command_line",
+        "bit_generator": "PCG64",
+    }
+
+
 def test_prepare_expands_executor_broadcast_like_an_explicit_runtime_list(tmp_path):
     config = _emt_config()
     config["executor"]["broadcast"] = {"steps": [1, 2]}

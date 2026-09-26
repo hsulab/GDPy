@@ -76,6 +76,7 @@ class ComputePlan:
     structure_digest: str
     config: Union[dict, list]
     workers: tuple[WorkerPlan, ...]
+    random_provenance: dict = dataclasses.field(default_factory=dict)
 
     @property
     def path(self) -> pathlib.Path:
@@ -109,6 +110,7 @@ class ComputePlan:
             structure_digest=data["structure_digest"],
             config=data["config"],
             workers=tuple(workers),
+            random_provenance=data.get("random_provenance", {}),
         )
 
 
@@ -277,6 +279,8 @@ def prepare_compute(
     config: Union[str, pathlib.Path, dict, list],
     structures: Iterable[Union[str, pathlib.Path, Atoms]],
     directory: Union[str, pathlib.Path],
+    *,
+    random_provenance: Optional[dict] = None,
 ) -> ComputePlan:
     directory = pathlib.Path(directory).resolve()
     normalised_config = _normalise_config(config)
@@ -341,6 +345,7 @@ def prepare_compute(
         structure_digest=digest,
         config=normalised_config,
         workers=tuple(worker_plans),
+        random_provenance=normalise_value(copy.deepcopy(random_provenance or {})),
     )
     metadata.freeze_calculations(requests, complete=True, plan=plan.to_dict())
     metadata.ensure()
