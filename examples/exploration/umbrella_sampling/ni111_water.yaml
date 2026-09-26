@@ -24,7 +24,7 @@ runtime:
 system:
   builder:
     method: read_stru
-    fname: examples/compute/ni111_water_restraint/structure.xyz
+    fname: examples/compute/assets/ni111_water.xyz
   collective_variable:
     method: distance
     group: "`index 8 10`"

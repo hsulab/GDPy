@@ -37,23 +37,19 @@ interpolation. `climb: false` starts with ordinary NEB. Use a sufficiently
 converged path before enabling a climbing image. `fmax` and `steps` control
 path optimization; `constraint: "1:8"` fixes atoms 1 through 8.
 
-The current `gdp compute` lifecycle accepts driver workers only and rejects
-NEB reactor workers. Run this demo through the reactor worker API:
+Generate the endpoints, then run the path through the same one-shot
+`gdp compute` interface used by other tasks:
 
 ```shell
 python examples/compute/tasks/generate.py
-python examples/compute/tasks/run_neb.py
+gdp -d neb-demo -r examples/compute/tasks/neb.yaml \
+    compute examples/compute/tasks/endpoints.xyz
 ```
 
-The script loads the YAML, passes the ordered endpoints as one path, runs it, and
-retrieves the result:
-
-```python
-worker = create_worker(config, directory="neb-demo")
-worker.run(endpoints)
-worker.inspect(endpoints)
-paths = worker.retrieve(include_retrieved=True)
-```
+The one-shot interface accepts a reactor runtime, treats the ordered structures
+as one path, executes or submits it, and collects the final band. The explicit
+`prepare`, `submit`, `status`, and `collect` lifecycle actions remain limited to
+ordinary driver tasks.
 
 For multiple paths, supply a flat list of images tagged with consecutive
 `atoms.info["rxn_grp"]` group numbers. Untagged images form one path; do not
@@ -61,6 +57,35 @@ pass a nested Python list to this worker.
 
 Inspect the image trajectories in `neb-demo` and check convergence before
 using the energy profile as a barrier.
+
+## NEB: O-H dissociation on Ni(111)
+
+The repository also includes `examples/compute/ni111_water_neb/`, an
+illustrative O-H dissociation path using the same Ni(111)/water structure as
+the restraint-window example. Its `structure.xyz` is a relative link to the
+canonical two-frame endpoint asset under `examples/compute/assets/`, so the
+example remains directly runnable without duplicating structures.
+
+Install the ReaxFF extra and run from the example directory:
+
+```shell
+python -m pip install -e '.[reax]'
+cd examples/compute/ni111_water_neb
+gdp -d _run -r runtime.yaml compute structure.xyz
+```
+
+The linked input contains the independently minimized molecular-water IS and
+dissociated OH + H FS from xreac's validated Ni(111) seven-image path. Its
+validation record reports endpoint forces below 0.02 eV/Angstrom with the
+matching bundled 2026 ReaxFF model. The command runs a seven-image ASE NEB while
+the lower Ni layer remains fixed. The final band is written to
+`_run/results/end_frames.xyz`; detailed trajectory files remain under
+`_run/pair0/`.
+
+The supplied endpoints are minimized, but the short NEB settings remain a
+mechanics example rather than a converged dissociation barrier. Production work
+should converge the path, enable a climbing image when appropriate, and verify
+the saddle with vibrational analysis.
 
 (compute-dimer-example)=
 

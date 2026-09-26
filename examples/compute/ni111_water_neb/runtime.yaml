@@ -1,0 +1,25 @@
+potential:
+  provider: reax
+  backend: xreac
+  parameters:
+    model: bundled:ffield.reax.PtNiCHO.2026
+executor:
+  provider: ase
+  method: neb
+  parameters:
+    setup:
+      nimages: 7
+      interpolation:
+        mic: true
+      climb: false
+      constraint: lowest 4
+      optimizer:
+        name: bfgs
+        parameters:
+          maxstep: 0.1
+    output:
+      trajectory:
+        period: 5
+    stop:
+      fmax: 0.10
+      steps: 20

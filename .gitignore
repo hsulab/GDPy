@@ -22,6 +22,10 @@ cand*
 # output files in examples
 *.xyz
 !examples/compute/cu2_emt/structures.xyz
+!examples/compute/assets/ni111_water.xyz
+!examples/compute/assets/ni111_water_neb_endpoints.xyz
+!examples/compute/ni111_water_neb/structure.xyz
+!examples/compute/ni111_water_restraint/structure.xyz
 *.pbs
 *.slurm
 slurm.*

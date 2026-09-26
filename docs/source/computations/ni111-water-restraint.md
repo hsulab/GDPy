@@ -39,6 +39,10 @@ gdp -d run-ni-water-restraint \
     compute examples/compute/ni111_water_restraint/structure.xyz
 ```
 
+`structure.xyz` is a relative link to the shared, read-only Ni/water asset.
+Each calculation keeps its own runtime and generates its own outputs without
+copying the scientific input.
+
 The command creates `w0` through `w3` in broadcast order. Each worker runs a
 20-step NVT trajectory with a 0.25 fs timestep and takes the ReaxFF energy and
 forces as the host contribution. The modifier adds its energy and forces before
