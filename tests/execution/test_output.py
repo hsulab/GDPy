@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
@@ -67,6 +68,31 @@ def test_large_batch_and_spc_have_bounded_output(tmp_path):
     assert len(lines) < 20
     assert 'steps: -' in ' '.join(' '.join(lines).split())
     assert all(line.isascii() for line in lines)
+
+
+@pytest.mark.parametrize(
+    "unicode,left,right,rule",
+    [(True, "└", "┘", "─"), (False, "+", "+", "-")],
+)
+def test_elapsed_is_in_bottom_right_border(tmp_path, monkeypatch, unicode, left, right, rule):
+    import gdpx.execution.output as module
+
+    output = reporter(tmp_path)
+    output.started = 10.0
+    monkeypatch.setattr(module.time, "monotonic", lambda: 10.1)
+    lines = []
+    parent = Box("test", emit=lines.append, unicode=unicode)
+    with parent.as_parent():
+        output.collect([[frame(0, 10)], [frame(1, 90)]])
+
+    summary = next(line for line in lines if "results summarized:" in line)
+    footer = next(line for line in lines if "elapsed:" in line)
+    inner_footer = footer[2:-2]
+    assert "elapsed:" not in summary
+    assert inner_footer.startswith(left)
+    assert inner_footer.endswith(f" {rule}{right}")
+    assert inner_footer.index("elapsed:") > len(inner_footer) // 2
+    assert len(inner_footer) == parent.width - 4
 
 
 def test_selection_excludes_history_and_counts_failures(tmp_path):

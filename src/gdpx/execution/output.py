@@ -181,5 +181,6 @@ class WorkerReporter:
         box.line('steps:         ' + self.stats((value[1] for value in values), digits=1, width=width))
         box.line('energy [eV]:   ' + self.stats((value[0] for value in values), width=width))
         box.line('maxfrc [eV/Å]: ' + self.stats((value[2] for value in values), width=width))
-        box.line(f'results summarized: {len(values)}   elapsed this invocation: {time.monotonic()-self.started:.1f} s')
-        box.border('bottom')
+        box.line(f'results summarized: {len(values)}')
+        elapsed = time.monotonic() - self.started
+        box.border('bottom', f'elapsed: {elapsed:.1f} s', align='right')

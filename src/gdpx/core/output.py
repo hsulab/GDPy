@@ -64,14 +64,19 @@ class Box:
         finally:
             _PARENT.reset(token)
 
-    def border(self, kind, title=None):
+    def border(self, kind, title=None, align='left'):
         glyphs = {'top': ('┌', '┐'), 'middle': ('├', '┤'), 'bottom': ('└', '┘')}
         left, right = glyphs[kind] if self.unicode else ('+', '+')
         rule = '─' if self.unicode else '-'
         content = rule * (self.width - 2)
         if title:
             title = title if len(title) <= self.width - 6 else textwrap.shorten(title, self.width - 6, placeholder='...')
-            content = f'{rule} {title} '.ljust(self.width - 2, rule)
+            if align == 'right':
+                content = f' {title} {rule}'.rjust(self.width - 2, rule)
+            elif align == 'left':
+                content = f'{rule} {title} '.ljust(self.width - 2, rule)
+            else:
+                raise ValueError(f'Unknown border title alignment: {align}')
         self.emit(left + content + right)
 
     def line(self, message):
