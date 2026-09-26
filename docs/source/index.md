@@ -1,35 +1,44 @@
-% gdpx documentation master file, created by
-% sphinx-quickstart on Mon Aug 22 14:06:51 2022.
-% You can adapt this file completely to your liking, but it should at least
-% contain the root `toctree` directive.
-
-# gdpx documentation
-
-gdpx stands for **Generating Deep Potential with Python**, including
-a set of tools and Python modules to automate the structure exploration
-and the model training for **machine learning interatomic potentials** (MLIPs).
-It is developed and maintained by [Jiayan Xu] under supervision of Prof. [P. Hu]
-at Queen's University Belfast.
-
-:::{figure} ../../assets/logo.png
+:::{figure} ../../assets/gdpx-logo.png
 :align: center
-:alt: gdpx logo
+:alt: GDPx logo
 :width: 400
 :::
 
-## Supported **Potentials**
+# GDPy
 
-Classical models, machine-learning potentials, and electronic-structure
-interfaces are listed in the {doc}`potential provider overview <potentials/index>`.
+GDPy builds MLIP-driven workflows for atomistic simulation using advanced and
+newly developed structure-exploration methods. It integrates sampling, dataset
+construction, and model training into adaptive workflows.
 
-## Supported **Explorations**
+## Scope
 
-`molecular dynamics`, `genetic algorithm`, `grand canonical monte carlo`,
-`graph-theory adsorbate configuration`, `artificial force induced reaction`
+**Focused systems**, with an emphasis on heterogeneous catalysis:
+
+- metal oxides
+- supported clusters
+- disorder and amorphous surfaces
+- solid–liquid interfaces
+
+**Highlighted methods:**
+
+- molecular dynamics (accelerated dynamics and enhanced sampling)
+- monte carlo (canonical, semi-grand canonical, and grand canonical)
+- global optimisation (structures and reactions)
+
+## Get started
+
+Install GDPy by following the {doc}`installation guide <installation>`, then
+choose a complete workflow from the {doc}`quick examples <quick-examples>`.
+The {doc}`potential provider overview <potentials/index>` lists the available
+classical, machine-learning, and electronic-structure interfaces.
+
+% Keep the documentation hierarchy in the sidebar without rendering a large
+% index tree on the landing page.
 
 ```{toctree}
 :caption: 'Introduction:'
 :maxdepth: 2
+:hidden:
 
 about.md
 installation.md
@@ -38,6 +47,7 @@ installation.md
 ```{toctree}
 :caption: 'Basic Guides:'
 :maxdepth: 2
+:hidden:
 
 units
 quick-examples
@@ -47,6 +57,7 @@ quick-examples
 :caption: 'Define Potentials:'
 :maxdepth: 2
 :titlesonly:
+:hidden:
 
 overview <potentials/index>
 potentials <potentials/providers>
@@ -56,6 +67,7 @@ potentials <potentials/providers>
 :caption: 'Train Potentials:'
 :maxdepth: 2
 :titlesonly:
+:hidden:
 
 command: gdp train <trainers/index>
 potentials <trainers/potentials>
@@ -65,6 +77,7 @@ potentials <trainers/potentials>
 :caption: 'Batch Simulations:'
 :maxdepth: 2
 :titlesonly:
+:hidden:
 
 command: gdp compute <computations/index>
 demo and lifecycle <computations/compute>
@@ -77,6 +90,7 @@ machine resources <computations/schedulers>
 :caption: 'Build Structures:'
 :maxdepth: 2
 :titlesonly:
+:hidden:
 
 command: gdp build <builders/index>
 methods <builders/methods>
@@ -87,6 +101,7 @@ regions <builders/region>
 :caption: 'Select Structures:'
 :maxdepth: 2
 :titlesonly:
+:hidden:
 
 command: gdp select <selections/index>
 methods <selections/methods>
@@ -96,6 +111,7 @@ methods <selections/methods>
 :caption: 'Explore Structures:'
 :maxdepth: 1
 :titlesonly:
+:hidden:
 
 command: gdp explore <explorations/index>
 ```
@@ -104,6 +120,7 @@ command: gdp explore <explorations/index>
 :caption: 'Boltzmann Sampling:'
 :maxdepth: 4
 :titlesonly:
+:hidden:
 
 overview <explorations/sampling>
 monte carlo <explorations/mc>
@@ -115,6 +132,7 @@ operators <explorations/operators/index>
 :caption: 'Global Optimisation:'
 :maxdepth: 4
 :titlesonly:
+:hidden:
 
 overview <global_optimisation/index>
 global_optimisation/genetic-algorithm
@@ -126,6 +144,7 @@ global_optimisation/output
 ```{toctree}
 :caption: 'Advanced Guides:'
 :maxdepth: 2
+:hidden:
 
 workflows/index
 ```
@@ -133,6 +152,7 @@ workflows/index
 ```{toctree}
 :caption: 'Developer Guides:'
 :maxdepth: 2
+:hidden:
 
 extensions/index
 architecture
@@ -145,6 +165,7 @@ data/index
 ```{toctree}
 :caption: 'Gallery:'
 :maxdepth: 2
+:hidden:
 
 applications/index
 references
@@ -161,6 +182,3 @@ references
 % * :ref:`modindex`
 
 % * :ref:`search`
-
-[jiayan xu]: https://scholar.google.com/citations?user=ue5SBQMAAAAJ&hl=en
-[p. hu]: https://scholar.google.com/citations?user=GNuXfeQAAAAJ&hl=en
