@@ -21,6 +21,7 @@ cand*
 
 # output files in examples
 *.xyz
+!examples/compute/cu2_emt/structures.xyz
 *.pbs
 *.slurm
 slurm.*
