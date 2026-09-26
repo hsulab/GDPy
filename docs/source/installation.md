@@ -33,6 +33,31 @@ effect without reinstalling:
 python -m pip install -e .
 ```
 
+## CPU-only installation
+
+For DeepMD 3 (PyTorch and TensorFlow), TACE, and MatterSim, use the command for
+your platform from the repository root.
+
+### macOS
+
+PyTorch's macOS wheels use the plain version number and are installed from
+PyPI. On both Apple Silicon and Intel macOS, run:
+
+```shell
+python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0'
+```
+
+### Linux
+
+Linux CPU wheels use the `+cpu` suffix and PyTorch's CPU wheel index:
+
+```shell
+python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+This uses DeepMD's `deepmd3-cpu` extra for TensorFlow and CPU PyTorch wheels
+for Torch-based providers.
+
 For GPU potential packages, use the installation command below instead.
 Add `-e` to that command if you also want an editable installation.
 
@@ -56,21 +81,9 @@ validated end to end.
 
 This selects the CUDA-enabled packages even when no GPU is visible during
 installation. Git is required for TACE. GPU execution requires a compatible
-NVIDIA driver on the compute node; `CONDA_OVERRIDE_CUDA` is unnecessary.
-
-### CPU execution
-
-The same installation can run standard DeepMD, TACE, and MatterSim calculations
-on CPUs; a GPU is not required. It includes CUDA libraries for later GPU use,
-so it is larger than a CPU-only installation. For a CPU-only environment,
-run this from the repository root on Linux:
-
-```shell
-python -m pip install '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
-```
-
-This uses DeepMD's `deepmd3-cpu` extra for TensorFlow and CPU PyTorch wheels
-for Torch-based providers.
+NVIDIA driver on the compute node; `CONDA_OVERRIDE_CUDA` is unnecessary. The
+GPU installation can also run calculations on CPUs, but includes CUDA
+libraries and is therefore larger than the CPU-only installation.
 
 (gpu-verification)=
 
