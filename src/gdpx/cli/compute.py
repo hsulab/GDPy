@@ -5,6 +5,9 @@ from __future__ import annotations
 import pathlib
 from typing import Optional, Union
 
+from ase import Atoms
+from ase.io import write
+
 from gdpx.core.output import Box
 from gdpx.execution.output import reporting_session
 from gdpx.execution.lifecycle import (
@@ -26,6 +29,44 @@ LIFECYCLE_ACTIONS = {"prepare", "submit", "run", "status", "resubmit", "collect"
 def load_runtime_input(value):
     """Load a runtime mapping or explicit runtime list without adapting legacy forms."""
     return parse_input_file(value) if isinstance(value, (str, pathlib.Path)) else value
+
+
+def _run_reactor_once(worker, structures, directory, archive=False):
+    """Run the historical reactor worker behind the one-shot compute interface."""
+    from gdpx.execution.lifecycle import ComputeResult, ComputeStatus
+    from gdpx.structures.builders.factory import canonicalise_builder
+
+    frames = []
+    for source in structures:
+        builder = canonicalise_builder(source)
+        if builder is None:
+            raise RuntimeError(f"Cannot create structures from input {source!r}.")
+        frames.extend(builder.run())
+    if len(frames) < 2:
+        raise RuntimeError("A reactor computation requires at least two path images.")
+
+    worker.run(frames)
+    worker.inspect(resubmit=True)
+    running = worker.get_number_of_running_jobs()
+    total = len(worker.job_store.get_queued())
+    if running:
+        return ComputeStatus("reactor", "running", running, 0, 0, total)
+
+    trajectories = worker.retrieve(include_retrieved=True, use_archive=archive)
+    end_frames = []
+    for trajectory in trajectories:
+        if not trajectory:
+            continue
+        final = trajectory[-1]
+        if isinstance(final, Atoms):
+            end_frames.append(final)
+        else:
+            end_frames.extend(final)
+    result_directory = pathlib.Path(directory) / "results"
+    result_directory.mkdir(parents=True, exist_ok=True)
+    result_path = result_directory / "end_frames.xyz"
+    write(result_path, end_frames)
+    return ComputeResult("reactor", str(result_path), len(trajectories))
 
 
 @reporting_session
@@ -112,14 +153,24 @@ def run_computation(
     else:
         if runtime is None:
             raise RuntimeError("`gdp compute` requires `--runtime`.")
-        compute_plan = prepare_compute(
-            load_runtime_input(runtime), structures, directory,
-            random_provenance=random_provenance,
+        runtime_input = load_runtime_input(runtime)
+        from gdpx.execution.factory import create_worker
+        from gdpx.execution.workers.react import ReactorBasedWorker
+
+        candidate = None if isinstance(runtime_input, (list, tuple)) else create_worker(
+            runtime_input, directory=directory
         )
-        if spawn:
-            result = submit_compute(compute_plan, batches=None if batch is None else [batch])
+        if isinstance(candidate, ReactorBasedWorker):
+            result = _run_reactor_once(candidate, structures, directory, archive=archive)
         else:
-            result = orchestrate_compute(compute_plan, archive=archive)
+            compute_plan = prepare_compute(
+                runtime_input, structures, directory,
+                random_provenance=random_provenance,
+            )
+            if spawn:
+                result = submit_compute(compute_plan, batches=None if batch is None else [batch])
+            else:
+                result = orchestrate_compute(compute_plan, archive=archive)
 
     box = Box('compute | ' + (action or 'run'))
     if hasattr(result, 'state'):
