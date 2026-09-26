@@ -19,7 +19,9 @@ def run_trainer(configuration, directory) -> None:
     dataset_params = params["dataset"]
     name = dataset_params.pop("name", None)
 
-    if name == "single_xyz" or "dataset_path" in dataset_params:
+    if getattr(trainer, "requires_dataloader", False):
+        dataset = create_dataloader(dict(name=name, **dataset_params))
+    elif name == "single_xyz" or "dataset_path" in dataset_params:
         from ase.io import read
         dataset_path = dataset_params.get("dataset_path")
         if dataset_path:

@@ -20,6 +20,7 @@ from .convert import convert_groups
 class DeepmdTrainer(BasePotentialTrainer):
 
     name = "deepmd"
+    requires_dataloader = True
     command = "dp"
     freeze_command = "dp"
     prefix = "config"
@@ -65,9 +66,43 @@ class DeepmdTrainer(BasePotentialTrainer):
 
         return
 
+    @property
+    def model_family(self) -> Optional[str]:
+        """Return the DeepMD model family when it selects a special CLI path."""
+        model = self.config.get("model", {})
+        model_type = str(model.get("type", "")).lower()
+        descriptor = model.get("descriptor", {})
+        descriptor_type = (
+            str(descriptor.get("type", "")).lower()
+            if isinstance(descriptor, dict)
+            else ""
+        )
+        preset = str(model.get("preset", "")).lower()
+
+        if model_type == "dpa4c" or descriptor_type == "dpa4c" or preset.startswith("dpa4c-"):
+            return "dpa4c"
+        if model_type in {"dpa4", "sezm"} or descriptor_type in {"dpa4", "sezm"}:
+            return "dpa4"
+        return None
+
+    def _resolve_dp_command(self, command: str) -> str:
+        """Add the DeepMD backend selector required by modern DPA4 models."""
+        backend_flag = {"dpa4": "--pt", "dpa4c": "--pt-expt"}.get(self.model_family)
+        if backend_flag is not None and backend_flag not in command.split():
+            command = f"{command} {backend_flag}"
+        return command
+
+    @property
+    def checkpoint_name(self) -> str:
+        """Return the checkpoint used to restart or export the configured model."""
+        save_ckpt = self.config.get("training", {}).get("save_ckpt", "model.ckpt")
+        if self.model_family in {"dpa4", "dpa4c"} and not save_ckpt.endswith(".pt"):
+            save_ckpt += ".pt"
+        return save_ckpt
+
     def _resolve_train_command(self, init_model=None):
         """"""
-        train_command = self.command
+        train_command = self._resolve_dp_command(self.command)
 
         # - add options
         command = "{} train {}.json {} ".format(train_command, self.name, self.train_options)
@@ -77,6 +112,8 @@ class DeepmdTrainer(BasePotentialTrainer):
                 command += " --init-frz-model {}".format(str(init_model_path))
             elif init_model_path.name.endswith("model.ckpt"):
                 command += " --init-model {}".format(str(init_model_path))
+            elif self.model_family in {"dpa4", "dpa4c"} and init_model_path.suffix == ".pt":
+                command += " --finetune {}".format(str(init_model_path))
             else:
                 raise RuntimeError(f"Unknown init_model {str(init_model_path)}.")
         command += " 2>&1 > {}.out".format(self.name)
@@ -85,10 +122,18 @@ class DeepmdTrainer(BasePotentialTrainer):
 
     def _resolve_freeze_command(self, *args, **kwargs):
         """"""
-        freeze_command = self.command
+        freeze_command = self._resolve_dp_command(self.freeze_command)
 
         # - add options
-        command = "{} freeze -o {} 2>&1 >> {}.out".format(freeze_command, self.frozen_name, self.name)
+        if self.model_family in {"dpa4", "dpa4c"}:
+            command = "{} freeze -c {} -o {} 2>&1 >> {}.out".format(
+                freeze_command,
+                self.checkpoint_name,
+                pathlib.Path(self.frozen_name).stem,
+                self.name,
+            )
+        else:
+            command = "{} freeze -o {} 2>&1 >> {}.out".format(freeze_command, self.frozen_name, self.name)
 
         return command
 
@@ -106,6 +151,8 @@ class DeepmdTrainer(BasePotentialTrainer):
     @property
     def frozen_name(self):
         """"""
+        if self.model_family in {"dpa4", "dpa4c"}:
+            return f"{self.name}.pt2"
         return f"{self.name}.pb"
 
     def _train_from_the_restart(self, dataset, init_model):
@@ -116,8 +163,8 @@ class DeepmdTrainer(BasePotentialTrainer):
             ckpt_info = self.directory / "checkpoint"
             if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
                 # TODO: check if the ckpt model exists?
-                command = f"{self.command} train {self.name}.json "
-                command += f"--restart model.ckpt"
+                command = f"{self._resolve_dp_command(self.command)} train {self.name}.json "
+                command += f"--restart {self.checkpoint_name}"
                 self._print(f"TRAINING COMMAND: {command}")
             else:  # assume not at any ckpt so start from the scratch
                 command = self._train_from_the_scratch(dataset, init_model)
@@ -179,8 +226,12 @@ class DeepmdTrainer(BasePotentialTrainer):
         #       training - training_data, validation_data
         train_config = copy.deepcopy(self.config)
 
-        train_config["model"]["descriptor"]["seed"] = self.rng.integers(0, 10000, dtype=int)
-        train_config["model"]["fitting_net"]["seed"] = self.rng.integers(0, 10000, dtype=int)
+        descriptor = train_config["model"].get("descriptor")
+        if isinstance(descriptor, dict):
+            descriptor["seed"] = self.rng.integers(0, 10000, dtype=int)
+        fitting_net = train_config["model"].get("fitting_net")
+        if isinstance(fitting_net, dict):
+            fitting_net["seed"] = self.rng.integers(0, 10000, dtype=int)
 
         train_config["training"]["training_data"]["systems"] = [x for x in dataset.train_sys_dirs]
         train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
@@ -238,6 +289,12 @@ class DeepmdTrainer(BasePotentialTrainer):
         """"""
         # - freeze model
         frozen_model = super().freeze()
+
+        # DPA4 models export directly to an AOTInductor .pt2 archive. Standard
+        # compression is unsupported for DPA4; DPA4C compression is an explicit
+        # backend-specific deployment step and is not applied automatically.
+        if self.model_family in {"dpa4", "dpa4c"}:
+            return frozen_model
 
         # - compress model
         compressed_model = (self.directory / f"{self.name}-c.pb").absolute()
