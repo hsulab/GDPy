@@ -10,6 +10,7 @@ class DirectScheduler(BaseScheduler):
 
     name = "direct"
     is_direct = True
+    supports_concurrent_tasks = True
     SHELL = "#!/bin/bash -l"
 
     @BaseScheduler.job_name.setter

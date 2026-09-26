@@ -34,6 +34,21 @@ def test_direct_scheduler_renders_an_executable_script():
     assert "gdp compute run" in content
 
 
+def test_concurrent_tasks_are_validated_and_not_rendered_as_directives():
+    scheduler = SlurmScheduler(concurrent_tasks=4, ntasks=256)
+
+    assert scheduler.concurrent_tasks == 4
+    assert "#SBATCH --ntasks=256" in str(scheduler)
+    assert "concurrent-tasks" not in str(scheduler)
+    assert scheduler.as_dict()["parameters"]["concurrent_tasks"] == 4
+
+    assert DirectScheduler(concurrent_tasks=2).concurrent_tasks == 2
+    with pytest.raises(ValueError, match="positive integer"):
+        SlurmScheduler(concurrent_tasks=0)
+    with pytest.raises(ValueError, match="does not support"):
+        PbsScheduler(concurrent_tasks=2)
+
+
 def test_direct_script_exit_status_and_dry_run(tmp_path):
     import subprocess
 

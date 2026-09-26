@@ -10,6 +10,7 @@ class SlurmScheduler(BaseScheduler):
     """Submit jobs with Slurm and inspect their queue state."""
 
     name = "slurm"
+    supports_concurrent_tasks = True
 
     PREFIX = "#SBATCH"
     SUFFIX = ".slurm"

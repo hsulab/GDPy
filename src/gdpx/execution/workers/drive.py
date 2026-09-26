@@ -65,6 +65,33 @@ class DriverBatchError(RuntimeError):
         super().__init__(f"{len(self.failures)} driver computation(s) failed: {details}")
 
 
+def render_concurrent_task_commands(command: str, task_count: int, concurrent_tasks: int) -> str:
+    """Render bounded Bash waves for a task command containing ``$task``."""
+    return f"""task_count={task_count}
+concurrent_tasks={concurrent_tasks}
+status=0
+
+for ((start=0; start<task_count; start+=concurrent_tasks)); do
+    pids=()
+    for ((offset=0; offset<concurrent_tasks; offset++)); do
+        task=$((start + offset))
+        if ((task >= task_count)); then
+            break
+        fi
+        (
+            {command}
+        ) &
+        pids+=("$!")
+    done
+    for pid in "${{pids[@]}}"; do
+        wait "$pid" || status=1
+    done
+done
+
+exit "$status"
+"""
+
+
 def run_computation_in_commandline(
     identifier: str,
     structures: list[Atoms],
@@ -443,6 +470,12 @@ class DriverBasedWorker(BaseWorker):
         task_plan = self._make_task_plan(num_frames)
         num_tasks = len(task_plan)
 
+        if self._share_wdir and self.scheduler.concurrent_tasks > 1:
+            raise ValueError(
+                "dispatch.share_workdir cannot be combined with scheduler "
+                "concurrent_tasks > 1."
+            )
+
         # Build wdir names from the task plan
         wdirs = []
         driver_for_wdir = []
@@ -639,10 +672,18 @@ class DriverBasedWorker(BaseWorker):
             raise ValueError("Job record does not match its saved input.")
         return payload, batch
 
-    def run_saved_job(self, path):
+    def run_saved_job(self, path, task: Optional[int] = None):
         """Execute an immutable batch on a staged host without submitting jobs."""
         self.compact_metadata
         payload, batch = self._read_job_input(path)
+        if task is not None:
+            if (
+                isinstance(task, bool)
+                or not isinstance(task, int)
+                or not 0 <= task < len(batch[0])
+            ):
+                raise ValueError(f"Unknown task index {task!r} for job {path}.")
+            batch = [[values[task]] for values in batch]
         get_reporter(self).configure([batch])
         if self.compact_metadata:
             saved = self.metadata.manifest(str(path))
@@ -691,24 +732,33 @@ class DriverBasedWorker(BaseWorker):
                         "Use a new working directory."
                     )
                 self._validate_job(overlap[0])
+                if overlap[0].attempt == 0:
+                    prepared.append((ig, batch, payload, digest, overlap[0]))
+                    continue
                 self._print(f"group-{ig} at {self.directory.name} was submitted.")
                 continue
-            prepared.append((ig, batch, payload, digest))
+            prepared.append((ig, batch, payload, digest, None))
 
-        for ig, batch, payload, digest in prepared:
-            uid = (self.metadata.prepare_job(payload, self.scheduler.machine_prefix)
-                   if self.compact_metadata else str(uuid.uuid1()))
+        for ig, batch, payload, digest, existing in prepared:
+            uid = (
+                existing.uid
+                if existing is not None
+                else self.metadata.prepare_job(payload, self.scheduler.machine_prefix)
+                if self.compact_metadata
+                else str(uuid.uuid1())
+            )
             batch_name = f"group-{ig}"
             job_name = uid + "-" + batch_name
-            if not self.compact_metadata:
+            if existing is None and not self.compact_metadata:
                 atomic_write_text(
                     self.metadata_directory / f"job-{uid}.json",
                     encode({"job_digest": digest, "input": payload}),
                 )
-            self.job_store.insert(
-                uid=uid, md5="", structure_digest=identifier, job_digest=digest,
-                gdir=job_name, group_number=ig, wdir_names=batch[1],
-            )
+            if existing is None:
+                self.job_store.insert(
+                    uid=uid, md5="", structure_digest=identifier, job_digest=digest,
+                    gdir=job_name, group_number=ig, wdir_names=batch[1],
+                )
             if not self.compact_metadata:
                 with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as handle:
                     handle.write(self.scheduler.machine_prefix)
@@ -725,36 +775,48 @@ class DriverBasedWorker(BaseWorker):
         submit=True,
     ) -> None:
         batch_number = int(batch_name.split("-")[-1])
-        jobscript_fname = f"run-{uid}.script"
         self.scheduler.job_name = uid + "-" + batch_name
         self.scheduler.script = self._script_path(uid)
         self.scheduler.script.parent.mkdir(parents=True, exist_ok=True)
         self._configure_scheduler_paths()
 
         compute_plan_path = getattr(self, "compute_plan_path", None)
+        concurrent = self.scheduler.concurrent_tasks
+        run_tasks_concurrently = concurrent > 1 and len(batch[1]) > 1
         if self.compact_metadata:
-            self.scheduler.user_commands = f"gdp compute run --job {uid}\n"
+            if run_tasks_concurrently:
+                command = f'gdp compute run --job {shlex.quote(uid)} --task "$task"'
+            else:
+                command = f"gdp compute run --job {shlex.quote(uid)}"
         elif compute_plan_path is not None:
+            if run_tasks_concurrently:
+                raise ValueError("Concurrent execution requires compact job metadata.")
             worker_index = getattr(self, "compute_worker_index", 0)
             compute_plan_path = pathlib.Path(compute_plan_path).resolve()
             compute_root = compute_plan_path.parent.parent
             self.scheduler.local_root = compute_root
             remote_root_arg = os.path.relpath(compute_root, self.directory.resolve())
             remote_plan_arg = os.path.relpath(compute_plan_path, self.directory.resolve())
-            self.scheduler.user_commands = (
+            command = (
                 f"gdp -d {shlex.quote(remote_root_arg)} compute run "
                 f"--plan {shlex.quote(remote_plan_arg)} "
-                f"--worker {worker_index} --batch {batch_number}\n"
+                f"--worker {worker_index} --batch {batch_number}"
             )
         else:
+            if run_tasks_concurrently:
+                raise ValueError("Concurrent execution requires compact job metadata.")
             job_path = pathlib.Path("_meta") / f"job-{uid}.json"
-            self.scheduler.user_commands = f"gdp compute run --job {shlex.quote(str(job_path))}\n"
+            command = f"gdp compute run --job {shlex.quote(str(job_path))}"
 
         submit_variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
                            "lsf": "LS_SUBCWD"}.get(self.scheduler.name)
         launch = f'cd "${{{submit_variable}:-$PWD}}" && ' if submit_variable else ""
         relative_root = "../.." if self.compact_metadata else ".."
-        self.scheduler.user_commands = launch + f"cd {relative_root} && " + self.scheduler.user_commands
+        command = launch + f"cd {relative_root} && " + command
+        self.scheduler.user_commands = (
+            render_concurrent_task_commands(command, len(batch[1]), concurrent)
+            if run_tasks_concurrently else command + "\n"
+        )
 
         curr_indices, curr_wdirs, driver_indices, rng_states, curr_frames = batch
 
@@ -780,7 +842,9 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler.write()
         if not submit:
             return
-        job_id = self.scheduler.submit(func_to_execute=func_to_execute)
+        job_id = self.scheduler.submit(
+            func_to_execute=None if run_tasks_concurrently else func_to_execute
+        )
         self.job_store.mark_submitted(self.scheduler.job_name, job_id)
         self._print(f"{self.directory.name} JOBID: {job_id}")
 

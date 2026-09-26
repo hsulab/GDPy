@@ -1,5 +1,5 @@
 from gdpx.execution import Runtime
-from gdpx.execution.workers.drive import DriverBasedWorker
+from gdpx.execution.workers.drive import DriverBasedWorker, render_concurrent_task_commands
 from gdpx.execution.workers.single import SingleWorker
 from gdpx.providers import ComponentConfig, DispatchConfig, RuntimeConfig
 from gdpx.providers.specs import PotentialSpec
@@ -33,6 +33,41 @@ def test_runtime_worker_creates_jobs(mock_sched, fake_driver, fake_structure, tm
     worker.run([fake_structure] * 5)
     assert mock_sched.submit_count > 0
     assert len(worker.job_store.get_running()) == mock_sched.submit_count
+
+
+def test_concurrent_shell_loop_runs_all_tasks_and_aggregates_failures(tmp_path):
+    import subprocess
+
+    output = tmp_path / "tasks"
+    command = f'printf "%s\\n" "$task" >> {output}; test "$task" != 2'
+    script = tmp_path / "run.sh"
+    script.write_text("#!/bin/bash\n" + render_concurrent_task_commands(command, 7, 3))
+
+    result = subprocess.run(["bash", str(script)], check=False)
+
+    assert result.returncode == 1
+    assert sorted(map(int, output.read_text().splitlines())) == list(range(7))
+
+
+def test_attempt_zero_job_is_launched_again(mock_sched, fake_driver, fake_structure, tmp_path):
+    import pytest
+
+    worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
+    submit = mock_sched.submit
+
+    def fail_submission(func_to_execute=None):
+        raise RuntimeError("submission failed")
+
+    mock_sched.submit = fail_submission
+    with pytest.raises(RuntimeError, match="submission failed"):
+        worker.run([fake_structure])
+    assert worker.job_store.get_running()[0].attempt == 0
+
+    mock_sched.submit = submit
+    worker.run([fake_structure])
+
+    assert mock_sched.submit_count == 1
+    assert worker.job_store.get_running()[0].attempt == 1
 
 
 def test_runtime_worker_marks_finished(mock_sched, fake_driver, fake_structure, tmp_path):

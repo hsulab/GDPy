@@ -53,6 +53,9 @@ class BaseScheduler(abc.ABC):
     #: Whether jobs execute without a queue manager.
     is_direct: bool = False
 
+    #: Whether one allocation may run multiple independent worker tasks.
+    supports_concurrent_tasks: bool = False
+
     #: Transport used to reach the execution host.
     transport_name: str = "local"
 
@@ -116,6 +119,20 @@ class BaseScheduler(abc.ABC):
         self.environs = kwargs.pop("environs", "")
         self.machine_prefix = kwargs.pop("machine_prefix", "")
         self.user_commands = kwargs.pop("user_commands", "")
+        self.concurrent_tasks = kwargs.pop("concurrent_tasks", 1)
+        if (
+            isinstance(self.concurrent_tasks, bool)
+            or not isinstance(self.concurrent_tasks, int)
+            or self.concurrent_tasks < 1
+        ):
+            raise ValueError(
+                "Scheduler concurrent_tasks must be a positive integer; "
+                f"got {self.concurrent_tasks!r}."
+            )
+        if self.concurrent_tasks > 1 and not self.supports_concurrent_tasks:
+            raise ValueError(
+                f"Scheduler {self.name!r} does not support concurrent_tasks > 1."
+            )
 
         # make default params
         self.parameters = self._get_default_parameters()
@@ -275,6 +292,8 @@ class BaseScheduler(abc.ABC):
         sch_params = {k: v for k, v in self.parameters.items() if v is not None}
         sch_params["environs"] = self.environs
         sch_params["machine_prefix"] = self.machine_prefix
+        if self.concurrent_tasks != 1:
+            sch_params["concurrent_tasks"] = self.concurrent_tasks
         sch_params["submit_timeout"] = self.submit_timeout
         sch_params["is_dry_run"] = self.is_dry_run
         return {

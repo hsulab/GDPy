@@ -40,6 +40,7 @@ def run_computation(
     plan: Optional[Union[str, pathlib.Path]] = None,
     worker_index: int = 0,
     job: Optional[Union[str, pathlib.Path]] = None,
+    task: Optional[int] = None,
 ):
     """Prepare or advance one explicit compute lifecycle."""
     action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
@@ -67,8 +68,11 @@ def run_computation(
         worker = create_worker(saved["input"]["runtime"], directory=worker_directory)
         if by_uuid:
             worker.metadata_root = pathlib.Path(directory)
-        worker.run_saved_job(job)
+        worker.run_saved_job(job, task=task)
         return
+
+    if task is not None:
+        raise ValueError("--task requires --job.")
 
     if spawn and action is None:
         if runtime is None or batch is None:

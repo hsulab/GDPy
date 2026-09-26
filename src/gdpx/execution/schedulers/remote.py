@@ -154,6 +154,10 @@ class SshTransport(BaseScheduler):
         self.scheduler.machine_prefix = value
 
     @property
+    def concurrent_tasks(self) -> int:
+        return self.scheduler.concurrent_tasks
+
+    @property
     def user_commands(self) -> str:
         return self.scheduler.user_commands
 

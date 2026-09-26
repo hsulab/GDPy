@@ -404,10 +404,14 @@ def submit_compute(
         selected = _selected_batches(worker_plan, batches)
         get_reporter(worker).configure([worker_batches[index] for index in selected])
         for batch_index in _selected_batches(worker_plan, batches):
-            before = {record.gdir for record in worker.job_store.get_queued()}
+            before = {
+                record.gdir: record.attempt for record in worker.job_store.get_queued()
+            }
             worker._run_by_scheduler(worker_plan.structure_digest, frames, worker_batches, target_batch=batch_index)
-            after = {record.gdir for record in worker.job_store.get_queued()}
-            if after - before:
+            after = {
+                record.gdir: record.attempt for record in worker.job_store.get_queued()
+            }
+            if any(before.get(name, -1) < attempt for name, attempt in after.items()):
                 submitted.append(f"w{worker_plan.index}/b{batch_index}")
     return SubmissionResult(plan.plan_id, tuple(submitted))
 

@@ -146,6 +146,7 @@ def main():
     )
     parser_compute.add_argument("--plan", default=None, help="prepared compute plan (defaults to DIRECTORY/_meta/inputs.json)")
     parser_compute.add_argument("--job", default=None, help=argparse.SUPPRESS)
+    parser_compute.add_argument("--task", default=None, type=int, help=argparse.SUPPRESS)
     parser_compute.add_argument("--worker", default=0, type=int, help=argparse.SUPPRESS)
 
     # --- exploration interface
@@ -314,6 +315,7 @@ def main():
             directory=args.directory,
             plan=args.plan,
             job=args.job,
+            task=args.task,
             worker_index=args.worker,
         )
     elif args.subcommand == "validate":

@@ -10,8 +10,8 @@ from gdpx.execution.lifecycle import (
     inspect_compute,
     load_compute_plan,
     prepare_compute,
-    submit_compute,
     run_compute_batch,
+    submit_compute,
 )
 
 
@@ -117,6 +117,79 @@ def test_submit_all_dry_run_scheduler_batches(tmp_path):
     records = json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
     assert len(records) == 2
     assert {record["group_number"] for record in records.values()} == {0, 1}
+
+
+def test_submit_retries_an_attempt_zero_record(tmp_path):
+    config = _emt_config()
+    config["scheduler"] = {"provider": "slurm", "parameters": {"is_dry_run": True}}
+    plan = prepare_compute(config, [_cu()], tmp_path)
+    assert submit_compute(plan).submitted_batches == ("w0/b0",)
+
+    state_path = tmp_path / "_meta" / "scheduler.json"
+    state = json.loads(state_path.read_text())
+    record = next(iter(state["_default"].values()))
+    record["attempt"] = 0
+    record.pop("scheduler_job_id")
+    state_path.write_text(json.dumps(state))
+
+    assert submit_compute(plan).submitted_batches == ("w0/b0",)
+    retried = next(iter(json.loads(state_path.read_text())["_default"].values()))
+    assert retried["attempt"] == 1
+
+
+def test_prepare_renders_bounded_concurrent_task_loop(tmp_path):
+    config = _emt_config()
+    config["scheduler"] = {
+        "provider": "slurm",
+        "parameters": {"is_dry_run": True, "concurrent_tasks": 4, "ntasks": 256},
+    }
+    config["dispatch"] = {"batch_size": 8}
+    structures = []
+    for index in range(8):
+        atoms = _cu()
+        atoms.positions[0, 0] = index / 10
+        structures.append(atoms)
+
+    prepare_compute(config, structures, tmp_path)
+
+    script = next((tmp_path / "_meta" / "jobscripts").glob("run-*.script")).read_text()
+    assert "#SBATCH --ntasks=256" in script
+    assert "#SBATCH --concurrent-tasks" not in script
+    assert "task_count=8" in script
+    assert "concurrent_tasks=4" in script
+    assert "for ((start=0; start<task_count; start+=concurrent_tasks))" in script
+    assert 'gdp compute run --job' in script
+    assert '--task "$task"' in script
+
+
+def test_saved_job_can_execute_one_selected_task(tmp_path):
+    from gdpx.cli.compute import run_computation
+
+    config = _emt_config()
+    config["dispatch"] = {"batch_size": 2}
+    second = _cu()
+    second.positions[0, 0] = 0.1
+    prepare_compute(config, [_cu(), second], tmp_path)
+    uid = next(iter(json.loads((tmp_path / "_meta" / "inputs.json").read_text())["jobs"]))
+
+    run_computation(["run"], None, job=uid, task=1, directory=tmp_path)
+
+    assert not (tmp_path / "cand0").exists()
+    assert (tmp_path / "cand1").exists()
+
+
+def test_concurrent_tasks_reject_shared_workdir(tmp_path):
+    import pytest
+
+    config = _emt_config()
+    config["scheduler"] = {
+        "provider": "slurm",
+        "parameters": {"is_dry_run": True, "concurrent_tasks": 2},
+    }
+    config["dispatch"] = {"share_workdir": True}
+
+    with pytest.raises(ValueError, match="share_workdir.*concurrent_tasks"):
+        prepare_compute(config, [_cu(), _cu()], tmp_path)
 
 
 def test_staged_plan_runs_in_its_new_working_tree(tmp_path):
