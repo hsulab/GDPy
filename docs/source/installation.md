@@ -63,8 +63,14 @@ NVIDIA driver on the compute node; `CONDA_OVERRIDE_CUDA` is unnecessary.
 The same installation can run standard DeepMD, TACE, and MatterSim calculations
 on CPUs; a GPU is not required. It includes CUDA libraries for later GPU use,
 so it is larger than a CPU-only installation. For a CPU-only environment,
-choose DeepMD's `deepmd3-cpu` extra for TensorFlow and CPU PyTorch wheels for
-Torch-based providers, as described below.
+run this from the repository root on Linux:
+
+```shell
+python -m pip install '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+This uses DeepMD's `deepmd3-cpu` extra for TensorFlow and CPU PyTorch wheels
+for Torch-based providers.
 
 (gpu-verification)=
 
