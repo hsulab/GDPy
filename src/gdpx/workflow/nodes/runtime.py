@@ -6,7 +6,13 @@ import copy
 from collections.abc import Mapping, Sequence
 
 from gdpx.execution import Runtime, resolve_runtime
-from gdpx.providers import SCHEMA_VERSION, ComponentConfig, RuntimeConfig, expand_runtime_configs
+from gdpx.providers import (
+    SCHEMA_VERSION,
+    ComponentConfig,
+    PotentialConfig,
+    RuntimeConfig,
+    expand_runtime_configs,
+)
 from gdpx.providers.configuration import scheduler_component
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import Variable
@@ -24,8 +30,8 @@ def _component(value, label: str) -> ComponentConfig:
 
 @registers.variable.register
 class PotentialVariable(Variable):
-    def __init__(self, provider, method="default", parameters=None, directory="./"):
-        component = ComponentConfig(provider, method, parameters or {})
+    def __init__(self, provider, method="default", parameters=None, backend=None, directory="./"):
+        component = PotentialConfig(provider, method, parameters or {}, backend)
         super().__init__(component, directory=directory)
 
     def as_dict(self) -> dict:

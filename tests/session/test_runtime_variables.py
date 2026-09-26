@@ -1,13 +1,17 @@
 import pytest
+from ase import Atoms
 
+from gdpx.data.array import AtomsNDArray
 from gdpx.execution import Runtime
-from gdpx.providers import ComponentConfig
+from gdpx.providers import ComponentConfig, PotentialConfig
 from gdpx.workflow.nodes.runtime import (
     ExecutorVariable,
     PotentialVariable,
     RuntimeChainVariable,
     RuntimeVariable,
 )
+from gdpx.workflow.nodes.validator import validate
+from gdpx.workflow.session.variable import Variable
 
 
 def test_runtime_variable_resolves_declarative_components():
@@ -19,6 +23,33 @@ def test_runtime_variable_resolves_declarative_components():
     assert isinstance(executor.value, ComponentConfig)
     assert isinstance(variable.value, Runtime)
     assert variable.as_dict()["schema_version"] == 4
+
+
+def test_potential_variable_preserves_backend_selection():
+    potential = PotentialVariable("deepmd", backend="lammps", parameters={"model": ["model.pb"]})
+
+    assert isinstance(potential.value, PotentialConfig)
+    assert potential.value.backend == "lammps"
+    assert potential.as_dict()["backend"] == "lammps"
+
+
+def test_validate_operation_creates_worker_from_runtime(tmp_path):
+    class RecordingValidator:
+        def run(self, dataset, worker, **kwargs):
+            self.dataset = dataset
+            self.worker = worker
+            return True
+
+    frames = AtomsNDArray([Atoms("H")])
+    validator = RecordingValidator()
+    runtime = RuntimeVariable(PotentialVariable("emt"), ExecutorVariable("ase", "spc"))
+    operation = validate(Variable(frames), Variable(validator), runtime, directory=tmp_path)
+
+    operation.forward(frames, validator, runtime.value)
+
+    assert operation.status == "finished"
+    assert validator.worker.runtime is runtime.value
+    assert list(validator.dataset) == ["reference"]
 
 
 def test_runtime_chain_is_explicit_and_ordered():

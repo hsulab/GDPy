@@ -1,4 +1,5 @@
 import json
+import pathlib
 
 import pytest
 
@@ -215,6 +216,30 @@ steps:
     assert "result [step:workflow_test_join] <- first, second" in workflow_plan(spec)
     assert '"first" -> "result"' in workflow_dot(spec)
     assert '"second" -> "result"' in workflow_dot(spec)
+
+
+def test_active_learning_example_uses_validation_targets():
+    root = pathlib.Path(__file__).resolve().parents[2]
+    spec = load_workflow(root / "examples" / "workflows" / "active-learning.yaml")
+
+    assert spec.settings.mode == "repeat"
+    assert spec.settings.targets == ("test_spc_train", "test_spc_test")
+    assert list(spec.steps) == [
+        "read_stru",
+        "model_to_explore",
+        "run_nvt",
+        "est_devi",
+        "select_devi",
+        "select_desc",
+        "run_vasp",
+        "sift_forces",
+        "transfer",
+        "train",
+        "save_model",
+        "model_spc",
+        "test_spc_train",
+        "test_spc_test",
+    ]
 
 
 @pytest.mark.parametrize(
