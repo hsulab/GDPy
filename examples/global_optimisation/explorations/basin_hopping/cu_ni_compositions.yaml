@@ -1,0 +1,38 @@
+method: global_optimisation
+broadcast:
+  system.builders.random.composition:
+    - {Cu: 6, Ni: 2}
+    - {Cu: 4, Ni: 4}
+random_seed: 7
+system:
+  comparator:
+    method: interatomic_distance
+  builders:
+    random:
+      method: random_structure_improved
+      composition: {Cu: 6, Ni: 2}
+      box: [20.0, 20.0, 20.0]
+      region:
+        method: sphere
+        origin: [10.0, 10.0, 10.0]
+        radius: 3.0
+      covalent_ratio: [0.7, 2.0]
+  initial:
+    total_size: 2
+    builder_allocations:
+      - {builder: random, size: 2}
+  generation:
+    total_size: 2
+strategy:
+  method: basin_hopping
+  convergence:
+    generation: 1
+  operators:
+    - method: move
+      particles: [Cu, Ni]
+      temperature: 500.0
+      max_disp: 0.8
+      covalent_ratio: [0.7, 2.0]
+      max_random_attempts: 100
+      probability: 1.0
+  steps_per_chain: 2

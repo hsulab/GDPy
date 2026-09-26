@@ -60,5 +60,14 @@ VALID_DEVI_ATOMIC_KEYS: list[str] = [
     "devi_f",
 ]
 
+#: Scalar provenance attached to umbrella-sampling trajectories.
+UMBRELLA_FRAME_KEYS: tuple[str, ...] = (
+    "umbrella_center",
+    "umbrella_kspring",
+    "umbrella_window",
+    "umbrella_replica",
+    "umbrella_seed_index",
+)
+
 if __name__ == "__main__":
     ...

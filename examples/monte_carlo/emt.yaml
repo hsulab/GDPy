@@ -1,0 +1,8 @@
+potential:
+  provider: emt
+executor:
+  provider: ase
+  method: spc
+  parameters: {}
+dispatch:
+  worker: single

@@ -1,0 +1,153 @@
+{
+  "date": "2026-09-23",
+  "runs": {
+    "reax": {
+      "config": {
+        "provider": "reax",
+        "output": "tmp/water-md-27/reax",
+        "grid": 3,
+        "density": 0.997,
+        "seed": 731,
+        "temperature": 300,
+        "timestep_fs": 0.25,
+        "min_steps": 100,
+        "equil_steps": 500,
+        "steps": 2000,
+        "sample_interval": 10
+      },
+      "platform": "macOS-26.6-arm64-arm-64bit",
+      "versions": {
+        "ase": "3.27.0",
+        "numpy": "2.0.2",
+        "xreac": "0.6.0"
+      },
+      "threads": {
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "CUDA_VISIBLE_DEVICES": ""
+      },
+      "atoms": 81,
+      "waters": 27,
+      "cell_A": [
+        9.322176541523964,
+        9.322176541523964,
+        9.322176541523964
+      ],
+      "parameters": {
+        "model": "bundled:ffield.reax.HO.2015"
+      },
+      "load_seconds": 1.49380112439394,
+      "minimization": {
+        "seconds": 62.16740845795721,
+        "steps": 90,
+        "converged": true
+      },
+      "stages": {
+        "nvt": {
+          "steps": 500,
+          "duration_fs": 125.0,
+          "seconds": 330.5293688746169,
+          "ms_per_step": 661.0587377492338,
+          "temperature_mean_K": 214.83863433470748,
+          "temperature_min_K": 131.29337538543123,
+          "temperature_max_K": 300.00000000000006,
+          "min_OH_A": 0.9093814587217306,
+          "max_OH_A": 1.0841276140193195,
+          "energy_change_meV_atom": 27.911503212898744,
+          "energy_range_meV_atom": 28.189075610525215,
+          "energy_slope_meV_atom_ps": 255.65968987501006
+        },
+        "nve": {
+          "steps": 2000,
+          "duration_fs": 500.0,
+          "seconds": 1315.0393895413727,
+          "ms_per_step": 657.5196947706863,
+          "temperature_mean_K": 256.9151527381357,
+          "temperature_min_K": 210.52181011211158,
+          "temperature_max_K": 299.1180863011881,
+          "min_OH_A": 0.8832603102631214,
+          "max_OH_A": 1.1353972934808716,
+          "energy_change_meV_atom": 0.006590870970549188,
+          "energy_range_meV_atom": 0.14864097805417978,
+          "energy_slope_meV_atom_ps": -0.05903235704260374
+        }
+      },
+      "total_seconds": 1709.2838018322363
+    },
+    "mattersim": {
+      "config": {
+        "provider": "mattersim",
+        "output": "tmp/water-md-27/mattersim",
+        "grid": 3,
+        "density": 0.997,
+        "seed": 731,
+        "temperature": 300,
+        "timestep_fs": 0.25,
+        "min_steps": 100,
+        "equil_steps": 500,
+        "steps": 2000,
+        "sample_interval": 10
+      },
+      "platform": "macOS-26.6-arm64-arm-64bit",
+      "versions": {
+        "ase": "3.27.0",
+        "numpy": "2.0.2",
+        "mattersim": "1.2.3"
+      },
+      "threads": {
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "CUDA_VISIBLE_DEVICES": ""
+      },
+      "atoms": 81,
+      "waters": 27,
+      "cell_A": [
+        9.322176541523964,
+        9.322176541523964,
+        9.322176541523964
+      ],
+      "parameters": {
+        "model": "MatterSim-v1.0.0-1M",
+        "compute_stress": false
+      },
+      "load_seconds": 5.0304816253483295,
+      "minimization": {
+        "seconds": 28.408517749980092,
+        "steps": 100,
+        "converged": false
+      },
+      "stages": {
+        "nvt": {
+          "steps": 500,
+          "duration_fs": 125.0,
+          "seconds": 133.8966331249103,
+          "ms_per_step": 267.7932662498206,
+          "temperature_mean_K": 226.61954020947144,
+          "temperature_min_K": 138.58485842522668,
+          "temperature_max_K": 300.00000000000006,
+          "min_OH_A": 0.9269965093975504,
+          "max_OH_A": 1.0847870474168082,
+          "energy_change_meV_atom": 18.682193657829526,
+          "energy_range_meV_atom": 19.596663489347034,
+          "energy_slope_meV_atom_ps": 174.09643006327036
+        },
+        "nve": {
+          "steps": 2000,
+          "duration_fs": 500.0,
+          "seconds": 526.6244941661134,
+          "ms_per_step": 263.3122470830567,
+          "temperature_mean_K": 257.74388459865975,
+          "temperature_min_K": 214.78259066838916,
+          "temperature_max_K": 300.81439008257803,
+          "min_OH_A": 0.9276220984591342,
+          "max_OH_A": 1.0880175059669444,
+          "energy_change_meV_atom": -0.0006700338684104169,
+          "energy_range_meV_atom": 0.032948868389116856,
+          "energy_slope_meV_atom_ps": 0.00020482628491198742
+        }
+      },
+      "total_seconds": 694.0578886670992
+    }
+  },
+  "nve_mattersim_speedup": 2.4971101878268676
+}

@@ -1,0 +1,53 @@
+(ga-examples)=
+
+# examples
+
+These examples demonstrate complete GA searches for different classes of
+atomic systems. They use small populations and inexpensive potentials where
+possible so the workflow, configuration, and outputs remain easy to inspect.
+Increase the population size, number of generations, and calculation accuracy
+for production searches.
+
+Exploration inputs live under `examples/global_optimisation/explorations/`,
+grouped by method. Runtime paths are shown in each guide. Each guide shows both files. Select a runtime with
+`gdp --runtime <runtime.yaml> explore <exploration.yaml>`; the exploration can
+be reused with another suitable potential without editing its recipe. Use a
+new output directory when changing runtimes. EMT allows 1,000 relaxation steps;
+MatterSim and TACE use 20-step demos, which may not reach the force tolerance.
+The shared runtimes allow all atoms to relax; add suitable slab constraints
+when preparing a surface study.
+
+All examples run directly on the current machine by default, so their input
+files omit `scheduler`. See {ref}`scheduler-transport` to configure queue or
+SSH execution.
+
+The examples are grouped by their main physical system: **Cluster** covers
+finite atomic and molecular aggregates, **Bulk** covers fully periodic
+crystals, and **Interface** covers surfaces, supported clusters, and
+adsorbates. Select a chemical system below to open its complete configuration
+and guide.
+
+| Main system | Specific system | Potential | Notes |
+| --- | --- | --- | --- |
+| Cluster | {ref}`Cu₈ <ga-cluster-example>` | EMT | |
+| Cluster | {ref}`Cu₇Ni₆ <ga-alloy-cluster-example>` | EMT | Swap mutation |
+| Cluster | {ref}`(H₂O)₄ <ga-water-cluster-example>` | xreac / ReaxFF | |
+| Bulk | {ref}`Cu₄ <ga-bulk-example>` | EMT | |
+| Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | MatterSim | |
+| Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | MatterSim | Variable composition |
+| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | MatterSim | |
+| Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | MatterSim | Two initial builders: random and site insertion |
+
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+cluster
+alloy-cluster
+water-cluster
+bulk
+surface-oxide
+variable-surface-oxide
+supported-nanoparticle
+supported-cluster-adsorbate
+```

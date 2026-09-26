@@ -12,17 +12,18 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath("../../src/gdpx"))
+
+sys.path.insert(0, os.path.abspath("../../src"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = "GDPy (gdpx)"
-copyright = '2020-2023, Jiayan Xu'
+project = "gdpx"
+copyright = '2020-2026, Jiayan Xu'
 author = 'Jiayan Xu'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.2'
+release = '0.1.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,6 +32,8 @@ release = '0.0.2'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "myst_parser",
+    "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.doctest",
@@ -38,6 +41,16 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     "sphinx.ext.mathjax",
+]
+
+source_suffix = {
+    ".md": "markdown",
+}
+
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "dollarmath",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -59,4 +72,5 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ['_static']
+html_static_path = ['_static']
+html_css_files = ['css/typography.css', 'css/navigation.css']

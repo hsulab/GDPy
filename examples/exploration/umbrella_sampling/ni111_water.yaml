@@ -1,0 +1,35 @@
+method: umbrella_sampling
+random_seed: 7
+runtime:
+  potential:
+    provider: reax
+    backend: xreac
+    parameters:
+      model: bundled:ffield.reax.PtNiCHO.2016
+  executor:
+    provider: ase
+    method: md
+    parameters:
+      ensemble: nvt
+      temp: 300.0
+      timestep: 0.25
+      steps: 20
+      dump_period: 5
+      controller:
+        name: berendsen
+        params:
+          Tdamp: 100.0
+  dispatch:
+    worker: single
+system:
+  builder:
+    method: read_stru
+    fname: examples/compute/ni111_water_restraint/structure.xyz
+  collective_variable:
+    method: distance
+    group: "`index 8 10`"
+strategy:
+  centers: [0.95, 1.15, 1.35, 1.55]
+  kspring: 5.0
+  replicas: 2
+  equilibration_steps: 10

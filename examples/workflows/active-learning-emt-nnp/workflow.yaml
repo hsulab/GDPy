@@ -1,0 +1,136 @@
+# Minimal iterative EMT sampling and NNP retraining.
+# Run from this directory with: gdp workflow run workflow.yaml
+parameters:
+  initial_structure: ./cu.xyz
+  initial_dataset: ./dataset
+  initial_model: ./seed-nnp.npz
+
+workflow:
+  mode: repeat
+  targets: train
+  max_iterations: 3
+
+state:
+  potential:
+    initial: seed_nnp
+    update: train
+  training_data:
+    initial: seed_data
+    update: {node: collect, output: dataset}
+
+resources:
+  seed_data:
+    __type__: dataset
+    options:
+      name: xyz
+      dataset_path: {$param: initial_dataset}
+      train_ratio: 1.0
+      batchsize: 8
+
+  seed_nnp:
+    __type__: potential
+    options:
+      provider: nnp
+      backend: ase
+      parameters:
+        model:
+          - {$param: initial_model}
+
+  nnp_trainer:
+    __type__: trainer
+    options:
+      provider: nnp
+      parameters:
+        type_list: [Cu]
+        config:
+          n_epochs: 100
+          learning_rate: {start: 0.003, stop: 1.0e-5}
+          loss:
+            start_pref_e: 0.02
+            limit_pref_e: 1.0
+            start_pref_f: 100.0
+            limit_pref_f: 1.0
+          batch_size: 8
+        calculator_params:
+          elements: [Cu]
+          g2_params:
+            - [0.05, 0.0]
+            - [0.20, 2.0]
+            - [0.50, 4.0]
+          g4_params: []
+          r_cut: 6.0
+          hidden_sizes: [16, 16]
+
+  emt:
+    __type__: potential
+    options:
+      provider: emt
+
+  md:
+    __type__: executor
+    options:
+      provider: ase
+      method: md
+      parameters:
+        ensemble: nvt
+        timestep: 1.0
+        temp: 600.0
+        steps: 100
+        dump_period: 10
+        controller: {name: langevin}
+
+  spc:
+    __type__: executor
+    options:
+      provider: ase
+      method: spc
+
+  sampling_runtime:
+    __type__: runtime
+    inputs:
+      potential: emt
+      executor: md
+
+  labeling_runtime:
+    __type__: runtime
+    inputs:
+      potential: emt
+      executor: spc
+
+steps:
+  read:
+    __type__: read_stru
+    options:
+      fname: {$param: initial_structure}
+
+  sample:
+    __type__: compute
+    inputs:
+      structures: read
+      runtime: sampling_runtime
+
+  label:
+    __type__: compute
+    inputs:
+      structures: sample
+      runtime: labeling_runtime
+
+  collect:
+    __type__: transfer
+    inputs:
+      structures: label
+      dataset: training_data
+    options:
+      split_ratio: 1.0
+      prefix: active
+      suffix: bulk
+      version: emt
+
+  train:
+    __type__: train
+    inputs:
+      dataset: {node: collect, output: dataset}
+      trainer: nnp_trainer
+      potential: potential
+    options:
+      size: 1

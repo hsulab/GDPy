@@ -12,7 +12,8 @@ import numpy as np
 from ase.io import read, write
 
 
-from gdpx.cli.compute import convert_config_to_potter
+from gdpx.execution.factory import create_worker, create_workers
+from gdpx.utils.parser import parse_input_file
 
 
 def run_computation(structures, worker):
@@ -36,7 +37,7 @@ def test_reax_spc():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = convert_config_to_potter("./assets/reaxspc.yaml")[0]
+    worker = create_worker(parse_input_file("./assets/reaxspc.yaml"))
 
     results = run_computation(structures, worker)
 
@@ -51,7 +52,7 @@ def test_reax_min():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = convert_config_to_potter("./assets/reaxmin.yaml")[0]
+    worker = create_worker(parse_input_file("./assets/reaxmin.yaml"))
 
     results = run_computation(structures, worker)
 
@@ -66,7 +67,7 @@ def test_reax_nvt():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = convert_config_to_potter("./assets/reaxmd.yaml")[0]
+    worker = create_worker(parse_input_file("./assets/reaxmd.yaml"))
 
     results = run_computation(structures, worker)
 

@@ -7,32 +7,31 @@ import pathlib
 import pytest
 import yaml
 
+pytest.importorskip("deepmd")
+
 from ase import Atoms
 from ase.io import read, write
 from ase.build import molecule
 
-from gdpx.cli.compute import run_worker, ComputerVariable
-from gdpx.utils.command import parse_input_file
+from gdpx.execution.lifecycle.runtime import execute_workers
+from gdpx.execution.factory import create_worker, create_workers
+from gdpx.utils.parser import parse_input_file
 
 
 DRIVER_PARAMS = dict(
-    task = "min",
-    run = dict(
-        fmax = 0.05,
-        steps = 400
-    )
+    fmax = 0.05,
+    steps = 400,
 )
 
 
 @pytest.fixture
 def create_pot_config():
 
-    def potter(backend, command, driver={}):
+    def runtime(backend, command, executor_parameters=None):
         """"""
         pot_params = dict(
-            name = "deepmd",
-            params = dict(
-                backend = backend,
+            provider = "deepmd",
+            parameters = dict(
                 command = command,
                 type_list = ["Al", "Cu", "O"],
                 model = [
@@ -41,13 +40,17 @@ def create_pot_config():
             )
         )
 
-        params = {}
-        params["potential"] = pot_params
-        params["driver"] = driver
-
-        return params
+        return {
+            "schema_version": 4,
+            "potential": pot_params,
+            "executor": {
+                "provider": backend,
+                "method": "min" if executor_parameters else "spc",
+                "parameters": executor_parameters or {},
+            },
+        }
     
-    return potter
+    return runtime
 
 
 @pytest.fixture
@@ -90,15 +93,12 @@ def test_spc_driver(create_pot_config, backend, command, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = ComputerVariable(
-                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-                params.get("batchsize", 1)
-            ).value[0]
+            worker = create_worker(params)
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./asexxx"
-            run_worker(strtmp.name, directory=tmpdirname, worker=worker)
+            execute_workers([strtmp.name], [worker], directory=tmpdirname)
 
             stored_atoms = read(pathlib.Path(tmpdirname)/"results"/"end_frames.xyz", ":")[0]
             stored_energy = stored_atoms.get_potential_energy()
@@ -125,15 +125,12 @@ def test_min_driver(create_pot_config, backend, command, driver, structures):
                 yaml.safe_dump(dpmd_spc_params, fopen)
             
             params = parse_input_file(input_fpath=dptmp.name)
-            worker = ComputerVariable(
-                params["potential"], params.get("driver", {}), params.get("scheduler", {}),
-                params.get("batchsize", 1)
-            ).value[0]
+            worker = create_worker(params)
             
         # - 
         with tempfile.TemporaryDirectory() as tmpdirname:
             #tmpdirname = "./asexxx"
-            run_worker(strtmp.name, directory=tmpdirname, worker=worker)
+            execute_workers([strtmp.name], [worker], directory=tmpdirname)
 
             stored_atoms = read(pathlib.Path(tmpdirname)/"results"/"end_frames.xyz", ":")[0]
             stored_energy = stored_atoms.get_potential_energy()

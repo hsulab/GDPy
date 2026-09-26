@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdpx"
-version = "0.0.11"
+version = "0.1.0"
 dependencies = [
-  "ase>=3.24,<3.27",
+  "ase>=3.27",
   "h5py>=3.7.0",
   "joblib>=1.1.0",
   "networkx>=2.6.3",
-  "omegaconf>=2.3.0",
   "pyyaml>=6.0",
   "tinydb>=4.7.0",
+  "zstandard>=0.23.0",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
   { name="Jiayan Xu", email="ahcigar@foxmail.com" },
 ]
@@ -33,6 +33,26 @@ Issues = "https://github.com/hsulab/GDPy/issues"
 
 [project.scripts]
 gdp = "gdpx.main:main"
+
+[project.optional-dependencies]
+remote = ["paramiko>=2.11"]
+deepmd = ["deepmd-kit>=2,<4", "dpdata"]
+deepmd2 = ["deepmd-kit>=2,<3", "dpdata"]
+deepmd2-cpu = ["deepmd-kit[cpu]>=2,<3", "dpdata"]
+deepmd2-gpu = ["deepmd-kit[gpu]>=2.2.11,<3", "dpdata"]
+deepmd2-cu12 = ["deepmd-kit[gpu,cu12]>=2.2.11,<3", "dpdata"]
+deepmd3 = ["deepmd-kit>=3,<4", "dpdata"]
+deepmd3-torch = ["deepmd-kit[torch]>=3,<4", "dpdata"]
+deepmd3-cpu = ["deepmd-kit[cpu]>=3,<4", "dpdata"]
+deepmd3-gpu = ["deepmd-kit[gpu]>=3,<4", "dpdata"]
+deepmd3-cu12 = ["deepmd-kit[gpu,cu12]>=3,<4", "dpdata"]
+deepmd-gpu = ["deepmd-kit[gpu]>=3,<4", "dpdata"]
+deepmd-cu12 = ["deepmd-kit[gpu,cu12]>=3,<4", "dpdata"]
+mattersim = ["mattersim>=1.2.3,<2"]
+reax = ["xreac[ase] @ git+https://github.com/hsulab/xreac.git@122f1889626e1513843bba2e3618054fa90adf49"]
+mace = ["mace-torch", "torch>=1.12,!=2.4.1"]
+reann = ["torch>=2.0", "opt_einsum>=3.2.0"]
+tace = ["tace @ git+https://github.com/xvzemin/tace.git@90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896"]
 
 [tool.pyright]
 include = [
@@ -54,3 +74,9 @@ exclude = [
 ]
 line-length = 119
 
+[tool.pytest.ini_options]
+markers = [
+  "optional: requires an optional Python capability",
+  "integration: exercises an external program or environment",
+  "basic: fast package behavior",
+]

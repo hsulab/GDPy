@@ -1,0 +1,27 @@
+method: monte_carlo
+random_seed: 1112
+system:
+  builder:
+    method: read_stru
+    fname: examples/monte_carlo/assets/cu16ni16.xyz
+  ensemble:
+    method: semi_grand_canonical
+    temperature: 1200.0
+    chemical_potentials:
+      Cu: 0.0
+      Ni: 0.0
+strategy:
+  convergence:
+    steps: 100
+  dump_period: 1
+  ckpt_period: 10
+  operators:
+    - method: move
+      particles: [Cu, Ni]
+      max_disp: 0.1
+      max_random_attempts: 1
+      probability: 0.5
+    - method: swap_type
+      particles: [Cu, Ni]
+      probability: 0.5
+      max_random_attempts: 1

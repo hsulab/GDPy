@@ -222,7 +222,7 @@ class StructureDatabase:
     
     def _select(self, params):
         """"""
-        from gdpx.selector import create_selector
+        from gdpx.analysis.selectors import create_selector
         selector = create_selector(params)
         selector.logger = self.logger
 
@@ -262,7 +262,7 @@ class StructureDatabase:
             res_path.mkdir()
 
         # TODO: add an outlier detector? selection...
-        #       sometimes expedition gives unphysical structures
+        #       sometimes exploration gives unphysical structures
         for sys in self.systems:
             # -- update basic info for the worker
             nframes_in = len(sys.frames)

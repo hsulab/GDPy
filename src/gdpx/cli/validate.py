@@ -1,8 +1,8 @@
 import pathlib
 from typing import Union
 
-from gdpx.factory.computer import canonicalise_worker
-from gdpx.factory.validator import canonicalise_validator
+from gdpx.execution.factory import create_worker
+from gdpx.analysis.validators.factory import canonicalise_validator
 
 
 def run_validation(config: dict, directory: Union[str, pathlib.Path], worker):
@@ -15,17 +15,16 @@ def run_validation(config: dict, directory: Union[str, pathlib.Path], worker):
         raise Exception("No tasks found in the configuration.")
 
     # Assign worker to each task, priority is task-specific > task-global > command
-    task_global_worker_params = config.get("worker", {})
-    if task_global_worker_params:
-        # override the worker from command line
-        task_global_worker = canonicalise_worker(task_global_worker_params)
+    task_global_runtime = config.get("runtime", {})
+    if task_global_runtime:
+        task_global_worker = create_worker(task_global_runtime)
     else:
         task_global_worker = worker
 
     for task in tasks:
-        task_worker = task.get("worker", {})
-        if task_worker:
-            task["worker"] = task_worker
+        task_runtime = task.pop("runtime", {})
+        if task_runtime:
+            task["worker"] = create_worker(task_runtime)
         elif task_global_worker:
             task["worker"] = task_global_worker
         elif worker:

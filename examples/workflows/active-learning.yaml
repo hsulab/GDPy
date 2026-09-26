@@ -1,0 +1,353 @@
+# Migration of the original active.yaml to the declarative workflow schema.
+# Site-specific paths and commands are collected under parameters for editing.
+parameters:
+  initial_structures: ./ini.xyz
+  deepmd_config: /scratch/gpfs/CAR/jx1279/cobalt/assets/input-fp32.json
+  current_models:
+    - ./models/m0/deepmd.pb
+    - ./models/m1/deepmd.pb
+    - ./models/m2/deepmd.pb
+    - ./models/m3/deepmd.pb
+  remote_workdir: /scratch/gpfs/CAR/jx1279/cobalt/remote/01
+  vasp_command: /scratch/gpfs/CAR/jx1279/apps/vasp/std-6.5.0/bin/vasp_std 2>&1 > vasp.out
+  vasp_incar: /scratch/gpfs/CAR/jx1279/cobalt/inputs/INCAR_LABEL
+  vasp_pp_path: /scratch/gpfs/CAR/jx1279/apps/vasp/potpaw/recommend
+
+workflow:
+  mode: repeat
+  targets:
+    - test_spc_train
+    - test_spc_test
+  max_iterations: 5
+
+state:
+  current_potential:
+    initial: deepmd
+    update: train
+  training_data:
+    initial: dataset
+    update: {node: transfer, output: dataset}
+  test_data:
+    initial: dataset_test
+    update: {node: transfer, output: dataset_test}
+
+resources:
+  dataset:
+    __type__: dataset
+    options:
+      name: xyz
+      dataset_path: ./datasets/train
+      train_ratio: 1.0
+      batchsize: "n_atoms:1024"
+
+  dataset_test:
+    __type__: dataset
+    options:
+      name: xyz
+      dataset_path: ./datasets/test
+      train_ratio: 1.0
+      batchsize: "n_atoms:1024"
+
+  deepmd:
+    __type__: potential
+    options:
+      provider: deepmd
+      backend: lammps
+      parameters:
+        model: {$param: current_models}
+        type_list: [Co, H, O, Ti]
+
+  trainer:
+    __type__: trainer
+    options:
+      provider: deepmd
+      parameters:
+        config: {$param: deepmd_config}
+        type_list: [Co, H, O, Ti]
+        train_epochs: 200
+
+  driver_equi:
+    __type__: executor
+    options:
+      provider: lammps
+      method: md
+      parameters:
+        ignore_atoms_velocities: true
+        dump_period: 1000
+        ckpt_period: 1000000
+        ensemble: nvt
+        controller:
+          name: nose_hoover_chain
+        timestep: 1.0
+        steps: 1000000
+        constraint: "`zbot 48`"
+      broadcast:
+        temp: [300, 400, 500, 600]
+
+  scheduler_1h_gpu:
+    __type__: scheduler
+    options:
+      provider: slurm
+      parameters:
+        time: "00:61:00"
+        nodes: 1
+        ntasks: 1
+        cpus-per-task: 1
+        mem-per-cpu: 4G
+        gres: "gpu:1"
+
+  exploration_runtime:
+    __type__: runtime
+    inputs:
+      potential: current_potential
+      executor: driver_equi
+      scheduler: scheduler_1h_gpu
+    options:
+      dispatch:
+        worker: batch
+        batch_size: 16
+
+  spc_executor:
+    __type__: executor
+    options:
+      provider: ase
+      method: spc
+
+  uncertainty_runtime:
+    __type__: runtime
+    inputs:
+      potential: current_potential
+      executor: spc_executor
+      scheduler: scheduler_1h_gpu
+    options:
+      dispatch:
+        worker: batch
+        share_workdir: true
+
+  vasp:
+    __type__: potential
+    options:
+      provider: vasp
+      backend: vasp
+      parameters:
+        command: {$param: vasp_command}
+        incar: {$param: vasp_incar}
+        kpts: 25
+        pp_path: {$param: vasp_pp_path}
+        vdw_path: {$param: vasp_pp_path}
+        dft_plus_u:
+          Ti: {L: 2, U: 3.5, J: 0.0}
+
+  vasp_spc_executor:
+    __type__: executor
+    options:
+      provider: vasp
+      method: spc
+
+  vasp_scheduler:
+    __type__: scheduler
+    options:
+      provider: slurm
+      parameters:
+        account: car
+        nodes: 1
+        ntasks: 112
+        cpus-per-task: 1
+        mem-per-cpu: 1G
+        time: "23:59:00"
+        machine_prefix: srun
+        environs:
+          - source ~/envs/source_conda.sh
+          - module load intel-oneapi/2024.2
+          - module load intel-mpi/oneapi/2021.13
+          - module load intel-mkl/2024.2
+      transport:
+        provider: ssh
+        parameters:
+          hostname: tiger3
+          remote_wdir: {$param: remote_workdir}
+
+  vasp_spc:
+    __type__: runtime
+    inputs:
+      potential: vasp
+      executor: vasp_spc_executor
+      scheduler: vasp_scheduler
+    options:
+      dispatch:
+        worker: batch
+        batch_size: 24
+
+  s_devi:
+    __type__: selector
+    options:
+      selection:
+        - method: property
+          name: max_devi_f
+          sparsify: {method: filter, range: [null, null]}
+        - method: property
+          name: max_devi_f
+          sparsify:
+            method: filter
+            range: [0.08, 0.32]
+            nbins: 15
+
+  s_desc:
+    __type__: selector
+    options:
+      selection:
+        - method: descriptor
+          n_jobs: 8
+          group_by: axis 0
+          descriptor:
+            name: soap
+            species: [Co, H, O, Ti]
+            r_cut: 6.0
+            n_max: 12
+            l_max: 8
+            sigma: 0.2
+            average: inner
+            periodic: true
+          sparsify: {method: cur, strategy: descent}
+          number: [32, 1.0]
+
+  s_forces:
+    __type__: selector
+    options:
+      selection:
+        method: property
+        name: forces
+        metric: max
+        sparsify: {method: filter, range: [null, 50]}
+
+  scheduler_train:
+    __type__: scheduler
+    options:
+      provider: slurm
+      parameters:
+        time: "04:59:00"
+        nodes: 1
+        ntasks: 1
+        cpus-per-task: 1
+        mem-per-cpu: 4G
+        gres: "gpu:1"
+
+  validator_spc:
+    __type__: validator
+    options:
+      method: spc
+
+steps:
+  read_stru:
+    __type__: read_stru
+    options:
+      fname: {$param: initial_structures}
+
+  model_to_explore:
+    __type__: assemble
+    inputs:
+      runtimes: [exploration_runtime]
+    options:
+      variable: runtime_chain
+
+  run_nvt:
+    __type__: compute_chain
+    inputs:
+      structures: read_stru
+      runtime_chain: model_to_explore
+    options:
+      batchsize: 16
+      use_archive: false
+
+  est_devi:
+    __type__: compute
+    inputs:
+      structures: run_nvt
+      runtime: uncertainty_runtime
+    options:
+      ignore_previous_selections: true
+
+  select_devi:
+    __type__: select
+    inputs:
+      structures: est_devi
+      selector: s_devi
+    options:
+      ignore_previous_selections: true
+
+  select_desc:
+    __type__: select
+    inputs:
+      structures: select_devi
+      selector: s_desc
+
+  run_vasp:
+    __type__: compute
+    inputs:
+      structures: select_desc
+      runtime: vasp_spc
+    options:
+      check_scf_convergence: true
+
+  sift_forces:
+    __type__: select
+    inputs:
+      structures: run_vasp
+      selector: s_forces
+
+  transfer:
+    __type__: transfer
+    inputs:
+      structures: sift_forces
+      dataset: training_data
+      dataset_test: test_data
+    options:
+      split_ratio: {dataset: 0.9, dataset_test: 0.1}
+      prefix: active
+      suffix: surface
+      version: deepmd
+
+  train:
+    __type__: train
+    inputs:
+      dataset: {node: transfer, output: dataset}
+      trainer: trainer
+      potential: current_potential
+      scheduler: scheduler_train
+    options:
+      size: 4
+      share_dataset: true
+
+  model_spc:
+    __type__: assemble
+    inputs:
+      potential: train
+      executor: spc_executor
+    options:
+      variable: runtime
+      scheduler:
+        provider: slurm
+        parameters:
+          time: "00:61:00"
+          nodes: 1
+          ntasks: 1
+          cpus-per-task: 1
+          mem-per-cpu: 4G
+          gres: "gpu:1"
+      dispatch:
+        worker: batch
+        share_workdir: true
+
+  test_spc_train:
+    __type__: validate
+    inputs:
+      structures: {node: transfer, output: dataset}
+      validator: validator_spc
+      runtime: model_spc
+
+  test_spc_test:
+    __type__: validate
+    inputs:
+      structures: {node: transfer, output: dataset_test}
+      validator: validator_spc
+      runtime: model_spc

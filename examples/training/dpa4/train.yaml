@@ -1,0 +1,13 @@
+dataset:
+  name: xyz
+  dataset_path: ./dataset
+  train_ratio: 0.9
+  batchsize: 4
+  random_seed: 1112
+trainer:
+  provider: deepmd
+  method: default
+  parameters:
+    config: ./dpa4.json
+    train_epochs: 10
+    random_seed: 1112

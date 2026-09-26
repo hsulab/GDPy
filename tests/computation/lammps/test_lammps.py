@@ -14,7 +14,8 @@ import yaml
 from ase.io import read, write
 
 from gdpx import config
-from gdpx.cli.compute import convert_config_to_potter
+from gdpx.execution.factory import create_worker, create_workers
+from gdpx.utils.parser import parse_input_file
 
 """
 LAMMPS 23 Jun 2022 - Update 1 (where test values are from)
@@ -42,7 +43,7 @@ def test_reax_nvt():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = convert_config_to_potter("./assets/reaxnvt.yaml")[0]
+    worker = create_worker(parse_input_file("./assets/reaxnvt.yaml"))
 
     results = run_computation(structures, worker)
 
@@ -61,7 +62,7 @@ def test_reax_nvt_archive():
     atoms = read("./assets/Pd38_oct.xyz")
     structures = [atoms]
 
-    worker = convert_config_to_potter("./assets/reaxnvt.yaml")[0]
+    worker = create_worker(parse_input_file("./assets/reaxnvt.yaml"))
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         worker.directory = tmpdirname
@@ -103,7 +104,7 @@ def test_reax_nvt_continue():
         # wdir = "./_xxx"
         wdir = pathlib.Path(wdir)
         # run first simulation
-        worker = convert_config_to_potter(worker_params)[0]
+        worker = create_worker(worker_params)
         worker.directory = wdir
         worker.run(structures)
         # worker.inspect(structures)
@@ -119,9 +120,9 @@ def test_reax_nvt_continue():
         with open(wdir / "cand0" / "lmp.out", "w") as fopen:
             fopen.write("".join(lines[:-1]))
 
-        worker_params["driver"]["run"]["steps"] = 29
+        worker_params["executor"]["parameters"]["steps"] = 29
 
-        worker = convert_config_to_potter(worker_params)[0]
+        worker = create_worker(worker_params)
         worker.directory = wdir
         worker.run(structures)
         worker.inspect(structures)

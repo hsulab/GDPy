@@ -1,310 +1,130 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Command-line interface for versioned execution lifecycles."""
 
+from __future__ import annotations
 
-import enum
-import logging
 import pathlib
 from typing import Optional, Union
 
-from ase import Atoms
-from ase.io import read, write
-
-from gdpx import config
-from gdpx.factory.builder import canonicalise_builder
-from gdpx.nodes.builder import BuilderVariable
-from gdpx.nodes.computer import ComputerChainVariable, ComputerVariable
-from gdpx.nodes.scheduler import SchedulerVariable
-from gdpx.reactor.reactor import BaseReactor
+from gdpx.core.output import Box
+from gdpx.execution.output import reporting_session
+from gdpx.execution.lifecycle import (
+    collect_compute,
+    inspect_compute,
+    orchestrate_compute,
+    prepare_compute,
+    resubmit_compute,
+    run_compute_batch,
+    submit_compute,
+)
 from gdpx.utils.parser import parse_input_file
-from gdpx.worker.drive import DriverBasedWorker
-from gdpx.worker.grid import GridDriverBasedWorker
+
 
 DEFAULT_MAIN_DIRNAME = "MyWorker"
+LIFECYCLE_ACTIONS = {"prepare", "submit", "run", "status", "resubmit", "collect"}
 
 
-CompState = enum.Enum("CompState", ("QUEUED", "FINISHED"))
+def load_runtime_input(value):
+    """Load a runtime mapping or explicit runtime list without adapting legacy forms."""
+    return parse_input_file(value) if isinstance(value, (str, pathlib.Path)) else value
 
 
-def convert_input_to_computer(config):
-    """Convert an input configuration to a computer.
-
-    The `computer` can be ComputerVariable and ComputerChainVariable.
-    This function should only be called in the `main.py`.
-
-    """
-    if isinstance(config, str) or isinstance(config, pathlib.Path):
-        config = parse_input_file(input_fpath=config)
-
-    computer = None
-    if isinstance(config, dict):
-        computer = convert_config_to_computer(config)
-    elif isinstance(config, list):
-        assert len(config) >= 1, "ComputerChain must have more than one computer configuration."
-        computer = convert_config_to_computer_chain(config)
-    else:
-        raise RuntimeError(f"Unknown input for computer with a type of {config}.")
-
-    return computer
-
-
-def convert_config_to_computer_chain(config: list):
-    """"""
-    computers = []
-    for subconfig in config:
-        computers.append(convert_config_to_computer(subconfig))
-    if len(computers) > 1:
-        computer_chain = ComputerChainVariable(computers=computers)
-    else:
-        computer_chain = computers[0]
-
-    return computer_chain
-
-
-def convert_config_to_computer(config):
-    """Convert a configuration file or a dict to a computer."""
-    if isinstance(config, dict):
-        params = config
-    else:  # assume it is json or yaml
-        params = parse_input_file(input_fpath=config)
-
-    assert isinstance(params, dict)
-
-    # For compatibility
-    potter_params = params.pop("potter", None)
-    potential_params = params.pop("potential", None)
-    if potter_params is None:
-        if potential_params is not None:
-            params["potter"] = potential_params
-        else:
-            raise RuntimeError("Fail to find any potter (potential) definition.")
-    else:
-        params["potter"] = potter_params
-
-    computer = ComputerVariable(**params)
-
-    return computer
-
-
-def run_one_worker(structures, worker, directory, batch, spawn, archive):
-    """Run one worker on several structures."""
-    # update working directory
-    worker.directory = directory
-
-    worker.is_spawned = spawn
-
-    # run computations
-    _ = worker.run(structures, batch=batch)
-
-    # check results
-    comp_state = CompState.QUEUED
-    if not spawn:
-        worker.inspect(resubmit=True, batch=batch)
-        if worker.get_number_of_running_jobs() == 0:
-            res_dir = directory / "results"
-            if not res_dir.exists():
-                res_dir.mkdir()
-                ret = worker.retrieve(include_retrieved=True, use_archive=archive)
-                if not isinstance(worker.driver, BaseReactor):
-                    end_frames = [traj[-1] for traj in ret]
-                    write(res_dir / "end_frames.xyz", end_frames)
-                    config._print(f"{directory.name} has already been retrieved.")
-                    comp_state = CompState.FINISHED
-                else:
-                    config._print("Reactor results cannot be retreived for now.")
-            else:
-                config._print(f"{directory.name} has already been retrieved.")
-                comp_state = CompState.FINISHED
-
-    return comp_state
-
-
-def run_worker(
-    structure: list[str],
-    computer,
-    *,
-    batch: Optional[int] = None,
-    spawn: bool = False,
-    archive: bool = False,
-    directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
-):
-    """This computation is performed either by Computer or ComputerChain."""
-    # some imported packages change `logging.basicConfig`
-    # and accidently add a StreamHandler to logging.root
-    # so remove it...
-    for h in logging.root.handlers:
-        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
-            logging.root.removeHandler(h)
-
-    # Set working directory
-    directory = pathlib.Path(directory)
-    if not directory.exists():
-        directory.mkdir()
-
-    # Read structures
-    if isinstance(structure[0], str):
-        frames = []
-        for i, s in enumerate(structure):
-            builder = canonicalise_builder(s)
-            builder.directory = directory / "init" / f"s{i}"
-            frames.extend(builder.run())
-    else:
-        assert isinstance(structure[0], Atoms)
-        frames = structure
-
-    # Find input frames
-    comp_states = []
-    if isinstance(computer, ComputerVariable):
-        workers: list[DriverBasedWorker] = computer.value
-        num_workers = len(workers)
-        if num_workers == 1:
-            comp_state = run_one_worker(frames, workers[0], directory, batch, spawn, archive)
-            comp_states.append(comp_state)
-        else:
-            for i, w in enumerate(workers):
-                comp_state = run_one_worker(frames, w, directory / f"w{i}", batch, spawn, archive)
-                comp_states.append(comp_state)
-    elif isinstance(computer, ComputerChainVariable):
-        chains: list[DriverBasedWorker] = computer.value
-        num_chains = len(chains)
-        if num_chains != 1:  # TODO: Unify the code below with compute_chain operation
-            raise Exception(f"ComputerChain supports only one chain for now, but got {num_chains} chains.")
-        workers = chains[0]
-        num_workers = len(workers)
-        curr_frames = frames
-        for i, worker in enumerate(workers):
-            config._print(f"<- ComputerChainStep.{str(i).zfill(2)} ->")
-            chainstep_directory = directory / f"chainstep.{str(i).zfill(2)}"
-            comp_state = run_one_worker(curr_frames, worker, chainstep_directory, batch, spawn, archive)
-            if comp_state == CompState.FINISHED:
-                config._print("chainstep is finished.")
-                curr_frames = read(chainstep_directory / "results" / "end_frames.xyz", ":")
-                # link to the results from the last chainstep
-                if i + 1 == num_workers:
-                    (directory / "results").symlink_to((chainstep_directory / "results").relative_to(directory))
-            else:
-                config._print("chainstep is not finished.")
-                break
-    else:
-        raise RuntimeError(f"Unknown computer `{computer}`.")
-
-    # Check computation states
-    is_finished = False
-    if all([comp_state == CompState.FINISHED for comp_state in comp_states]):
-        is_finished = True
-
-    return is_finished
-
-
-def convert_config_to_grid_components(grid_params: dict):
-    """"""
-    # config._print(grid_params)
-    grid_data = grid_params.get("grid", None)
-    assert grid_data is not None
-
-    # scheduler
-    scheduler = SchedulerVariable(**grid_params.get("scheduler", {})).value
-
-    structures, potters, drivers = [], [], []
-    for data in grid_data:
-        builder_params = data.get("builder")
-        builder = BuilderVariable(**builder_params).value
-        structures.extend(builder.run())
-
-        # FIXME: broadcast worker to structures?
-        computer_params = data.get("computer")
-        computers = ComputerVariable(**computer_params).value
-        num_computers = len(computers)
-        assert num_computers == 1
-        potters.append(computers[0].potter)
-        drivers.append(computers[0].driver)
-        # config._print(f"{builder =}")
-        # config._print(f"{computer =}")
-        ...
-    # config._print(f"{structures =}")
-    # config._print(f"{potters =}")
-    # config._print(f"{drivers =}")
-
-    # aux parameters
-    batchsize = grid_params.get("batchsize", 1)
-
-    aux_params = dict(batchsize=batchsize)
-
-    return scheduler, structures, potters, drivers, aux_params
-
-
-def run_grid_worker(grid_params: dict, batch: Optional[int], spawn, directory):
-    """"""
-    directory = pathlib.Path(directory)
-
-    if batch is None:  # submit jobs to queue
-        scheduler, structures, potters, drivers, aux_params = convert_config_to_grid_components(grid_params)
-        worker = GridDriverBasedWorker(potters=potters, drivers=drivers, scheduler=scheduler, **aux_params)
-        worker._submit = False
-
-        # run computations
-        worker.driver = None  # FIXME: compat
-        run_one_worker(
-            structures,
-            worker,
-            directory,
-            batch=batch,
-            spawn=spawn,
-            archive=True,
-        )
-    else:  # run jobs in command line
-        batch_grid_params, batch_wdirs = [], []
-        for x in grid_params["grid"]:
-            if x["batch"] == batch:
-                batch_grid_params.append(x)
-                batch_wdirs.append(directory / x["wdir_name"])
-        grid_params = {}
-        grid_params["grid"] = batch_grid_params
-
-        scheduler, structures, potters, drivers, aux_params = convert_config_to_grid_components(grid_params)
-        # aux_params["batchsize"] = len(structures)
-        # worker = GridDriverBasedWorker(
-        #     potters=potters, drivers=drivers, scheduler=scheduler, **aux_params
-        # )
-        GridDriverBasedWorker.run_grid_computations_in_command(
-            batch_wdirs, structures, drivers, print_func=config._print
-        )
-
-    return
-
-
+@reporting_session
 def run_computation(
-    structure,
-    computer,
+    structures,
+    runtime,
     *,
     batch: Optional[int] = None,
     spawn: bool = False,
     archive: bool = False,
     directory: Union[str, pathlib.Path] = pathlib.Path.cwd() / DEFAULT_MAIN_DIRNAME,
+    plan: Optional[Union[str, pathlib.Path]] = None,
+    worker_index: int = 0,
+    job: Optional[Union[str, pathlib.Path]] = None,
+    task: Optional[int] = None,
 ):
-    """"""
-    if computer is not None:
-        # For compatibility, the classic mode
-        # `gdp -p ./worker.yaml compute structures.xyz`
-        run_worker(
-            structure,
-            computer,
-            batch=batch,
-            spawn=spawn,
-            archive=archive,
-            directory=directory,
-        )
+    """Prepare or advance one explicit compute lifecycle."""
+    action = structures[0] if structures and structures[0] in LIFECYCLE_ACTIONS else None
+    plan_path = pathlib.Path(plan) if plan is not None else pathlib.Path(directory)
+
+    if job is not None:
+        if action != "run" or plan is not None:
+            raise ValueError("--job requires compute run and cannot be combined with --plan.")
+        from gdpx.execution.factory import create_worker
+        from gdpx.execution.fingerprint import FINGERPRINT_VERSION, payload_digest
+
+        from gdpx.execution.workers.metadata import WorkerMetadata
+
+        metadata = WorkerMetadata(directory)
+        by_uuid = pathlib.Path(str(job)).suffix != ".json"
+        if by_uuid:
+            saved = metadata.validate_manifest(metadata.inputs.read()["jobs"][str(job)])
+            saved = WorkerMetadata(directory, saved["worker"]).manifest(str(job))
+        else:
+            raise ValueError("Legacy job manifests are not supported; use a new working directory.")
+        if (saved["input"].get("version") != FINGERPRINT_VERSION
+                or payload_digest(saved["input"]) != saved["job_digest"]):
+            raise ValueError(f"Job fingerprint mismatch: {job}")
+        worker_directory = pathlib.Path(directory) / saved["worker"] if by_uuid else directory
+        worker = create_worker(saved["input"]["runtime"], directory=worker_directory)
+        if by_uuid:
+            worker.metadata_root = pathlib.Path(directory)
+        worker.run_saved_job(job, task=task)
+        return
+
+    if task is not None:
+        raise ValueError("--task requires --job.")
+
+    if spawn and action is None:
+        if runtime is None or batch is None:
+            raise RuntimeError("Spawned computations require --runtime and --batch.")
+        from gdpx.execution.factory import create_worker
+        from gdpx.structures.builders.factory import canonicalise_builder
+
+        worker = create_worker(load_runtime_input(runtime), directory=directory)
+        worker.is_spawned = True
+        frames = []
+        for source in structures:
+            frames.extend(canonicalise_builder(source).run())
+        worker.run(frames, batch=batch)
+        return
+
+    if action == "prepare":
+        if runtime is None:
+            raise RuntimeError("`gdp compute prepare` requires `--runtime`.")
+        result = prepare_compute(load_runtime_input(runtime), structures[1:], directory)
+    elif action == "submit":
+        result = submit_compute(plan_path, batches=None if batch is None else [batch])
+    elif action == "run":
+        if batch is None:
+            raise RuntimeError("`gdp compute run` requires `--batch`.")
+        result = run_compute_batch(plan_path, batch=batch, worker_index=worker_index)
+    elif action == "status":
+        result = inspect_compute(plan_path)
+    elif action == "resubmit":
+        result = resubmit_compute(plan_path, batches=None if batch is None else [batch])
+    elif action == "collect":
+        result = collect_compute(plan_path, archive=archive)
     else:
-        # Use GridWorker here!!
-        run_grid_worker(
-            parse_input_file(structure[0]),
-            batch=batch,
-            spawn=spawn,
-            directory=directory,
-        )
+        if runtime is None:
+            raise RuntimeError("`gdp compute` requires `--runtime`.")
+        compute_plan = prepare_compute(load_runtime_input(runtime), structures, directory)
+        if spawn:
+            result = submit_compute(compute_plan, batches=None if batch is None else [batch])
+        else:
+            result = orchestrate_compute(compute_plan, archive=archive)
 
-    return
-
-
-if __name__ == "__main__":
-    ...
+    box = Box('compute | ' + (action or 'run'))
+    if hasattr(result, 'state'):
+        box.line(f'state: {result.state}   batches: {result.total}   finished: {result.finished}   pending: {result.queued}')
+    elif hasattr(result, 'number_of_trajectories'):
+        box.line(f'collected: {result.number_of_trajectories} calculations')
+        box.line(f'results: {result.end_frames}')
+    elif hasattr(result, 'submitted_batches'):
+        box.line(f'submitted batches: {len(result.submitted_batches)}')
+    elif hasattr(result, 'workers'):
+        box.line(f'workers: {len(result.workers)}   batches: {sum(len(w.batches) for w in result.workers)}')
+        box.line(f'plan: {result.path}')
+    else:
+        box.line(f'worker: {result.worker}   batch: {result.batch}   finished: {str(result.finished).lower()}')
+    box.border('bottom')
+    return result

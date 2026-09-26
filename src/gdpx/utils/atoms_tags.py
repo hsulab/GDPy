@@ -57,7 +57,7 @@ def get_tags_per_species(
 
 
 def reassign_tags_by_species(atoms: Atoms) -> Atoms:
-    """"""
+    """Order fragments by species and their atoms by element, preserving geometry."""
     tags_dict = get_tags_per_species(atoms)
 
     # Find substrate which has tag 0
@@ -82,7 +82,11 @@ def reassign_tags_by_species(atoms: Atoms) -> Atoms:
     valid_keys = sorted([k for k in tags_dict.keys() if k != substrate])
     for species in valid_keys:
         for k, v in tags_dict[species]:  # type: ignore
-            new_indices.extend(v)
+            # Builders can supply the same molecule in different atom orders
+            # (e.g. ASE's OC versus insertion's CO). Normalize within each mobile
+            # fragment so their offspring have matching numbers and tags for GA.
+            # Stable sorting retains the order of atoms of the same element.
+            new_indices.extend(sorted(v, key=lambda index: atoms.numbers[index]))
             new_tags.extend([current_tag] * len(v))
             current_tag += 1
 

@@ -3,7 +3,7 @@
 
 import tempfile
 
-from gdpx.selector.selector import save_cache, load_cache
+from gdpx.analysis.selectors.selector import save_cache, load_cache
 
 temp_info = """#      index    confid      step    natoms           ene        aene      maxfrc       score
          3,1         1        10        40     -283.3720     -7.0843      2.2355         nan

@@ -1,0 +1,25 @@
+potential:
+  provider: nnp
+  parameters:
+    model_file: ./nnp_train/nn_weights.npz
+    type_map: ["Cu", "Au"]
+
+executor:
+  provider: ase
+  method: md
+  parameters:
+    timestep: 1.0
+    temp: 300.0
+    steps: 10000
+    dump_period: 100
+    controller:
+      name: langevin
+
+scheduler:
+  provider: direct
+  parameters: {}
+  transport:
+    provider: local
+    parameters: {}
+dispatch:
+  batch_size: 1

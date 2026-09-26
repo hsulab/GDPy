@@ -1,0 +1,22 @@
+"""Registries belonging specifically to the workflow graph layer."""
+
+from gdpx.core.registry import Registry
+
+
+VARIABLE_REGISTRY = Registry("variable")
+OPERATION_REGISTRY = Registry("operation")
+
+
+class workflow_registers:
+    variable = VARIABLE_REGISTRY
+    operation = OPERATION_REGISTRY
+
+    @classmethod
+    def get(cls, category: str, name: str, convert_name: bool = True):
+        if convert_name:
+            name = "".join(part.capitalize() for part in name.strip().split("_")) + category.capitalize()
+        return getattr(cls, category)[name]
+
+    @classmethod
+    def create(cls, category: str, name: str, convert_name: bool = True, *args, **kwargs):
+        return cls.get(category, name, convert_name)(*args, **kwargs)

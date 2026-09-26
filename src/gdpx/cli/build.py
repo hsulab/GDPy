@@ -7,9 +7,9 @@ from typing import Union
 
 from ase.io import read, write
 
-from gdpx.nodes.builder import BuilderVariable
+from gdpx.structures.builders.factory import canonicalise_builder
 
-from ..builder.builder import StructureBuilder
+from gdpx.structures.builders.builder import StructureBuilder
 
 
 def build_structures(
@@ -18,7 +18,8 @@ def build_structures(
     """"""
     directory = pathlib.Path(directory)
 
-    builder: StructureBuilder = BuilderVariable(directory=directory, **config).value
+    builder: StructureBuilder = canonicalise_builder(config)
+    builder.directory = directory
     builder.directory = directory
 
     # assume substrates is a file path

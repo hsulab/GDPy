@@ -1,0 +1,24 @@
+method: monte_carlo
+random_seed: 1112
+system:
+  builder:
+    method: read_stru
+    fname: examples/monte_carlo/assets/aucu8.xyz
+  ensemble:
+    method: grand_canonical
+    temperature: 1200.0
+    chemical_potentials:
+      Cu: 2.0
+strategy:
+  convergence:
+    steps: 100
+  dump_period: 1
+  ckpt_period: 10
+  operators:
+    - method: exchange
+      particles: [Cu]
+      region:
+        method: lattice
+        origin: [0, 0, 0]
+        cell: [8, 0, 0, 0, 8, 0, 0, 0, 8]
+      max_random_attempts: 1
