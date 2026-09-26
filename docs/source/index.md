@@ -69,7 +69,7 @@ potentials <trainers/potentials>
 command: gdp compute <computations/index>
 demo and lifecycle <computations/compute>
 tasks <computations/tasks/index>
-runtime and executors <computations/runtime>
+runtime configurations <computations/runtime>
 machine resources <computations/schedulers>
 ```
 

@@ -96,7 +96,7 @@ gdp -d run-embedded explore expo.yaml
 ```
 
 Use either layout with GA or BH. A minimization runtime supplies the local
-relaxation used by both strategies. See {doc}`runtime and executors
+relaxation used by both strategies. See {doc}`runtime configurations
 <../computations/runtime>` for other potentials and calculation settings.
 `runtime.scheduler` schedules candidate calculations, while the top-level
 `scheduler` schedules the exploration loop itself.

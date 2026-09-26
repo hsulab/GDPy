@@ -13,7 +13,7 @@ gdp -d results -r runtime.yaml compute structures.xyz
 | --- | --- |
 | {doc}`compute` | A copper-dimer demo, preparation, submission, status, and collected results. |
 | {doc}`tasks/index` | Single points, relaxation, molecular dynamics, transition states, and vibrations. |
-| {doc}`runtime` | Potential/executor compatibility and optional modifiers. |
+| {doc}`runtime` | Single runtimes, dispatch, parameter broadcasts, and runtime chains. |
 | {doc}`schedulers` | Local CPUs/GPUs, batch queues, SSH, and resource allocation. |
 
 ## Runtime layout

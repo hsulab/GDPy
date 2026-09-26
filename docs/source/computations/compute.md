@@ -73,8 +73,8 @@ worker directory. The current `gdp compute` lifecycle accepts a mapping or a
 flat list of mappings; it does not accept nested sequential chains or perform
 a Cartesian product of implicit list settings. An explicit
 `executor.broadcast` does expand executor parameters as described in
-{doc}`runtime`. Each member of a flat runtime list may define its own broadcast,
-and the resolved runtimes are flattened in source order. Use the workflow layer
-for sequential work.
+{doc}`runtime-broadcast`. Each member of a flat runtime list may define its own
+broadcast, and the resolved runtimes are flattened in source order. Use
+{doc}`runtime-chain` in the workflow layer for sequential work.
 
 See {doc}`tasks/index` for task examples and {doc}`schedulers` for queue jobs.
