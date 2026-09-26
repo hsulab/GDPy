@@ -1,7 +1,7 @@
 # validate
 
 A `validate` step consumes a validator resource, a structure-producing step,
-and optionally a worker supplied by another node. The dependencies are
+and optionally a runtime used to construct its worker. The dependencies are
 explicit under `inputs`:
 
 ```yaml

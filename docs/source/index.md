@@ -127,7 +127,6 @@ global_optimisation/output
 :caption: 'Advanced Guides:'
 :maxdepth: 2
 
-sessions/index
 workflows/index
 ```
 
