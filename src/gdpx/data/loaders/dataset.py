@@ -172,27 +172,35 @@ class XyzDataloader(AbstractDataloader):
     def _relative_parts(self, path: pathlib.Path) -> tuple[str, ...]:
         return tuple(path.relative_to(self.directory).parts)
 
+    def _system_files(self) -> list[tuple[tuple[str, ...], list[pathlib.Path]]]:
+        """Return exact XYZ shards grouped by their dataset system."""
+        system_groups: dict[tuple[str, ...], list[pathlib.Path]] = {}
+        for data_dir in self.load():
+            system_path = None
+            for parent in (data_dir, *data_dir.parents):
+                if is_a_valid_system_name(parent.name):
+                    system_path = parent
+                    break
+            if system_path is None:
+                raise RuntimeError(f"No system folder found in `{data_dir}`")
+            key = self._relative_parts(system_path)
+            system_groups.setdefault(key, []).extend(sorted(data_dir.glob("*.xyz")))
+        return sorted(system_groups.items())
+
     def load_frames(self):
         """"""
-        data_dirs = self.load()
+        system_files = self._system_files()
 
-        names = [self._relative_parts(path) for path in data_dirs]
-
-        nframes_tot, frames_list = 0, []
-        for i, p in enumerate(data_dirs):
+        nframes_tot, pairs = 0, []
+        for i, (name, xyzpaths) in enumerate(system_files):
             curr_frames = []
-            xyzpaths = sorted(list(p.glob("*.xyz")))
             for x in xyzpaths:
                 curr_frames.extend(read(x, ":"))
             curr_nframes = len(curr_frames)
             nframes_tot += curr_nframes
-            self._debug(f"{i:>4d} {str(p)} -> {len(curr_frames)}")
-            frames_list.append(curr_frames)
+            self._debug(f"{i:>4d} {'/'.join(name)} -> {len(curr_frames)}")
+            pairs.append([name, curr_frames])
         self._debug(f"Number of frames: {nframes_tot}")
-
-        pairs = []
-        for n, x in zip(names, frames_list):
-            pairs.append([n, x])
 
         # - map keys
         should_map_keys = False
@@ -219,38 +227,8 @@ class XyzDataloader(AbstractDataloader):
     ):
         """Read structures and split them into train and test."""
         self._print("--- auto data reader ---")
-        data_dirs = self.load()
-        self._debug(data_dirs)
-
-        # Aggregate data folders into systems
-        system_paths = []
-        for d in data_dirs:
-            d_tree = d.parts
-            num_parts = len(d_tree)
-            part_index = None
-            for ipart in range(num_parts - 1, -1, -1):
-                if is_a_valid_system_name(d_tree[ipart]):
-                    part_index = ipart
-                    break
-                else:
-                    ...
-            else:
-                ...
-            if part_index is not None:
-                system_paths.append(pathlib.Path(*d_tree[: part_index + 1]))
-            else:
-                raise RuntimeError(f"No system folder found in `{str(d)}`")
-
-        system_groups = {}
-        for index, system_path in enumerate(system_paths):
-            key = self._relative_parts(system_path)
-            system_groups.setdefault(key, []).append(data_dirs[index])
-
-        # Convert to tuple
-        system_groups_ = []
-        for key, directories in system_groups.items():
-            system_groups_.append([key, directories])
-        system_groups = system_groups_
+        system_groups = self._system_files()
+        self._debug(system_groups)
 
         # Check batchsize
         batchsizes = self.batchsize
@@ -291,16 +269,11 @@ class XyzDataloader(AbstractDataloader):
             self._print(f"System {set_name}")
             self._print(f"  {composition=}  batchsize={curr_batchsize}")
             frames = []  # all frames in this subsystem
-            for curr_subsystem in curr_system_group[1]:
-                self._print(f"  {'/'.join(self._relative_parts(curr_subsystem))}")
-                xyz_fpaths = list(curr_subsystem.glob("*.xyz"))
-                xyz_fpaths.sort()  # sort by alphabet
-                for p in xyz_fpaths:
-                    # read and split dataset
-                    p_frames = read(p, ":")
-                    p_nframes = len(p_frames)
-                    frames.extend(p_frames)
-                    self._print(f"    subsystem: {p.name} number {p_nframes}")
+            for p in curr_system_group[1]:
+                p_frames = read(p, ":")
+                p_nframes = len(p_frames)
+                frames.extend(p_frames)
+                self._print(f"    shard: {p.name} number {p_nframes}")
 
             # split dataset and get adjusted batchsize
             num_frames = len(frames)
@@ -380,12 +353,30 @@ class XyzSnapshotDataloader(XyzDataloader):
 
     name = "xyz_snapshot"
 
-    def __init__(self, sources, **kwargs):
-        paths = tuple(pathlib.Path(path).resolve() for path in sources)
-        if not paths:
-            raise ValueError("An XYZ dataset snapshot requires at least one source.")
+    def __init__(self, sources=None, shards=None, manifest=None, **kwargs):
+        paths = tuple(pathlib.Path(path).resolve() for path in (sources or ()))
+        entries = []
+        for source in paths:
+            loader = XyzDataloader(source, **kwargs)
+            for system, files in loader._system_files():
+                entries.extend({"system": system, "path": path.resolve()} for path in files)
+        entries.extend(
+            [
+                {
+                    "system": tuple(item["system"]),
+                    "path": pathlib.Path(item["path"]).resolve(),
+                }
+                for item in (shards or ())
+            ]
+        )
+        if not entries and not paths:
+            raise ValueError("An XYZ dataset snapshot requires at least one source or shard.")
+        self.shards = tuple(
+            {item["path"]: item for item in entries}.values()
+        )
         self.sources = paths
-        super().__init__(dataset_path=paths[0], **kwargs)
+        self.manifest = pathlib.Path(manifest).resolve() if manifest else None
+        super().__init__(dataset_path=paths[0] if paths else entries[0]["path"].parent, **kwargs)
 
     @classmethod
     def from_loader(cls, loader: XyzDataloader) -> "XyzSnapshotDataloader":
@@ -396,7 +387,7 @@ class XyzSnapshotDataloader(XyzDataloader):
                 f"Immutable dataset transfer currently supports XYZ datasets, got {type(loader).__name__}."
             )
         return cls(
-            [loader.directory],
+            sources=[loader.directory],
             batchsize=loader.batchsize,
             train_ratio=loader.train_ratio,
             random_seed=loader.random_seed,
@@ -405,9 +396,24 @@ class XyzSnapshotDataloader(XyzDataloader):
 
     def extend(self, source: str | pathlib.Path) -> "XyzSnapshotDataloader":
         source = pathlib.Path(source).resolve()
-        sources = self.sources if source in self.sources else (*self.sources, source)
+        loader = XyzDataloader(source)
+        shards = list(self.shards)
+        for system, files in loader._system_files():
+            shards.extend({"system": system, "path": path} for path in files)
         return type(self)(
-            sources,
+            sources=(*self.sources, source),
+            shards=shards,
+            batchsize=self.batchsize,
+            train_ratio=self.train_ratio,
+            random_seed=self.random_seed,
+            prop_keys=self.prop_keys,
+        )
+
+    def extend_shards(self, shards, manifest=None) -> "XyzSnapshotDataloader":
+        return type(self)(
+            sources=self.sources,
+            shards=[*self.shards, *shards],
+            manifest=manifest,
             batchsize=self.batchsize,
             train_ratio=self.train_ratio,
             random_seed=self.random_seed,
@@ -415,12 +421,13 @@ class XyzSnapshotDataloader(XyzDataloader):
         )
 
     def load(self) -> list[pathlib.Path]:
-        return sorted(
-            path
-            for source in self.sources
-            if source.exists()
-            for path in traverse_xyzdirs(source)
-        )
+        return sorted({item["path"].parent for item in self.shards if item["path"].exists()})
+
+    def _system_files(self) -> list[tuple[tuple[str, ...], list[pathlib.Path]]]:
+        groups: dict[tuple[str, ...], list[pathlib.Path]] = {}
+        for item in self.shards:
+            groups.setdefault(item["system"], []).append(item["path"])
+        return [(key, sorted(paths)) for key, paths in sorted(groups.items())]
 
     def _relative_parts(self, path: pathlib.Path) -> tuple[str, ...]:
         resolved = path.resolve()
@@ -435,6 +442,11 @@ class XyzSnapshotDataloader(XyzDataloader):
         return {
             "name": self.name,
             "sources": [str(path) for path in self.sources],
+            "shards": [
+                {"system": list(item["system"]), "path": str(item["path"])}
+                for item in self.shards
+            ],
+            "manifest": str(self.manifest) if self.manifest else None,
             "batchsize": self.batchsize,
             "train_ratio": self.train_ratio,
             "random_seed": self.random_seed,

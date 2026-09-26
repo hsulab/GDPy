@@ -5,10 +5,13 @@
 import copy
 import itertools
 import json
+import os
 import pathlib
+import tempfile
 from typing import Mapping, Union
 
 import numpy as np
+import yaml
 from ase import Atoms
 from ase.io import write
 
@@ -66,7 +69,7 @@ def transfer_structures_to_dataset(
     root_dirpath = pathlib.Path(root_dirpath).resolve()
 
     strname = version + ".xyz"
-    target_destination = system_dirpath / strname
+    target_destination = (system_dirpath / strname).resolve()
     relative_desination = target_destination.relative_to(root_dirpath)
 
     num_structures = len(structures)
@@ -117,8 +120,89 @@ class transfer(Operation):
 
         self.clean_info = clean_info  # whether clean atoms info
         self.set_pbc = set_pbc  # Whether set structures to full pbc
+        self._state_artifacts = {}
 
         return
+
+    def bind_state_artifact(
+        self,
+        output: str,
+        state_name: str,
+        root: str | pathlib.Path,
+        iteration: int,
+    ) -> None:
+        """Route one state-carrying output to its central artifact collection."""
+        self._state_artifacts[output] = {
+            "root": pathlib.Path(root).resolve(),
+            "state": state_name,
+            "iteration": iteration,
+        }
+
+    def _write_version_manifest(self, name, snapshot, new_shards):
+        binding = self._state_artifacts.get(name)
+        if binding is None:
+            return snapshot.extend_shards(new_shards)
+
+        artifact_root = binding["root"] / "artifacts" / "datasets" / binding["state"]
+        version = f"{binding['iteration']:04d}"
+        all_shards = [*snapshot.shards, *new_shards]
+        systems = {}
+        for shard in all_shards:
+            path = pathlib.Path(shard["path"]).resolve()
+            if any(self._is_within(path, source) for source in snapshot.sources):
+                continue
+            system = "/".join(shard["system"])
+            try:
+                location = str(path.relative_to(binding["root"]))
+            except ValueError:
+                location = str(path)
+            systems.setdefault(system, []).append(location)
+        manifest = {
+            "format": "gdpx.structure-dataset/v1",
+            "iteration": binding["iteration"],
+            "codec": "extxyz",
+            "loader": {
+                "batchsize": snapshot.batchsize,
+                "train_ratio": snapshot.train_ratio,
+                "random_seed": snapshot.random_seed,
+                "prop_keys": snapshot.prop_keys,
+                "sources": [
+                    self._path_reference(path, binding["root"])
+                    for path in snapshot.sources
+                ],
+            },
+            "systems": systems,
+        }
+        target = artifact_root / "versions" / f"{version}.yaml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", dir=target.parent, delete=False, encoding="utf-8"
+        ) as stream:
+            temporary = pathlib.Path(stream.name)
+            yaml.safe_dump(manifest, stream, sort_keys=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return snapshot.extend_shards(new_shards, manifest=target)
+
+    @staticmethod
+    def _is_within(path: pathlib.Path, directory: pathlib.Path) -> bool:
+        try:
+            path.relative_to(directory.resolve())
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _path_reference(path: pathlib.Path, root: pathlib.Path) -> str:
+        path = path.resolve()
+        try:
+            return str(path.relative_to(root.resolve()))
+        except ValueError:
+            return str(path)
 
     def _canonicalise_datasets(self, datasets: dict, split_ratio: Union[float, Mapping[str, float]]):
         """"""
@@ -174,7 +258,20 @@ class transfer(Operation):
         self._print("target datasets:")
         snapshots = [XyzSnapshotDataloader.from_loader(dataset) for dataset in datasets]
         dataset_names = self.dataset_names
-        target_dirpaths = [self.directory / "datasets" / name for name in dataset_names]
+        target_dirpaths = []
+        for name in dataset_names:
+            binding = self._state_artifacts.get(name)
+            if binding is None:
+                target = self.directory / "datasets" / name
+            else:
+                target = (
+                    binding["root"]
+                    / "artifacts"
+                    / "datasets"
+                    / binding["state"]
+                    / "systems"
+                )
+            target_dirpaths.append(target)
         for target_dirpath in target_dirpaths:
             self._print(f"-> dataset: {str(target_dirpath)}")
         main_dataset = datasets[0]
@@ -183,12 +280,16 @@ class transfer(Operation):
         if (self.directory / "cache_splits.json").exists():
             self._print("cache_splits.json exists, skip transfer.")
             self.status = "finished"
-            return NamedOutputs(
-                {
-                    name: snapshot.extend(target)
-                    for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths)
-                }
-            )
+            outputs = {}
+            for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths):
+                version = self._state_artifacts.get(name, {}).get("iteration")
+                version = f"{version:04d}" if version is not None else self.version
+                new_shards = [
+                    {"system": (path.parent.name,), "path": path}
+                    for path in target.rglob(f"{version}.xyz")
+                ]
+                outputs[name] = self._write_version_manifest(name, snapshot, new_shards)
+            return NamedOutputs(outputs)
 
         # Check chemical symbols
         system_dict = {}  # {formula: [indices]}
@@ -218,7 +319,7 @@ class transfer(Operation):
                 self._clean_structures(curr_structures)
 
             system_type = self.suffix  # currently, use user input one
-            dirname = "-".join([self.prefix, formula, system_type])
+            dirname = "-".join(part for part in [self.prefix, formula, system_type] if part)
 
             cache_info = dict(rng_state=main_dataset.rng.bit_generator.state)
             split_structures, split_indices = split_structures_by_ratio(
@@ -237,12 +338,16 @@ class transfer(Operation):
                         f"-> {dataset_name:<24s} skips {dirname} as it has no structures."
                     )
                 else:
+                    binding = self._state_artifacts.get(dataset_name)
+                    version = (
+                        f"{binding['iteration']:04d}" if binding is not None else self.version
+                    )
                     transfer_structures_to_dataset(
                         dataset_name,
                         target_root,
                         target_subdir,
                         target_structures,
-                        self.version,
+                        version,
                         self._print,
                     )
             assert formula not in cache_splits, f"Formula {formula} already exists in cache_split_indices."
@@ -257,12 +362,16 @@ class transfer(Operation):
 
         self.status = "finished"
 
-        return NamedOutputs(
-            {
-                name: snapshot.extend(target)
-                for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths)
-            }
-        )
+        outputs = {}
+        for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths):
+            binding = self._state_artifacts.get(name)
+            version = f"{binding['iteration']:04d}" if binding is not None else self.version
+            new_shards = [
+                {"system": (path.parent.name,), "path": path}
+                for path in target.rglob(f"{version}.xyz")
+            ]
+            outputs[name] = self._write_version_manifest(name, snapshot, new_shards)
+        return NamedOutputs(outputs)
 
     def _clean_structures(self, structures: list[Atoms]):
         """"""

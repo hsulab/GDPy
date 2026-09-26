@@ -26,12 +26,11 @@ def select_output(value: Any, name: str) -> Any:
 class OutputSelector(Operation):
     """Internal graph node that selects one declared step output."""
 
-    def __init__(self, source, output: str, directory="."):
-        super().__init__([source], directory)
+    def __init__(self, source, output: str):
+        super().__init__([source])
         self.output = output
 
     def forward(self, value):
-        super().forward()
         selected = select_output(value, self.output)
         self.status = "finished"
         return selected

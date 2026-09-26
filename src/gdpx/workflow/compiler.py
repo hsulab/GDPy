@@ -83,7 +83,6 @@ def _resolve_input(
     value: Any,
     nodes: Mapping[str, Any],
     ports: dict[tuple[str, str], OutputSelector],
-    root: pathlib.Path,
 ) -> Any:
     if isinstance(value, str):
         return nodes[value]
@@ -93,10 +92,9 @@ def _resolve_input(
             ports[key] = OutputSelector(
                 nodes[value.node],
                 value.output,
-                directory=root / "outputs" / value.node / value.output,
             )
         return ports[key]
-    return [_resolve_input(item, nodes, ports, root) for item in value]
+    return [_resolve_input(item, nodes, ports) for item in value]
 
 
 def _references(value: Any) -> list[str]:
@@ -160,7 +158,7 @@ def compile_workflow(
         kwargs = copy.deepcopy(dict(definition.options))
         kwargs.update(
             {
-                key: _resolve_input(value, nodes, ports, root)
+                key: _resolve_input(value, nodes, ports)
                 for key, value in definition.inputs.items()
             }
         )

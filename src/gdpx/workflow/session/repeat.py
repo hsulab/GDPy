@@ -48,6 +48,15 @@ class RepeatSession(BaseSession):
         ]
         return bool(reports) and all(reports)
 
+    def _bind_state_artifacts(self, compiled, iteration: int) -> None:
+        for state_name, definition in self.spec.state.items():
+            reference = definition.update
+            node_name = reference.node if isinstance(reference, OutputReference) else reference
+            output = reference.output if isinstance(reference, OutputReference) else "default"
+            node = compiled.nodes[node_name]
+            if hasattr(node, "bind_state_artifact"):
+                node.bind_state_artifact(output, state_name, self.directory, iteration)
+
     def run(self) -> None:
         last_iteration, state_values = self.store.load()
         if self.store.current.exists():
@@ -71,11 +80,15 @@ class RepeatSession(BaseSession):
                 iteration_directory,
                 state_values=state_values if last_iteration >= 0 or state_values else None,
             )
+            self._bind_state_artifacts(compiled, iteration)
             if iteration == 0 and self.spec.state and not self.store.initial.exists():
                 state_values = {
                     name: compiled.nodes[name].value for name in self.spec.state
                 }
                 self.store.initialise(state_values)
+                _, state_values = self.store.load()
+                for name, value in state_values.items():
+                    compiled.nodes[name]._value = value
             nodes = traverse_postorder(compiled.entry)
             if (
                 self.spec.settings.reset_random_state

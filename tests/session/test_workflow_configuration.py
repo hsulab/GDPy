@@ -227,6 +227,7 @@ steps:
     assert manifest["iteration"] == 2
     assert manifest["values"]["counter"] == {"kind": "json", "value": 6}
     assert (run / "iter.0002" / "steps" / "pair").is_dir()
+    assert not any(run.glob("iter.*/outputs"))
 
     messages = []
     monkeypatch.setattr(config, "_print", messages.append)

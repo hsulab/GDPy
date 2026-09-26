@@ -70,53 +70,123 @@ def workflow_fingerprint(spec: WorkflowSpec) -> str:
     return hashlib.sha256(encoded.encode()).hexdigest()
 
 
-def _artifact(path: str | pathlib.Path, root: pathlib.Path) -> dict:
+def _artifact(path: str | pathlib.Path, root: pathlib.Path) -> str:
     path = pathlib.Path(path).resolve()
     if not path.exists():
         raise RuntimeError(f"Workflow state artifact is missing: {path}")
-    location: str
     try:
-        location = str(path.relative_to(root.resolve()))
-        relative = True
+        return str(path.relative_to(root.resolve()))
     except ValueError:
-        location = str(path)
-        relative = False
-    digest = None
-    if path.is_file() or path.is_dir():
-        hasher = hashlib.sha256()
-    if path.is_file():
-        with path.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                hasher.update(block)
-        digest = hasher.hexdigest()
-    elif path.is_dir():
-        for child in sorted(item for item in path.rglob("*") if item.is_file()):
-            hasher.update(str(child.relative_to(path)).encode())
-            with child.open("rb") as stream:
-                for block in iter(lambda: stream.read(1024 * 1024), b""):
-                    hasher.update(block)
-        digest = hasher.hexdigest()
-    return {"path": location, "relative": relative, "sha256": digest}
+        return str(path)
 
 
-def _restore_artifact(value: Mapping[str, Any], root: pathlib.Path) -> str:
-    path = pathlib.Path(value["path"])
-    if value.get("relative"):
+def _restore_artifact(value: str | Mapping[str, Any], root: pathlib.Path) -> str:
+    if isinstance(value, Mapping):
+        path = pathlib.Path(value["path"])
+        is_relative = value.get("relative", not path.is_absolute())
+    else:
+        path = pathlib.Path(value)
+        is_relative = not path.is_absolute()
+    if is_relative:
         path = root / path
     path = path.resolve()
-    digest = value.get("sha256")
     if not path.exists():
         raise RuntimeError(f"Workflow state artifact is missing: {path}")
-    if digest is not None and _artifact(path, root)["sha256"] != digest:
-        raise RuntimeError(f"Workflow state artifact changed after commit: {path}")
     return str(path)
 
 
-def encode_state(value: Any, root: pathlib.Path) -> dict:
+def _write_yaml_atomic(path: pathlib.Path, value: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as stream:
+        temporary = pathlib.Path(stream.name)
+        yaml.safe_dump(dict(value), stream, sort_keys=False)
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _artifact_version(iteration: int | None) -> str:
+    return "initial" if iteration is None or iteration < 0 else f"{iteration:04d}"
+
+
+def _publish_potential(value, root: pathlib.Path, state_name: str, iteration: int | None) -> pathlib.Path:
+    data = value.to_dict()
+    if "model" in data.get("parameters", {}):
+        models = data["parameters"]["model"]
+        models = [models] if isinstance(models, (str, pathlib.Path)) else list(models)
+        data["parameters"]["model"] = [_artifact(path, root) for path in models]
+    manifest = {
+        "format": "gdpx.model/v1",
+        "iteration": iteration,
+        **data,
+    }
+    version = _artifact_version(iteration)
+    base = root / "artifacts" / "models" / state_name
+    target = base / (f"{version}.yaml" if version == "initial" else f"iterations/{version}.yaml")
+    _write_yaml_atomic(target, manifest)
+    return target
+
+
+def _dataset_manifest(snapshot, root: pathlib.Path, iteration: int | None) -> dict:
+    systems = {}
+    for shard in snapshot.shards:
+        path = pathlib.Path(shard["path"])
+        if any(_is_within(path, source) for source in snapshot.sources):
+            continue
+        item = _artifact(path, root)
+        systems.setdefault("/".join(shard["system"]), []).append(item)
+    return {
+        "format": "gdpx.structure-dataset/v1",
+        "iteration": iteration,
+        "codec": "extxyz",
+        "loader": {
+            "batchsize": snapshot.batchsize,
+            "train_ratio": snapshot.train_ratio,
+            "random_seed": snapshot.random_seed,
+            "prop_keys": snapshot.prop_keys,
+            "sources": [_artifact(path, root) for path in snapshot.sources],
+        },
+        "systems": systems,
+    }
+
+
+def _is_within(path: pathlib.Path, directory: pathlib.Path) -> bool:
+    try:
+        path.resolve().relative_to(directory.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _publish_dataset(snapshot, root: pathlib.Path, state_name: str, iteration: int | None) -> pathlib.Path:
+    target = (
+        root
+        / "artifacts"
+        / "datasets"
+        / state_name
+        / "versions"
+        / f"{_artifact_version(iteration)}.yaml"
+    )
+    _write_yaml_atomic(target, _dataset_manifest(snapshot, root, iteration))
+    return target
+
+
+def encode_state(
+    value: Any,
+    root: pathlib.Path,
+    state_name: str | None = None,
+    iteration: int | None = None,
+) -> dict:
     from gdpx.data.loaders.dataset import XyzDataloader, XyzSnapshotDataloader
     from gdpx.exploration.continuation import ExplorationContinuation
 
     if isinstance(value, PotentialConfig):
+        if state_name is not None:
+            manifest = _publish_potential(value, root, state_name, iteration)
+            return {"kind": "potential_artifact", "artifact": _artifact(manifest, root)}
         data = value.to_dict()
         if "model" in data.get("parameters", {}):
             models = data["parameters"]["model"]
@@ -125,8 +195,16 @@ def encode_state(value: Any, root: pathlib.Path) -> dict:
         return {"kind": "potential", "value": data}
     if isinstance(value, XyzDataloader):
         snapshot = XyzSnapshotDataloader.from_loader(value)
+        if state_name is not None:
+            manifest = snapshot.manifest
+            if manifest is None or not manifest.exists():
+                manifest = _publish_dataset(snapshot, root, state_name, iteration)
+            return {"kind": "dataset_artifact", "artifact": _artifact(manifest, root)}
         data = snapshot.as_dict()
         data["sources"] = [_artifact(path, root) for path in data["sources"]]
+        data["shards"] = [
+            {**item, "path": _artifact(item["path"], root)} for item in data["shards"]
+        ]
         return {"kind": "xyz_snapshot", "value": data}
     if isinstance(value, ExplorationContinuation):
         return {
@@ -152,7 +230,8 @@ def encode_state(value: Any, root: pathlib.Path) -> dict:
 
 
 def decode_state(record: Mapping[str, Any], root: pathlib.Path) -> Any:
-    kind, value = record["kind"], record["value"]
+    kind = record["kind"]
+    value = record.get("value")
     if kind == "json":
         return value
     if kind == "potential":
@@ -163,10 +242,53 @@ def decode_state(record: Mapping[str, Any], root: pathlib.Path) -> Any:
         return PotentialConfig(
             data["provider"], data.get("method"), parameters, data.get("backend")
         )
+    if kind == "potential_artifact":
+        manifest_path = pathlib.Path(_restore_artifact(record["artifact"], root))
+        data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if data.get("format") != "gdpx.model/v1":
+            raise RuntimeError(f"Unsupported model artifact format in {manifest_path}.")
+        parameters = dict(data.get("parameters", {}))
+        if "model" in parameters:
+            parameters["model"] = [
+                _restore_artifact(item, root) for item in parameters["model"]
+            ]
+        return PotentialConfig(
+            data["provider"], data.get("method"), parameters, data.get("backend")
+        )
     if kind == "xyz_snapshot":
         data = dict(value)
         data["sources"] = [_restore_artifact(item, root) for item in data["sources"]]
+        data["shards"] = [
+            {**item, "path": _restore_artifact(item["path"], root)}
+            for item in data.get("shards", [])
+        ]
         return create_dataloader(data)
+    if kind == "dataset_artifact":
+        manifest_path = pathlib.Path(_restore_artifact(record["artifact"], root))
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("format") != "gdpx.structure-dataset/v1":
+            raise RuntimeError(f"Unsupported dataset artifact format in {manifest_path}.")
+        loader = dict(manifest.get("loader", {}))
+        loader["sources"] = [
+            _restore_artifact(item, root) for item in loader.get("sources", [])
+        ]
+        shards = []
+        for system, items in manifest.get("systems", {}).items():
+            for item in items:
+                shards.append(
+                    {
+                        "system": tuple(system.split("/")),
+                        "path": _restore_artifact(item, root),
+                    }
+                )
+        loader.update(
+            {
+                "name": "xyz_snapshot",
+                "shards": shards,
+                "manifest": str(manifest_path),
+            }
+        )
+        return create_dataloader(loader)
     if kind == "exploration_continuation":
         from gdpx.exploration.continuation import ExplorationContinuation
 
@@ -224,7 +346,10 @@ class WorkflowStateStore:
             "workflow": self.fingerprint,
             "iteration": -1,
             "converged": False,
-            "values": {name: encode_state(value, self.root) for name, value in values.items()},
+            "values": {
+                name: encode_state(value, self.root, state_name=name, iteration=-1)
+                for name, value in values.items()
+            },
         }
         if self.initial.exists():
             saved = yaml.safe_load(self.initial.read_text(encoding="utf-8"))
@@ -245,7 +370,10 @@ class WorkflowStateStore:
             "workflow": self.fingerprint,
             "iteration": iteration,
             "converged": bool(converged),
-            "values": {name: encode_state(value, self.root) for name, value in values.items()},
+            "values": {
+                name: encode_state(value, self.root, state_name=name, iteration=iteration)
+                for name, value in values.items()
+            },
         }
         self.iterations.mkdir(parents=True, exist_ok=True)
         target = self.iterations / f"{iteration:04d}.yaml"
@@ -255,13 +383,4 @@ class WorkflowStateStore:
 
     @staticmethod
     def _write_atomic(path: pathlib.Path, value: Mapping[str, Any]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as stream:
-            temporary = pathlib.Path(stream.name)
-            yaml.safe_dump(dict(value), stream, sort_keys=False)
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.replace(temporary, path)
-        finally:
-            temporary.unlink(missing_ok=True)
+        _write_yaml_atomic(path, value)

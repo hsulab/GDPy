@@ -12,6 +12,25 @@ WEIGHTS_NAME = "nn_weights.npz"
 INPUT_DATASET_NAME = "input_dataset.xyz"
 
 
+def _materialize_dataset(dataset):
+    """Convert workflow dataset sources into the flat frames expected by NNP."""
+    if not hasattr(dataset, "load_frames"):
+        return list(dataset)
+    loaded = dataset.load_frames()
+    groups = loaded.values() if isinstance(loaded, Mapping) else loaded
+    frames = []
+    for group in groups:
+        if (
+            isinstance(group, (list, tuple))
+            and len(group) == 2
+            and isinstance(group[0], str)
+            and isinstance(group[1], list)
+        ):
+            group = group[1]
+        frames.extend(group)
+    return frames
+
+
 class NnpTrainer(BasePotentialTrainer):
     name = "nnp"
 
@@ -59,7 +78,7 @@ class NnpTrainer(BasePotentialTrainer):
         train_dir = self.directory
         train_dir.mkdir(parents=True, exist_ok=True)
 
-        dataset = list(dataset)
+        dataset = _materialize_dataset(dataset)
         if not dataset:
             raise ValueError("NnpTrainer requires a non-empty dataset.")
 
