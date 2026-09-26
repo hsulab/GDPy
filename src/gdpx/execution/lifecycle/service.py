@@ -157,7 +157,11 @@ def _normalise_config(config: Union[str, pathlib.Path, dict, list]) -> Union[dic
     # Plans are JSON artifacts. Convert pathlib and scalar-like configuration
     # values once here so an in-memory plan and a reloaded plan compare equally.
     executor = parsed.get("executor") if isinstance(parsed, dict) else None
-    has_broadcast = isinstance(executor, dict) and executor.get("broadcast") is not None
+    modifiers = parsed.get("modifiers", ()) if isinstance(parsed, dict) else ()
+    has_broadcast = (isinstance(executor, dict) and executor.get("broadcast") is not None) or (
+        isinstance(modifiers, (list, tuple))
+        and any(isinstance(modifier, dict) and modifier.get("broadcast") is not None for modifier in modifiers)
+    )
     value = normalised if isinstance(parsed, (list, tuple)) or has_broadcast else normalised[0]
     return normalise_value(value)
 

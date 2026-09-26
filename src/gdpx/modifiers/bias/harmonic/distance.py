@@ -7,6 +7,7 @@ import copy
 import numpy as np
 from ase.geometry import find_mic
 
+from gdpx.structures.groups import evaluate_group_expression
 from gdpx.utils.strconv import string_to_array
 
 from ..timeio import TimeIOCalculator
@@ -37,15 +38,17 @@ def compute_distance_harmonic_energy_and_forces(vec, dis: float, center: float, 
 
 
 class DistanceHarmonicCalculator(TimeIOCalculator):
-
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, group: list[int], center: float, kspring: float = 0.1, *args, **kwargs):
+    def __init__(self, group: str | list[int], center: float, kspring: float = 0.1, *args, **kwargs):
         """"""
         super().__init__(*args, **kwargs)
 
-        num_group_atoms = len(group)
-        assert num_group_atoms == 2
+        if isinstance(group, str):
+            if not group.strip():
+                raise ValueError("A distance restraint group expression cannot be empty.")
+        elif len(group) != 2:
+            raise ValueError("A distance restraint requires exactly two atom indices.")
         self.group = group
 
         self.center = center
@@ -56,16 +59,28 @@ class DistanceHarmonicCalculator(TimeIOCalculator):
 
         return
 
-    def _icalculate(self, atoms, properties, system_changes) -> tuple[dict, tuple[float,...]]:
+    def _resolve_group(self, atoms) -> list[int]:
+        if isinstance(self.group, str):
+            group = evaluate_group_expression(atoms, self.group)
+        else:
+            group = list(self.group)
+        if len(group) != 2:
+            raise ValueError(
+                f"A distance restraint group must select exactly two atoms; selected {len(group)} from {self.group!r}."
+            )
+        return group
+
+    def _icalculate(self, atoms, properties, system_changes) -> tuple[dict, tuple[float, ...]]:
         """"""
-        vec, dis = compute_distance(atoms.cell, atoms.positions[self.group], pbc=True)
+        group = self._resolve_group(atoms)
+        vec, dis = compute_distance(atoms.cell, atoms.positions[group], pbc=True)
 
         energy = 0.0
         forces = np.zeros(atoms.positions.shape)
         if self.num_steps >= self.delay:
             energy, ext_forces = compute_distance_harmonic_energy_and_forces(vec, dis, self.center, self.kspring)
             forces = np.zeros(atoms.positions.shape)
-            forces[self.group] = ext_forces
+            forces[group] = ext_forces
         else:
             ...
 

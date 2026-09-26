@@ -69,7 +69,17 @@ class RuntimeVariable(Variable):
             executor_config = _component(executor_data, "executor")
         else:
             executor_config = _component(executor, "executor")
-        modifier_configs = tuple(_component(item, "modifier") for item in modifiers)
+        modifier_configs = []
+        modifier_broadcasts = {}
+        for index, item in enumerate(modifiers):
+            if isinstance(item, Mapping):
+                modifier_data = copy.deepcopy(dict(item))
+                broadcast = modifier_data.pop("broadcast", None)
+                if broadcast is not None:
+                    modifier_broadcasts[index] = broadcast
+                item = modifier_data
+            modifier_configs.append(_component(item, "modifier"))
+        modifier_configs = tuple(modifier_configs)
         if isinstance(scheduler, Variable):
             scheduler = scheduler.value
         scheduler_config = None if scheduler is None else scheduler_component(scheduler)
@@ -84,10 +94,13 @@ class RuntimeVariable(Variable):
         source = base_config.to_dict()
         if executor_broadcast is not None:
             source["executor"]["broadcast"] = executor_broadcast
+        for index, broadcast in modifier_broadcasts.items():
+            source["modifiers"][index]["broadcast"] = broadcast
         self.configs = expand_runtime_configs(source)
         self.config = self.configs[0]
         resolved = tuple(resolve_runtime(config) for config in self.configs)
-        value = resolved if executor_broadcast is not None else resolved[0]
+        has_broadcast = executor_broadcast is not None or bool(modifier_broadcasts)
+        value = resolved if has_broadcast else resolved[0]
         super().__init__(value, directory=directory)
 
     @classmethod
@@ -99,14 +112,29 @@ class RuntimeVariable(Variable):
             executor = copy.deepcopy(dict(executor))
             broadcast = executor.pop("broadcast", None)
             source["executor"] = executor
+        modifier_broadcasts = {}
+        modifiers = source.get("modifiers", ())
+        if isinstance(modifiers, (list, tuple)):
+            clean_modifiers = []
+            for index, modifier in enumerate(modifiers):
+                if isinstance(modifier, Mapping):
+                    modifier = copy.deepcopy(dict(modifier))
+                    modifier_broadcast = modifier.pop("broadcast", None)
+                    if modifier_broadcast is not None:
+                        modifier_broadcasts[index] = modifier_broadcast
+                clean_modifiers.append(modifier)
+            source["modifiers"] = clean_modifiers
         config = RuntimeConfig.from_mapping(source)
         executor = config.executor.to_dict()
         if broadcast is not None:
             executor["broadcast"] = broadcast
+        modifiers = [modifier.to_dict() for modifier in config.modifiers]
+        for index, modifier_broadcast in modifier_broadcasts.items():
+            modifiers[index]["broadcast"] = modifier_broadcast
         return cls(
             config.potential,
             executor,
-            modifiers=config.modifiers,
+            modifiers=modifiers,
             scheduler=config.scheduler,
             dispatch=config.dispatch,
             schema_version=config.schema_version,

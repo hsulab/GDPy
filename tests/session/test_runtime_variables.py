@@ -60,6 +60,31 @@ def test_runtime_variable_expands_executor_broadcast():
     assert all("broadcast" not in item["executor"] for item in variable.as_dict())
 
 
+def test_runtime_variable_expands_modifier_broadcast():
+    variable = RuntimeVariable.from_mapping(
+        {
+            "potential": {"provider": "emt"},
+            "modifiers": [
+                {
+                    "provider": "builtin",
+                    "method": "distance_harmonic",
+                    "parameters": {"group": [0, 1], "kspring": 5.0},
+                    "broadcast": {"center": [1.0, 1.5]},
+                }
+            ],
+            "executor": {
+                "provider": "ase",
+                "method": "min",
+                "parameters": {"steps": 1},
+            },
+        }
+    )
+
+    assert isinstance(variable.value, tuple)
+    assert [runtime.config.modifiers[0].parameters["center"] for runtime in variable.value] == [1.0, 1.5]
+    assert all("broadcast" not in item["modifiers"][0] for item in variable.as_dict())
+
+
 def test_runtime_chain_pairs_broadcasts_and_repeats_scalar_steps():
     scalar = RuntimeVariable(
         PotentialVariable("emt"),

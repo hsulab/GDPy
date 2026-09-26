@@ -39,3 +39,26 @@ def test_runtime_service_expands_executor_broadcast():
     workers = create_runtime_workers(config)
 
     assert [worker.runtime.config.executor.parameters["steps"] for worker in workers] == [1, 2]
+
+
+def test_runtime_service_expands_modifier_broadcast():
+    config = {
+        "potential": {"provider": "emt"},
+        "modifiers": [
+            {
+                "provider": "builtin",
+                "method": "distance_harmonic",
+                "parameters": {"group": [0, 1], "kspring": 5.0},
+                "broadcast": {"center": [1.0, 1.5]},
+            }
+        ],
+        "executor": {
+            "provider": "ase",
+            "method": "min",
+            "parameters": {"steps": 1},
+        },
+    }
+
+    workers = create_runtime_workers(config)
+
+    assert [worker.runtime.config.modifiers[0].parameters["center"] for worker in workers] == [1.0, 1.5]

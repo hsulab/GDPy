@@ -13,7 +13,7 @@ from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 SCHEMA_VERSION = 4
 
 
-def _broadcast_target(parameters: Any, parts: tuple[str, ...]):
+def _broadcast_target(parameters: Any, parts: tuple[str, ...], label: str):
     """Resolve a parameter path, allowing only a missing final mapping key."""
     parent = parameters
     for position, part in enumerate(parts):
@@ -21,95 +21,106 @@ def _broadcast_target(parameters: Any, parts: tuple[str, ...]):
         if isinstance(parent, Mapping):
             key: Any = part
             if not last and key not in parent:
-                raise ProviderConfigurationError(
-                    f"Unknown executor broadcast parent: {'.'.join(parts)}."
-                )
+                raise ProviderConfigurationError(f"Unknown {label} broadcast parent: {'.'.join(parts)}.")
         elif isinstance(parent, list):
-            if (
-                not part.isdecimal()
-                or str(int(part)) != part
-                or int(part) >= len(parent)
-            ):
-                raise ProviderConfigurationError(
-                    f"Invalid executor broadcast list index: {'.'.join(parts)}."
-                )
+            if not part.isdecimal() or str(int(part)) != part or int(part) >= len(parent):
+                raise ProviderConfigurationError(f"Invalid {label} broadcast list index: {'.'.join(parts)}.")
             key = int(part)
         else:
             raise ProviderConfigurationError(
-                f"Executor broadcast path crosses a non-container: {'.'.join(parts)}."
+                f"{label.capitalize()} broadcast path crosses a non-container: {'.'.join(parts)}."
             )
         if last:
             return parent, key
         parent = parent[key]
 
 
-def _expand_runtime_mapping(value: Mapping[str, Any]) -> tuple[RuntimeConfig, ...]:
-    """Expand one runtime mapping's executor-local parameter broadcast."""
-    raw = copy.deepcopy(dict(value))
-    executor = raw.get("executor")
-    if not isinstance(executor, Mapping):
-        return (RuntimeConfig.from_mapping(raw),)
-    executor = copy.deepcopy(dict(executor))
-    raw["executor"] = executor
+def _prepare_parameter_broadcast(
+    component: Mapping[str, Any], label: str
+) -> tuple[dict[str, Any], list[tuple[tuple[str, ...], list[Any]]]]:
+    """Remove and validate one component-local parameter broadcast."""
+    component = copy.deepcopy(dict(component))
     marker = object()
-    broadcast = executor.pop("broadcast", marker)
+    broadcast = component.pop("broadcast", marker)
     if broadcast is marker or broadcast is None:
-        return (RuntimeConfig.from_mapping(raw),)
+        return component, []
     if not isinstance(broadcast, Mapping) or not broadcast:
         raise ProviderConfigurationError(
-            "Executor broadcast must be a nonempty mapping of parameter paths to value lists."
+            f"{label.capitalize()} broadcast must be a nonempty mapping of parameter paths to value lists."
         )
 
-    parameters = executor.get("parameters")
+    parameters = component.get("parameters")
     if parameters is None:
         parameters = {}
-        executor["parameters"] = parameters
+        component["parameters"] = parameters
     elif not isinstance(parameters, Mapping):
-        raise ProviderConfigurationError("Executor parameters must be a mapping.")
+        raise ProviderConfigurationError(f"{label.capitalize()} parameters must be a mapping.")
     else:
         parameters = copy.deepcopy(dict(parameters))
-        executor["parameters"] = parameters
+        component["parameters"] = parameters
 
     paths: list[tuple[str, ...]] = []
-    alternatives: list[list[Any]] = []
+    dimensions: list[tuple[tuple[str, ...], list[Any]]] = []
     for path, values in broadcast.items():
-        if (
-            not isinstance(path, str)
-            or not path
-            or any(not part for part in path.split("."))
-        ):
-            raise ProviderConfigurationError(
-                f"Invalid executor broadcast parameter path: {path!r}."
-            )
+        if not isinstance(path, str) or not path or any(not part for part in path.split(".")):
+            raise ProviderConfigurationError(f"Invalid {label} broadcast parameter path: {path!r}.")
         parts = tuple(path.split("."))
-        if any(
-            parts[: len(other)] == other or other[: len(parts)] == parts
-            for other in paths
-        ):
-            raise ProviderConfigurationError(
-                f"Overlapping executor broadcast parameter path: {path}."
-            )
+        if any(parts[: len(other)] == other or other[: len(parts)] == parts for other in paths):
+            raise ProviderConfigurationError(f"Overlapping {label} broadcast parameter path: {path}.")
         if not isinstance(values, list) or not values:
             raise ProviderConfigurationError(
-                f"Executor broadcast values for {path} must be a nonempty list."
+                f"{label.capitalize()} broadcast values for {path} must be a nonempty list."
             )
-        _broadcast_target(parameters, parts)
+        _broadcast_target(parameters, parts, label)
         paths.append(parts)
-        alternatives.append(values)
+        dimensions.append((parts, values))
+    return component, dimensions
+
+
+def _expand_runtime_mapping(value: Mapping[str, Any]) -> tuple[RuntimeConfig, ...]:
+    """Expand one runtime mapping's component-local parameter broadcasts."""
+    raw = copy.deepcopy(dict(value))
+    dimensions: list[tuple[tuple[str, ...], list[Any], str]] = []
+
+    executor = raw.get("executor")
+    if isinstance(executor, Mapping):
+        executor, executor_dimensions = _prepare_parameter_broadcast(executor, "executor")
+        raw["executor"] = executor
+        dimensions.extend(
+            (("executor", "parameters", *parts), values, "executor") for parts, values in executor_dimensions
+        )
+
+    modifiers = raw.get("modifiers")
+    if isinstance(modifiers, (list, tuple)):
+        clean_modifiers = []
+        for index, modifier in enumerate(modifiers):
+            if not isinstance(modifier, Mapping):
+                clean_modifiers.append(modifier)
+                continue
+            label = f"modifier {index}"
+            modifier, modifier_dimensions = _prepare_parameter_broadcast(modifier, label)
+            clean_modifiers.append(modifier)
+            dimensions.extend(
+                (("modifiers", str(index), "parameters", *parts), values, label)
+                for parts, values in modifier_dimensions
+            )
+        raw["modifiers"] = clean_modifiers
+
+    if not dimensions:
+        return (RuntimeConfig.from_mapping(raw),)
 
     configs = []
-    for combination in itertools.product(*alternatives):
+    for combination in itertools.product(*(values for _, values, _ in dimensions)):
         expanded = copy.deepcopy(raw)
-        expanded_parameters = expanded["executor"]["parameters"]
-        for parts, item in zip(paths, combination):
-            parent, key = _broadcast_target(expanded_parameters, parts)
+        for (parts, _, label), item in zip(dimensions, combination):
+            parent, key = _broadcast_target(expanded, parts, label)
             parent[key] = copy.deepcopy(item)
         configs.append(RuntimeConfig.from_mapping(expanded))
     return tuple(configs)
 
 
 def expand_runtime_configs(value: Any) -> tuple[RuntimeConfig, ...]:
-    """Resolve a runtime mapping or flat list, expanding executor broadcasts."""
+    """Resolve a runtime mapping or flat list, expanding component broadcasts."""
     if isinstance(value, Mapping):
         return _expand_runtime_mapping(value)
     if isinstance(value, (list, tuple)):

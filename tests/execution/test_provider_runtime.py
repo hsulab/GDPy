@@ -151,6 +151,32 @@ def test_executor_broadcast_supports_parameter_list_indices():
     assert [config.executor.parameters["stages"][0]["steps"] for config in configs] == [20, 40]
 
 
+def test_modifier_broadcast_combines_with_executor_broadcast_without_mutation():
+    source = _broadcast_runtime()
+    source["executor"]["broadcast"] = {"temp": [300, 600]}
+    source["modifiers"] = [
+        {
+            "provider": "builtin",
+            "method": "distance_harmonic",
+            "parameters": {"group": [0, 1], "kspring": 5.0},
+            "broadcast": {"center": [1.0, 1.5]},
+        }
+    ]
+    original = copy.deepcopy(source)
+
+    configs = expand_runtime_configs(source)
+
+    assert [
+        (
+            config.executor.parameters["temp"],
+            config.modifiers[0].parameters["center"],
+        )
+        for config in configs
+    ] == [(300, 1.0), (300, 1.5), (600, 1.0), (600, 1.5)]
+    assert all("broadcast" not in config.modifiers[0].to_dict() for config in configs)
+    assert source == original
+
+
 @pytest.mark.parametrize(
     ("broadcast", "message"),
     [
@@ -166,6 +192,30 @@ def test_invalid_executor_broadcast_is_rejected(broadcast, message):
     source = _broadcast_runtime()
     source["executor"]["parameters"]["stages"] = [{"steps": 10}]
     source["executor"]["broadcast"] = broadcast
+
+    with pytest.raises(ProviderConfigurationError, match=message):
+        expand_runtime_configs(source)
+
+
+@pytest.mark.parametrize(
+    ("broadcast", "message"),
+    [
+        ({}, "nonempty mapping"),
+        ({"center": []}, "nonempty list"),
+        ({"missing.center": [1.0]}, "Unknown modifier 0 broadcast parent"),
+    ],
+)
+def test_invalid_modifier_broadcast_is_rejected(broadcast, message):
+    source = _broadcast_runtime()
+    source["executor"].pop("broadcast")
+    source["modifiers"] = [
+        {
+            "provider": "builtin",
+            "method": "distance_harmonic",
+            "parameters": {"group": [0, 1], "kspring": 5.0},
+            "broadcast": broadcast,
+        }
+    ]
 
     with pytest.raises(ProviderConfigurationError, match=message):
         expand_runtime_configs(source)

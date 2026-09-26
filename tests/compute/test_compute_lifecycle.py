@@ -69,6 +69,25 @@ def test_prepare_expands_executor_broadcast_like_an_explicit_runtime_list(tmp_pa
     assert all("broadcast" not in item["executor"] for item in broadcast.config)
 
 
+def test_prepare_expands_modifier_broadcast(tmp_path):
+    config = _emt_config()
+    config["modifiers"] = [
+        {
+            "provider": "builtin",
+            "method": "distance_harmonic",
+            "parameters": {"group": [0, 0], "kspring": 5.0},
+            "broadcast": {"center": [1.0, 1.5]},
+        }
+    ]
+
+    plan = prepare_compute(config, [_cu()], tmp_path)
+
+    assert len(plan.workers) == 2
+    assert [worker.directory for worker in plan.workers] == ["w0", "w1"]
+    assert [item["modifiers"][0]["parameters"]["center"] for item in plan.config] == [1.0, 1.5]
+    assert all("broadcast" not in item["modifiers"][0] for item in plan.config)
+
+
 def test_prepare_rejects_a_different_plan_in_same_directory(tmp_path):
     prepare_compute(_emt_config(), [_cu()], tmp_path)
     changed = _cu()
