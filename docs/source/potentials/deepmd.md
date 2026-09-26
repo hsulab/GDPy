@@ -87,6 +87,40 @@ executor:
   method: spc
 ```
 
+### ase + ase / dpa4c
+
+DPA4C models use the DeepMD 3 PyTorch-Exportable backend. Export a trained
+checkpoint to a local `.pt2` model before passing it to **gdp**:
+
+```shell
+dp --pt-expt freeze -c model.ckpt.pt -o frozen_model --lower-kind graph
+```
+
+Save the following configuration as `dpa4c.yaml`:
+
+```yaml
+potential:
+  provider: deepmd
+  backend: ase
+  parameters:
+    model: ./frozen_model.pt2
+executor:
+  provider: ase
+  method: spc
+```
+
+Then evaluate any ASE-readable structure file:
+
+```shell
+gdp -d dpa4c-spc -r dpa4c.yaml compute structures.xyz
+```
+
+The ASE backend reads the element mapping from the model. The `.pt2` archive is
+specific to the device type used during export, so export it for the CPU or GPU
+that will run the calculation. **gdp** currently requires a local model path;
+DeepMD preset names such as `dpa4c-nano-v20260901` are not resolved
+automatically.
+
 ### Parameter notes
 
 `model` accepts one existing checkpoint or a list. `models` is also accepted
