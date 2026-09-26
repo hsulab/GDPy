@@ -17,7 +17,7 @@ a potential that supplies stress.
 | `emt`, `mattersim`, `tace`, `reann`, `fairchem`, `gp`, `nnp`, `xtb` | `ase` |
 | `deepmd`, `eam`, `mace` | `ase` or `lammps` |
 | `nequip` | `ase` or `lammps` declared; see its potential guide for the current limitation |
-| `reax` | `lammps` |
+| `reax` | `ase` or `lammps` |
 | `vasp` | `vasp` or `ase` |
 | `cp2k` | `cp2k` or `ase` |
 | `abacus` | `abacus` or `ase` |
@@ -74,7 +74,7 @@ modifiers:
   - provider: builtin
     method: distance_harmonic
     parameters:
-      group: [0, 1]
+      group: "`index 0 1`"
       center: 2.5
       kspring: 0.1
 ```
@@ -84,3 +84,7 @@ contribution. The `plumed` provider is a potential capability rather than a
 general modifier factory; combining it with a host calculator requires an
 integration that explicitly couples their energies and forces. The removed
 `mixer` potential is not part of the current schema.
+
+See the complete {ref}`H2O/Ni(111) example
+<compute-ni-water-restraint-example>` for a ReaxFF molecular-dynamics runtime
+with an O-H distance restraint.

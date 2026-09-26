@@ -12,8 +12,8 @@ Install from the GDPy checkout:
 python -m pip install -e '.[reax]'
 ```
 
-The extra pins xreac to revision `6660484bb7c84a5f85bb8219b13086ef7223da45`
-(v0.7.0). No LAMMPS executable or neural-network checkpoint is needed.
+The extra pins xreac to revision `122f1889626e1513843bba2e3618054fa90adf49`
+(v0.8.0). No LAMMPS executable or neural-network checkpoint is needed.
 
 For backend `reax/c`, provide a local ReaxFF force-field file and a LAMMPS
 binary that accepts the `reax/c` pair style and `qeq/reax` fix. Modern binaries
@@ -53,21 +53,27 @@ executor:
 or a local path such as `./ffield.reax`; local paths are expanded and resolved
 to absolute paths. Bundled names are preserved for portability. Available
 bundles are `ffield.reax.HO.2015`, `ffield.reax.CHO.2008`,
-`ffield.reax.CuOHCl.2010`, and `ffield.reax.ZnOH.2010`. The CuOHCl model contains
-Cu; none of these bundled models contains Ni or Al.
+`ffield.reax.CuOHCl.2010`, `ffield.reax.ZnOH.2010`,
+`ffield.reax.CHOCl.2021`, `ffield.reax.PtNiCHO.2016`, and
+`ffield.reax.PtNiCHO.2026`. The CuOHCl model and the last three parameter files
+carry separate noncommercial licenses; consult xreac's bundled data notes
+before use. None of the bundled models contains Al.
 Element coverage alone does not establish a force field's suitability for a study.
 
 Optional parameters are forwarded to xreac: `neighbor_skin` (0.3 Å by default;
 zero rebuilds the neighbor list every evaluation), `neighbor_backend` (`ase` by
 default, or `replicated`), `max_expanded_atoms` (512), `full_derivative`
-(false), and `total_charge` (only zero is supported). xreac performs QEq
+(false), and finite `total_charge` in units of e (zero by default). xreac performs QEq
 at each geometry. The default forces follow its fixed-charge convention.
 The ASE adapter returns energies in eV, forces in eV/Å, and charges in e.
-Neutral molecules, clusters, and fixed-cell periodic systems are supported;
-stress and variable-cell relaxation are not supported.
+Neutral or charged molecules, clusters, and fixed-cell periodic systems are
+supported; stress and variable-cell relaxation are not supported.
 
 See `examples/global_optimisation/runtimes/xreac.yaml` and the water-cluster
 benchmark in that directory for the GA example and timing comparison.
+The {ref}`H2O/Ni(111) restraint example <compute-ni-water-restraint-example>`
+uses the published `ffield.reax.PtNiCHO.2016` parameters with ASE molecular
+dynamics and a built-in distance modifier.
 
 ### reax/c + lammps
 

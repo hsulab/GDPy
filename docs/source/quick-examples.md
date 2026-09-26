@@ -31,6 +31,7 @@ described in the {doc}`task examples overview <computations/tasks/index>`.
 | [Cu<sub>2</sub>](computations/tasks/relaxation.md) | molecule | Atomic relaxation with a fixed cell |
 | {doc}`Cu <computations/tasks/cell-relaxation>` | bulk | Joint optimization of positions and cell |
 | [Cu<sub>32</sub>](computations/tasks/molecular-dynamics.md) | bulk | Short NVT trajectory with a Berendsen thermostat |
+| {ref}`H2O/Ni(111) <compute-ni-water-restraint-example>` | surface | ReaxFF MD with broadcast harmonic O-H restraint windows |
 | {ref}`Au/Al <compute-neb-example>` | surface | Transition path through the reactor-worker API |
 | {ref}`User system <compute-dimer-example>` | user defined | Local saddle-point search configuration |
 | {ref}`User system <compute-vibrations-example>` | user defined | Native finite-difference frequency tasks |

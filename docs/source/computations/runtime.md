@@ -36,6 +36,7 @@ runtime-single.md
 runtime-dispatch.md
 runtime-broadcast.md
 runtime-chain.md
+ni111-water-restraint.md
 ```
 
 In standalone runtime YAML, these fields are top-level; do not wrap them in a

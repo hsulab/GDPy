@@ -1,7 +1,8 @@
 # broadcast runtime parameters
 
-Use `executor.broadcast` to run independent calculations that differ only in
-executor parameters. This NVT example creates workers at three temperatures:
+Use a component-local `broadcast` to run independent calculations that differ
+only in selected parameters. This NVT example creates workers at three
+temperatures:
 
 ```yaml
 potential:
@@ -50,9 +51,34 @@ Ordinary lists remain literal executor parameters. Only fields named under
 `broadcast` are expanded. Empty, malformed, unknown, or overlapping paths are
 rejected before workers are created.
 
-Broadcast is shorthand only for executor parameters. Use an explicit flat list
-of complete runtimes for alternative potentials, schedulers, or dispatch
-policies. Each member of that list may define its own executor broadcast; gdpx
-flattens the resolved runtimes in source order.
+## Modifier windows
+
+Place `broadcast` beside a modifier's `parameters` to create independent
+restraint windows. Its keys are paths relative to that modifier's parameters:
+
+```yaml
+modifiers:
+  - provider: builtin
+    method: distance_harmonic
+    parameters:
+      group: "`index 8 10`"
+      kspring: 5.0
+    broadcast:
+      center: [0.95, 1.15, 1.35, 1.55]
+```
+
+This produces four workers, `w0` through `w3`, with one restraint center per
+worker. They are independent replicas/windows: broadcast does not exchange
+configurations between workers or reconstruct a free-energy profile.
+
+Executor and modifier broadcasts can be combined. They form one Cartesian
+product, with executor dimensions first and modifier dimensions following in
+modifier-list order. Within each component, YAML declaration order is
+preserved and the rightmost dimension varies fastest.
+
+Broadcast is supported for executor and modifier parameters. Use an explicit
+flat list of complete runtimes for alternative potentials, schedulers, or
+dispatch policies. Each member of that list may define its own broadcasts;
+gdpx flattens the resolved runtimes in source order.
 
 For an ordered sequence of calculations, see {doc}`runtime-chain`.

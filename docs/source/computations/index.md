@@ -16,6 +16,10 @@ gdp -d results -r runtime.yaml compute structures.xyz
 | {doc}`runtime` | Single runtimes, dispatch, parameter broadcasts, and runtime chains. |
 | {doc}`schedulers` | Local CPUs/GPUs, batch queues, SSH, and resource allocation. |
 
+The {ref}`H2O/Ni(111) restraint example <compute-ni-water-restraint-example>`
+shows a built-in distance modifier broadcast over several windows and combined
+with an xreac ReaxFF potential.
+
 ## Runtime layout
 
 A runtime has a `potential`, an `executor`, optional `modifiers`, an optional
