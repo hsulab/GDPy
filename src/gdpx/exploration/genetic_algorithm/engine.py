@@ -310,9 +310,13 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
 
         return
 
-    def update_active_params(self, prev_wdir: pathlib.Path) -> None:
-        """"""
-        candidates_path = (prev_wdir / "results" / "all_candidates.xyz").resolve()
+    def restore_continuation(self, continuation) -> None:
+        """Seed this search from an explicit prior population artifact."""
+        if continuation is None:
+            return
+        if continuation.provider != "genetic_algorithm" or len(continuation.artifacts) != 1:
+            raise ValueError("Invalid genetic-algorithm continuation.")
+        candidates_path = pathlib.Path(continuation.artifacts[0]).resolve()
         candidates = read(candidates_path, ":")
         selected_candidates = candidates[: self.population_config.init_size]
         assert isinstance(selected_candidates, list)
@@ -338,6 +342,15 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
         ]
 
         return
+
+    def capture_continuation(self):
+        """Publish the ranked population without relying on a prior run path."""
+        from gdpx.exploration.continuation import ExplorationContinuation
+
+        candidates = (self.directory / "results" / "all_candidates.xyz").resolve()
+        if not candidates.is_file():
+            raise RuntimeError(f"Missing genetic-algorithm continuation artifact: {candidates}")
+        return ExplorationContinuation("genetic_algorithm", {}, (str(candidates),))
 
     def run(self) -> None:
         with quiet_logging():

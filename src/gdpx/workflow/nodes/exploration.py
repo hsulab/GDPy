@@ -11,11 +11,11 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.runtime import Runtime
 from gdpx.execution.workers.explore import ExplorationBasedWorker
 from gdpx.exploration.exploration import BaseExploration
-from gdpx.exploration.layout import exploration_layout
 from gdpx.workflow.factory import create_exploration
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import DummyVariable, Variable
+from gdpx.workflow.state import NamedOutputs
 
 from .scheduler import SchedulerVariable
 
@@ -66,9 +66,7 @@ class ExplorationVariable(Variable):
 
 @registers.operation.register
 class explore(Operation):
-
-    #: Whether to actively update some attrs.
-    _active: bool = False
+    output_names = ("results", "continuation")
 
     def __init__(
         self,
@@ -76,8 +74,8 @@ class explore(Operation):
         worker=DummyVariable(),
         runtime=None,
         scheduler=None,
+        continuation=DummyVariable(),
         wait_time=60,
-        active: bool = False,
         directory="./",
         *args,
         **kwargs,
@@ -97,16 +95,14 @@ class explore(Operation):
             if not isinstance(worker, DummyVariable):
                 raise ValueError("explore accepts either runtime or worker, not both.")
             worker = runtime
-        input_nodes = [exploration, worker, scheduler]
+        input_nodes = [exploration, worker, scheduler, continuation]
         super().__init__(input_nodes, directory)
 
         self.wait_time = wait_time
 
-        self._active = active
-
         return
 
-    def forward(self, exploration, dyn_worker, scheduler):
+    def forward(self, exploration, dyn_worker, scheduler, continuation):
         """Explore an exploration and forward results for further analysis.
 
         Returns:
@@ -120,16 +116,16 @@ class explore(Operation):
         else:
             explorations = [exploration]
 
-        num_explorations = len(explorations)
-        if self._active:
-            curr_iter = int(self.directory.parent.name.split(".")[-1])
-            if curr_iter > 0:
-                self._print("    >>> Update seed_file...")
-                previous = self.directory.parent.parent / f"iter.{curr_iter-1:04d}" / self.directory.name
-                directories = exploration_layout(previous, num_explorations)
-                for i, current in enumerate(explorations):
-                    if hasattr(current, "update_active_params"):
-                        current.update_active_params(previous / directories[i])
+        if continuation is None:
+            continuations = [None] * len(explorations)
+        elif isinstance(continuation, (list, tuple)):
+            continuations = list(continuation)
+        else:
+            continuations = [continuation]
+        if len(continuations) != len(explorations):
+            raise ValueError("Exploration continuation count does not match explorations.")
+        for current, previous in zip(explorations, continuations):
+            current.restore_continuation(previous)
 
         if isinstance(dyn_worker, (Runtime, Mapping)):
             dyn_worker = create_worker(dyn_worker)
@@ -150,9 +146,11 @@ class explore(Operation):
             self._debug(f"basic_workers: {basic_workers}")
             self.status = "finished"
         else:
-            basic_workers = []
+            return NamedOutputs(results=[], continuation=continuation)
 
-        return basic_workers
+        next_continuations = tuple(current.capture_continuation() for current in explorations)
+        continuation_output = next_continuations[0] if len(next_continuations) == 1 else next_continuations
+        return NamedOutputs(results=basic_workers, continuation=continuation_output)
 
 
 if __name__ == "__main__":

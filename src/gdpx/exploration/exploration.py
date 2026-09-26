@@ -4,11 +4,10 @@
 
 import abc
 import logging
-from typing import Any
 
 from gdpx.core.component import BaseComponent
-from gdpx.structures.builders.builder import StructureBuilder
 from gdpx.execution.service import ExecutionWorker, WorkerExecutionService
+from gdpx.structures.builders.builder import StructureBuilder
 
 
 class BaseExploration(BaseComponent):
@@ -21,6 +20,15 @@ class BaseExploration(BaseComponent):
 
     @abc.abstractmethod
     def get_workers(self) -> list[ExecutionWorker]: ...
+
+    def restore_continuation(self, continuation) -> None:
+        """Restore provider-owned state from the preceding workflow iteration."""
+        if continuation is not None:
+            raise TypeError(f"{type(self).__name__} does not support workflow continuation.")
+
+    def capture_continuation(self):
+        """Return provider-owned state for the next workflow iteration."""
+        return None
 
     def run(self, *args, **kwargs) -> None:
         """"""

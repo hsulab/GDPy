@@ -2,14 +2,17 @@ import json
 import pathlib
 
 import pytest
+import yaml
 
-from gdpx.cli.workflow import parse_overrides
+from gdpx import config
+from gdpx.cli.workflow import parse_overrides, show_workflow_status
 from gdpx.workflow.compiler import compile_workflow, workflow_dot, workflow_plan
 from gdpx.workflow.configuration import WorkflowConfigError, load_workflow
 from gdpx.workflow.session.interface import run_workflow_spec
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import Variable
+from gdpx.workflow.state import NamedOutputs
 
 
 @registers.variable.register
@@ -34,6 +37,19 @@ class workflow_test_add(Operation):
 class workflow_test_join(Operation):
     def __init__(self, nodes, directory="."):
         super().__init__(nodes, directory)
+
+
+@registers.operation.register
+class workflow_test_pair(Operation):
+    output_names = ("left", "right")
+
+    def __init__(self, value, directory="."):
+        super().__init__([value], directory)
+
+    def forward(self, value):
+        super().forward()
+        self.status = "finished"
+        return NamedOutputs(left=value + 1, right=value + 2)
 
 
 def _write(path, text):
@@ -184,6 +200,59 @@ steps:
     assert (tmp_path / "runs" / "repeated" / "iter.0001" / "FINISHED").is_file()
 
 
+def test_repeat_workflow_commits_named_state_outputs(tmp_path, monkeypatch):
+    path = _write(
+        tmp_path / "stateful.yaml",
+        """
+workflow: {mode: repeat, targets: result, max_iterations: 3}
+state:
+  counter:
+    initial: seed
+    update: {node: pair, output: right}
+resources:
+  seed: {__type__: workflow_test, options: {value: 0}}
+steps:
+  pair: {__type__: workflow_test_pair, inputs: {value: counter}}
+  result:
+    __type__: workflow_test_add
+    inputs: {value: {node: pair, output: left}}
+    options: {amount: 0}
+""",
+    )
+
+    assert run_workflow_spec(load_workflow(path), tmp_path / "runs")
+    run = tmp_path / "runs" / "stateful"
+    manifest = yaml.safe_load((run / "state" / "current.yaml").read_text())
+
+    assert manifest["iteration"] == 2
+    assert manifest["values"]["counter"] == {"kind": "json", "value": 6}
+    assert (run / "iter.0002" / "steps" / "pair").is_dir()
+
+    messages = []
+    monkeypatch.setattr(config, "_print", messages.append)
+    show_workflow_status(path, directory=tmp_path / "runs")
+    assert "iteration: 2" in messages[-1]
+    assert "counter: int" in messages[-1]
+
+
+def test_repeat_workflow_rejects_changed_configuration_on_resume(tmp_path):
+    path = _write(
+        tmp_path / "stateful.yaml",
+        """
+workflow: {mode: repeat, targets: result, max_iterations: 1}
+steps:
+  result: {__type__: workflow_test_add, inputs: {value: value}}
+resources:
+  value: {__type__: workflow_test, options: {value: 1}}
+""",
+    )
+    assert run_workflow_spec(load_workflow(path), tmp_path / "runs")
+    path.write_text(path.read_text().replace("value: 1", "value: 2"))
+
+    with pytest.raises(RuntimeError, match="configuration changed"):
+        run_workflow_spec(load_workflow(path), tmp_path / "runs")
+
+
 def test_cli_overrides_use_yaml_types():
     assert parse_overrides(["count=3", "enabled=true", "names=[a, b]"]) == {
         "count": 3,
@@ -224,6 +293,8 @@ def test_active_learning_example_uses_validation_targets():
 
     assert spec.settings.mode == "repeat"
     assert spec.settings.targets == ("test_spc_train", "test_spc_test")
+    assert set(spec.state) == {"current_potential", "training_data", "test_data"}
+    assert "shared/" not in spec.source.read_text()
     assert list(spec.steps) == [
         "read_stru",
         "model_to_explore",
@@ -235,7 +306,6 @@ def test_active_learning_example_uses_validation_targets():
         "sift_forces",
         "transfer",
         "train",
-        "save_model",
         "model_spc",
         "test_spc_train",
         "test_spc_test",
@@ -312,6 +382,31 @@ steps:
 """,
             "cannot contain duplicates",
         ),
+        (
+            """
+workflow: {targets: result}
+state:
+  value: {initial: seed, update: result}
+resources:
+  seed: {__type__: workflow_test, options: {value: 1}}
+steps:
+  result: {__type__: workflow_test_add, inputs: {value: value}}
+""",
+            "valid only",
+        ),
+        (
+            """
+workflow: {mode: repeat, targets: result}
+state:
+  value: {initial: seed, update: unused}
+resources:
+  seed: {__type__: workflow_test, options: {value: 1}}
+steps:
+  result: {__type__: workflow_test_add, inputs: {value: value}}
+  unused: {__type__: workflow_test_add, inputs: {value: value}}
+""",
+            "not reachable",
+        ),
     ],
 )
 def test_invalid_workflows_have_contextual_errors(tmp_path, body, message):
@@ -339,3 +434,22 @@ steps: {result: {__type__: workflow_test_add, inputs: {value: value}}}
     )
     with pytest.raises(WorkflowConfigError, match="duplicate resources: value"):
         load_workflow(tmp_path / "workflow.yaml")
+
+
+def test_unknown_named_output_is_rejected_before_construction(tmp_path):
+    path = _write(
+        tmp_path / "workflow.yaml",
+        """
+workflow: {targets: result}
+resources:
+  value: {__type__: workflow_test, options: {value: 1}}
+steps:
+  pair: {__type__: workflow_test_pair, inputs: {value: value}}
+  result:
+    __type__: workflow_test_add
+    inputs: {value: {node: pair, output: missing}}
+""",
+    )
+
+    with pytest.raises(WorkflowConfigError, match="has no output"):
+        compile_workflow(load_workflow(path), tmp_path / "run")

@@ -16,22 +16,18 @@ def run_workflow_spec(
     """Compile and run one workflow specification."""
     directory = pathlib.Path(directory)
     run_directory = directory / spec.source.stem
-    compiled: CompiledWorkflow = compile_workflow(spec, run_directory)
     settings = spec.settings
     if settings.mode == "once":
         from .once import OnceSession
 
-        session = OnceSession(directory=run_directory)
+        compiled: CompiledWorkflow = compile_workflow(spec, run_directory)
+        session = OnceSession(directory=run_directory, stable_directories=True)
+        session.run(compiled.entry, feed_dict={})
     else:
         from .repeat import RepeatSession
 
-        session = RepeatSession(
-            max_iterations=settings.max_iterations,
-            reset_random_state=settings.reset_random_state,
-            reset_random_config=settings.reset_random_config,
-            directory=run_directory,
-        )
-    session.run(compiled.entry, feed_dict={})
+        session = RepeatSession(spec, directory=run_directory)
+        session.run()
 
     # Some optional packages change logging.basicConfig and add a root handler.
     for handler in logging.root.handlers[:]:

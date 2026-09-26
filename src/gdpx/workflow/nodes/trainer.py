@@ -3,21 +3,19 @@
 
 
 import copy
-import pathlib
-import re
 from collections.abc import Mapping
 
 import yaml
 
-from gdpx.workflow.session.registry import workflow_registers as registers
-from gdpx.workflow.factory import create_trainer
-from gdpx.providers import ComponentConfig
+from gdpx.execution.schedulers.scheduler import BaseScheduler
+from gdpx.execution.workers.train import TrainerBasedWorker
+from gdpx.providers import ComponentConfig, PotentialConfig
 from gdpx.providers.specs import thaw
 from gdpx.providers.training import BasePotentialTrainer
-from gdpx.execution.schedulers.scheduler import BaseScheduler
+from gdpx.workflow.factory import create_trainer
 from gdpx.workflow.session.operation import Operation
+from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import DummyVariable, Variable
-from gdpx.execution.workers.train import TrainerBasedWorker
 
 from .scheduler import SchedulerVariable
 
@@ -41,9 +39,6 @@ class TrainerVariable(Variable):
 @registers.operation.register
 class train(Operation):
 
-    #: Whether to actively update some attrs.
-    _active: bool = False
-
     def __init__(
         self,
         dataset,
@@ -51,8 +46,6 @@ class train(Operation):
         potential,
         scheduler=DummyVariable(),
         size: int = 1,
-        init_models=None,
-        active: bool = False,
         share_dataset: bool = False,
         auto_submit: bool = True,
         directory="./",
@@ -70,16 +63,6 @@ class train(Operation):
             raise ValueError("Trainer and potential type lists must match.")
 
         self.size = size  # number of models
-        if init_models is not None:
-            self.init_models = [str(pathlib.Path(p).absolute()) for p in init_models]
-        else:
-            self.init_models = [None] * self.size
-        assert (
-            len(self.init_models) == self.size
-        ), f"The number of init models {self.init_models} is inconsistent with size {self.size}."
-
-        self._active = active
-
         self._share_dataset = share_dataset
         self._auto_submit = auto_submit
 
@@ -109,28 +92,13 @@ class train(Operation):
         """"""
         super().forward()
 
-        init_models = self.init_models
-        if self._active:
-            curr_iter = int(self.directory.parent.name.split(".")[-1])
-            if curr_iter > 0:
-                self._print(">>> Update init_models...")
-                prev_wdir = self.directory.parent.parent / f"iter.{str(curr_iter-1).zfill(4)}" / self.directory.name
-                prev_mdirs = []  # model dirs
-                for p in prev_wdir.iterdir():
-                    if p.is_dir() and re.match("m[0-9]+", p.name):
-                        prev_mdirs.append(p)
-                # TODO: replace `m` with a constant
-                init_models = []
-                prev_mdirs = sorted(prev_mdirs, key=lambda p: int(p.name[1:]))
-                for p in prev_mdirs:
-                    trainer.directory = p
-                    if hasattr(trainer, "get_checkpoint"):
-                        init_models.append(trainer.get_checkpoint())
-                    else:
-                        init_models.append((p / trainer.frozen_name).resolve())
-                for p in init_models:
-                    self._print(f"  {str(p)}")
-                assert init_models, "No previous models found."
+        init_models = list(potential.parameters.get("model", ()))
+        if not init_models:
+            init_models = [None] * self.size
+        if len(init_models) != self.size:
+            raise ValueError(
+                f"Potential provides {len(init_models)} initial models but training size is {self.size}."
+            )
 
         # -
         if scheduler is None:
@@ -157,10 +125,11 @@ class train(Operation):
                 self._print(f"  {str(m) =}")
             parameters = thaw(potential.parameters)
             parameters["model"] = models
-            trained_potential = ComponentConfig(
+            trained_potential = PotentialConfig(
                 potential.provider,
                 potential.method,
                 parameters,
+                potential.backend,
             )
         else:
             self._print("TrainWorker has not finished.")
@@ -183,17 +152,10 @@ class train(Operation):
 @registers.operation.register
 class save_potential(Operation):
 
-    def __init__(self, potential, dst_path=None, directory="./") -> None:
+    def __init__(self, potential, directory="./") -> None:
         """"""
         input_nodes = [potential]
         super().__init__(input_nodes, directory)
-
-        if dst_path is not None:
-            self.dst_path = pathlib.Path(dst_path).absolute()
-            suffix = self.dst_path.suffix
-            assert suffix == ".yaml", "dst_path should be either a yaml or a json file."
-        else:
-            self.dst_path = self._output_path
 
         return
 
@@ -204,11 +166,6 @@ class save_potential(Operation):
         self._output_path = self.directory / "potential.yaml"
         with open(self._output_path, "w") as fopen:
             yaml.safe_dump(potential.to_dict(), fopen, indent=2)
-
-        if self.dst_path.exists():
-            self._print("remove previous potential...")
-            self.dst_path.unlink()
-        self.dst_path.symlink_to(self._output_path)
 
         self.status = "finished"
 

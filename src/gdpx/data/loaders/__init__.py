@@ -11,9 +11,10 @@ from .singlexyz import SingleXyzDataloader
 REGISTER.register("single_xyz")(SingleXyzDataloader)
 REGISTER.register(SingleXyzDataloader)
 
-from .dataset import XyzDataloader
+from .dataset import XyzDataloader, XyzSnapshotDataloader
 
 REGISTER.register(XyzDataloader)
+REGISTER.register(XyzSnapshotDataloader)
 
 from gdpx.providers.deepmd.data import DeepmdDataloader
 
@@ -30,7 +31,7 @@ REGISTER.register(ReannDataloader)
 
 __all__ = [
     "REGISTER", "SingleXyzDataloader", "XyzDataloader", "DeepmdDataloader",
-    "MaceDataloader", "ReannDataloader", "create_dataloader",
+    "MaceDataloader", "ReannDataloader", "XyzSnapshotDataloader", "create_dataloader",
 ]
 
 from .factory import create_dataloader

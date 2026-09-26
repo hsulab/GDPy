@@ -11,7 +11,8 @@ from typing import Any, Mapping
 from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.registry import workflow_registers as registers
 
-from .configuration import NodeSpec, WorkflowConfigError, WorkflowSpec
+from .configuration import NodeSpec, OutputReference, WorkflowConfigError, WorkflowSpec
+from .state import OutputSelector, StateVariable
 
 
 @dataclass(frozen=True)
@@ -48,17 +49,61 @@ def validate_workflow(spec: WorkflowSpec) -> None:
         _validate_signature(node, "variable")
     for node in spec.steps.values():
         _validate_signature(node, "operation")
+    definitions = {**spec.resources, **spec.steps}
+    for definition in definitions.values():
+        for value in definition.inputs.values():
+            _validate_output_references(value, spec)
+    for definition in spec.state.values():
+        _validate_output_references(definition.update, spec)
 
 
-def _resolve_input(value: Any, nodes: Mapping[str, Any]) -> Any:
+def _validate_output_references(value: Any, spec: WorkflowSpec) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _validate_output_references(item, spec)
+        return
+    if not isinstance(value, OutputReference):
+        return
+    if value.node not in spec.steps:
+        raise WorkflowConfigError(f"Named output source {value.node!r} must be a step.")
+    cls = _node_class(spec.steps[value.node], "operation")
+    output_names = tuple(getattr(cls, "output_names", ()))
+    validates_output = getattr(cls, "validates_output", None)
+    supported = value.output in output_names
+    if validates_output is not None:
+        supported = supported or bool(validates_output(spec.steps[value.node], value.output))
+    if not supported:
+        available = ", ".join(output_names) or "(none)"
+        raise WorkflowConfigError(
+            f"Step {value.node!r} has no output {value.output!r}; available: {available}."
+        )
+
+
+def _resolve_input(
+    value: Any,
+    nodes: Mapping[str, Any],
+    ports: dict[tuple[str, str], OutputSelector],
+    root: pathlib.Path,
+) -> Any:
     if isinstance(value, str):
         return nodes[value]
-    return [_resolve_input(item, nodes) for item in value]
+    if isinstance(value, OutputReference):
+        key = (value.node, value.output)
+        if key not in ports:
+            ports[key] = OutputSelector(
+                nodes[value.node],
+                value.output,
+                directory=root / "outputs" / value.node / value.output,
+            )
+        return ports[key]
+    return [_resolve_input(item, nodes, ports, root) for item in value]
 
 
 def _references(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value]
+    if isinstance(value, OutputReference):
+        return [value.node]
     return [reference for item in value for reference in _references(item)]
 
 
@@ -69,6 +114,13 @@ def _dependency_order(spec: WorkflowSpec) -> list[str]:
 
     def visit(name: str) -> None:
         if name in visited:
+            return
+        if name in spec.state:
+            initial = spec.state[name].initial
+            if initial is not None:
+                visit(initial)
+            visited.add(name)
+            order.append(name)
             return
         for value in definitions[name].inputs.values():
             for dependency in _references(value):
@@ -81,22 +133,41 @@ def _dependency_order(spec: WorkflowSpec) -> list[str]:
     return order
 
 
-def compile_workflow(spec: WorkflowSpec, directory: str | pathlib.Path = ".") -> CompiledWorkflow:
+def compile_workflow(
+    spec: WorkflowSpec,
+    directory: str | pathlib.Path = ".",
+    *,
+    state_values: Mapping[str, Any] | None = None,
+) -> CompiledWorkflow:
     """Instantiate a validated workflow graph."""
     validate_workflow(spec)
     root = pathlib.Path(directory)
     definitions = {**spec.resources, **spec.steps}
     nodes: dict[str, Any] = {}
+    ports: dict[tuple[str, str], OutputSelector] = {}
     for name in _dependency_order(spec):
+        if name in spec.state:
+            if state_values is not None and name in state_values:
+                value = state_values[name]
+            else:
+                initial = spec.state[name].initial
+                value = None if initial is None else nodes[initial].value
+            nodes[name] = StateVariable(value, directory=root / "state" / name)
+            continue
         definition = definitions[name]
         category = "variable" if name in spec.resources else "operation"
         cls = _node_class(definition, category)
         kwargs = copy.deepcopy(dict(definition.options))
-        kwargs.update({key: _resolve_input(value, nodes) for key, value in definition.inputs.items()})
+        kwargs.update(
+            {
+                key: _resolve_input(value, nodes, ports, root)
+                for key, value in definition.inputs.items()
+            }
+        )
         if category == "variable":
-            kwargs["directory"] = root / "variables" / name
+            kwargs["directory"] = root / "resources" / name
         else:
-            kwargs["directory"] = root / name
+            kwargs["directory"] = root / "steps" / name
         try:
             nodes[name] = cls(**kwargs)
         except Exception as error:
@@ -106,7 +177,7 @@ def compile_workflow(spec: WorkflowSpec, directory: str | pathlib.Path = ".") ->
         entry = targets[0]
     else:
         barrier_cls = _node_class(NodeSpec("__targets__", "seqrun"), "operation")
-        entry = barrier_cls(nodes=targets, directory=root / "__targets__")
+        entry = barrier_cls(nodes=targets, directory=root / "steps" / "__targets__")
     if not isinstance(entry, Operation):
         raise WorkflowConfigError("Workflow targets must resolve to operations.")
     return CompiledWorkflow(spec, nodes, entry)
@@ -122,7 +193,12 @@ def workflow_plan(spec: WorkflowSpec) -> str:
         f"targets: {', '.join(spec.settings.targets)}",
         "nodes:",
     ]
+    for name, definition in spec.state.items():
+        update = _format_reference(definition.update)
+        lines.append(f"  {name} [state] <- {definition.initial or 'null'}; next <- {update}")
     for name in _dependency_order(spec):
+        if name in spec.state:
+            continue
         definition = definitions[name]
         kind = "resource" if name in spec.resources else "step"
         dependencies = [
@@ -135,11 +211,24 @@ def workflow_plan(spec: WorkflowSpec) -> str:
     return "\n".join(lines)
 
 
+def _format_reference(value: str | OutputReference) -> str:
+    if isinstance(value, OutputReference):
+        return f"{value.node}.{value.output}"
+    return value
+
+
 def workflow_dot(spec: WorkflowSpec) -> str:
     """Return the workflow graph in Graphviz DOT format."""
     validate_workflow(spec)
     lines = ["digraph workflow {"]
     definitions = {**spec.resources, **spec.steps}
+    for name, definition in spec.state.items():
+        lines.append(f'  "{name}" [label="{name}\\nstate", shape=diamond];')
+        if definition.initial is not None:
+            lines.append(f'  "{definition.initial}" -> "{name}" [label="initial"];')
+        update = definition.update.node if isinstance(definition.update, OutputReference) else definition.update
+        label = "next" if isinstance(definition.update, str) else f"next:{definition.update.output}"
+        lines.append(f'  "{update}" -> "{name}" [label="{label}", style=dashed];')
     for name, definition in definitions.items():
         shape = "ellipse" if name in spec.resources else "box"
         lines.append(f'  "{name}" [label="{name}\\n{definition.type}", shape={shape}];')

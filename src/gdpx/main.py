@@ -75,6 +75,7 @@ def main():
         ("validate", "validate without constructing workflow nodes"),
         ("plan", "print dependency and execution order"),
         ("graph", "print the workflow graph as DOT"),
+        ("status", "show the latest committed iteration and state"),
     ):
         command = workflow_commands.add_parser(action, help=help_text)
         add_workflow_source(command)
@@ -259,6 +260,7 @@ def main():
             print_workflow_graph,
             print_workflow_plan,
             run_workflow,
+            show_workflow_status,
             validate_workflow_file,
         )
 
@@ -279,6 +281,8 @@ def main():
             validate_workflow_file(args.FILE, **common)
         elif args.workflow_action == "plan":
             print_workflow_plan(args.FILE, **common)
+        elif args.workflow_action == "status":
+            show_workflow_status(args.FILE, directory=args.directory, **common)
         else:
             print_workflow_graph(args.FILE, **common)
     elif args.subcommand == "convert":

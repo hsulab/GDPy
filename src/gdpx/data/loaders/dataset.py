@@ -1,5 +1,4 @@
 import copy
-import itertools
 import pathlib
 import traceback
 from typing import Optional, Union
@@ -170,12 +169,14 @@ class XyzDataloader(AbstractDataloader):
 
         return data_dirs
 
+    def _relative_parts(self, path: pathlib.Path) -> tuple[str, ...]:
+        return tuple(path.relative_to(self.directory).parts)
+
     def load_frames(self):
         """"""
-        data_dirs = traverse_xyzdirs(self.directory)
-        data_dirs = sorted(data_dirs)
+        data_dirs = self.load()
 
-        names = [tuple(str(x.relative_to(self.directory)).split("/")) for x in data_dirs]
+        names = [self._relative_parts(path) for path in data_dirs]
 
         nframes_tot, frames_list = 0, []
         for i, p in enumerate(data_dirs):
@@ -241,16 +242,14 @@ class XyzDataloader(AbstractDataloader):
                 raise RuntimeError(f"No system folder found in `{str(d)}`")
 
         system_groups = {}
-        for k, v in itertools.groupby(enumerate(system_paths), key=lambda x: str(x[1])):
-            if k not in system_groups:
-                system_groups[k] = [data_dirs[e[0]] for e in v]
-            else:
-                system_groups[k].extend([data_dirs[e[0]] for e in v])
+        for index, system_path in enumerate(system_paths):
+            key = self._relative_parts(system_path)
+            system_groups.setdefault(key, []).append(data_dirs[index])
 
         # Convert to tuple
         system_groups_ = []
-        for k, v in system_groups.items():
-            system_groups_.append([k, v])
+        for key, directories in system_groups.items():
+            system_groups_.append([key, directories])
         system_groups = system_groups_
 
         # Check batchsize
@@ -269,8 +268,7 @@ class XyzDataloader(AbstractDataloader):
         adjusted_batchsizes = []  # auto-adjust batchsize based on nframes
         accumulated_batches = 0
         for _, (curr_system_group, curr_batchsize) in enumerate(zip(system_groups, batchsizes)):
-            curr_system = pathlib.Path(curr_system_group[0])
-            set_tree = str(curr_system.relative_to(self.directory)).split("/")
+            set_tree = list(curr_system_group[0])
             set_name = "+".join(set_tree)
             set_names.append(set_name)
             try:
@@ -294,7 +292,7 @@ class XyzDataloader(AbstractDataloader):
             self._print(f"  {composition=}  batchsize={curr_batchsize}")
             frames = []  # all frames in this subsystem
             for curr_subsystem in curr_system_group[1]:
-                self._print(f"  {curr_subsystem.relative_to(curr_system)}")
+                self._print(f"  {'/'.join(self._relative_parts(curr_subsystem))}")
                 xyz_fpaths = list(curr_subsystem.glob("*.xyz"))
                 xyz_fpaths.sort()  # sort by alphabet
                 for p in xyz_fpaths:
@@ -375,3 +373,70 @@ class XyzDataloader(AbstractDataloader):
         dataset_params = copy.deepcopy(dataset_params)
 
         return dataset_params
+
+
+class XyzSnapshotDataloader(XyzDataloader):
+    """Read-only composition of an initial XYZ dataset and iteration deltas."""
+
+    name = "xyz_snapshot"
+
+    def __init__(self, sources, **kwargs):
+        paths = tuple(pathlib.Path(path).resolve() for path in sources)
+        if not paths:
+            raise ValueError("An XYZ dataset snapshot requires at least one source.")
+        self.sources = paths
+        super().__init__(dataset_path=paths[0], **kwargs)
+
+    @classmethod
+    def from_loader(cls, loader: XyzDataloader) -> "XyzSnapshotDataloader":
+        if isinstance(loader, cls):
+            return loader
+        if not isinstance(loader, XyzDataloader):
+            raise TypeError(
+                f"Immutable dataset transfer currently supports XYZ datasets, got {type(loader).__name__}."
+            )
+        return cls(
+            [loader.directory],
+            batchsize=loader.batchsize,
+            train_ratio=loader.train_ratio,
+            random_seed=loader.random_seed,
+            prop_keys=loader.prop_keys,
+        )
+
+    def extend(self, source: str | pathlib.Path) -> "XyzSnapshotDataloader":
+        source = pathlib.Path(source).resolve()
+        sources = self.sources if source in self.sources else (*self.sources, source)
+        return type(self)(
+            sources,
+            batchsize=self.batchsize,
+            train_ratio=self.train_ratio,
+            random_seed=self.random_seed,
+            prop_keys=self.prop_keys,
+        )
+
+    def load(self) -> list[pathlib.Path]:
+        return sorted(
+            path
+            for source in self.sources
+            if source.exists()
+            for path in traverse_xyzdirs(source)
+        )
+
+    def _relative_parts(self, path: pathlib.Path) -> tuple[str, ...]:
+        resolved = path.resolve()
+        for source in self.sources:
+            try:
+                return tuple(resolved.relative_to(source).parts)
+            except ValueError:
+                continue
+        raise ValueError(f"Dataset path {path} is outside snapshot sources.")
+
+    def as_dict(self):
+        return {
+            "name": self.name,
+            "sources": [str(path) for path in self.sources],
+            "batchsize": self.batchsize,
+            "train_ratio": self.train_ratio,
+            "random_seed": self.random_seed,
+            "prop_keys": self.prop_keys,
+        }

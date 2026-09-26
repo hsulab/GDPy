@@ -7,16 +7,20 @@ import time
 from typing import Union
 
 from .operation import Operation
-
 from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
 class OnceSession(BaseSession):
 
-    def __init__(self, directory: Union[str, pathlib.Path] = "./") -> None:
+    def __init__(
+        self,
+        directory: Union[str, pathlib.Path] = "./",
+        stable_directories: bool = False,
+    ) -> None:
         """"""
         self.directory = pathlib.Path(directory)
+        self.stable_directories = stable_directories
 
         return
 
@@ -39,19 +43,12 @@ class OnceSession(BaseSession):
 
         # Find forward order
         nodes_postorder = traverse_postorder(operation)
-        for node in nodes_postorder:
-            if hasattr(node, "_active") and node._active:
-                node._active = False
-                self._print(
-                    f"Set {node} active to false because this workflow runs only once"
-                )
-
         self._run_nodes(
             self.directory,
             nodes_postorder=nodes_postorder,
             feed_dict=feed_dict,
             reset_states=False,
-            set_node_dir_func=set_node_directory,
+            set_node_dir_func=None if self.stable_directories else set_node_directory,
         )
         if not (self.state == SessionState.StepFinished):
             self._print("wait current iteration to finish...")

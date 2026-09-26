@@ -8,9 +8,8 @@ from typing import Callable, Optional
 
 from gdpx import config
 
-from .operation import Operation
-from .variable import Variable
 from .node import NodeKind, WorkflowNode
+from .operation import Operation
 
 
 class SessionState(enum.Enum):
@@ -131,8 +130,6 @@ class BaseSession:
         set_node_dir_func: Optional[Callable] = None,
     ):
         """"""
-        assert set_node_dir_func is not None
-
         if (wdir / "FINISHED").exists():
             self.state = SessionState.StepFinished
             return
@@ -156,7 +153,8 @@ class BaseSession:
                 node.version = wdir.name
 
             # Reset directory since it maybe changed
-            set_node_dir_func(node, i, wdir)
+            if set_node_dir_func is not None:
+                set_node_dir_func(node, i, wdir)
             if not isinstance(node, WorkflowNode):
                 raise TypeError(f"Unknown workflow node: {type(node)}")
             node_type = node.node_kind.value

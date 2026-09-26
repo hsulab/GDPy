@@ -24,6 +24,23 @@ class NodeSpec:
 
 
 @dataclass(frozen=True)
+class OutputReference:
+    """Reference one named output from a workflow step."""
+
+    node: str
+    output: str
+
+
+@dataclass(frozen=True)
+class StateSpec:
+    """A value carried from one repeat iteration to the next."""
+
+    name: str
+    initial: str | None
+    update: str | OutputReference
+
+
+@dataclass(frozen=True)
 class WorkflowSettings:
     targets: tuple[str, ...]
     mode: str = "once"
@@ -37,6 +54,7 @@ class WorkflowSpec:
     source: pathlib.Path
     settings: WorkflowSettings
     parameters: Mapping[str, Any]
+    state: Mapping[str, StateSpec]
     resources: Mapping[str, NodeSpec]
     steps: Mapping[str, NodeSpec]
 
@@ -46,6 +64,7 @@ _TOP_LEVEL_KEYS = {
     "parameters",
     "profiles",
     "resources",
+    "state",
     "steps",
     "workflow",
 }
@@ -83,7 +102,7 @@ def _merge_fragments(base: dict, incoming: Mapping[str, Any], source: pathlib.Pa
         )
     if unknown:
         raise WorkflowConfigError(f"{source}: unknown top-level fields: {', '.join(sorted(unknown))}.")
-    for section in ("parameters", "resources", "steps", "profiles"):
+    for section in ("parameters", "resources", "state", "steps", "profiles"):
         values = incoming.get(section, {}) or {}
         if not isinstance(values, Mapping):
             raise WorkflowConfigError(f"{source}: `{section}` must be a mapping.")
@@ -111,6 +130,7 @@ def _load_fragment(path: pathlib.Path, stack: tuple[pathlib.Path, ...] = ()) -> 
     merged = {
         "parameters": {},
         "resources": {},
+        "state": {},
         "steps": {},
         "profiles": {},
         "workflow": None,
@@ -238,22 +258,68 @@ def _parse_node(name: str, value: Any, parameters: Mapping[str, Any], section: s
     if "directory" in options or "directory" in inputs:
         raise WorkflowConfigError(f"{section}.{name}.directory is managed by the workflow runner.")
     resolved = _resolve_parameters(options, parameters, f"{section}.{name}.options")
-    return NodeSpec(name, node_type, copy.deepcopy(dict(inputs)), resolved)
+    parsed_inputs = {
+        key: _parse_reference(item, f"{section}.{name}.inputs.{key}")
+        for key, item in inputs.items()
+    }
+    return NodeSpec(name, node_type, parsed_inputs, resolved)
+
+
+def _parse_reference(value: Any, path: str) -> str | OutputReference | list[Any]:
+    if isinstance(value, str):
+        if not value:
+            raise WorkflowConfigError(f"{path} must not be empty.")
+        return value
+    if isinstance(value, list):
+        return [_parse_reference(item, f"{path}[{index}]") for index, item in enumerate(value)]
+    if isinstance(value, Mapping) and set(value) == {"node", "output"}:
+        node, output = value["node"], value["output"]
+        if not isinstance(node, str) or not node or not isinstance(output, str) or not output:
+            raise WorkflowConfigError(f"{path} node and output must be nonempty strings.")
+        return OutputReference(node, output)
+    raise WorkflowConfigError(
+        f"{path} must be a node name, list of node references, or {{node, output}} reference."
+    )
 
 
 def _references(value: Any, path: str) -> tuple[str, ...]:
     if isinstance(value, str):
         return (value,)
+    if isinstance(value, OutputReference):
+        return (value.node,)
     if isinstance(value, list):
         return tuple(ref for index, item in enumerate(value) for ref in _references(item, f"{path}[{index}]"))
     raise WorkflowConfigError(f"{path} must be a node name or list of node names.")
 
 
-def _validate_graph(resources: Mapping[str, NodeSpec], steps: Mapping[str, NodeSpec], targets: tuple[str, ...]) -> None:
-    duplicate = set(resources).intersection(steps)
+def _parse_state(values: Mapping[str, Any]) -> dict[str, StateSpec]:
+    state = {}
+    for name, value in values.items():
+        if not isinstance(name, str) or not name:
+            raise WorkflowConfigError("State names must be nonempty strings.")
+        if not isinstance(value, Mapping) or set(value) != {"initial", "update"}:
+            raise WorkflowConfigError(f"state.{name} must contain exactly `initial` and `update`.")
+        initial = value["initial"]
+        if initial is not None and (not isinstance(initial, str) or not initial):
+            raise WorkflowConfigError(f"state.{name}.initial must be a resource name or null.")
+        update = _parse_reference(value["update"], f"state.{name}.update")
+        if isinstance(update, list):
+            raise WorkflowConfigError(f"state.{name}.update must reference one step output.")
+        state[name] = StateSpec(name, initial, update)
+    return state
+
+
+def _validate_graph(
+    resources: Mapping[str, NodeSpec],
+    state: Mapping[str, StateSpec],
+    steps: Mapping[str, NodeSpec],
+    targets: tuple[str, ...],
+) -> None:
+    duplicate = (set(resources) & set(steps)) | (set(resources) & set(state)) | (set(state) & set(steps))
     if duplicate:
         raise WorkflowConfigError(f"Node names must be unique: {', '.join(sorted(duplicate))}.")
     all_nodes = {**resources, **steps}
+    reference_names = set(all_nodes) | set(state)
     dependencies: dict[str, tuple[str, ...]] = {}
     for name, spec in all_nodes.items():
         refs = tuple(
@@ -261,7 +327,7 @@ def _validate_graph(resources: Mapping[str, NodeSpec], steps: Mapping[str, NodeS
             for field, value in spec.inputs.items()
             for ref in _references(value, f"{name}.inputs.{field}")
         )
-        missing = set(refs) - set(all_nodes)
+        missing = set(refs) - reference_names
         if missing:
             raise WorkflowConfigError(f"{name} references unknown nodes: {', '.join(sorted(missing))}.")
         if name in resources:
@@ -271,6 +337,22 @@ def _validate_graph(resources: Mapping[str, NodeSpec], steps: Mapping[str, NodeS
                     f"Resource {name!r} cannot depend on steps: {', '.join(sorted(invalid))}."
                 )
         dependencies[name] = refs
+    for name, definition in state.items():
+        if definition.initial is not None and definition.initial not in resources:
+            raise WorkflowConfigError(
+                f"State {name!r} initial value must reference a resource; got {definition.initial!r}."
+            )
+        if definition.initial is not None:
+            initial_refs = dependencies[definition.initial]
+            if set(initial_refs).intersection(state):
+                raise WorkflowConfigError(
+                    f"Initial resource {definition.initial!r} for state {name!r} cannot depend on state."
+                )
+        update_name = definition.update.node if isinstance(definition.update, OutputReference) else definition.update
+        if update_name not in steps:
+            raise WorkflowConfigError(
+                f"State {name!r} update must reference a step; got {update_name!r}."
+            )
     missing_targets = set(targets) - set(steps)
     if missing_targets:
         raise WorkflowConfigError(f"Unknown workflow targets: {', '.join(sorted(missing_targets))}.")
@@ -278,6 +360,9 @@ def _validate_graph(resources: Mapping[str, NodeSpec], steps: Mapping[str, NodeS
     visited: set[str] = set()
 
     def visit(name: str) -> None:
+        if name in state:
+            visited.add(name)
+            return
         if name in visiting:
             cycle = visiting[visiting.index(name):] + [name]
             raise WorkflowConfigError(f"Workflow dependency cycle: {' -> '.join(cycle)}")
@@ -291,6 +376,24 @@ def _validate_graph(resources: Mapping[str, NodeSpec], steps: Mapping[str, NodeS
 
     for name in all_nodes:
         visit(name)
+
+    reachable: set[str] = set()
+
+    def collect(name: str) -> None:
+        if name in reachable or name in state:
+            return
+        reachable.add(name)
+        for dependency in dependencies[name]:
+            collect(dependency)
+
+    for target in targets:
+        collect(target)
+    for name, definition in state.items():
+        update_name = definition.update.node if isinstance(definition.update, OutputReference) else definition.update
+        if update_name not in reachable:
+            raise WorkflowConfigError(
+                f"State {name!r} updater {update_name!r} is not reachable from a workflow target."
+            )
 
 
 def load_workflow(
@@ -325,6 +428,9 @@ def load_workflow(
     mode = workflow.get("mode", "once")
     if mode not in ("once", "repeat"):
         raise WorkflowConfigError("workflow.mode must be `once` or `repeat`.")
+    state = _parse_state(data["state"])
+    if state and mode != "repeat":
+        raise WorkflowConfigError("Top-level `state` is valid only when workflow.mode is `repeat`.")
     repeat_fields = {"max_iterations", "reset_random_state", "reset_random_config"}
     ignored = repeat_fields.intersection(workflow) if mode == "once" else set()
     if ignored:
@@ -357,7 +463,7 @@ def load_workflow(
         name: _parse_node(name, value, data["parameters"], "steps")
         for name, value in data["steps"].items()
     }
-    _validate_graph(resources, steps, targets)
+    _validate_graph(resources, state, steps, targets)
     settings = WorkflowSettings(
         targets=targets,
         mode=mode,
@@ -365,4 +471,4 @@ def load_workflow(
         reset_random_state=reset_random,
         reset_random_config=(reset_config[0], reset_config[1]),
     )
-    return WorkflowSpec(source, settings, copy.deepcopy(data["parameters"]), resources, steps)
+    return WorkflowSpec(source, settings, copy.deepcopy(data["parameters"]), state, resources, steps)

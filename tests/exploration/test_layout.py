@@ -198,20 +198,27 @@ def test_ssh_selective_sync_preserves_metadata_and_siblings(tmp_path, name):
 
 
 @pytest.mark.parametrize('count', [1, 2])
-def test_active_workflow_uses_previous_layout(tmp_path, count):
+def test_workflow_uses_explicit_exploration_continuation(tmp_path, count):
     from gdpx.workflow.nodes.exploration import explore
     from gdpx.workflow.session.variable import Variable
-    previous = tmp_path / 'iter.0000' / 'search'
     current = tmp_path / 'iter.0001' / 'search'
-    names = exploration_layout(previous, count, create=True)
+    names = exploration_directories(count)
     updates = []
     explorations = [Exploration() for _ in range(count)]
     for exploration in explorations:
-        exploration.update_active_params = updates.append
-    operation = explore(Variable(explorations), active=True, directory=current)
-    results = operation.forward(explorations, None, DirectScheduler())
-    assert updates == [previous / name for name in names]
-    assert results == [(current / name).resolve() for name in names]
+        exploration.restore_continuation = updates.append
+        exploration.capture_continuation = lambda exploration=exploration: exploration.directory
+    continuations = [f'previous-{index}' for index in range(count)]
+    operation = explore(
+        Variable(explorations),
+        continuation=Variable(continuations),
+        directory=current,
+    )
+    outputs = operation.forward(explorations, None, DirectScheduler(), continuations)
+    assert updates == continuations
+    assert outputs['results'] == [(current / name).resolve() for name in names]
+    expected = tuple((current / name).resolve() for name in names)
+    assert outputs['continuation'] == (expected[0] if count == 1 else expected)
     assert operation.status == 'finished'
 
 

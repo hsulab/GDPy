@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import time
 
 import yaml
@@ -10,6 +11,7 @@ from gdpx import config
 from gdpx.workflow.compiler import validate_workflow, workflow_dot, workflow_plan
 from gdpx.workflow.configuration import WorkflowConfigError, WorkflowSpec, load_workflow
 from gdpx.workflow.session.interface import run_workflow_spec
+from gdpx.workflow.state_store import WorkflowStateStore
 
 
 def parse_overrides(values: list[str] | None) -> dict:
@@ -77,3 +79,23 @@ def print_workflow_plan(path, *, profile=None, overrides=None) -> None:
 def print_workflow_graph(path, *, profile=None, overrides=None) -> None:
     spec = load_cli_workflow(path, profile, overrides)
     config._print(workflow_dot(spec))
+
+
+def show_workflow_status(path, *, directory=".", profile=None, overrides=None) -> None:
+    """Print the latest committed state manifest without running the workflow."""
+    spec = load_cli_workflow(path, profile, overrides)
+    run_directory = pathlib.Path(directory) / spec.source.stem
+    store = WorkflowStateStore(run_directory, spec)
+    iteration, values = store.load()
+    if iteration < 0:
+        config._print(f"workflow has no committed iterations: {run_directory}")
+        return
+    manifest = yaml.safe_load(store.current.read_text(encoding="utf-8"))
+    summary = {
+        "run": str(run_directory.resolve()),
+        "iteration": iteration,
+        "converged": bool(manifest.get("converged", False)),
+        "state": {name: type(value).__name__ for name, value in values.items()},
+        "manifest": str(store.current.resolve()),
+    }
+    config._print(yaml.safe_dump(summary, sort_keys=False).rstrip())

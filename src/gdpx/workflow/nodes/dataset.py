@@ -5,15 +5,18 @@
 import copy
 import itertools
 import json
+import pathlib
 from typing import Mapping, Union
 
 import numpy as np
 from ase import Atoms
 from ase.io import write
 
-from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
+from gdpx.data.loaders.dataset import XyzSnapshotDataloader
 from gdpx.workflow.session.operation import Operation
+from gdpx.workflow.session.registry import workflow_registers as registers
+from gdpx.workflow.state import NamedOutputs
 
 
 def split_structures_by_ratio(
@@ -56,9 +59,11 @@ def split_structures_by_ratio(
     return datasets, split_indices  # type: ignore
 
 
-def transfer_structures_to_dataset(dataset, system_dirpath, structures, version: str, print_func) -> None:
+def transfer_structures_to_dataset(
+    dataset_name, root_dirpath, system_dirpath, structures, version: str, print_func
+) -> None:
     """"""
-    root_dirpath = dataset.directory.resolve()
+    root_dirpath = pathlib.Path(root_dirpath).resolve()
 
     strname = version + ".xyz"
     target_destination = system_dirpath / strname
@@ -67,9 +72,9 @@ def transfer_structures_to_dataset(dataset, system_dirpath, structures, version:
     num_structures = len(structures)
     if not target_destination.exists():
         write(target_destination, structures)
-        print_func(f"-> {dataset.directory.name:<21s} num_structures {num_structures} -> {str(relative_desination)}")
+        print_func(f"-> {dataset_name:<21s} num_structures {num_structures} -> {str(relative_desination)}")
     else:
-        print_func(f"-> {dataset.directory.name:<21s} {str(relative_desination)} exists.")
+        print_func(f"-> {dataset_name:<21s} {str(relative_desination)} exists.")
 
     return
 
@@ -77,6 +82,10 @@ def transfer_structures_to_dataset(dataset, system_dirpath, structures, version:
 @registers.operation.register
 class transfer(Operation):
     """Transfer worker results to target destination."""
+
+    @classmethod
+    def validates_output(cls, spec, output: str) -> bool:
+        return output in spec.inputs and output.startswith("dataset")
 
     def __init__(
         self,
@@ -91,7 +100,9 @@ class transfer(Operation):
         **datasets,
     ) -> None:
         """"""
-        datasets, splits = self._canonicalise_datasets(datasets, split_ratio=split_ratio)
+        dataset_names, datasets, splits = self._canonicalise_datasets(
+            datasets, split_ratio=split_ratio
+        )
 
         input_nodes = [structures, *datasets]
         super().__init__(input_nodes=input_nodes, directory=directory)
@@ -102,6 +113,7 @@ class transfer(Operation):
         self.suffix = suffix  # molecule/cluster, surface, bulk
 
         self.splits = splits
+        self.dataset_names = dataset_names
 
         self.clean_info = clean_info  # whether clean atoms info
         self.set_pbc = set_pbc  # Whether set structures to full pbc
@@ -122,7 +134,8 @@ class transfer(Operation):
         )  # Ensure the first dataset is named `dataset`
 
         sorted_datasets = []
-        for name, dataset in datasets.items():
+        for name in dataset_names:
+            dataset = datasets[name]
             if not name.startswith("dataset"):
                 raise Exception(f"Dataset name `{name}` must start with `dataset`, but got `{name}` for `{dataset}`.")
             sorted_datasets.append(dataset)
@@ -136,7 +149,10 @@ class transfer(Operation):
             )
 
         # Check if datasets have different directories
-        dirpaths = [dataset.directory for dataset in sorted_datasets]
+        dirpaths = [
+            dataset.value.directory if hasattr(dataset, "value") else dataset.directory
+            for dataset in sorted_datasets
+        ]
         if len(set(dirpaths)) != len(dirpaths):
             raise Exception("All datasets must have different directories.")
 
@@ -144,7 +160,7 @@ class transfer(Operation):
         if not np.isclose(ratio_sum, 1.0):
             raise Exception(f"Split ratios must sum to 1.0, but got {ratio_sum}.")
 
-        return sorted_datasets, sorted_ratios
+        return dataset_names, sorted_datasets, sorted_ratios
 
     def forward(self, structures: list[Atoms], *datasets):
         """"""
@@ -156,7 +172,9 @@ class transfer(Operation):
         self._print(f"{num_structures = }")
 
         self._print("target datasets:")
-        target_dirpaths = [dataset.directory.resolve() for dataset in datasets]
+        snapshots = [XyzSnapshotDataloader.from_loader(dataset) for dataset in datasets]
+        dataset_names = self.dataset_names
+        target_dirpaths = [self.directory / "datasets" / name for name in dataset_names]
         for target_dirpath in target_dirpaths:
             self._print(f"-> dataset: {str(target_dirpath)}")
         main_dataset = datasets[0]
@@ -165,7 +183,12 @@ class transfer(Operation):
         if (self.directory / "cache_splits.json").exists():
             self._print("cache_splits.json exists, skip transfer.")
             self.status = "finished"
-            return main_dataset
+            return NamedOutputs(
+                {
+                    name: snapshot.extend(target)
+                    for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths)
+                }
+            )
 
         # Check chemical symbols
         system_dict = {}  # {formula: [indices]}
@@ -202,16 +225,21 @@ class transfer(Operation):
                 curr_structures, self.splits, rng=main_dataset.rng
             )
             cache_info["index"] = [indices.tolist() for indices in split_indices]
-            for dataset, target_structures in zip(datasets, split_structures):
-                target_subdir = dataset.directory.resolve() / dirname
+            for dataset_name, target_root, target_structures in zip(
+                dataset_names, target_dirpaths, split_structures
+            ):
+                target_subdir = target_root / dirname
                 target_subdir.mkdir(parents=True, exist_ok=True)
 
                 num_target_structures = len(target_structures)
                 if num_target_structures == 0:
-                    self._print(f"-> {dataset.directory.name:<24s} skips {dirname} as it has no structures.")
+                    self._print(
+                        f"-> {dataset_name:<24s} skips {dirname} as it has no structures."
+                    )
                 else:
                     transfer_structures_to_dataset(
-                        dataset,
+                        dataset_name,
+                        target_root,
                         target_subdir,
                         target_structures,
                         self.version,
@@ -229,7 +257,12 @@ class transfer(Operation):
 
         self.status = "finished"
 
-        return main_dataset
+        return NamedOutputs(
+            {
+                name: snapshot.extend(target)
+                for name, snapshot, target in zip(dataset_names, snapshots, target_dirpaths)
+            }
+        )
 
     def _clean_structures(self, structures: list[Atoms]):
         """"""

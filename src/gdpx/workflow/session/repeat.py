@@ -1,144 +1,114 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Transactional repeated workflow execution."""
 
+from __future__ import annotations
 
 import pathlib
 import time
-from typing import Union
 
-from .operation import Operation
+import yaml
+
+from gdpx.workflow.compiler import compile_workflow
+from gdpx.workflow.configuration import OutputReference, WorkflowSpec
+from gdpx.workflow.state import select_output
+from gdpx.workflow.state_store import WorkflowStateStore
 
 from .session import BaseSession, SessionState
 from .utils import traverse_postorder
 
 
-def set_node_directory_in_repeat_session(
-    node: Operation, node_index, working_directory: pathlib.Path
-) -> None:
-    """"""
-    prev_name = node.directory.name.split(".")[-1]  # remove previous orders
-    if not prev_name:
-        prev_name = node.__class__.__name__
-    node.directory = working_directory / f"{node_index:>04d}.{prev_name}"
-
-    return
-
-
 class RepeatSession(BaseSession):
+    """Recompile each iteration from the last atomically committed state."""
 
-    def __init__(
-        self,
-        max_iterations: int = 2,
-        reset_random_state: bool = False,
-        reset_random_config: tuple[str, int] = ("init", 0),
-        directory: Union[str, pathlib.Path] = "./",
-    ) -> None:
-        """Initialise a repeatedly executed workflow session.
-
-        Args:
-            max_iterations: Maximum number of iterations.
-            reset_random_config: Reset mode and first iteration to reset.
-
-        """
-        self.max_iterations = max_iterations
-
-        # Some random-related parameters
-        self.reset_random_state = reset_random_state
-        assert reset_random_config[0] in [
-            "init",
-            "zero",
-        ], "Reset random seed mode must either be init or zero."
-        self.reset_random_seed_mode = reset_random_config[0]
-        self.reset_random_seed_step = reset_random_config[1]
-
+    def __init__(self, spec: WorkflowSpec, directory: str | pathlib.Path = ".") -> None:
+        self.spec = spec
         self.directory = pathlib.Path(directory)
-
-        return
-
-    def run(self, operation: Operation, feed_dict: dict = {}) -> None:
-        """"""
+        self.store = WorkflowStateStore(self.directory, spec)
         self.state = SessionState.StepToStart
-        # Update nodes' attrs based on the previous iteration
-        # nodes_postorder = traverse_postorder(operation)
-        # for node in nodes_postorder:
-        #    if hasattr(node, "enable_active"):
-        #        node.enable_active()
-        if self.reset_random_state:
-            self._print(
-                f"RESET RANDOM SEED - MODE: {self.reset_random_seed_mode} STEP: {self.reset_random_seed_step}"
-            )
 
-        # Run iterative steps
-        for istep in range(self.max_iterations):
-            curr_wdir = self.directory / f"iter.{istep:>04d}"
-            # Find forward order
-            nodes_postorder = traverse_postorder(operation)
+    def _next_values(self, compiled) -> dict:
+        values = {}
+        for name, definition in self.spec.state.items():
+            reference = definition.update
+            node_name = reference.node if isinstance(reference, OutputReference) else reference
+            node = compiled.nodes[node_name]
+            if not hasattr(node, "output"):
+                raise RuntimeError(f"State updater {node_name!r} produced no output.")
+            value = node.output
+            if isinstance(reference, OutputReference):
+                value = select_output(value, reference.output)
+            values[name] = value
+        return values
 
-            # Check random states
-            if (
-                self.reset_random_state
-                and istep >= self.reset_random_seed_step
-            ):
-                for node in nodes_postorder:
-                    if hasattr(node, "reset_random_seed"):
-                        self._print(
-                            f"reset {node.directory.name}'s random seeds."
-                        )
-                        node.reset_random_seed(
-                            mode=self.reset_random_seed_mode
-                        )
+    @staticmethod
+    def _converged(nodes) -> bool:
+        reports = [
+            node.report_convergence()
+            for node in nodes
+            if hasattr(node, "report_convergence")
+        ]
+        return bool(reports) and all(reports)
 
-            # Run operations
-            self._run_nodes(
-                curr_wdir,
-                nodes_postorder=nodes_postorder,
-                feed_dict=feed_dict,
-                reset_states=True,
-                set_node_dir_func=set_node_directory_in_repeat_session,
-            )
-
-            # Check state
-            if not (self.state == SessionState.StepFinished):
-                self._print("wait current iteration to finish...")
-            else:
-                # If previous step finished, the nodes may not have outputs
-                # as we skip them...
-                if not (curr_wdir / "FINISHED").exists():
-                    # Report convergence
-                    self._print(f"[{'CONVERGENCE':^24s}]")
-                    converged_list = []
-                    for node in nodes_postorder:
-                        if hasattr(node, "report_convergence"):
-                            converged = node.report_convergence()
-                            converged_list.append(converged)
-                    if converged_list and all(converged_list):
-                        self._print(f"Repeated workflow converged at iteration {istep}.")
-                        self.state = SessionState.LoopConverged
-                    else:
-                        self._print(f"Repeated workflow has not converged at iteration {istep}.")
-                        if istep + 1 == self.max_iterations:
-                            self.state = SessionState.LoopUnConverged
-                        else:
-                            ...  # Just StepFinished
-                    # Save state to a file
-                    with open(curr_wdir / "FINISHED", "w") as fopen:
-                        fopen.write(
-                            f"STATE {self.state} FINISHED AT {time.asctime( time.localtime(time.time()) )}."
-                        )
-                else:
-                    self._print(
-                        "[{:^24s}] FINISHED".format(
-                            f"STEP.{str(istep).zfill(4)}"
-                        )
-                    )
-            # Add an atrribute that indicates all steps are finished
-            if self.state != SessionState.StepFinished:
-                break
-        else:
+    def run(self) -> None:
+        last_iteration, state_values = self.store.load()
+        if self.store.current.exists():
+            manifest = yaml.safe_load(self.store.current.read_text(encoding="utf-8"))
+            if manifest.get("converged", False):
+                self.state = SessionState.LoopConverged
+                return
+        if last_iteration + 1 >= self.spec.settings.max_iterations:
             self.state = SessionState.LoopFinished
+            return
 
-        return
+        for iteration in range(last_iteration + 1, self.spec.settings.max_iterations):
+            iteration_directory = self.directory / f"iter.{iteration:04d}"
+            if (iteration_directory / "FINISHED").exists():
+                raise RuntimeError(
+                    f"Iteration {iteration} is marked finished without committed state; "
+                    "use a fresh run directory."
+                )
+            compiled = compile_workflow(
+                self.spec,
+                iteration_directory,
+                state_values=state_values if last_iteration >= 0 or state_values else None,
+            )
+            if iteration == 0 and self.spec.state and not self.store.initial.exists():
+                state_values = {
+                    name: compiled.nodes[name].value for name in self.spec.state
+                }
+                self.store.initialise(state_values)
+            nodes = traverse_postorder(compiled.entry)
+            if (
+                self.spec.settings.reset_random_state
+                and iteration >= self.spec.settings.reset_random_config[1]
+            ):
+                for node in nodes:
+                    if hasattr(node, "reset_random_seed"):
+                        node.reset_random_seed(mode=self.spec.settings.reset_random_config[0])
 
+            self.state = SessionState.StepFinished
+            self._run_nodes(
+                iteration_directory,
+                nodes_postorder=nodes,
+                feed_dict={},
+                reset_states=False,
+                set_node_dir_func=None,
+            )
+            if self.state != SessionState.StepFinished:
+                self._print("wait current iteration to finish...")
+                return
 
-if __name__ == "__main__":
-    ...
+            converged = self._converged(nodes)
+            next_values = self._next_values(compiled)
+            self.store.commit(iteration, next_values, converged)
+            iteration_directory.mkdir(parents=True, exist_ok=True)
+            (iteration_directory / "FINISHED").write_text(
+                f"STATE COMMITTED FINISHED AT {time.asctime(time.localtime())}.",
+                encoding="utf-8",
+            )
+            state_values = next_values
+            last_iteration = iteration
+            if converged:
+                self.state = SessionState.LoopConverged
+                return
+
+        self.state = SessionState.LoopFinished
