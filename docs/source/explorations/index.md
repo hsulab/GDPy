@@ -68,6 +68,13 @@ limitations of the ensemble sampling rules.
 For alternating MD and MC blocks, see the {doc}`Hybrid Monte Carlo guide
 <hmc>`.
 
+## Rare-event sampling
+
+Use {doc}`umbrella sampling <umbrella-sampling>` to run equilibrated harmonic
+distance windows and multiple independent replicas. Its production trajectories
+can be grouped by restraint center for committee-uncertainty selection in an
+active-learning workflow.
+
 ## global optimisation
 
 Start with the {doc}`global optimisation overview <../global_optimisation/index>`
@@ -80,3 +87,10 @@ structures. These methods share {doc}`population configuration
 <../global_optimisation/population>` and {doc}`output conventions
 <../global_optimisation/output>`. The older {doc}`GA configuration discussion
 <ga>` remains available as supplementary material.
+
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+umbrella-sampling
+```

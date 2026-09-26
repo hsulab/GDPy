@@ -48,6 +48,12 @@ described in the {doc}`task examples overview <computations/tasks/index>`.
 See the {ref}`Monte Carlo guide <monte-carlo>` for proposal rules, outputs,
 restart behavior, and sampling limitations.
 
+## Rare-event sampling
+
+| Example | System | Focus |
+| --- | --- | --- |
+| {doc}`H2O/Ni(111) <explorations/umbrella-sampling>` | surface | Distance-window replicas for active-learning candidate generation |
+
 ## Hybrid Monte Carlo
 
 | Example | System | Focus |

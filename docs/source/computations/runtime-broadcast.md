@@ -70,6 +70,8 @@ modifiers:
 This produces four workers, `w0` through `w3`, with one restraint center per
 worker. They are independent replicas/windows: broadcast does not exchange
 configurations between workers or reconstruct a free-energy profile.
+For equilibrated windows, persisted per-replica seeds, and production metadata,
+use the {doc}`umbrella-sampling exploration <../explorations/umbrella-sampling>`.
 
 Executor and modifier broadcasts can be combined. They form one Cartesian
 product, with executor dimensions first and modifier dimensions following in

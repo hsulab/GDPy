@@ -54,9 +54,11 @@ about 0.864 eV in that window. Its saved structures are in
 
 This deliberately short trajectory is a mechanics test, not equilibrated
 sampling and not a free-energy calculation. Broadcast supplies the independent
-windows that can precede umbrella sampling, but it does not perform replica
-exchange or free-energy reconstruction. A production workflow would equilibrate
-and sample each window much longer, verify overlap between neighboring distance
-distributions, and combine them with an appropriate unbiased estimator. The
-bundled force field is also subject to its own noncommercial license and the
-example does not claim a DFT-quality water-dissociation barrier.
+windows that can precede umbrella sampling. For automatic equilibration,
+multiple replicas, restart metadata, and active-learning selection, see the
+{doc}`umbrella-sampling exploration <../explorations/umbrella-sampling>`. Neither
+workflow performs replica exchange or free-energy reconstruction. A free-energy
+workflow must also verify overlap between neighboring distance distributions and
+combine them with an appropriate unbiased estimator. The bundled force field is
+subject to its own noncommercial license, and the example does not claim a
+DFT-quality water-dissociation barrier.
