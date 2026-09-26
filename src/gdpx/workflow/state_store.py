@@ -16,6 +16,7 @@ from gdpx.data.loaders.factory import create_dataloader
 from gdpx.providers import PotentialConfig
 from gdpx.providers.specs import thaw
 
+from .compiler import STEP_DIRECTORY_LAYOUT
 from .configuration import OutputReference, WorkflowSpec
 
 FORMAT_VERSION = 1
@@ -34,6 +35,7 @@ def _reference_data(value):
 def workflow_fingerprint(spec: WorkflowSpec) -> str:
     """Hash the fully resolved workflow that owns a state store."""
     payload = {
+        "step_directory_layout": STEP_DIRECTORY_LAYOUT,
         "settings": {
             "mode": spec.settings.mode,
             "targets": list(spec.settings.targets),

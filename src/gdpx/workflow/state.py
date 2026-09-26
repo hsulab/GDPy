@@ -34,3 +34,14 @@ class OutputSelector(Operation):
         selected = select_output(value, self.output)
         self.status = "finished"
         return selected
+
+
+class TargetBarrier(Operation):
+    """Internal virtual node that joins multiple workflow targets."""
+
+    def __init__(self, targets):
+        super().__init__(targets)
+
+    def forward(self, *outputs):
+        self.status = "finished"
+        return outputs

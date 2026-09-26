@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import inspect
 import pathlib
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -12,7 +13,10 @@ from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.registry import workflow_registers as registers
 
 from .configuration import NodeSpec, OutputReference, WorkflowConfigError, WorkflowSpec
-from .state import OutputSelector, StateVariable
+from .state import OutputSelector, StateVariable, TargetBarrier
+
+STEP_DIRECTORY_LAYOUT = "topological-v1"
+_ORDERED_STEP_DIRECTORY = re.compile(r"^\d{4,}\..+")
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,49 @@ def _dependency_order(spec: WorkflowSpec) -> list[str]:
     return order
 
 
+def _step_directory_names(spec: WorkflowSpec) -> dict[str, str]:
+    remaining = list(spec.steps)
+    dependencies = {
+        name: {
+            dependency
+            for value in definition.inputs.values()
+            for dependency in _references(value)
+            if dependency in spec.steps
+        }
+        for name, definition in spec.steps.items()
+    }
+    step_order = []
+    resolved = set()
+    while remaining:
+        name = next(
+            (candidate for candidate in remaining if dependencies[candidate] <= resolved),
+            None,
+        )
+        if name is None:
+            raise WorkflowConfigError("Workflow step graph contains a cycle.")
+        remaining.remove(name)
+        resolved.add(name)
+        step_order.append(name)
+    return {name: f"{index:04d}.{name}" for index, name in enumerate(step_order)}
+
+
+def _reject_legacy_step_directories(root: pathlib.Path) -> None:
+    steps = root / "steps"
+    if not steps.is_dir():
+        return
+    legacy = sorted(
+        path.name
+        for path in steps.iterdir()
+        if path.is_dir() and not _ORDERED_STEP_DIRECTORY.fullmatch(path.name)
+    )
+    if legacy:
+        names = ", ".join(legacy)
+        raise WorkflowConfigError(
+            f"Legacy step directory layout detected at {steps}: {names}; "
+            "use a fresh run directory."
+        )
+
+
 def compile_workflow(
     spec: WorkflowSpec,
     directory: str | pathlib.Path = ".",
@@ -140,7 +187,9 @@ def compile_workflow(
     """Instantiate a validated workflow graph."""
     validate_workflow(spec)
     root = pathlib.Path(directory)
+    _reject_legacy_step_directories(root)
     definitions = {**spec.resources, **spec.steps}
+    step_directories = _step_directory_names(spec)
     nodes: dict[str, Any] = {}
     ports: dict[tuple[str, str], OutputSelector] = {}
     for name in _dependency_order(spec):
@@ -165,7 +214,7 @@ def compile_workflow(
         if category == "variable":
             kwargs["directory"] = root / "resources" / name
         else:
-            kwargs["directory"] = root / "steps" / name
+            kwargs["directory"] = root / "steps" / step_directories[name]
         try:
             nodes[name] = cls(**kwargs)
         except Exception as error:
@@ -174,8 +223,7 @@ def compile_workflow(
     if len(targets) == 1:
         entry = targets[0]
     else:
-        barrier_cls = _node_class(NodeSpec("__targets__", "seqrun"), "operation")
-        entry = barrier_cls(nodes=targets, directory=root / "steps" / "__targets__")
+        entry = TargetBarrier(targets)
     if not isinstance(entry, Operation):
         raise WorkflowConfigError("Workflow targets must resolve to operations.")
     return CompiledWorkflow(spec, nodes, entry)

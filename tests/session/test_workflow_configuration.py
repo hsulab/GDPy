@@ -181,6 +181,64 @@ steps:
     assert (tmp_path / "runs" / "example" / "FINISHED").is_file()
 
 
+def test_step_directories_follow_stable_topological_order(tmp_path):
+    path = _write(
+        tmp_path / "ordered.yaml",
+        """
+workflow: {targets: final}
+resources:
+  value: {__type__: workflow_test, options: {value: 1}}
+steps:
+  final: {__type__: workflow_test_add, inputs: {value: right}}
+  left: {__type__: workflow_test_add, inputs: {value: root}}
+  right: {__type__: workflow_test_add, inputs: {value: root}}
+  root: {__type__: workflow_test_add, inputs: {value: value}}
+""",
+    )
+
+    compiled = compile_workflow(load_workflow(path), tmp_path / "run")
+
+    assert compiled.nodes["root"].directory.name == "0000.root"
+    assert compiled.nodes["left"].directory.name == "0001.left"
+    assert compiled.nodes["right"].directory.name == "0002.right"
+    assert compiled.nodes["final"].directory.name == "0003.final"
+
+
+def test_legacy_step_directories_require_fresh_run(tmp_path):
+    path = _write(
+        tmp_path / "workflow.yaml",
+        """
+workflow: {targets: result}
+resources:
+  value: {__type__: workflow_test, options: {value: 1}}
+steps:
+  result: {__type__: workflow_test_add, inputs: {value: value}}
+""",
+    )
+    (tmp_path / "run" / "steps" / "result").mkdir(parents=True)
+
+    with pytest.raises(WorkflowConfigError, match="Legacy step directory layout.*fresh"):
+        compile_workflow(load_workflow(path), tmp_path / "run")
+
+
+def test_multi_target_barrier_creates_no_directory(tmp_path):
+    path = _write(
+        tmp_path / "multiple.yaml",
+        """
+workflow: {targets: [left, right]}
+resources:
+  value: {__type__: workflow_test, options: {value: 1}}
+steps:
+  left: {__type__: workflow_test_add, inputs: {value: value}}
+  right: {__type__: workflow_test_add, inputs: {value: value}}
+""",
+    )
+
+    assert run_workflow_spec(load_workflow(path), tmp_path / "runs")
+    steps = tmp_path / "runs" / "multiple" / "steps"
+    assert sorted(path.name for path in steps.iterdir()) == ["0000.left", "0001.right"]
+
+
 def test_repeat_workflow_runs_each_iteration(tmp_path):
     path = _write(
         tmp_path / "repeated.yaml",
@@ -226,7 +284,7 @@ steps:
 
     assert manifest["iteration"] == 2
     assert manifest["values"]["counter"] == {"kind": "json", "value": 6}
-    assert (run / "iter.0002" / "steps" / "pair").is_dir()
+    assert (run / "iter.0002" / "steps" / "0000.pair").is_dir()
     assert not any(run.glob("iter.*/outputs"))
 
     messages = []
