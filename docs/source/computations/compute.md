@@ -46,6 +46,12 @@ gdp -d results compute collect
 `prepare` writes a versioned plan without submitting work. `status` is
 read-only, and resubmission is always explicit.
 
+The plan in `_meta/inputs.json` records the global seed provenance and the
+resolved random seed for every calculation. These persisted task seeds are the
+reproducibility record; normal command output only points to that file. Use
+`--debug` when the complete initial and final global RNG states are needed for
+diagnostics.
+
 ## Progress output
 
 Workers report one aggregate box for the requested calculations, with counts of
