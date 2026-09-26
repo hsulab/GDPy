@@ -110,6 +110,12 @@ Workflow variables are `potential`, `executor`, `runtime`, and
 `gdp --runtime runtime.yaml compute ...`; the old global potential flag and
 schema-1 compute plans are not accepted.
 
+Repeated workflows now declare changing values under top-level `state`.
+The former `train.active`, `train.init_models`, `explore.active`, and
+`save_potential.dst_path` options are not accepted. Existing numeric-step
+repeat directories cannot resume; start a new run using stable named step
+directories and transactional state manifests.
+
 ## Global-optimisation objectives
 
 Genetic algorithms and concurrent hopping configure search scoring with the

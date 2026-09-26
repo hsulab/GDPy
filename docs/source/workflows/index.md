@@ -13,6 +13,7 @@ gdp workflow validate workflow.yaml
 gdp workflow plan workflow.yaml
 gdp workflow graph workflow.yaml
 gdp workflow run workflow.yaml
+gdp workflow status workflow.yaml
 ```
 
 ```{toctree}
@@ -179,7 +180,9 @@ gdp workflow run examples/workflows/repeat.yaml --set input=other.xyz
 ```
 
 Each iteration gets its own `iter.0000`, `iter.0001`, and `iter.0002`
-directory. When a step implements `report_convergence()`, the repeated workflow
+directory. Steps use stable paths such as `iter.0001/steps/explore`; their
+locations do not depend on graph traversal order. When a step implements
+`report_convergence()`, the repeated workflow
 stops as soon as all reporting steps converge; otherwise it runs through
 `max_iterations`.
 
@@ -200,6 +203,66 @@ workflows, the target is typically the final validation or training step, and
 all exploration, selection, labeling, and training dependencies are reached
 through its `inputs` graph.
 
+## Loop-carried state
+
+Declare values that change between repeat iterations under top-level `state`.
+Each value names a static initial resource and the step output committed for the
+next iteration:
+
+```yaml
+workflow:
+  mode: repeat
+  targets: validate
+  max_iterations: 5
+
+state:
+  current_potential:
+    initial: initial_potential
+    update: train
+  training_data:
+    initial: initial_training_data
+    update: {node: transfer, output: dataset}
+```
+
+State names can be used anywhere a node name is accepted. Select one named
+output from a multi-output step with `{node, output}`:
+
+```yaml
+steps:
+  train:
+    __type__: train
+    inputs:
+      dataset: {node: transfer, output: dataset}
+      potential: current_potential
+```
+
+Use `initial: null` when no resource exists before the first iteration. For
+example, an exploration can explicitly carry its provider-owned continuation:
+
+```yaml
+state:
+  search_continuation:
+    initial: null
+    update: {node: explore, output: continuation}
+
+steps:
+  explore:
+    __type__: explore
+    inputs:
+      exploration: search
+      continuation: search_continuation
+```
+
+The runner commits state atomically only after every target finishes. Manifests
+are stored under `state/iterations/`, while `state/current.yaml` describes the
+latest commit. Generated datasets and models remain immutable in their
+iteration directories. Use `gdp workflow status workflow.yaml` to inspect the
+current iteration and state types.
+
+Changing the resolved workflow, profile, or parameters invalidates resume.
+Start a fresh run directory after a configuration change. Runs created with the
+former numeric-step repeat layout cannot be resumed by the stateful runner.
+
 The full migrated example is described in {doc}`active-learning`. It retains
 the original exploration, selection, labeling, training, and validation steps;
 its cluster paths and commands are parameters that can be adapted to another
@@ -215,3 +278,6 @@ with `workflow.targets`. Placeholders become declared `parameters` referenced
 by `$param` and overridden with `--set`.
 
 The old `gdp session` command has been replaced by `gdp workflow run`.
+The former `active` node option, `train.init_models`, and
+`save_potential.dst_path` are not supported. Use loop-carried state for model,
+dataset, and exploration continuation updates.

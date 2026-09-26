@@ -29,3 +29,14 @@ The input key is the constructor argument and the value is the resource or step
 name. Put literals under `options`. This separation makes the dependency graph
 available to `gdp workflow plan` and `gdp workflow graph` without constructing
 or running nodes.
+
+Steps that publish more than one result expose named outputs. Select one with a
+structured reference:
+
+```yaml
+inputs:
+  dataset: {node: transfer, output: dataset}
+```
+
+Plain node-name references remain the concise form for single-output steps.
+Named output references are checked during workflow validation.

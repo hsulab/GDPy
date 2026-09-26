@@ -12,6 +12,9 @@ running it, provide the initial structures and DeepMD models, install the
 DeepMD, LAMMPS, VASP, descriptor, and SSH dependencies, and replace the
 Princeton-specific paths and scheduler settings.
 
+The changing potential and datasets are explicit loop-carried state. The
+workflow never updates an external `shared/` directory.
+
 ## Complete YAML
 
 The documentation includes the checked-in example directly, so the displayed
@@ -41,8 +44,7 @@ user-defined join step:
 | `sift_forces` | Remove structures with forces above the configured limit. | VASP results |
 | `transfer` | Split structures into training and test datasets. | force-filtered structures |
 | `train` | Train four DeepMD models, continuing across iterations. | updated training dataset |
-| `save_model` | Publish the trained potential configuration. | trained models |
-| `model_spc` | Assemble the runtime used for validation. | published potential |
+| `model_spc` | Assemble the runtime used for validation. | trained potential |
 | `test_spc_train` | Validate the training dataset. | updated dataset, validation runtime |
 | `test_spc_test` | Validate the held-out dataset. | test dataset, validation runtime |
 
@@ -59,14 +61,16 @@ The original variables are represented as typed resources:
 - Executor `broadcast` expands the four MD temperatures without duplicating
   the workflow step.
 - Runtime `dispatch` controls batch size and shared working directories.
-- `dataset`, `selector`, `trainer`, and `validator` resources hold the
+- Initial `dataset`, `selector`, `trainer`, and `validator` resources hold the
   reusable objects consumed by steps.
-- `assemble` constructs runtimes that depend on outputs produced during the
-  repeated graph, such as the newly trained potential.
+- `current_potential`, `training_data`, and `test_data` are committed state
+  values used to rebuild dependent resources for every iteration.
+- Dataset transfer writes immutable iteration deltas and returns named training
+  and test snapshots; it never modifies the initial dataset directories.
 
-The training step retains `active: true`, so iterations after the first use
-the preceding iteration's model checkpoints. `save_model` publishes the latest
-potential description at the configured `saved_potential` path.
+The training step initializes from the models in `current_potential`. Its output
+becomes the next iteration's potential, so there is no `active` flag, model-path
+discovery, or shared potential symlink.
 
 ## Site parameters
 
@@ -78,11 +82,10 @@ parameters:
   initial_structures: ./ini.xyz
   deepmd_config: /path/to/input-fp32.json
   current_models:
-    - ./shared/m0/deepmd.pb
-    - ./shared/m1/deepmd.pb
-    - ./shared/m2/deepmd.pb
-    - ./shared/m3/deepmd.pb
-  saved_potential: ./shared/potential.yaml
+    - ./models/m0/deepmd.pb
+    - ./models/m1/deepmd.pb
+    - ./models/m2/deepmd.pb
+    - ./models/m3/deepmd.pb
   remote_workdir: /remote/workdir
   vasp_command: /path/to/vasp_std
   vasp_incar: /path/to/INCAR_LABEL
@@ -127,9 +130,22 @@ workflow:
     - test_spc_train
     - test_spc_test
   max_iterations: 5
+
+state:
+  current_potential:
+    initial: deepmd
+    update: train
+  training_data:
+    initial: dataset
+    update: {node: transfer, output: dataset}
+  test_data:
+    initial: dataset_test
+    update: {node: transfer, output: dataset_test}
 ```
 
 Each pass is stored under `iter.0000` through `iter.0004`. Validation steps can
 report convergence and stop the repeated workflow early. Otherwise, all five
 iterations run. Re-running the same command resumes from the saved iteration
 state rather than replacing completed calculation directories.
+The state manifest is committed before an iteration is marked finished, so an
+interrupted iteration cannot publish a partial dataset or potential.
