@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import time
 from typing import Optional, Union
 
 from ase import Atoms
@@ -45,28 +46,48 @@ def _run_reactor_once(worker, structures, directory, archive=False):
     if len(frames) < 2:
         raise RuntimeError("A reactor computation requires at least two path images.")
 
-    worker.run(frames)
-    worker.inspect(resubmit=True)
-    running = worker.get_number_of_running_jobs()
-    total = len(worker.job_store.get_queued())
-    if running:
-        return ComputeStatus("reactor", "running", running, 0, 0, total)
+    runtime = worker.runtime.config.to_dict()
+    method = runtime["executor"]["method"]
+    box = Box(f"worker | {method}")
+    box.line(
+        f"executor: {runtime['executor']['provider']}   "
+        f"potential: {runtime['potential']['provider']}"
+    )
+    box.line("state: running")
+    started = time.monotonic()
+    previous_print = worker.driver._print
+    worker.driver._print = box.line
+    try:
+        worker.run(frames)
+        worker.inspect(resubmit=True)
+        running = worker.get_number_of_running_jobs()
+        total = len(worker.job_store.get_queued())
+        if running:
+            box.line(f"state: waiting   pending: {running}")
+            return ComputeStatus("reactor", "running", running, 0, 0, total)
 
-    trajectories = worker.retrieve(include_retrieved=True, use_archive=archive)
-    end_frames = []
-    for trajectory in trajectories:
-        if not trajectory:
-            continue
-        final = trajectory[-1]
-        if isinstance(final, Atoms):
-            end_frames.append(final)
-        else:
-            end_frames.extend(final)
-    result_directory = pathlib.Path(directory) / "results"
-    result_directory.mkdir(parents=True, exist_ok=True)
-    result_path = result_directory / "end_frames.xyz"
-    write(result_path, end_frames)
-    return ComputeResult("reactor", str(result_path), len(trajectories))
+        trajectories = worker.retrieve(include_retrieved=True, use_archive=archive)
+        end_frames = []
+        for trajectory in trajectories:
+            if not trajectory:
+                continue
+            final = trajectory[-1]
+            if isinstance(final, Atoms):
+                end_frames.append(final)
+            else:
+                end_frames.extend(final)
+        result_directory = pathlib.Path(directory) / "results"
+        result_directory.mkdir(parents=True, exist_ok=True)
+        result_path = result_directory / "end_frames.xyz"
+        write(result_path, end_frames)
+        box.line(f"state: finished   paths: {len(trajectories)}")
+        return ComputeResult("reactor", str(result_path), len(trajectories))
+    except Exception:
+        box.line(f"state: failed   details: {directory}")
+        raise
+    finally:
+        worker.driver._print = previous_print
+        box.border("bottom", f"elapsed: {time.monotonic() - started:.1f} s", align="right")
 
 
 @reporting_session

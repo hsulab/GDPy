@@ -5,7 +5,22 @@ from ase.io import read, write
 from gdpx.cli.compute import run_computation
 
 
-def test_one_shot_compute_runs_neb_reactor(tmp_path):
+def test_one_shot_compute_runs_neb_reactor(tmp_path, monkeypatch):
+    from gdpx.cli import compute as compute_cli
+
+    lines = []
+
+    class RecordingBox:
+        def __init__(self, title):
+            lines.append(title)
+
+        def line(self, message):
+            lines.append(message)
+
+        def border(self, kind, title=None, align="left"):
+            lines.append(title)
+
+    monkeypatch.setattr(compute_cli, "Box", RecordingBox)
     initial = Atoms("Cu", positions=[[1.0, 1.0, 1.0]], cell=[4.0, 4.0, 4.0], pbc=True)
     final = initial.copy()
     final.positions[0, 0] += 0.2
@@ -36,3 +51,6 @@ def test_one_shot_compute_runs_neb_reactor(tmp_path):
 
     assert result.number_of_trajectories == 1
     assert len(read(result.end_frames, ":")) == 3
+    assert "worker | neb" in lines
+    assert any(line.startswith("step = ") for line in lines if line)
+    assert any(line and line.startswith("elapsed: ") for line in lines)
