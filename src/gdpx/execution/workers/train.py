@@ -12,6 +12,7 @@ import yaml
 from tinydb import Query, TinyDB
 
 from gdpx.data.loaders.factory import create_dataloader
+from gdpx.providers import ComponentConfig
 from gdpx.providers.training import BasePotentialTrainer
 
 from .registry import WORKER_REGISTRY
@@ -65,7 +66,20 @@ class TrainerBasedWorker(BaseWorker):
     ) -> dict:
         """"""
         trainer_params = {}
-        trainer_params["trainer"] = trainer.as_dict()
+
+        component_config = getattr(trainer, "component_config", None)
+        if component_config is None:
+            # Preserve support for callers that construct a trainer directly
+            # instead of using the provider factory.  The provider-created path
+            # always carries its original method and normalized parameters.
+            parameters = trainer.as_dict()
+            parameters.pop("name", None)
+            component_config = ComponentConfig(
+                provider=trainer.name,
+                method="default",
+                parameters=parameters,
+            )
+        trainer_params["trainer"] = component_config.to_dict()
 
         # extra params
         trainer_params["share_dataset"] = use_shared_dataset
@@ -74,7 +88,7 @@ class TrainerBasedWorker(BaseWorker):
         #       as a committee will be trained
         #       it changes the trainer's random state as well...
         trainer_random_seed = np.random.randint(0, 10000)
-        trainer_params["trainer"]["random_seed"] = trainer_random_seed
+        trainer_params["trainer"]["parameters"]["random_seed"] = trainer_random_seed
         trainer.set_rng(seed=trainer_random_seed)
 
         trainer_params["init_model"] = init_model

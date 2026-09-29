@@ -26,6 +26,11 @@ class FreezingFailed(RuntimeError):
 
 class BasePotentialTrainer(BaseComponent):
 
+    #: Current provider component specification retained by ``create_trainer``.
+    #: Directly constructed trainers leave this unset and are normalized by the
+    #: worker compatibility path when serialized for the public CLI.
+    component_config = None
+
     #: Name of this trainer.
     name: str = "trainer"
 

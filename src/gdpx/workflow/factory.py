@@ -35,7 +35,19 @@ def create_trainer(config):
     from gdpx.providers import ComponentConfig, get_provider_manager
 
     component = config if isinstance(config, ComponentConfig) else ComponentConfig(**copy.deepcopy(dict(config)))
-    return get_provider_manager().create_training(component)
+    trainer = get_provider_manager().create_training(component)
+
+    # Retain a CLI-compatible component specification on the constructed
+    # trainer.  Use effective settings so provider defaults survive when a
+    # workflow worker writes the standalone ``gdp train`` input.
+    parameters = trainer.as_dict()
+    parameters.pop("name", None)
+    trainer.component_config = ComponentConfig(
+        provider=component.provider,
+        method=component.method or "default",
+        parameters=parameters,
+    )
+    return trainer
 
 
 def create_exploration(config):
