@@ -13,7 +13,7 @@ import numpy as np
 
 from gdpx.data.loaders.deepmd import DeepmdDataloader
 
-from ...training import BasePotentialTrainer
+from ...training import BasePotentialTrainer, FreezingFailed
 from .convert import convert_groups
 
 
@@ -126,10 +126,12 @@ class DeepmdTrainer(BasePotentialTrainer):
 
         # - add options
         if self.model_family in {"dpa4", "dpa4c"}:
-            command = "{} freeze -c {} -o {} 2>&1 >> {}.out".format(
+            export_options = " --lower-kind graph" if self.model_family == "dpa4c" else ""
+            command = "{} freeze -c {} -o {}{} 2>&1 >> {}.out".format(
                 freeze_command,
                 self.checkpoint_name,
                 pathlib.Path(self.frozen_name).stem,
+                export_options,
                 self.name,
             )
         else:
@@ -139,11 +141,11 @@ class DeepmdTrainer(BasePotentialTrainer):
 
     def _resolve_compress_command(self, *args, **kwargs):
         """"""
-        compress_command = self.command
+        compress_command = self._resolve_dp_command(self.command)
 
         # - add options
         command = "{} compress -i {} -o {} 2>&1 >> {}.out".format(
-            compress_command, self.frozen_name, f"{self.name}-c.pb", self.name
+            compress_command, self.frozen_name, self.compressed_name, self.name
         )
 
         return command
@@ -154,6 +156,13 @@ class DeepmdTrainer(BasePotentialTrainer):
         if self.model_family in {"dpa4", "dpa4c"}:
             return f"{self.name}.pt2"
         return f"{self.name}.pb"
+
+    @property
+    def compressed_name(self):
+        """Return the deployed artifact name after model compression."""
+        if self.model_family == "dpa4c":
+            return f"{self.name}-c.pt2"
+        return f"{self.name}-c.pb"
 
     def _train_from_the_restart(self, dataset, init_model):
         """Train from the restart"""
@@ -233,8 +242,10 @@ class DeepmdTrainer(BasePotentialTrainer):
         if isinstance(fitting_net, dict):
             fitting_net["seed"] = self.rng.integers(0, 10000, dtype=int)
 
-        train_config["training"]["training_data"]["systems"] = [x for x in dataset.train_sys_dirs]
-        train_config["training"]["training_data"]["batch_size"] = dataset.batchsizes
+        training = train_config.setdefault("training", {})
+        training_data = training.setdefault("training_data", {})
+        training_data["systems"] = [x for x in dataset.train_sys_dirs]
+        training_data["batch_size"] = dataset.batchsizes
 
         # verify validation_data
         validation_data, validation_batchsizes = [], []
@@ -243,23 +254,27 @@ class DeepmdTrainer(BasePotentialTrainer):
                 validation_data.append(v_system)
                 validation_batchsizes.append(v_batchsize)
         if validation_data:
-            train_config["training"]["validation_data"]["systems"] = validation_data
-            train_config["training"]["validation_data"]["batch_size"] = validation_batchsizes
+            validation_config = training.setdefault("validation_data", {})
+            validation_config["systems"] = validation_data
+            validation_config["batch_size"] = validation_batchsizes
         else:
-            if "validation_data" in train_config["training"]:
-                train_config["training"].pop("validation_data", None)
+            training.pop("validation_data", None)
 
-        train_config["training"]["seed"] = self.rng.integers(0, 10000, dtype=int)
+        training["seed"] = self.rng.integers(0, 10000, dtype=int)
+
+        # GDP owns the training duration.  DeePMD accepts either epoch- or
+        # step-based stopping, but rejects a configuration containing both.
+        training.pop("num_epochs", None)
 
         # Determine `numb_steps`
         min_freq_unit = 100.0
         save_freq = int(np.ceil(dataset.cum_batchsizes * self.print_epochs / min_freq_unit) * min_freq_unit)
-        train_config["training"]["save_freq"] = save_freq
+        training["save_freq"] = save_freq
 
         # NOTE: Currently, we check whether the training is fininished by steps in lcurve.out.
         #       Thus, we need make sure the last step (numb_steps) is displayed in lcurve.out
         #       by making numb_steps can be divided by disp_freq.
-        train_config["training"]["disp_freq"] = save_freq
+        training["disp_freq"] = save_freq
 
         numb_steps = dataset.cum_batchsizes * self.train_epochs
         num_checkpoints = int(np.ceil(dataset.cum_batchsizes * self.train_epochs / save_freq))
@@ -270,14 +285,14 @@ class DeepmdTrainer(BasePotentialTrainer):
         # We observed the model accuracy increases nonlinearly with the dataset size,
         # which means we need a 'minimum' training steps even for an extremely small dataset
         # may have few tens of structures.
-        train_config["training"]["numb_steps"] = numb_steps
+        training["numb_steps"] = numb_steps
         if self.train_batches is not None and numb_steps < self.train_batches:
             num_chekpoints = int(np.ceil(self.train_epochs / self.print_epochs))
             new_save_freq = int(np.ceil(self.train_batches / num_chekpoints / min_freq_unit) * min_freq_unit)
             new_numb_steps = new_save_freq * num_chekpoints
-            train_config["training"]["save_freq"] = new_save_freq
-            train_config["training"]["disp_freq"] = new_save_freq
-            train_config["training"]["numb_steps"] = new_numb_steps
+            training["save_freq"] = new_save_freq
+            training["disp_freq"] = new_save_freq
+            training["numb_steps"] = new_numb_steps
 
         # Write training parameters to deepmd input json
         with open(self.directory / f"{self.name}.json", "w") as fopen:
@@ -290,32 +305,33 @@ class DeepmdTrainer(BasePotentialTrainer):
         # - freeze model
         frozen_model = super().freeze()
 
-        # DPA4 models export directly to an AOTInductor .pt2 archive. Standard
-        # compression is unsupported for DPA4; DPA4C compression is an explicit
-        # backend-specific deployment step and is not applied automatically.
-        if self.model_family in {"dpa4", "dpa4c"}:
+        # DPA4 exports directly to an AOTInductor .pt2 archive and does not
+        # support compression.  DPA4C uses the exportable graph route and its
+        # compressed .pt2 is the preferred deployment artifact.
+        if self.model_family == "dpa4":
             return frozen_model
 
         # - compress model
-        compressed_model = (self.directory / f"{self.name}-c.pb").absolute()
+        compressed_model = (self.directory / self.compressed_name).absolute()
         if frozen_model.exists() and not compressed_model.exists():
             command = self._resolve_compress_command()
+            compression_error = None
             try:
                 proc = subprocess.Popen(command, shell=True, cwd=self.directory)
-            except OSError as err:
-                msg = "Failed to execute `{}`".format(command)
-                # raise RuntimeError(msg) from err
-                # self._print(msg)
-                self._print("Failed to compress model.")
-            except RuntimeError as err:
-                self._print("Failed to compress model.")
+                errorcode = proc.wait()
+                if errorcode:
+                    compression_error = RuntimeError(f"error code {errorcode}")
+            except (OSError, RuntimeError) as err:
+                compression_error = err
 
-            errorcode = proc.wait()
-            if errorcode:
+            if compression_error is not None:
+                self._print("Failed to compress model.")
                 path = os.path.abspath(self.directory)
-                msg = 'Trainer "{}" failed with command "{}" failed in ' "{} with error code {}".format(
-                    self.name, command, path, errorcode
+                msg = 'Trainer "{}" failed to compress with command "{}" in {}: {}'.format(
+                    self.name, command, path, compression_error
                 )
+                if self.model_family == "dpa4c":
+                    raise FreezingFailed(msg) from compression_error
                 # NOTE: sometimes dp cannot compress the model
                 #       this happens when the descriptor trainable is set False?
                 # raise RuntimeError(msg)
@@ -329,36 +345,54 @@ class DeepmdTrainer(BasePotentialTrainer):
     def read_convergence(self) -> bool:
         """Read training convergence.
 
-        Check deepmd training progress by comparing the `numb_steps` in the input
-        configuration and the current step in `lcurve.out`.
+        Check DeepMD training progress against its normalized configuration.
+
+        DeepMD writes ``out.json`` after resolving aliases such as
+        ``num_epochs`` into a concrete number of steps.  Prefer that file and
+        fall back to GDP's generated input.  This method deliberately checks
+        training only: a completed DPA4 checkpoint remains recoverable when a
+        later AOTInductor export fails and should not be trained again.
 
         """
         self._print(f"check {self.name} training convergence...")
         converged = False
 
-        dpconfig_path = self.directory / f"{self.name}.json"
-        if dpconfig_path.exists():
-            # - get numb_steps
-            with open(dpconfig_path, "r") as fopen:
-                input_json = json.load(fopen)
-            numb_steps = input_json["training"]["numb_steps"]
+        numb_steps = None
+        for config_name in ("out.json", f"{self.name}.json"):
+            config_path = self.directory / config_name
+            if not config_path.exists():
+                continue
+            try:
+                with open(config_path, "r") as fopen:
+                    input_json = json.load(fopen)
+                numb_steps = input_json.get("training", {}).get("numb_steps")
+            except (OSError, json.JSONDecodeError, TypeError):
+                continue
+            if numb_steps is not None:
+                break
 
-            # - get current step
-            lcurve_out = self.directory / f"lcurve.out"
-            if lcurve_out.exists():
+        lcurve_out = self.directory / "lcurve.out"
+        curr_steps = None
+        if numb_steps is not None and lcurve_out.exists():
+            try:
                 with open(lcurve_out, "r") as fopen:
-                    lines = fopen.readlines()
-                try:
-                    curr_steps = int(lines[-1].strip().split()[0])
-                    if curr_steps >= numb_steps:
-                        converged = True
-                    self._debug(f"{curr_steps} >=? {numb_steps}")
-                except:
-                    self._print(f"The endline of `lcure.out` is strange.")
-            else:
-                ...
-        else:
-            ...
+                    for line in reversed(fopen.readlines()):
+                        fields = line.strip().split()
+                        if not fields or fields[0].startswith("#"):
+                            continue
+                        try:
+                            curr_steps = int(fields[0])
+                        except ValueError:
+                            continue
+                        break
+            except OSError:
+                curr_steps = None
+
+        if curr_steps is not None:
+            converged = curr_steps >= int(numb_steps)
+            self._debug(f"{curr_steps} >=? {numb_steps}")
+        elif numb_steps is not None:
+            self._print("No valid training step was found in `lcurve.out`.")
 
         return converged
 

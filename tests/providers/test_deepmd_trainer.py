@@ -1,14 +1,18 @@
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from gdpx.providers.deepmd.training.deepmd import DeepmdTrainer
-from gdpx.providers.training import BasePotentialTrainer
+from gdpx.providers.training import BasePotentialTrainer, FreezingFailed
 
 
-def _dpa4_config(compact=False):
-    model = {"type": "dpa4", "type_map": ["H", "O"]}
+def _dpa4_config(compact=False, family="dpa4"):
+    model = {"type_map": ["H", "O"]}
+    if family == "dpa4":
+        model["type"] = "dpa4"
     if not compact:
-        model.update(descriptor={"type": "dpa4"}, fitting_net={"neuron": [64, 64]})
+        model.update(descriptor={"type": family}, fitting_net={"neuron": [64, 64]})
     return {
         "model": model,
         "learning_rate": {"type": "exp", "start_lr": 0.001},
@@ -52,6 +56,57 @@ def test_dpa4_freeze_skips_legacy_compression(monkeypatch, tmp_path):
     assert trainer.freeze() == exported
 
 
+def test_dpa4c_freezes_graph_and_compresses_pt2(monkeypatch, tmp_path):
+    trainer = DeepmdTrainer(config=_dpa4_config(family="dpa4c"), directory=tmp_path)
+    frozen = tmp_path / trainer.frozen_name
+    compressed = tmp_path / trainer.compressed_name
+    commands = []
+
+    assert trainer.checkpoint_name == "model.ckpt.pt"
+    assert trainer.frozen_name == "deepmd.pt2"
+    assert trainer.compressed_name == "deepmd-c.pt2"
+    assert trainer._resolve_train_command().startswith("dp --pt-expt train deepmd.json")
+    assert "--lower-kind graph" in trainer._resolve_freeze_command()
+    assert trainer._resolve_compress_command().startswith(
+        "dp --pt-expt compress -i deepmd.pt2 -o deepmd-c.pt2"
+    )
+
+    frozen.touch()
+    monkeypatch.setattr(BasePotentialTrainer, "freeze", lambda self: frozen)
+
+    class _Process:
+        def wait(self):
+            compressed.touch()
+            return 0
+
+    monkeypatch.setattr(
+        "gdpx.providers.deepmd.training.deepmd.subprocess.Popen",
+        lambda command, **kwargs: commands.append(command) or _Process(),
+    )
+
+    assert trainer.freeze() == compressed
+    assert commands == [trainer._resolve_compress_command()]
+
+
+def test_dpa4c_compression_failure_is_not_hidden(monkeypatch, tmp_path):
+    trainer = DeepmdTrainer(config=_dpa4_config(family="dpa4c"), directory=tmp_path)
+    frozen = tmp_path / trainer.frozen_name
+    frozen.touch()
+    monkeypatch.setattr(BasePotentialTrainer, "freeze", lambda self: frozen)
+
+    class _Process:
+        def wait(self):
+            return 1
+
+    monkeypatch.setattr(
+        "gdpx.providers.deepmd.training.deepmd.subprocess.Popen",
+        lambda *args, **kwargs: _Process(),
+    )
+
+    with pytest.raises(FreezingFailed, match="failed to compress"):
+        trainer.freeze()
+
+
 def test_compact_dpa4_config_can_be_written(tmp_path):
     trainer = DeepmdTrainer(
         config=_dpa4_config(compact=True),
@@ -76,6 +131,52 @@ def test_compact_dpa4_config_can_be_written(tmp_path):
     assert "fitting_net" not in written["model"]
     assert written["training"]["training_data"]["systems"] == [str(tmp_path / "train")]
     assert written["training"]["numb_steps"] == 100
+
+
+def test_write_input_replaces_epoch_duration_and_populates_dataset(tmp_path):
+    config = _dpa4_config()
+    config["training"] = {"training_data": {}, "num_epochs": 10}
+    trainer = DeepmdTrainer(
+        config=config,
+        directory=tmp_path,
+        train_epochs=2,
+        print_epochs=1,
+        train_batches=None,
+    )
+    dataset = SimpleNamespace(
+        train_sys_dirs=[str(tmp_path / "train")],
+        valid_sys_dirs=["None"],
+        batchsizes=[2],
+        cum_batchsizes=2,
+    )
+    trainer._prepare_dataset = lambda value: value
+
+    trainer.write_input(dataset)
+
+    with open(tmp_path / "deepmd.json") as stream:
+        written = json.load(stream)
+    assert "num_epochs" not in written["training"]
+    assert written["training"]["numb_steps"] == 100
+    assert written["training"]["training_data"] == {
+        "systems": [str(tmp_path / "train")],
+        "batch_size": [2],
+    }
+    assert "validation_data" not in written["training"]
+
+
+def test_dpa4_convergence_uses_normalized_output_without_requiring_export(tmp_path):
+    trainer = DeepmdTrainer(config=_dpa4_config(), directory=tmp_path)
+    (tmp_path / "deepmd.json").write_text(
+        json.dumps({"training": {"num_epochs": 10}})
+    )
+    (tmp_path / "out.json").write_text(
+        json.dumps({"training": {"numb_steps": 5000}})
+    )
+    (tmp_path / "lcurve.out").write_text(
+        "# step loss\n4500 2.0e-3\nnot-a-step\n5000 1.0e-3\n\n"
+    )
+
+    assert trainer.read_convergence()
 
 
 def test_legacy_deepmd_commands_remain_unchanged(tmp_path):
