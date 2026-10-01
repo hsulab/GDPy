@@ -10,6 +10,7 @@ from gdpx.workflow.nodes.runtime import (
     RuntimeChainVariable,
     RuntimeVariable,
 )
+from gdpx.workflow.nodes.data import assemble
 from gdpx.workflow.nodes.validator import validate
 from gdpx.workflow.session.variable import Variable
 
@@ -61,6 +62,20 @@ def test_runtime_chain_is_explicit_and_ordered():
 
     assert chain.value == (runtime.value, runtime.value)
     assert len(chain.as_dict()) == 2
+
+
+def test_assemble_runtime_chain_preserves_nested_runtime_variable(tmp_path):
+    runtime = _swept_runtime([300, 600])
+    operation = assemble(
+        variable="runtime_chain",
+        runtimes=[runtime],
+        directory=tmp_path,
+    )
+
+    result = operation.forward()
+
+    assert len(result) == 2
+    assert [chain[0].config.executor.parameters["temp"] for chain in result] == [300, 600]
 
 
 def _swept_runtime(values):

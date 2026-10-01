@@ -18,6 +18,22 @@ from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.variable import Variable
 
 
+def _workflow_node_copy_memo(value, memo=None):
+    """Keep workflow nodes by identity when copying nested input options."""
+    if memo is None:
+        memo = {}
+    if isinstance(value, (Variable, Operation)):
+        memo[id(value)] = value
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            _workflow_node_copy_memo(key, memo)
+            _workflow_node_copy_memo(item, memo)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for item in value:
+            _workflow_node_copy_memo(item, memo)
+    return memo
+
+
 @registers.variable.register
 class TempdataVariable(Variable):
 
@@ -112,7 +128,15 @@ class assemble(Operation):
                 break
 
         if is_finished:
-            params = copy.deepcopy(self.vkwargs)
+            # Declarative inputs can contain nested workflow nodes, for example
+            # ``runtimes: [exploration_runtime]``.  Resolved runtimes own
+            # immutable mappingproxy-backed provider configuration and cannot
+            # be deep-copied.  Preserve nodes by identity while still copying
+            # ordinary option values for isolation.
+            params = copy.deepcopy(
+                self.vkwargs,
+                memo=_workflow_node_copy_memo(self.vkwargs),
+            )
             params.update({k: v for k, v in zip(self.node_names, outputs)})
             variable = registers.create("variable", self.variable, **params)
             ret = variable.value
