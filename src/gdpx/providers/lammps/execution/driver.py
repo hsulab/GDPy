@@ -16,7 +16,7 @@ from gdpx.providers.plumed.backend import (
 )
 from gdpx.utils.archive import open_archive
 
-from gdpx.execution.driver import BaseDriver
+from gdpx.execution.driver import EARLYSTOP_KEY, BaseDriver
 from gdpx.providers.ase.observer import create_an_observer
 from .calculator import Lammps, _read_a_single_trajectory
 from .constants import ASELMPCONFIG
@@ -277,7 +277,51 @@ class LmpDriver(BaseDriver):
             )
             colvar_io.close()
 
+        earlystop = self._read_earlystop(archive_path)
+        if traj_frames and earlystop is not None:
+            traj_frames[-1].info[EARLYSTOP_KEY] = earlystop
+
         return traj_frames
+
+    def _read_earlystop(self, archive_path: Optional[pathlib.Path] = None):
+        """Return the reason stored for an accepted partial trajectory."""
+        if archive_path is None:
+            earlystop_path = self.directory / "EARLYSTOP"
+            if not earlystop_path.exists():
+                return None
+            reason = earlystop_path.read_text().strip()
+        else:
+            rpath = self.directory.relative_to(self.directory.parent)
+            earlystop_tarname = str(rpath / "EARLYSTOP")
+            reason = None
+            with open_archive(archive_path) as tar:
+                for tarinfo in tar:
+                    if tarinfo.name == earlystop_tarname:
+                        stream = tar.extractfile(tarinfo)
+                        reason = "" if stream is None else stream.read().decode().strip()
+                        break
+            if reason is None:
+                return None
+        return reason or True
+
+    def _accept_lost_atoms(self) -> bool:
+        """Accept a lost-atoms MD run only when it produced useful output."""
+        if self.setting.task != "md":
+            return False
+        try:
+            traj_frames = self.read_trajectory()
+        except Exception as error:
+            self._print(f"Cannot read partial LAMMPS trajectory after lost atoms: {error}")
+            return False
+        if len(traj_frames) <= 1:
+            self._print("Reject lost-atoms LAMMPS run without a propagated trajectory.")
+            return False
+        (self.directory / "EARLYSTOP").write_text("lost_atoms\n")
+        self._print(
+            "Accept lost-atoms LAMMPS run as an early stop "
+            f"with {len(traj_frames)} trajectory frames."
+        )
+        return True
 
     def read_convergence_from_logfile(self, *args, **kwargs):
         converged = False
@@ -292,6 +336,8 @@ class LmpDriver(BaseDriver):
                 with open(self.directory / "EARLYSTOP", "w") as fopen:
                     fopen.write("")
                 converged = True
+            elif any(line.strip().startswith("ERROR: Lost atoms") for line in lines):
+                converged = self._accept_lost_atoms()
             else:
                 self._print(f"LAMMPS ENDLINE: {end_line}")
         return converged
