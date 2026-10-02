@@ -237,11 +237,11 @@ class BaseSelector(BaseComponent):
                 ene = atoms.get_potential_energy()
                 ae = ene / natoms
             except:
-                ene, ae = np.NaN, np.NaN
+                ene, ae = np.nan, np.nan
             try:
                 maxforce = np.max(np.fabs(atoms.get_forces(apply_constraint=True)))
             except:
-                maxforce = np.NaN
+                maxforce = np.nan
             score = atoms.info.get("score", np.nan)
             # - add info
             ind_str = ",".join([str(x) for x in ind])

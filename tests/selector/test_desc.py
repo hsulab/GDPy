@@ -9,6 +9,7 @@ import yaml
 
 import numpy as np
 
+from ase import Atoms
 from ase.io import read, write
 
 from gdpx.data.array import AtomsNDArray
@@ -69,6 +70,22 @@ def test_desc_1d(selection_params):
     assert np.allclose(t_energies, energies)
 
     return
+
+
+def test_desc_single_structure_uses_compatible_nan(selection_params, monkeypatch):
+    selector = create_selector(selection_params)
+    monkeypatch.setattr(
+        selector,
+        "_compute_descripter",
+        lambda frames: np.zeros((len(frames), 1)),
+    )
+    frame = Atoms("H")
+
+    features, selected_indices = selector._select_structures([frame])
+
+    assert features.shape == (1, 1)
+    assert selected_indices == [0]
+    assert np.isnan(frame.info["score"])
 
 
 def test_desc_2d(selection_params):

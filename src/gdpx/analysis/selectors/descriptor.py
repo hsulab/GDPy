@@ -183,7 +183,7 @@ class DescriptorSelector(BaseSelector):
             if self.cluster_group is None:
                 features = self._compute_descripter(frames)
                 if nframes == 1:
-                    scores, selected_indices = [np.NaN], [0]
+                    scores, selected_indices = [np.nan], [0]
                 else:
                     scores, selected_indices = self._sparsify(features, num_fixed)
                     scores = scores[selected_indices]
@@ -192,7 +192,7 @@ class DescriptorSelector(BaseSelector):
                 if cleaved_frames:
                     features = self._compute_descripter(cleaved_frames)
                     if len(cleaved_frames) == 1:
-                        scores, selected_indices = [np.NaN], mapping_indices
+                        scores, selected_indices = [np.nan], mapping_indices
                     else:
                         scores, selected_indices = self._sparsify(features, num_fixed)
                         scores = scores[selected_indices]

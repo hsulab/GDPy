@@ -1145,8 +1145,8 @@ class DataOperator():
                 content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
                 for x in self.global_type_list:
                     force_rmse_x = force_rmse.get(x, {})
-                    x_rmse = force_rmse_x.get("rmse", np.NaN)
-                    x_std = force_rmse_x.get("std", np.NaN)
+                    x_rmse = force_rmse_x.get("rmse", np.nan)
+                    x_std = force_rmse_x.get("std", np.nan)
                     content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
                 content += "\n"
 
@@ -1162,8 +1162,8 @@ class DataOperator():
             content += ("{:<12.4f}  "*2).format(en_rmse["energy"]["rmse"], en_rmse["energy"]["std"])
             for x in self.global_type_list:
                 force_rmse_x = force_rmse.get(x, {})
-                x_rmse = force_rmse_x.get("rmse", np.NaN)
-                x_std = force_rmse_x.get("std", np.NaN)
+                x_rmse = force_rmse_x.get("rmse", np.nan)
+                x_std = force_rmse_x.get("std", np.nan)
                 content += ("{:<12.4f}  "*2).format(x_rmse, x_std)
             content += "\n"
 
