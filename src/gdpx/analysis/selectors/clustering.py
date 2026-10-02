@@ -44,7 +44,7 @@ def group_structures(structures: AtomsNDArray, group_by: Optional[str] = None):
         else:
             raise Exception(f"Unsupported group_by {group_by}.")
     else:
-        marker_groups = dict(all=structures.markers)
+        marker_groups = dict(all=np.argwhere(structures.markers).tolist())
 
     return marker_groups
 
