@@ -155,6 +155,17 @@ def get_shape_data(shape_dir: pathlib.Path):
     return inp_shape, inp_markers
 
 
+def _is_single_point_driver(driver) -> bool:
+    """Return whether a driver produces one result for each input structure."""
+    task = getattr(driver.setting, "task", None)
+    if task == "spc":
+        return True
+
+    # Backward compatibility: single-point calculations used to be represented
+    # as zero-step minimisations.
+    return task == "min" and getattr(driver.setting, "steps", 0) <= 0
+
+
 def convert_results_to_structures(
     structures: AtomsNDArray,
     inp_shape,
@@ -171,23 +182,28 @@ def convert_results_to_structures(
     print_func(f"target structure shape: {inp_shape}")
     print_func(f"input  structure shape: {structures.shape}")
     if inp_shape is not None and inp_markers is not None:
+        input_markers = [
+            tuple(int(x) for x in marker)
+            for marker in np.atleast_2d(inp_markers)
+        ]
         converted_structures = []
         for curr_structures in structures:  # shape (nworkers, ncandidates, 1)
             curr_structures = list(itertools.chain(*curr_structures))
-            inp_shape_ = np.max(inp_markers, axis=0) + 1
-            # assert np.allclose(
-            #    inp_shape_, inp_shape
-            # ), "Inconsistent shape {inp_shape_} vs. {inp_shape}"
+            inp_shape_ = tuple(int(x) for x in np.atleast_1d(inp_shape))
+            if len(curr_structures) != len(input_markers):
+                raise ValueError(
+                    "Number of computed structures does not match input markers: "
+                    f"{len(curr_structures)} != {len(input_markers)}."
+                )
+            marker_map = {
+                tuple(int(x) for x in marker): result
+                for marker, result in zip(input_markers, curr_structures)
+            }
             print_func(f"previous  structure shape: {inp_shape}")
             print_func(f"target    structure shape: {inp_shape_}")
             # Get a full list of indices and fill None to a flatten Atoms list
-            curr_converted_structures = []
             full_list = list(itertools.product(*[range(x) for x in inp_shape_]))
-            for _, iloc in enumerate(full_list):
-                if iloc in inp_markers:
-                    curr_converted_structures.append(curr_structures[inp_markers.index(iloc)])
-                else:
-                    curr_converted_structures.append(None)
+            curr_converted_structures = [marker_map.get(iloc) for iloc in full_list]
             # Reshape
             for s in inp_shape_[:0:-1]:
                 npoints = len(curr_converted_structures)
@@ -309,9 +325,7 @@ class compute(Operation):
 
         # FIXME: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
-        driver0_dict = workers[0].driver.as_dict()
-
-        if num_workers == 1 and driver0_dict.get("task", "min") == "min" and (driver0_dict.get("steps", 0) <= 0):
+        if num_workers == 1 and _is_single_point_driver(workers[0].driver):
             # check input data type
             inp_shape, inp_markers = None, None
             if isinstance(structures, AtomsNDArray):
