@@ -118,6 +118,70 @@ def test_shared_results_preserve_calculator_data(tmp_path):
     assert {"inputs.json", "scheduler.json"}.issubset(metadata_files)
     assert len(metadata_files) == 3
     assert len([name for name in metadata_files if name.startswith("structures-")]) == 1
+    result_files = list((tmp_path / "_meta").glob("results-*.jsonl"))
+    assert len(result_files) == 1
+    assert len(result_files[0].read_text().splitlines()) == 2
+    assert worker.metadata.state.read()["results"] == {}
+
+
+def test_shared_workdir_restart_uses_append_only_result_cache(tmp_path, monkeypatch):
+    params = config()
+    params["dispatch"] = {"share_workdir": True}
+    frames = [atom(0.1 + index * 0.1) for index in range(3)]
+    worker = create_worker(params, directory=tmp_path)
+    put_result = WorkerMetadata.put_result
+
+    def interrupt_after_first(metadata, uid, frame):
+        put_result(metadata, uid, frame)
+        if frame.info["wdir"] == "cand0":
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(WorkerMetadata, "put_result", interrupt_after_first)
+    with pytest.raises(KeyboardInterrupt):
+        worker.run(frames)
+
+    uid = next(iter(worker.metadata.inputs.read()["jobs"]))
+    result_path = worker.metadata.result_path(uid)
+    assert len(result_path.read_text().splitlines()) == 1
+    assert worker.metadata.state.read()["results"] == {}
+
+    # Simulate termination during an append. The incomplete tail must be
+    # ignored on restart and removed before the next completed result.
+    with open(result_path, "ab") as handle:
+        handle.write(b'{"incomplete"')
+
+    monkeypatch.setattr(WorkerMetadata, "put_result", put_result)
+    restarted = create_worker(params, directory=tmp_path)
+    restarted.run(frames)
+
+    assert len(result_path.read_text().splitlines()) == 3
+    results = restarted.metadata.results(uid)
+    assert [frame.info["wdir"] for frame in results] == ["cand0", "cand1", "cand2"]
+    restarted.job_store.remove_where(lambda _gdir: True)
+    assert not result_path.exists()
+
+
+def test_external_results_extend_legacy_embedded_cache(tmp_path):
+    params = config("slurm")
+    params["dispatch"] = {"share_workdir": True}
+    worker = create_worker(params, directory=tmp_path)
+    worker.run([atom(), atom(0.2)])
+    job = worker.job_store.get_running()[0]
+
+    legacy = atom()
+    legacy.info["wdir"] = "cand0"
+    legacy_record = {"atoms": legacy, "results": {"energy": -1.0}}
+    with worker.metadata.state.transaction() as data:
+        data["results"][job.uid] = {"cand0": legacy_record}
+
+    external = atom(0.2)
+    external.info["wdir"] = "cand1"
+    external.calc = SinglePointCalculator(external, energy=-2.0)
+    worker.metadata.put_result(job.uid, external)
+
+    results = worker.metadata.results(job.uid)
+    assert [frame.info["wdir"] for frame in results] == ["cand0", "cand1"]
+    assert [frame.get_potential_energy() for frame in results] == [-1.0, -2.0]
 
 
 def _update_catalog(path, worker):

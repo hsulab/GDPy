@@ -1,12 +1,14 @@
 """Compact driver metadata with locked, atomic catalog updates.
 
-The controller owns lifecycle records. Executing jobs may only add their own
-result records; remote result catalogs are merged explicitly by job UUID.
+The controller owns lifecycle records. Executing jobs append their scientific
+results to job-specific journals, while legacy embedded result catalogs remain
+readable and can still be merged explicitly by job UUID.
 """
 import copy
 import fcntl
 import pathlib
 import uuid
+from collections.abc import Mapping
 from contextlib import contextmanager
 
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -102,6 +104,14 @@ class WorkerMetadata:
 
     def structure_path(self, digest):
         relative = self.structure_relative_path(digest)
+        return self.directory.joinpath(*relative.parts)
+
+    @staticmethod
+    def result_relative_path(uid):
+        return pathlib.PurePosixPath(f"results-{uid}.jsonl")
+
+    def result_path(self, uid):
+        relative = self.result_relative_path(uid)
         return self.directory.joinpath(*relative.parts)
 
     def freeze_calculations(self, requests, *, complete=False, plan=None):
@@ -229,15 +239,85 @@ class WorkerMetadata:
         self.validate_payload(saved["input"], saved["machine_prefix"])
         return saved
 
+    @staticmethod
+    def _validate_result_record(record, source):
+        if not isinstance(record, Mapping) or set(record) != {"atoms", "results"}:
+            raise ValueError(f"Invalid result record: {source}")
+        frame = record["atoms"]
+        name = frame.info.get("wdir")
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"Result record has no workdir: {source}")
+        if not isinstance(record["results"], Mapping):
+            raise ValueError(f"Invalid calculator results: {source}")
+        return name
+
+    @classmethod
+    def _decode_result_lines(cls, content, source):
+        content = content.encode() if isinstance(content, str) else content
+        records = {}
+        lines = content.splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if not line.endswith(b"\n"):
+                if index == len(lines) - 1:
+                    break
+                raise ValueError(f"Incomplete result record: {source}")
+            try:
+                record = decode(line.decode().rstrip("\r\n"))
+            except Exception as error:
+                raise ValueError(f"Invalid result record: {source}") from error
+            name = cls._validate_result_record(record, source)
+            if name in records:
+                raise ValueError(f"Duplicate result for {name}: {source}")
+            records[name] = record
+        return records
+
+    def _external_result_records(self, uid):
+        path = self.result_path(uid)
+        if not path.exists():
+            return {}
+        return self._decode_result_lines(path.read_bytes(), path)
+
+    def _result_records(self, uid):
+        records = dict(self.state.read()["results"].get(str(uid), {}))
+        for name, record in self._external_result_records(uid).items():
+            previous = records.get(name)
+            if previous is not None and encode(previous) != encode(record):
+                raise ValueError(f"Conflicting result for {name} in job {uid}.")
+            records[name] = record
+        return records
+
     def results(self, uid):
-        records = self.state.read()["results"].get(str(uid), {})
+        records = self._result_records(uid)
         frames = []
         for record in records.values():
+            self._validate_result_record(record, self.result_path(uid))
             frame = record["atoms"]
             if record["results"]:
                 frame.calc = SinglePointCalculator(frame, **record["results"])
             frames.append(frame)
         return frames
+
+    @staticmethod
+    def _truncate_incomplete_result(path):
+        with open(path, "rb+") as handle:
+            handle.seek(0, 2)
+            end = handle.tell()
+            if end == 0:
+                return
+            handle.seek(-1, 2)
+            if handle.read(1) == b"\n":
+                return
+            position = end
+            while position:
+                size = min(position, 8192)
+                position -= size
+                handle.seek(position)
+                block = handle.read(size)
+                offset = block.rfind(b"\n")
+                if offset >= 0:
+                    handle.truncate(position + offset + 1)
+                    return
+            handle.truncate(0)
 
     def put_result(self, uid, frame):
         saved = self.manifest(uid)
@@ -245,10 +325,24 @@ class WorkerMetadata:
         if name not in saved["input"]["wdir_names"]:
             raise ValueError("Unexpected workdir in job results.")
         record = dict(atoms=frame.copy(), results=copy.deepcopy(getattr(frame.calc, "results", {})))
-        with self.state.transaction() as data:
-            data["results"].setdefault(str(uid), {})[name] = record
+        content = encode(record)
+        restored = decode(content)
+        if self._validate_result_record(restored, self.result_path(uid)) != name:
+            raise ValueError("Result serialization changed its workdir.")
+        self.directory.mkdir(parents=True, exist_ok=True)
+        path = self.result_path(uid)
+        with open(self.directory / ".metadata.lock", "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                if path.exists():
+                    self._truncate_incomplete_result(path)
+                with open(path, "ab") as handle:
+                    handle.write(content.encode() + b"\n")
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def merge_results(self, uid, remote):
+        """Merge results embedded by an older remote worker."""
         records = remote.get("results", {}).get(str(uid), {})
         saved = self.manifest(uid)
         if not set(records).issubset(saved["input"]["wdir_names"]):
@@ -307,11 +401,15 @@ class CatalogJobStore(JobStore):
         self._update(gdir, lambda row: row.update(retrieved=True))
 
     def remove_where(self, test_func):
+        removed = []
         with self.metadata.state.transaction() as data:
             for key, row in self._documents(data):
                 if test_func(row["gdir"]):
+                    removed.append(row["uid"])
                     del data["_default"][key]
                     data["results"].pop(row["uid"], None)
+        for uid in removed:
+            self.metadata.result_path(uid).unlink(missing_ok=True)
 
     def __len__(self):
         return len(self._documents(self.metadata.state.read()))

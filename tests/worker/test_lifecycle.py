@@ -113,7 +113,9 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     metadata = tmp_path / "_meta"
     assert set(p.name for p in tmp_path.iterdir()) == {"_meta"}
     assert worker.job_store.path == metadata / "scheduler.json"
-    assert {path.name for path in metadata.glob("*.json")} == {"inputs.json", "scheduler.json"}
+    metadata_files = {path.name for path in metadata.glob("*.json")}
+    assert {"inputs.json", "scheduler.json"}.issubset(metadata_files)
+    assert len([name for name in metadata_files if name.startswith("structures-")]) == 1
     assert len(worker.metadata.inputs.read()["jobs"]) == 1
     assert len(worker.metadata.inputs.read()["structures"]) == 1
     original = worker.job_store.get_running()[0]

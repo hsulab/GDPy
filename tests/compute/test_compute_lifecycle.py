@@ -350,7 +350,10 @@ def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
     config["dispatch"] = {"share_workdir": True}
     plan = prepare_compute(config, [_cu()], tmp_path)
     submit_compute(plan)
-    assert json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["results"]
+    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["results"]
+    result_files = list((tmp_path / "_meta").glob("results-*.jsonl"))
+    assert len(result_files) == 1
+    assert len(result_files[0].read_text().splitlines()) == 1
     assert inspect_compute(load_compute_plan(tmp_path)).state == "finished"
     assert collect_compute(load_compute_plan(tmp_path)).number_of_trajectories == 1
     assert not (tmp_path / "_data").exists()
