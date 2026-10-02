@@ -375,8 +375,6 @@ class compute(Operation):
             worker.directory = self.directory / f"w{i}"
             if self.batchsize is not None:
                 worker.batchsize = self.batchsize
-            else:
-                worker.batchsize = num_frames
             # if self.share_wdir and worker.scheduler.is_direct:
             if self.share_wdir:
                 worker._share_wdir = True
@@ -469,13 +467,10 @@ def run_chain_step(
 ):
     """Run workers as a chain."""
     # Adjust worker directory and batchsize
-    num_structures = len(structures)
     for istep, worker in enumerate(workers):
         worker.directory = directory / f"chainstep.{str(istep).zfill(2)}"
         if batchsize is not None:
             worker.batchsize = batchsize
-        else:
-            worker.batchsize = num_structures
 
     # Overwrite worker directory if there is only one worker
     num_workers = len(workers)
