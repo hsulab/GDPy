@@ -11,7 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io.jsonio import decode, encode
 
 from gdpx.execution.factory import create_worker
-from gdpx.execution.fingerprint import structure_digest
+from gdpx.execution.fingerprint import read_structure_inputs, structure_digest
 from gdpx.execution.lifecycle import (
     collect_compute, inspect_compute, load_compute_plan, prepare_compute, submit_compute,
 )
@@ -34,9 +34,10 @@ def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
     plan = prepare_compute(configs, [atom()], tmp_path)
     inputs = tmp_path / "_meta" / "inputs.json"
     state = tmp_path / "_meta" / "scheduler.json"
+    structures = tmp_path / "_meta" / f"structures-{plan.structure_digest}.json"
     scripts = sorted((tmp_path / "_meta" / "jobscripts").iterdir())
     assert len(scripts) == 2
-    assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state}
+    assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state, structures}
     before = inputs.read_bytes()
     data = decode(inputs.read_text())
     assert len(data["structures"]) == 1
@@ -47,8 +48,46 @@ def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
     assert collect_compute(plan).number_of_trajectories == 2
     assert sorted((tmp_path / "_meta" / "jobscripts").iterdir()) == scripts
     assert inputs.read_bytes() == before
-    assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state}
+    assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state, structures}
     assert submit_compute(load_compute_plan(tmp_path)).submitted_batches == ()
+
+
+def test_structure_snapshots_are_stored_outside_inputs_catalog(tmp_path):
+    params = config("slurm")
+    params["dispatch"] = {"share_workdir": True}
+    frames = [atom(0.1 + index * 1e-6) for index in range(200)]
+    worker = create_worker(params, directory=tmp_path)
+    worker.run(frames)
+
+    inputs = tmp_path / "_meta" / "inputs.json"
+    data = decode(inputs.read_text())
+    digest = structure_digest(frames)
+    relative = pathlib.PurePosixPath(data["structures"][digest]["file"])
+    snapshot = tmp_path / "_meta" / pathlib.Path(*relative.parts)
+
+    assert data["version"] == 3
+    assert snapshot.is_file()
+    assert len(read_structure_inputs(snapshot, digest)) == len(frames)
+    assert len(read_structure_inputs(inputs, digest)) == len(frames)
+    assert "__ase_objtype__" not in inputs.read_text()
+    assert inputs.stat().st_size < snapshot.stat().st_size
+
+
+def test_v2_inline_structure_catalog_remains_readable(tmp_path):
+    atoms = atom()
+    digest = structure_digest([atoms])
+    metadata = tmp_path / "_meta"
+    metadata.mkdir()
+    (metadata / "inputs.json").write_text(encode(dict(
+        format="gdpx-inputs",
+        version=2,
+        structures={digest: [atoms]},
+        workers={},
+        jobs={},
+    )))
+
+    restored = WorkerMetadata(tmp_path).frames(digest)
+    assert structure_digest(restored) == digest
 
 
 def test_catalog_provenance_preserves_types_and_spaces(tmp_path):
@@ -75,7 +114,10 @@ def test_shared_results_preserve_calculator_data(tmp_path):
     assert len(frames) == 2
     assert all(np.isfinite(frame.get_potential_energy()) for frame in frames)
     assert all(frame.get_forces().shape == (1, 3) for frame in frames)
-    assert {p.name for p in (tmp_path / "_meta").glob("*.json")} == {"inputs.json", "scheduler.json"}
+    metadata_files = {p.name for p in (tmp_path / "_meta").glob("*.json")}
+    assert {"inputs.json", "scheduler.json"}.issubset(metadata_files)
+    assert len(metadata_files) == 3
+    assert len([name for name in metadata_files if name.startswith("structures-")]) == 1
 
 
 def _update_catalog(path, worker):

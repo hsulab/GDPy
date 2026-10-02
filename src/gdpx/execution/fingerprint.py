@@ -130,13 +130,24 @@ def write_structure_inputs(path, frames):
 
 
 def read_structure_inputs(path, expected_digest=None):
-    data = decode(pathlib.Path(path).read_text(encoding="utf-8"))
-    if data.get("version") != (2 if data.get("format") == "gdpx-inputs" else FINGERPRINT_VERSION):
+    path = pathlib.Path(path)
+    data = decode(path.read_text(encoding="utf-8"))
+    is_catalog = data.get("format") == "gdpx-inputs"
+    supported_versions = (2, 3) if is_catalog else (FINGERPRINT_VERSION,)
+    if data.get("version") not in supported_versions:
         raise ValueError("Unsupported structure fingerprint version; prepare a new run.")
-    if data.get("format") == "gdpx-inputs":
+    if is_catalog:
         if expected_digest is None:
             raise ValueError("A structure digest is required for catalog lookup.")
-        frames = data["structures"][expected_digest]
+        snapshot = data["structures"][expected_digest]
+        if data["version"] == 3:
+            if not isinstance(snapshot, Mapping) or set(snapshot) != {"file"}:
+                raise ValueError("Invalid structure snapshot reference.")
+            relative = pathlib.PurePosixPath(snapshot["file"])
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError("Structure snapshot path must stay inside the metadata directory.")
+            return read_structure_inputs(path.parent.joinpath(*relative.parts), expected_digest)
+        frames = snapshot
         saved_digest = expected_digest
     else:
         frames = data["frames"]

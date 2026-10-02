@@ -304,8 +304,6 @@ def prepare_compute(
         raise ComputeLifecycleError(
             f"Legacy driver worker layout at {directory}; use a new working directory."
         )
-    input_path = metadata.inputs.path
-
     if metadata.inputs.read()["workers"]:
         raise PlanConflictError("A worker calculation set already exists; use a new working directory for a compute plan.")
 
@@ -341,7 +339,7 @@ def prepare_compute(
         plan_id=_plan_digest(digest_payload),
         created_at=time.time(),
         directory=str(directory),
-        structure_file=str(input_path.relative_to(directory)),
+        structure_file=str(metadata.structure_path(digest).relative_to(directory)),
         structure_digest=digest,
         config=normalised_config,
         workers=tuple(worker_plans),

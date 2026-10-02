@@ -210,6 +210,7 @@ def run_computation(
     if seed_plan is not None:
         task_count = sum(len(batch.tasks) for worker in seed_plan.workers for batch in worker.batches)
         task_label = 'task' if task_count == 1 else 'tasks'
-        box.line(f'random seeds: {task_count} {task_label} recorded in {seed_plan.structure_file}')
+        seed_catalog = seed_plan.path.relative_to(pathlib.Path(seed_plan.directory))
+        box.line(f'random seeds: {task_count} {task_label} recorded in {seed_catalog}')
     box.border('bottom')
     return result

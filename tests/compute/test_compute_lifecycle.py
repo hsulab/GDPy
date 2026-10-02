@@ -389,7 +389,7 @@ def test_modified_snapshot_and_plan_are_rejected_before_submission(tmp_path):
         submit_compute(dataclasses.replace(plan, structure_digest="modified"))
     path = tmp_path / plan.structure_file
     data = decode(path.read_text())
-    data["structures"][plan.structure_digest][0].positions[0, 0] = 0.01
+    data["frames"][0].positions[0, 0] = 0.01
     path.write_text(encode(data))
     with pytest.raises(ValueError, match="fingerprint mismatch"):
         submit_compute(plan)

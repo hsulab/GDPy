@@ -12,7 +12,13 @@ from contextlib import contextmanager
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io.jsonio import decode, encode
 
-from gdpx.execution.fingerprint import atomic_write_text, payload_digest, structure_digest
+from gdpx.execution.fingerprint import (
+    atomic_write_text,
+    payload_digest,
+    read_structure_inputs,
+    structure_digest,
+    write_structure_inputs,
+)
 from .store import JobRecord, JobStore
 
 
@@ -23,7 +29,7 @@ class Catalog:
 
     def empty(self):
         if self.kind == "inputs":
-            return dict(format="gdpx-inputs", version=2, structures={}, workers={}, jobs={})
+            return dict(format="gdpx-inputs", version=3, structures={}, workers={}, jobs={})
         return dict(format="gdpx-scheduler", version=1, providers={}, _default={}, results={})
 
     def read(self):
@@ -33,7 +39,8 @@ class Catalog:
         required = ("structures", "workers", "jobs") if self.kind == "inputs" else ("providers", "_default", "results")
         if self.kind == "inputs" and data.get("format") == "gdpx-inputs" and data.get("version") == 1:
             raise ValueError("Legacy driver metadata has no frozen calculation set; use a new working directory.")
-        if (data.get("format") != f"gdpx-{self.kind}" or data.get("version") != (2 if self.kind == "inputs" else 1)
+        expected_versions = (2, 3) if self.kind == "inputs" else (1,)
+        if (data.get("format") != f"gdpx-{self.kind}" or data.get("version") not in expected_versions
                 or any(not isinstance(data.get(key), dict) for key in required)):
             raise ValueError(f"Invalid {self.kind} catalog: {self.path}")
         if self.kind == "inputs":
@@ -89,6 +96,14 @@ class WorkerMetadata:
                 with catalog.transaction():
                     pass
 
+    @staticmethod
+    def structure_relative_path(digest):
+        return pathlib.PurePosixPath(f"structures-{digest}.json")
+
+    def structure_path(self, digest):
+        relative = self.structure_relative_path(digest)
+        return self.directory.joinpath(*relative.parts)
+
     def freeze_calculations(self, requests, *, complete=False, plan=None):
         """Compare or publish whole calculation sets in one atomic transaction.
 
@@ -97,49 +112,65 @@ class WorkerMetadata:
         """
         self.compact
         resolved = {}
-        with self.inputs.transaction() as data:
-            names = [request["worker"] for request in requests]
-            if len(set(names)) != len(names):
-                raise ValueError("Duplicate workers in calculation set.")
-            existing = set(data["workers"])
-            if existing and (not set(names).issubset(existing) or (complete and set(names) != existing)):
-                raise ValueError("Calculation set conflict: workers changed. Use a new working directory.")
-            for request in requests:
-                name = request["worker"]
-                definition = dict(version=1, batches=copy.deepcopy(request["batches"]),
-                                  machine_prefix=request["machine_prefix"])
-                previous = data["workers"].get(name)
-                if previous is not None:
-                    saved = self.calculation_set(data, name)
-                    if request["reuse_saved_seeds"] and len(definition["batches"]) == len(saved["batches"]):
-                        for batch, old in zip(definition["batches"], saved["batches"]):
-                            batch["random_seeds"] = old["random_seeds"]
-                    if payload_digest(definition) != payload_digest(saved):
-                        changed = [key for key in ("structure_digest", "runtime", "indices", "structure_indices",
-                                   "wdir_names", "driver_indices", "random_seeds", "share_random_seed")
-                                   if [b.get(key) for b in definition["batches"]] != [b.get(key) for b in saved["batches"]]]
-                        category = ", ".join(changed) or "batch mapping or machine prefix"
-                        raise ValueError(f"Calculation set conflict: {category} changed. Use a new working directory.")
-                else:
-                    frames = [frame.copy() for frame in request["frames"]]
-                    for frame in frames:
-                        frame.info = {}
-                    digest = structure_digest(frames)
-                    if structure_digest(decode(encode(frames))) != digest:
-                        raise ValueError("Structure input serialization changed its fingerprint.")
-                    data["structures"].setdefault(digest, frames)
-                    data["workers"][name] = dict(
-                        calculation_set=definition, calculation_digest=payload_digest(definition),
-                        provenance={digest: dict(rows=request["provenance"], info=request["retained"])})
-                    for payload in definition["batches"]:
-                        uid = str(uuid.uuid4())
-                        data["jobs"][uid] = dict(worker=name, input=payload, job_digest=payload_digest(payload),
-                                                 machine_prefix=definition["machine_prefix"])
-                resolved[name] = definition["batches"]
-            if plan is not None:
-                if "plan" in data and data["plan"] != plan:
-                    raise ValueError("An immutable compute plan already exists. Use a new working directory.")
-                data["plan"] = plan
+        created_snapshots = []
+        try:
+            with self.inputs.transaction() as data:
+                names = [request["worker"] for request in requests]
+                if len(set(names)) != len(names):
+                    raise ValueError("Duplicate workers in calculation set.")
+                existing = set(data["workers"])
+                if existing and (not set(names).issubset(existing) or (complete and set(names) != existing)):
+                    raise ValueError("Calculation set conflict: workers changed. Use a new working directory.")
+                for request in requests:
+                    name = request["worker"]
+                    definition = dict(version=1, batches=copy.deepcopy(request["batches"]),
+                                      machine_prefix=request["machine_prefix"])
+                    previous = data["workers"].get(name)
+                    if previous is not None:
+                        saved = self.calculation_set(data, name)
+                        if request["reuse_saved_seeds"] and len(definition["batches"]) == len(saved["batches"]):
+                            for batch, old in zip(definition["batches"], saved["batches"]):
+                                batch["random_seeds"] = old["random_seeds"]
+                        if payload_digest(definition) != payload_digest(saved):
+                            changed = [key for key in ("structure_digest", "runtime", "indices", "structure_indices",
+                                       "wdir_names", "driver_indices", "random_seeds", "share_random_seed")
+                                       if [b.get(key) for b in definition["batches"]] != [b.get(key) for b in saved["batches"]]]
+                            category = ", ".join(changed) or "batch mapping or machine prefix"
+                            raise ValueError(f"Calculation set conflict: {category} changed. Use a new working directory.")
+                    else:
+                        frames = [frame.copy() for frame in request["frames"]]
+                        for frame in frames:
+                            frame.info = {}
+                        digest = structure_digest(frames)
+                        if data["version"] == 2:
+                            if structure_digest(decode(encode(frames))) != digest:
+                                raise ValueError("Structure input serialization changed its fingerprint.")
+                            data["structures"].setdefault(digest, frames)
+                        else:
+                            relative = self.structure_relative_path(digest)
+                            snapshot_path = self.directory.joinpath(*relative.parts)
+                            if snapshot_path.exists():
+                                read_structure_inputs(snapshot_path, digest)
+                            else:
+                                write_structure_inputs(snapshot_path, frames)
+                                created_snapshots.append(snapshot_path)
+                            data["structures"].setdefault(digest, {"file": relative.as_posix()})
+                        data["workers"][name] = dict(
+                            calculation_set=definition, calculation_digest=payload_digest(definition),
+                            provenance={digest: dict(rows=request["provenance"], info=request["retained"])})
+                        for payload in definition["batches"]:
+                            uid = str(uuid.uuid4())
+                            data["jobs"][uid] = dict(worker=name, input=payload, job_digest=payload_digest(payload),
+                                                     machine_prefix=definition["machine_prefix"])
+                    resolved[name] = definition["batches"]
+                if plan is not None:
+                    if "plan" in data and data["plan"] != plan:
+                        raise ValueError("An immutable compute plan already exists. Use a new working directory.")
+                    data["plan"] = plan
+        except BaseException:
+            for snapshot_path in created_snapshots:
+                snapshot_path.unlink(missing_ok=True)
+            raise
         return resolved
 
     @staticmethod
@@ -159,7 +190,16 @@ class WorkerMetadata:
             raise ValueError("Job is not in the frozen calculation set. Use a new working directory.")
 
     def frames(self, digest):
-        frames = self.inputs.read()["structures"][digest]
+        data = self.inputs.read()
+        snapshot = data["structures"][digest]
+        if data["version"] == 3:
+            if not isinstance(snapshot, dict) or set(snapshot) != {"file"}:
+                raise ValueError("Invalid structure snapshot reference.")
+            relative = pathlib.PurePosixPath(snapshot["file"])
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError("Structure snapshot path must stay inside the metadata directory.")
+            return read_structure_inputs(self.directory.joinpath(*relative.parts), digest)
+        frames = snapshot
         if structure_digest(frames) != digest:
             raise ValueError("Structure fingerprint mismatch.")
         return frames
