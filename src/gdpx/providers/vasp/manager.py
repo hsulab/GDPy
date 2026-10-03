@@ -111,7 +111,7 @@ class VaspManager(BasePotentialManager):
             calc.set_xc_params("PBE")  # incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
-            if not is_remote and inp_fdict["incar"] is not None:
+            if self._can_read_incar(inp_fdict["incar"], is_remote):
                 calc.read_incar(inp_fdict["incar"])
             self._set_environs(inp_fdict["pp_path"], inp_fdict["vdw_path"])
 
@@ -128,7 +128,7 @@ class VaspManager(BasePotentialManager):
             calc.set_xc_params("PBE")  # incar may not set GGA
             calc.set(lorbit=10)
             calc.set(gamma=True)
-            if not is_remote and inp_fdict["incar"] is not None:
+            if self._can_read_incar(inp_fdict["incar"], is_remote):
                 calc.read_incar(inp_fdict["incar"])
 
             # Set some vasp_interactive parameters
@@ -144,3 +144,10 @@ class VaspManager(BasePotentialManager):
         self.calc = calc
 
         return
+
+    @staticmethod
+    def _can_read_incar(incar, is_remote: bool) -> bool:
+        """Read a deferred remote INCAR once it exists on the execution host."""
+        if incar is None:
+            return False
+        return not is_remote or pathlib.Path(incar).is_file()
