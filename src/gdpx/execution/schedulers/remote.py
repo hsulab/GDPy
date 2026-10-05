@@ -13,6 +13,8 @@ from typing import Callable, Iterable, Optional, Union
 
 import paramiko
 
+from gdpx.core.output import message
+
 from .scheduler import BaseScheduler
 
 
@@ -331,6 +333,7 @@ class SshTransport(BaseScheduler):
         """Retrieve outputs; root-relative mode protects shared exploration metadata."""
         local_root, remote_root, _ = self._roots()
         skipped = [f"_{self.name}_jobs.json", "_scheduler.json"]
+        message(f"start syncing '{self.hostname}:{remote_root}'...")
         client = self._client()
         sftp = None
         try:
@@ -352,13 +355,14 @@ class SshTransport(BaseScheduler):
                         sftp, str(remote_item), str(local_item), [], print_func=self._print,
                         protected_paths=protected,
                     )
-                self._debug(f'synced {count} files; removed {removed} outdated items.')
+                message(f"synced {count} files; removed {removed} outdated items.")
                 return
             count = _sync_latest_recursive(
                 sftp, str(remote_root), str(local_root), skipped, self.sync_excludes
             )
-            self._print(f"synced {count} files from {remote_root}.")
+            message(f"synced {count} files.")
             removed = 0
+            message("start removing outdated items...")
             output_root = self.output_root or self.script.parent
             if self.output_root is None and output_root.name == "_meta":
                 output_root = output_root.parent
@@ -374,7 +378,7 @@ class SshTransport(BaseScheduler):
                     sftp, str(remote_item), str(local_item), skipped, print_func=self._print,
                     protected_paths=self.sync_excludes,
                 )
-            self._print(f"removed {removed} outdated items.")
+            message(f"removed {removed} outdated items.")
         finally:
             if sftp is not None:
                 sftp.close()

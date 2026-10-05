@@ -222,3 +222,47 @@ def test_ssh_transport_wraps_queue_and_direct_schedulers_lazily(monkeypatch, tmp
             {"hostname": "cluster", "remote_wdir": "relative"}, scheduler=direct
         )
     sys.modules.pop("gdpx.execution.schedulers.remote", None)
+
+
+def test_ssh_sync_reports_user_facing_progress(monkeypatch, tmp_path):
+    import gdpx.execution.schedulers.remote as module
+
+    class Sftp:
+        def close(self):
+            pass
+
+    class Client:
+        def set_missing_host_key_policy(self, policy):
+            pass
+
+        def connect(self, **kwargs):
+            pass
+
+        def open_sftp(self):
+            return Sftp()
+
+        def close(self):
+            pass
+
+    messages = []
+    monkeypatch.setattr(module, "message", messages.append)
+    monkeypatch.setattr(module, "_sync_latest_recursive", lambda *args, **kwargs: 7)
+    monkeypatch.setattr(module, "_remove_outdated_recursive", lambda *args, **kwargs: 2)
+    transport = module.SshTransport(
+        DirectScheduler(),
+        "cluster",
+        "/scratch/jobs",
+        ssh_client_factory=Client,
+    )
+    transport.local_root = tmp_path
+    transport.job_name = "job"
+    transport.script = tmp_path / "run.script"
+
+    transport.sync(["cand0"])
+
+    assert messages == [
+        "start syncing 'cluster:/scratch/jobs/job'...",
+        "synced 7 files.",
+        "start removing outdated items...",
+        "removed 2 outdated items.",
+    ]
