@@ -87,13 +87,16 @@ scheduler's queue command for pending allocations.
 
 ## Logs, failures, and resubmission
 
-Each script has an adjacent `<script-name>.nohup/` directory. `current.json`
-identifies its latest attempt; each `nohup-<UUID>/` attempt directory retains
-`output.log`, a startup record, and a completion record containing the exit
-code. Previous attempts remain available after resubmission.
+Each submitted attempt writes stdout and stderr to `nohup-<UUID>.out` beside
+its job script. Previous attempt logs remain available after resubmission.
+The backend creates no status directories or startup/completion JSON files.
+It queries live supervisors through `ps`; disappearance from the process table
+means scheduler completion, just as disappearance from `squeue` does for the
+Slurm backend. GDPy's shared `_meta/scheduler.json` retains submission IDs and
+attempt counts for every scheduler.
 
 Generated job commands disable the extra `gdp.out` file log. Child diagnostics
-go to the attempt's `output.log`, so independent jobs do not append to the
+go to the attempt's `nohup-<UUID>.out`, so independent jobs do not append to the
 submitting CLI's shared log.
 
 A terminal scheduler process does not imply a converged calculation. Inspect
@@ -103,7 +106,8 @@ the attempt log and calculation outputs before explicitly resubmitting:
 gdp -d queued-results compute resubmit --batch 0
 ```
 
-Running jobs cannot be resubmitted. Missing or corrupt scheduler metadata is
-reported as an error. Dry runs start no processes. The scheduler supports local
+Running jobs cannot be resubmitted. Existing `.script.nohup/` directories from
+older versions are ignored and left intact so their logs remain available.
+Dry runs start no processes. The scheduler supports local
 transport only; it does not allocate resources, provide cancellation, or wrap
 the SSH transport.
