@@ -92,6 +92,10 @@ identifies its latest attempt; each `nohup-<UUID>/` attempt directory retains
 `output.log`, a startup record, and a completion record containing the exit
 code. Previous attempts remain available after resubmission.
 
+Generated job commands disable the extra `gdp.out` file log. Child diagnostics
+go to the attempt's `output.log`, so independent jobs do not append to the
+submitting CLI's shared log.
+
 A terminal scheduler process does not imply a converged calculation. Inspect
 the attempt log and calculation outputs before explicitly resubmitting:
 
