@@ -97,6 +97,8 @@ class SshTransport(BaseScheduler):
     ) -> None:
         if not isinstance(scheduler, BaseScheduler):
             raise TypeError("SshTransport requires a BaseScheduler instance.")
+        if scheduler.name == "nohup":
+            raise ValueError("The nohup scheduler supports local transport only.")
         if isinstance(scheduler, SshTransport):
             raise ValueError("SshTransport cannot wrap another SSH transport.")
         if not hostname:

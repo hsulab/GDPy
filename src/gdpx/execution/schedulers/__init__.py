@@ -22,6 +22,10 @@ from .direct import DirectScheduler
 
 REGISTER.register(DirectScheduler)
 
+from .nohup import NohupScheduler
+
+REGISTER.register(NohupScheduler)
+
 from .lsf import LsfScheduler
 
 REGISTER.register(LsfScheduler)
@@ -34,6 +38,7 @@ __all__ = [
     "REGISTER",
     "BaseScheduler",
     "DirectScheduler",
+    "NohupScheduler",
     "LsfScheduler",
     "PbsScheduler",
     "SshTransport",

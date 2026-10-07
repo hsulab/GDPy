@@ -36,6 +36,8 @@ class SshTransportFactory:
         scheduler = context.get("scheduler")
         if scheduler is None:
             raise RuntimeError("Transport resolution requires a scheduler instance.")
+        if scheduler.name == "nohup":
+            raise ValueError("The nohup scheduler supports local transport only.")
         try:
             remote_module = importlib.import_module("gdpx.execution.schedulers.remote")
         except ImportError as error:
@@ -51,6 +53,7 @@ class SshTransportFactory:
 def scheduler_providers():
     definitions = {
         "direct": ("gdpx.execution.schedulers.direct", "DirectScheduler"),
+        "nohup": ("gdpx.execution.schedulers.nohup", "NohupScheduler"),
         "lsf": ("gdpx.execution.schedulers.lsf", "LsfScheduler"),
         "pbs": ("gdpx.execution.schedulers.pbs", "PbsScheduler"),
         "slurm": ("gdpx.execution.schedulers.slurm", "SlurmScheduler"),

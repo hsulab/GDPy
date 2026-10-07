@@ -15,9 +15,6 @@ from gdpx.utils.strconv import dictionary_to_string
 
 
 def main():
-    # Load all components
-    bootstrap_registries(disable_import_info=False)
-
     # The arguments
     description = "gdpx: Generating Deep Potential with Python\n"
 
@@ -43,6 +40,10 @@ def main():
 
     # subcommands in the entire workflow
     subparsers = parser.add_subparsers(title="available subcommands", dest="subcommand", help="sub-command help")
+
+    parser_queue = subparsers.add_parser("queue", help="list active GDPy simulations on this host")
+    parser_queue.add_argument("--all-users", action="store_true", help="include all visible users")
+    parser_queue.add_argument("--json", action="store_true", dest="queue_json", help="print a JSON array")
 
     # - declarative workflows
     parser_workflow = subparsers.add_parser(
@@ -196,6 +197,14 @@ def main():
 
     # Excute the parsed subcommand
     args = parser.parse_args()
+
+    if args.subcommand == "queue":
+        from .cli.queue import run_queue
+
+        run_queue(all_users=args.all_users, as_json=args.queue_json)
+        return
+
+    bootstrap_registries(disable_import_info=False)
 
     # Update global configuration
     if args.debug:
