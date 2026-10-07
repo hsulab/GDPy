@@ -8,7 +8,7 @@ trainer:
   provider: deepmd
   method: default
   parameters:
-    config: ./dpa4.json
+    config: ./dpa4c.json
     train_epochs: 10
     print_epochs: 1
     train_batches: null

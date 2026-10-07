@@ -1,0 +1,65 @@
+{
+  "_comment": "Small CPU se_e2_a example trained on EMT-labeled Cu3Au1.",
+  "model": {
+    "type_map": [
+      "Cu",
+      "Au"
+    ],
+    "descriptor": {
+      "type": "se_e2_a",
+      "sel": "auto",
+      "rcut": 6.0,
+      "rcut_smth": 5.5,
+      "neuron": [
+        16,
+        32,
+        64
+      ],
+      "axis_neuron": 8,
+      "resnet_dt": false,
+      "precision": "float64",
+      "seed": 1112
+    },
+    "fitting_net": {
+      "neuron": [
+        64,
+        64,
+        64
+      ],
+      "resnet_dt": true,
+      "precision": "float64",
+      "seed": 1112
+    }
+  },
+  "learning_rate": {
+    "type": "exp",
+    "start_lr": 0.001,
+    "stop_lr": 1e-05,
+    "decay_steps": 50
+  },
+  "loss": {
+    "type": "ener",
+    "start_pref_e": 0.02,
+    "limit_pref_e": 1,
+    "start_pref_f": 1000,
+    "limit_pref_f": 1,
+    "start_pref_v": 0.02,
+    "limit_pref_v": 1
+  },
+  "training": {
+    "training_data": {
+      "systems": [],
+      "batch_size": 4
+    },
+    "validation_data": {
+      "systems": [],
+      "batch_size": 4,
+      "numb_batch": 1
+    },
+    "numb_steps": 100,
+    "save_freq": 100,
+    "disp_file": "lcurve.out",
+    "disp_freq": 100,
+    "seed": 1112
+  }
+}
