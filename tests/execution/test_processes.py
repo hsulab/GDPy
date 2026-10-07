@@ -132,3 +132,32 @@ def test_queue_table_and_filter_arguments(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "JOBID" in output and "pid:123" in output and "—" in output
     assert calls == [{"all_users": True}]
+
+
+def test_queue_compact_long_and_json_displays(monkeypatch, capsys):
+    import sys
+    from gdpx import main
+    from gdpx.cli import queue
+
+    job = dict(job_id="nohup-79de20d8-03c0-4630-b6be-15a425f67756", pid=59498,
+               user="jyxu", state="Ss", elapsed="00:03",
+               directory="/Users/jyxu/Documents/repository/GDPy/examples/compute/cu2_emt_nohup/_run",
+               command="bash -l /Users/jyxu/Documents/repository/GDPy/_meta/jobscripts/run.script")
+    monkeypatch.setattr(queue, "running_jobs", lambda **kwargs: [job])
+    monkeypatch.setattr(main, "bootstrap_registries", lambda **kwargs: pytest.fail("bootstrapped registry"))
+    monkeypatch.setattr(sys, "argv", ["gdp", "queue"])
+    main.main()
+    compact = capsys.readouterr().out
+    assert "nohup-79de20d8" in compact
+    assert job["job_id"] not in compact
+    assert "…" + job["directory"][-31:] in compact
+    assert "COMMAND" not in compact and job["command"] not in compact
+    assert max(map(len, compact.splitlines())) < 100
+
+    monkeypatch.setattr(sys, "argv", ["gdp", "queue", "--long"])
+    main.main()
+    full = capsys.readouterr().out
+    assert all(job[key] in full for key in ("job_id", "directory", "command"))
+    monkeypatch.setattr(sys, "argv", ["gdp", "queue", "--json"])
+    main.main()
+    assert json.loads(capsys.readouterr().out) == [job]

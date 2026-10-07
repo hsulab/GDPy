@@ -44,6 +44,7 @@ def main():
     parser_queue = subparsers.add_parser("queue", help="list active GDPy simulations on this host")
     parser_queue.add_argument("--all-users", action="store_true", help="include all visible users")
     parser_queue.add_argument("--json", action="store_true", dest="queue_json", help="print a JSON array")
+    parser_queue.add_argument("--long", action="store_true", dest="queue_long", help="show full job IDs, directories, and commands")
 
     # - declarative workflows
     parser_workflow = subparsers.add_parser(
@@ -201,7 +202,7 @@ def main():
     if args.subcommand == "queue":
         from .cli.queue import run_queue
 
-        run_queue(all_users=args.all_users, as_json=args.queue_json)
+        run_queue(all_users=args.all_users, as_json=args.queue_json, long=args.queue_long)
         return
 
     bootstrap_registries(disable_import_info=False)
