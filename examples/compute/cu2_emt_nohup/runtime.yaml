@@ -1,0 +1,22 @@
+potential:
+  provider: emt
+executor:
+  provider: ase
+  method: min
+  parameters:
+    random_seed: 7
+    output:
+      trajectory:
+        period: 1
+    stop:
+      fmax: 0.05
+      steps: 100
+scheduler:
+  provider: nohup
+  parameters:
+    environs: |
+      export OMP_NUM_THREADS=1
+      # Demo delay so gdp queue can show the running jobs.
+      sleep 5
+dispatch:
+  batch_size: 1

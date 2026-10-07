@@ -11,6 +11,7 @@ runtime's separate `dispatch` section.
 | Scheduler | Use it for |
 | --- | --- |
 | {doc}`direct` | Synchronous execution on the local machine or over SSH. |
+| {doc}`nohup` | Detached local jobs for testing queue lifecycles without a queue manager. |
 | {doc}`slurm` | Slurm allocations, CPU/GPU resources, and concurrent job steps. |
 | {doc}`pbs` | PBS queue submission and resource directives. |
 | {doc}`lsf` | LSF queue submission and resource directives. |
@@ -23,6 +24,7 @@ with the local transport. Third-party plugins may provide other schedulers.
 :maxdepth: 1
 
 direct.md
+nohup.md
 slurm.md
 pbs.md
 lsf.md
@@ -38,6 +40,7 @@ selects where the scheduler command runs.
 | Run directly on this machine | `direct` | `local` |
 | Run directly over SSH | `direct` | `ssh` |
 | Submit locally to a queue | `slurm`, `pbs`, or `lsf` | `local` |
+| Start detached local jobs | `nohup` | `local` |
 | Submit to a remote queue | `slurm`, `pbs`, or `lsf` | `ssh` |
 
 If `transport` is omitted, it defaults to local execution. An explicit local
@@ -106,3 +109,8 @@ gdp -d queued-results compute collect
 `prepare` writes reviewable job scripts without submitting them. Failed or
 unconverged jobs require inspection before an explicit resubmission such as
 `gdp -d queued-results compute resubmit --batch 0`.
+
+Use `gdp queue` to list this user's active GDPy simulations across working
+directories on the current host. `--all-users` includes all visible users and
+`--json` emits a machine-readable array. See {doc}`nohup` for process-discovery
+behavior and detached-job logs.
