@@ -1,12 +1,10 @@
-import json
 import os
-import pathlib
 import signal
 import time
 
 import pytest
 
-from gdpx.execution.processes import Process, running_jobs
+from gdpx.execution.processes import Process, encode_context, running_jobs, snapshot_processes, supervisor_context
 from gdpx.execution.schedulers import NohupScheduler, canonicalise_scheduler
 
 
@@ -33,14 +31,12 @@ def schedulers(tmp_path):
     yield create
     # Release gated test jobs even if process inspection itself fails.
     (tmp_path / "release").touch()
-    for scheduler in instances:
-        current = scheduler.state_directory / "current.json"
-        if current.exists():
-            record = json.loads(current.read_text())
-            # PID reuse is checked by production discovery before killing test jobs.
+    scripts = {str(scheduler.script.resolve()) for scheduler in instances}
+    for process in snapshot_processes():
+        context = supervisor_context(process)
+        if process.active and context is not None and context.get("script") in scripts:
             try:
-                if not scheduler.is_finished():
-                    os.killpg(record["pid"], signal.SIGTERM)
+                os.killpg(process.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
 
@@ -72,7 +68,9 @@ def test_detached_jobs_are_global_and_queryable_after_restart(schedulers, tmp_pa
     gate = tmp_path / "release"
     commands = f'while [ ! -e "{gate}" ]; do sleep 0.05; done\nprintf "hello\\n"\n'
     first, second = schedulers(commands=commands), schedulers("second", commands)
-    job_ids = {first.submit(lambda: pytest.fail("executed callback")), second.submit()}
+    first_id = first.submit(lambda: pytest.fail("executed callback"))
+    second_id = second.submit()
+    job_ids = {first_id, second_id}
     assert len(job_ids) == 2
     assert not first.is_finished()
     with pytest.raises(RuntimeError, match="still running"):
@@ -86,46 +84,61 @@ def test_detached_jobs_are_global_and_queryable_after_restart(schedulers, tmp_pa
     assert len([row for row in rows if row["job_id"] in job_ids]) == 2
     gate.touch()
     _wait(lambda: fresh.is_finished() and second.is_finished())
-    for scheduler in (first, second):
-        record = scheduler._current()
-        attempt = scheduler.state_directory / record["job_id"]
-        assert "hello" in (attempt / "output.log").read_text()
-        assert json.loads((attempt / "completed.json").read_text())["exit_code"] == 0
+    for scheduler, job_id in ((first, first_id), (second, second_id)):
+        assert "hello" in scheduler.output_path(job_id).read_text()
+    assert not list(tmp_path.rglob("*.nohup"))
+    assert not list(tmp_path.rglob("*.json"))
+    assert first.is_finished()  # No completion record is needed for repeat queries.
 
 
 def test_failed_attempt_logs_and_resubmission_are_preserved(schedulers):
     scheduler = schedulers(commands="echo failure >&2\nexit 7\n")
     first = scheduler.submit()
     _wait(scheduler.is_finished)
-    first_attempt = scheduler.state_directory / first
-    assert json.loads((first_attempt / "completed.json").read_text())["exit_code"] == 7
-    assert "failure" in (first_attempt / "output.log").read_text()
+    first_log = scheduler.output_path(first)
+    assert "status 7" in first_log.read_text()
+    assert "failure" in first_log.read_text()
     scheduler.user_commands = "printf 'success\\n'\n"
     scheduler.write()
     second = scheduler.submit()
     _wait(scheduler.is_finished)
     assert second != first
-    assert first_attempt.exists()
-    assert "success" in (scheduler.state_directory / second / "output.log").read_text()
+    assert first_log.exists()
+    assert "success" in scheduler.output_path(second).read_text()
 
 
-def test_query_checks_pid_identity_and_missing_process(schedulers, monkeypatch):
+def test_query_matches_live_supervisors_without_disk_state(schedulers, monkeypatch):
     import gdpx.execution.schedulers.nohup.nohup as module
     scheduler = schedulers()
-    scheduler.state_directory.mkdir()
     job_id = "nohup-00000000-0000-0000-0000-000000000001"
-    current = scheduler.state_directory / "current.json"
-    current.write_text(json.dumps(dict(job_id=job_id, pid=123, job_name=scheduler.job_name)))
     monkeypatch.setattr(module, "snapshot_processes", lambda: [])
     assert scheduler.is_finished()
     monkeypatch.setattr(module, "snapshot_processes", lambda: [Process(123, 1, os.getuid(), "S", "00:01", "sleep 5")])
     assert scheduler.is_finished()
-    current.write_text("{broken")
-    with pytest.raises(RuntimeError, match="corrupt nohup state"):
-        scheduler.is_finished()
-    current.unlink()
-    with pytest.raises(RuntimeError, match="Missing"):
-        scheduler.is_finished()
+    context = encode_context(dict(job_name=scheduler.job_name, script=str(scheduler.script.resolve())))
+    command = f"python /repo/_nohup_runner.py --job-id {job_id} --context {context}"
+    monkeypatch.setattr(module, "snapshot_processes", lambda: [Process(123, 1, os.getuid(), "S", "00:01", command)])
+    assert not scheduler.is_finished()
+    monkeypatch.setattr(module, "snapshot_processes", lambda: [Process(123, 1, os.getuid(), "Z", "00:01", command)])
+    assert scheduler.is_finished()
+    monkeypatch.setattr(module, "snapshot_processes", lambda: [Process(123, 1, os.getuid() + 1, "S", "00:01", command)])
+    assert scheduler.is_finished()
+    other_script = encode_context(dict(job_name=scheduler.job_name, script="/another/run.script"))
+    monkeypatch.setattr(module, "snapshot_processes", lambda: [Process(123, 1, os.getuid(), "S", "00:01",
+        f"python /repo/_nohup_runner.py --job-id {job_id} --context {other_script}")])
+    assert scheduler.is_finished()
+
+
+def test_query_ignores_legacy_status_sidecars(schedulers):
+    scheduler = schedulers()
+    legacy = scheduler.script.with_name(scheduler.script.name + ".nohup")
+    legacy.mkdir()
+    (legacy / "current.json").write_text("{broken old status")
+    assert scheduler.is_finished()
+    job_id = scheduler.submit()
+    _wait(scheduler.is_finished)
+    assert "hello" in scheduler.output_path(job_id).read_text()
+    assert (legacy / "current.json").read_text() == "{broken old status"
 
 
 def test_supervisor_exec_failure_is_reported(schedulers, monkeypatch):
@@ -134,4 +147,15 @@ def test_supervisor_exec_failure_is_reported(schedulers, monkeypatch):
     monkeypatch.setattr(module.sys, "executable", "/not-a-python-executable")
     with pytest.raises(RuntimeError, match="failed to start"):
         scheduler.submit()
-    assert not (scheduler.state_directory / "current.json").exists()
+    assert not list(scheduler.script.parent.glob("*.nohup"))
+    assert not list(scheduler.script.parent.glob("*.json"))
+
+
+def test_startup_timeout_terminates_detached_job(schedulers, monkeypatch):
+    import gdpx.execution.schedulers.nohup.nohup as module
+    scheduler = schedulers(commands="sleep 30\n")
+    monkeypatch.setattr(module.select, "select", lambda *args: ([], [], []))
+    with pytest.raises(TimeoutError, match="startup exceeded"):
+        scheduler.submit()
+    assert scheduler.is_finished()
+    assert not list(scheduler.script.parent.glob("*.nohup"))

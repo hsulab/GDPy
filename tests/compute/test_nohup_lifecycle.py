@@ -14,7 +14,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from gdpx.execution.lifecycle import inspect_compute, load_compute_plan
-from gdpx.execution.schedulers import NohupScheduler
+from gdpx.execution.processes import snapshot_processes, supervisor_context
 
 
 def _wait(predicate, timeout=30):
@@ -48,16 +48,14 @@ def calculation(tmp_path):
             cwd=tmp_path, capture_output=True, text=True, check=check, timeout=30,
         )
     yield directory, inputs, runtime, config, cli
-    for current in directory.glob("_meta/jobscripts/*.nohup/current.json"):
-        record = json.loads(current.read_text())
-        scheduler = NohupScheduler()
-        scheduler.script = pathlib.Path(record["script"])
-        scheduler.job_name = record["job_name"]
-        try:
-            if not scheduler.is_finished():
-                os.killpg(record["pid"], signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+    for process in snapshot_processes():
+        context = supervisor_context(process)
+        if (process.active and context is not None and context.get("script")
+                and directory in pathlib.Path(context["script"]).parents):
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
 
 
 def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path):
@@ -70,9 +68,11 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     cli("compute", "submit", log="gdp.out")
     shared_log = directory / "gdp.out"
     submission_log = shared_log.read_bytes()
-    currents = list(directory.glob("_meta/jobscripts/*.nohup/current.json"))
-    assert len(currents) == 2  # Queued dispatch honors batch_size instead of direct batching.
-    job_ids = {json.loads(path.read_text())["job_id"] for path in currents}
+    records = json.loads((directory / "_meta/scheduler.json").read_text())["_default"]
+    assert len(records) == 2  # Queued dispatch honors batch_size instead of direct batching.
+    job_ids = {record["scheduler_job_id"] for record in records.values()}
+    assert not list(directory.glob("_meta/jobscripts/*.nohup"))
+    assert not list(directory.glob("_meta/jobscripts/**/*.json"))
     before = (directory / "_meta/scheduler.json").read_bytes()
     cli("compute", "submit")
     assert (directory / "_meta/scheduler.json").read_bytes() == before
@@ -84,9 +84,8 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     gate.touch()
     _wait(lambda: inspect_compute(load_compute_plan(directory)).state == "finished")
     assert shared_log.read_bytes() == submission_log
-    for current in currents:
-        record = json.loads(current.read_text())
-        output = current.parent / record["job_id"] / "output.log"
+    for job_id in job_ids:
+        output = directory / "_meta/jobscripts" / f"{job_id}.out"
         assert "____" in output.read_text()  # Child CLI diagnostics remain captured.
     status = cli("compute", "status")
     assert "finished" in status.stdout + status.stderr
@@ -105,19 +104,20 @@ def test_nohup_failed_calculation_requires_explicit_resubmission(calculation, tm
     runtime.write_text(yaml.safe_dump(config))
     cli("-r", runtime, "compute", "prepare", inputs)
     cli("compute", "submit")
-    current = next(directory.glob("_meta/jobscripts/*.nohup/current.json"))
-    first = json.loads(current.read_text())["job_id"]
-    _wait(lambda: (current.parent / first / "completed.json").exists())
-    assert json.loads((current.parent / first / "completed.json").read_text())["exit_code"] == 7
+    state_path = directory / "_meta/scheduler.json"
+    first = next(iter(json.loads(state_path.read_text())["_default"].values()))["scheduler_job_id"]
+    first_log = directory / "_meta/jobscripts" / f"{first}.out"
+    _wait(lambda: first_log.exists() and "status 7" in first_log.read_text())
     assert inspect_compute(directory).state == "running"
     assert cli("compute", "collect", check=False).returncode != 0
     allow.touch()
     cli("compute", "resubmit", "--batch", "0")
-    second = json.loads(current.read_text())["job_id"]
+    second = next(iter(json.loads(state_path.read_text())["_default"].values()))["scheduler_job_id"]
     assert second != first
     _wait(lambda: inspect_compute(directory).state == "finished")
     cli("compute", "collect")
     assert len(read(directory / "results/end_frames.xyz", ":")) == 2
     record = next(iter(json.loads((directory / "_meta/scheduler.json").read_text())["_default"].values()))
     assert record["attempt"] == 2
-    assert (current.parent / first / "output.log").exists()
+    assert first_log.exists()
+    assert not list(directory.glob("_meta/jobscripts/*.nohup"))
