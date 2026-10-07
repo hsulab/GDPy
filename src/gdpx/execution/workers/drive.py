@@ -376,6 +376,26 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler.job_name = job.gdir
         self.scheduler.script = self._script_path(job.uid)
         self._configure_scheduler_paths()
+        self._configure_batch_transfer(
+            job.uid, job.structure_digest, job.wdir_names, job.scheduler_job_id
+        )
+
+    def _configure_batch_transfer(self, uid, digest, wdir_names, scheduler_job_id=""):
+        if self.scheduler.transport_name != "ssh" or not self.compact_metadata:
+            return
+        candidates = {(self.directory / name).resolve() for name in wdir_names}
+        journal = self.metadata.result_path(uid).resolve()
+        inputs = self.metadata.inputs.read()
+        snapshot = inputs["structures"][digest]
+        paths = {self.metadata.inputs.path.resolve(), self.scheduler.script.resolve(), journal}
+        if isinstance(snapshot, dict) and "file" in snapshot:
+            paths.add((self.metadata_directory / snapshot["file"]).resolve())
+        self.scheduler.staging_paths = paths | candidates
+        self.scheduler.sync_paths = candidates | {journal}
+        if scheduler_job_id and self.scheduler.name == "slurm":
+            self.scheduler.sync_paths.add(
+                (self.scheduler.script.parent / f"slurm-{scheduler_job_id}.out").resolve()
+            )
 
     # ------------------------------------------------------------------
     # Driver access
@@ -786,6 +806,7 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler.script = self._script_path(uid)
         self.scheduler.script.parent.mkdir(parents=True, exist_ok=True)
         self._configure_scheduler_paths()
+        self._configure_batch_transfer(uid, identifier, batch[1])
 
         compute_plan_path = getattr(self, "compute_plan_path", None)
         concurrent = self.scheduler.concurrent_tasks

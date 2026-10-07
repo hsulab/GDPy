@@ -113,6 +113,8 @@ class SshTransport(BaseScheduler):
         # Optional exact exclusions for callers sharing a staging root. The
         # default retains legacy name-based job-store exclusions.
         self.staging_excludes: Optional[set[pathlib.Path]] = None
+        self.staging_paths: Optional[set[pathlib.Path]] = None
+        self.sync_paths: Optional[set[pathlib.Path]] = None
         self._ssh_client_factory = ssh_client_factory or paramiko.SSHClient
 
     @property
@@ -239,7 +241,18 @@ class SshTransport(BaseScheduler):
     def _transfer(self, sftp, local_root: pathlib.Path, remote_root: pathlib.PurePosixPath) -> None:
         self._mkdir_p(sftp, remote_root)
         skipped = {f"_{self.name}_jobs.json"}
-        for path in local_root.rglob("*"):
+        roots = self.staging_paths if self.staging_paths is not None else {local_root}
+        paths = []
+        for root in sorted(roots):
+            root = root.resolve()
+            root.relative_to(local_root)  # Reject paths outside the staging root.
+            if root.is_dir():
+                paths.extend([root, *root.rglob("*")])
+            elif root.is_file():
+                paths.append(root)
+        for path in paths:
+            if path == local_root:
+                continue
             relative = path.relative_to(local_root)
             if (path.resolve() in self.staging_excludes if self.staging_excludes is not None
                     else relative.name in skipped):
@@ -338,6 +351,33 @@ class SshTransport(BaseScheduler):
         sftp = None
         try:
             sftp = client.open_sftp()
+            if self.sync_paths is not None:
+                count = removed = 0
+                for local_item in sorted(self.sync_paths):
+                    local_item = local_item.resolve()
+                    relative = local_item.relative_to(local_root)
+                    remote_item = str(remote_root.joinpath(*relative.parts))
+                    try:
+                        attr = sftp.stat(remote_item)
+                    except OSError as error:
+                        if error.errno == errno.ENOENT:
+                            continue  # A failed job may never create this output.
+                        raise
+                    if stat.S_ISDIR(attr.st_mode):
+                        count += _sync_latest_recursive(
+                            sftp, remote_item, str(local_item), skipped, self.sync_excludes
+                        )
+                        removed += _remove_outdated_recursive(
+                            sftp, remote_item, str(local_item), skipped,
+                            print_func=self._print, protected_paths=self.sync_excludes,
+                        )
+                    elif stat.S_ISREG(attr.st_mode) and _should_sync_file(sftp, remote_item, str(local_item)):
+                        local_item.parent.mkdir(parents=True, exist_ok=True)
+                        sftp.get(remote_item, str(local_item))
+                        os.utime(local_item, (attr.st_atime, attr.st_mtime))
+                        count += 1
+                message(f"synced {count} files; removed {removed} outdated items.")
+                return
             if root_relative:
                 # Exploration jobs share metadata but own disjoint output trees.
                 protected = {(local_root / '_meta').resolve()}
