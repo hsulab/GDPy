@@ -1,10 +1,12 @@
 import abc
 import pathlib
+import time
 from typing import Callable, Optional, Union
 
 import numpy as np
 
 from gdpx import config
+from gdpx.core.output import message
 from gdpx.execution.output import worker_output
 from gdpx.execution.schedulers import DirectScheduler
 from gdpx.execution.schedulers.scheduler import BaseScheduler
@@ -136,17 +138,46 @@ class BaseWorker(abc.ABC):
         self._initialise(*args, **kwargs)
         self._print(f"<<-- {self.__class__.__name__}+inspect -->>")
 
-        for job in self.job_store.get_running():
+        running = self.job_store.get_running()
+        remote = self.scheduler.transport_name == "ssh"
+        batches = {}
+        if remote and running:
+            active_inputs = {job.structure_digest or job.md5 for job in running}
+            queued = [job for job in self.job_store.get_queued()
+                      if (job.structure_digest or job.md5) in active_inputs]
+            queued.sort(key=lambda job: (job.group_number, job.uid))
+            batches = {job.gdir: f"batch {index}/{len(queued)}"
+                       for index, job in enumerate(queued, 1)}
+
+        for job in running:
             self._prepare_scheduler_for_job(job)
-            if self.scheduler.is_finished():
+            label = batches.get(job.gdir, job.gdir)
+            finished = self.scheduler.is_finished()
+            if remote:
+                status = "finished" if finished else "queued/running"
+                message(f"{label} | job {job.scheduler_job_id or '—'} | {status} | "
+                        f"{len(job.wdir_names)} calculations")
+            if finished:
+                if remote:
+                    message(f"{label} | fetching from {self.scheduler.hostname}...")
+                    started = time.monotonic()
                 self._sync_job(job)
+                if remote:
+                    message(f"{label} | fetched | elapsed {time.monotonic() - started:.1f} s")
                 if self._check_job_convergence(job):
                     self._print(f"{job.gdir} is finished...")
                     self.job_store.mark_finished(job.gdir)
                 elif resubmit:
+                    if remote:
+                        message(f"{label} | incomplete calculations | resubmitting...")
                     self._print(f"{job.gdir} is being re-submitted...")
                     self._resubmit_job(job)
+                    if remote:
+                        submitted = self.job_store.get_by_gdir(job.gdir)
+                        message(f"{label} | resubmitted | job {submitted.scheduler_job_id or '—'}")
                 else:
+                    if remote:
+                        message(f"{label} | incomplete calculations | manual resubmission required")
                     self._print(f"{job.gdir} should be re-submitted manually...")
             else:
                 self._print(f"{job.gdir} is running...")
