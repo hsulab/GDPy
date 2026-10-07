@@ -24,7 +24,8 @@ training environment. DPA4 requires the DeepMD 3 PyTorch backend; install the
 and `valid` based on `dataset` and writes a training configuration `deepmd.json`.
 The default training command is `dp train deepmd.json`. For a DPA4
 configuration, the trainer selects the PyTorch backend and runs
-`dp --pt train deepmd.json`.
+`dp --pt train deepmd.json`. DPA4C selects the exportable PyTorch backend
+and runs `dp --pt-expt train deepmd.json`.
 
 Some parameters in the `deepmd.json` will be filled automatically by **gdp**.
 training.training_data and training.validation_data will be the folder paths generated
@@ -58,61 +59,77 @@ initialise model parameters from a previous checkpoint. This is useful when
 training models iteratively in an active learning loop.
 :::
 
-## Train a DPA4 model
+## Run the training examples
 
-The repository includes a DPA4-Mini template in
-`examples/training/dpa4/`, adapted from the DeepMD-kit 3.2.0 water example.
-Copy its two configuration files into a working directory:
+The repository includes small CPU examples for `se_e2_a`, DPA4, and DPA4C
+under `examples/training/`. See the [training examples README](https://github.com/hsulab/GDPy/blob/main/examples/training/README.md)
+for the configuration provenance, backend requirements, and dataset layout.
+
+Use the existing `gdp3` mamba environment. From the repository root, generate
+24 periodic Cu3Au1 structures labeled with ASE EMT energies, forces, and virials:
 
 ```shell
-cp examples/training/dpa4/dpa4.json .
-cp examples/training/dpa4/train.yaml .
+mamba run -n gdp3 python examples/training/prepare.py
+
+export CUDA_VISIBLE_DEVICES=""
+export OMP_NUM_THREADS=2
+export DP_INTRA_OP_PARALLELISM_THREADS=2
+export DP_INTER_OP_PARALLELISM_THREADS=1
+export TF_NUM_INTRAOP_THREADS=2
+export TF_NUM_INTEROP_THREADS=1
+
+(cd examples/training/se_e2_a && mamba run -n gdp3 gdp -d _train train train.yaml)
+(cd examples/training/dpa4 && mamba run -n gdp3 gdp -d _train train train.yaml)
+(cd examples/training/dpa4c && mamba run -n gdp3 gdp -d _train train train.yaml)
 ```
 
-Keep the model's `type_map` consistent with the labeled structures. **gdp**
-replaces the training and validation system paths, batch sizes, step count,
-display frequency, checkpoint frequency, and random seeds in this template.
-
-The included `train.yaml` contains:
+Run from the model directories to resolve relative paths. Each `train.yaml`
+uses `../dataset`, batch size 4, train ratio 0.9, seed 1112, and:
 
 ```yaml
-dataset:
-  name: xyz
-  dataset_path: ./dataset
-  train_ratio: 0.9
-  batchsize: 4
-  random_seed: 1112
 trainer:
   provider: deepmd
   method: default
   parameters:
     config: ./dpa4.json
     train_epochs: 10
+    print_epochs: 1
+    train_batches: null
     random_seed: 1112
 ```
 
-Place labeled extended XYZ files below system directories whose names include
-the composition, for example `dataset/water-H2O-molecule/set-000/data.xyz`.
-The files must contain reference energies and forces. Run the training workflow
-from the directory containing both configuration files:
+`train_batches: null` disables the default 200,000-step minimum. GDPy's
+checkpoint/display frequency rounding makes these examples run for 100
+steps. They demonstrate the workflow and do not establish model accuracy.
+For real training, replace the labeled dataset, keep `type_map` consistent
+with it, and choose an appropriate duration and validation split.
 
-```shell
-gdp -d dpa4-train train train.yaml
-```
+The `se_e2_a` example uses plain `dp` commands, whose default backend is
+TensorFlow, and exports `_train/deepmd-c.pb`. DPA4 automatically selects
+`dp --pt` and exports the
+latest `model.ckpt.pt` checkpoint as `_train/deepmd.pt2`, without compression.
+DPA4C automatically selects `dp --pt-expt`, freezes with `--lower-kind graph`,
+and compresses to `_train/deepmd-c.pt2`. The `.pt2` archives target the device
+type used during export, so freeze on the CPU or GPU type that will run inference.
 
-The trainer detects `model.type: dpa4`, trains with `dp --pt`, and exports the
-latest `model.ckpt.pt` checkpoint as `dpa4-train/deepmd.pt2`. DPA4 does not
-support the standard DeepMD compression step. The `.pt2` archive targets the
-device type used during export, so freeze it on the CPU or GPU type that will
-run inference.
+The DPA4 and DPA4C examples adapt the supplied OMat24 Mini architectures to Cu3Au1
+and CPU execution. They do not require OMat24 statistics files or pretrained
+weights. AMP, training compilation, TF32, EMA, and distributed training are
+disabled. The `.pt2` export still compiles an AOTInductor package and can take
+several minutes. The DPA4C CPU example also enables
+fitting-network residual timesteps (`resnet_dt: true`) to use general graph
+compression, because the compact export path requires an operator unavailable
+in the `gdp3` CPU build. Its fitting parameterization therefore differs from
+the supplied OMat24 configuration.
 
-To fine-tune instead of training from scratch, add a local PyTorch checkpoint
-to the top level of `train.yaml`:
+To fine-tune DPA4 or DPA4C instead of training from scratch, add a local
+PyTorch checkpoint to the top level of `train.yaml`:
 
 ```yaml
-init_model: ./pretrained-dpa4.pt
+init_model: ./pretrained-model.pt
 ```
 
-For DPA4, the trainer passes this checkpoint to DeepMD with `--finetune`.
+The trainer passes this checkpoint to DeepMD with `--finetune`. Keep the
+checkpoint's element ordering and compatible architecture when fine-tuning.
 
 [deepmd]: https://docs.deepmodeling.com/projects/deepmd/en/latest/
