@@ -811,11 +811,14 @@ class DriverBasedWorker(BaseWorker):
         compute_plan_path = getattr(self, "compute_plan_path", None)
         concurrent = self.scheduler.concurrent_tasks
         run_tasks_concurrently = concurrent > 1 and len(batch[1]) > 1
+        # Scheduler output captures child diagnostics. Independent jobs/tasks
+        # must not append to the orchestrating CLI's shared gdp.out.
+        gdp_command = "gdp --log="
         if self.compact_metadata:
             if run_tasks_concurrently:
-                command = f'gdp compute run --job {shlex.quote(uid)} --task "$task"'
+                command = f'{gdp_command} compute run --job {shlex.quote(uid)} --task "$task"'
             else:
-                command = f"gdp compute run --job {shlex.quote(uid)}"
+                command = f"{gdp_command} compute run --job {shlex.quote(uid)}"
         elif compute_plan_path is not None:
             if run_tasks_concurrently:
                 raise ValueError("Concurrent execution requires compact job metadata.")
@@ -826,7 +829,7 @@ class DriverBasedWorker(BaseWorker):
             remote_root_arg = os.path.relpath(compute_root, self.directory.resolve())
             remote_plan_arg = os.path.relpath(compute_plan_path, self.directory.resolve())
             command = (
-                f"gdp -d {shlex.quote(remote_root_arg)} compute run "
+                f"{gdp_command} -d {shlex.quote(remote_root_arg)} compute run "
                 f"--plan {shlex.quote(remote_plan_arg)} "
                 f"--worker {worker_index} --batch {batch_number}"
             )
@@ -834,7 +837,7 @@ class DriverBasedWorker(BaseWorker):
             if run_tasks_concurrently:
                 raise ValueError("Concurrent execution requires compact job metadata.")
             job_path = pathlib.Path("_meta") / f"job-{uid}.json"
-            command = f"gdp compute run --job {shlex.quote(str(job_path))}"
+            command = f"{gdp_command} compute run --job {shlex.quote(str(job_path))}"
 
         submit_variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
                            "lsf": "LS_SUBCWD"}.get(self.scheduler.name)

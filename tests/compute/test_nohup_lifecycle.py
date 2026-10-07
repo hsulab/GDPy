@@ -42,9 +42,9 @@ def calculation(tmp_path):
         "scheduler": {"provider": "nohup", "parameters": {"environs": environ}},
         "dispatch": {"batch_size": 1},
     }
-    def cli(*args, check=True):
+    def cli(*args, check=True, log=""):
         return subprocess.run(
-            [sys.executable, shutil.which("gdp"), "--log", "", "-d", str(directory), *map(str, args)],
+            [sys.executable, shutil.which("gdp"), "--log", log, "-d", str(directory), *map(str, args)],
             cwd=tmp_path, capture_output=True, text=True, check=check, timeout=30,
         )
     yield directory, inputs, runtime, config, cli
@@ -67,7 +67,9 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     runtime.write_text(yaml.safe_dump(config))
     cli("-r", runtime, "compute", "prepare", inputs)
     assert not list(directory.glob("_meta/jobscripts/*.nohup"))
-    cli("compute", "submit")
+    cli("compute", "submit", log="gdp.out")
+    shared_log = directory / "gdp.out"
+    submission_log = shared_log.read_bytes()
     currents = list(directory.glob("_meta/jobscripts/*.nohup/current.json"))
     assert len(currents) == 2  # Queued dispatch honors batch_size instead of direct batching.
     job_ids = {json.loads(path.read_text())["job_id"] for path in currents}
@@ -81,6 +83,11 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     assert cli("compute", "collect", check=False).returncode != 0
     gate.touch()
     _wait(lambda: inspect_compute(load_compute_plan(directory)).state == "finished")
+    assert shared_log.read_bytes() == submission_log
+    for current in currents:
+        record = json.loads(current.read_text())
+        output = current.parent / record["job_id"] / "output.log"
+        assert "____" in output.read_text()  # Child CLI diagnostics remain captured.
     status = cli("compute", "status")
     assert "finished" in status.stdout + status.stderr
     cli("compute", "collect")

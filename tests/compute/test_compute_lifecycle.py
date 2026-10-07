@@ -260,7 +260,7 @@ def test_prepare_renders_bounded_concurrent_task_loop(tmp_path):
     assert "task_count=8" in script
     assert "concurrent_tasks=4" in script
     assert "for ((start=0; start<task_count; start+=concurrent_tasks))" in script
-    assert 'gdp compute run --job' in script
+    assert "gdp --log= compute run --job" in script
     assert '--task "$task"' in script
 
 
@@ -341,8 +341,8 @@ def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
                    env=dict(os.environ, PBS_O_WORKDIR=str(script.parent)), check=True)
     assert (staged / "launch-cwd").read_text().strip() == str(staged)
     args = (staged / "launch-args").read_text().splitlines()
-    assert args[:3] == ["compute", "run", "--job"]
-    assert args[3] in json.loads((staged / "_meta" / "inputs.json").read_text())["jobs"]
+    assert args[:4] == ["--log=", "compute", "run", "--job"]
+    assert args[4] in json.loads((staged / "_meta" / "inputs.json").read_text())["jobs"]
 
 
 def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):

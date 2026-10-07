@@ -151,8 +151,8 @@ def test_generated_driver_script_launches_from_worker_root(mock_sched, fake_driv
     subprocess.run(["bash", str(mock_sched.script)], cwd=mock_sched.script.parent, check=True)
     assert (root / "launch-cwd").read_text().strip() == str(root)
     args = (root / "launch-args").read_text().splitlines()
-    assert args[:3] == ["compute", "run", "--job"]
-    assert args[3] in worker.metadata.inputs.read()["jobs"]
+    assert args[:4] == ["--log=", "compute", "run", "--job"]
+    assert args[4] in worker.metadata.inputs.read()["jobs"]
 
 
 def test_legacy_driver_layout_is_not_overwritten(mock_sched, fake_driver, tmp_path):

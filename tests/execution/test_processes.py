@@ -33,6 +33,7 @@ bad output
     "gdp workflow run workflow.yaml",
     "gdp compute --batch 0 input.xyz",
     "gdp -r runtime.yaml compute",
+    "gdp --log= compute run --job abc",
 ])
 def test_identifies_simulation_launchers(command, monkeypatch):
     monkeypatch.setattr(module, "process_directory", lambda pid: "/work")
