@@ -66,6 +66,7 @@ sessions. Inspect per-attempt logs under `cu2-nohup/_meta/jobscripts/`.
 ```shell
 gdp queue                 # this user's simulations on the current host
 gdp queue --all-users     # simulations of all visible users
+gdp queue --long          # full job IDs, directories, and commands
 gdp queue --json          # JSON array for scripts
 ```
 
@@ -75,8 +76,11 @@ alongside identifiable GDPy compute, exploration, and workflow-run processes
 started through other launch paths. Each nohup allocation has one row;
 descendant GDPy tasks are suppressed. Other jobs use `pid:<PID>` identifiers.
 
-The table shows the job ID, PID, user, OS process state, elapsed time, directory,
-and command. Sleeping and stopped simulations remain listed; exited and zombie
+The compact table shows abbreviated nohup IDs (the first eight UUID characters),
+PID, user, OS process state, elapsed time, and the directory shortened to 32
+characters (with `…` marking an omitted prefix). Use `--long` for full IDs,
+directories, and commands. JSON always retains full values. Sleeping and stopped
+simulations remain listed; exited and zombie
 processes do not. A directory unavailable to the current user is shown as `—`.
 JSON uses `null` for unavailable directories.
 
