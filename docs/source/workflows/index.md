@@ -271,6 +271,12 @@ the original exploration, selection, labeling, training, and validation steps;
 its cluster paths and commands are parameters that can be adapted to another
 site.
 
+For a local DPA4C committee example, see
+[`examples/workflows/active-learning-dpa4c`](https://github.com/hsulab/GDPy/tree/main/examples/workflows/active-learning-dpa4c).
+It bootstraps two models on 24 EMT-labeled Cu₃Au₁ structures, samples with DPA4C,
+selects frames by force uncertainty, labels them with EMT, and retrains on the
+cumulative dataset.
+
 ## Migrating older session files
 
 The previous session format is not loaded implicitly. Rename `variables` to
