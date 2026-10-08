@@ -1,0 +1,13 @@
+potential:
+  provider: mace
+  backend: ase
+  parameters:
+    # User-provided MACE-OMAT-0 Small checkpoint; no automatic download.
+    model: ./models/mace-omat-0-small.model
+    precision: float32
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20

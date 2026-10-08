@@ -1,0 +1,12 @@
+potential:
+  provider: deepmd
+  backend: ase
+  parameters:
+    # User-provided DPA4-mini model exported for the execution device.
+    model: ./models/dpa4-mini.pt2
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20

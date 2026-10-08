@@ -1,0 +1,16 @@
+potential:
+  provider: tace
+  backend: ase
+  parameters:
+    # User-provided TACE-OMat24-7M checkpoint; no automatic download.
+    model: ./models/tace-omat24-7m.pt
+    precision: float32
+    device: cpu
+    fidelity_idx: 0
+    target_property: [energy, forces]
+executor:
+  provider: ase
+  method: min
+  parameters:
+    fmax: 0.05
+    steps: 20
