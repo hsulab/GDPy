@@ -16,7 +16,7 @@ The example reuses
 {ref}`ga-supported-nanoparticle-example`. The 180-atom Al72O108 slab has a
 14.28 × 16.49 Å orthogonal surface and 12 Al atoms in its exposed top layer.
 The shared demo runtime allows all atoms to relax. To fix the bottom Al–O–Al
-repeat unit for a surface study, add `constraint: lowest 60` to
+repeat unit for a surface study, add ``constraint: "`zbot 60`"`` to
 `executor.parameters`.
 
 The `random` builder generates Cu4 and CO together inside a sphere of radius

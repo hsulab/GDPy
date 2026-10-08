@@ -50,6 +50,7 @@ installation.md
 :hidden:
 
 units
+groups-and-constraints
 quick-examples
 ```
 

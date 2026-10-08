@@ -32,9 +32,10 @@ step. The three initial Cu–Cu separations should relax toward the same EMT
 minimum. Inspect `min-demo/results/end_frames.xyz` and the convergence report;
 reaching the step limit alone does not establish convergence.
 
-To freeze atoms, set `executor.parameters.setup.constraint` using gdpx’s constraint
-expression syntax. For example, `constraint: "1:1"` fixes the first atom;
-these index expressions use one-based inclusive indices.
+To freeze atoms, set `executor.parameters.setup.constraint`. For example,
+``constraint: "`index 0`"`` fixes the first atom, while
+``constraint: "`zbot 4`"`` fixes the bottom four atoms. See
+{doc}`../../groups-and-constraints` for selection syntax and indexing conventions.
 
 To change machine resources, add a scheduler as described in
 {doc}`../schedulers`.

@@ -25,7 +25,7 @@ The insertion region spans the complete right-angled periodic surface cell from
 z = 4.60 to 9.10 Å, leaving about 12.9 Å of clear vacuum above it.
 The default periodic setting applies periodic boundary conditions in all three
 directions. The shared demo runtime allows all atoms to relax. For a surface
-study, add `constraint: lowest 4` to `executor.parameters` to fix the lower Cu
+study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower Cu
 layer while relaxing the upper layer and Cu–O overlayer.
 
 ## Input

@@ -52,3 +52,4 @@ See {doc}`methods` for dimer, random, and graph builders.
 ## Related Components
 
 - {doc}`regions <region>`
+- {doc}`atomic groups and constraints <../groups-and-constraints>`

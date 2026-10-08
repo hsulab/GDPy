@@ -28,7 +28,7 @@ executor:
   parameters:
     fmax: 0.05
     steps: 400
-    constraint: lowest 120
+    constraint: "`zbot 120`"
 ```
 
 This runtime executes directly on the current machine by default. Add a

@@ -102,7 +102,7 @@ The following runtime can be paired with the
 ```
 
 This shared demo runtime allows all atoms to relax. Add
-`constraint: lowest 60` to `executor.parameters` to fix the bottom substrate
+``constraint: "`zbot 60`"`` to `executor.parameters` to fix the bottom substrate
 planes in that exploration.
 
 In the {ref}`single-thread CPU comparison <potential-cpu-inference-comparison>`,

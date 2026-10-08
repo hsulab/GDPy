@@ -38,7 +38,7 @@ executor:
   provider: ase
   method: min
   parameters:
-    constraint: lowest 60
+    constraint: "`zbot 60`"
     fmax: 0.05
     steps: 20
 ```

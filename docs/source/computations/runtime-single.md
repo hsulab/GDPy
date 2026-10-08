@@ -10,6 +10,9 @@ part of the configuration. A registered pairing does not guarantee that every
 method is supported by the calculator: cell relaxation, for example, requires
 a potential that supplies stress.
 
+See {doc}`../groups-and-constraints` for selecting atoms with `group` and
+freezing them with `executor.parameters.setup.constraint`.
+
 ## Provider compatibility
 
 | Potential provider | Executor provider |
