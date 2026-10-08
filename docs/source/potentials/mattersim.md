@@ -90,3 +90,21 @@ named checkpoint automatically on first use; local paths must already exist.
 
 See {ref}`ga-water-cluster-example` for a complete four-water global-
 optimisation example using the 1M model.
+
+
+## Supported-cluster runtime and CPU inference
+
+The following runtime can be paired with the
+{ref}`supported-cluster exploration <ga-supported-nanoparticle-example>`:
+
+```{literalinclude} ../../../examples/global_optimisation/runtimes/mattersim.yaml
+:language: yaml
+```
+
+This shared demo runtime allows all atoms to relax. Add
+`constraint: lowest 60` to `executor.parameters` to fix the bottom substrate
+planes in that exploration.
+
+In the {ref}`single-thread CPU comparison <potential-cpu-inference-comparison>`,
+the 1M model's standard ASE calculator measured **421.0 ms** per
+energy-and-force evaluation with `compute_stress=False`.

@@ -74,3 +74,41 @@ The LAMMPS interface requires exactly one exported model; `command` defaults
 to `lmp`.
 
 See {doc}`../trainers/mace` for training.
+
+### MACE-OMAT-0 Small runtime
+
+Supply your own checkpoint at `./models/mace-omat-0-small.model`, or update
+`potential.parameters.model` in this reusable local-relaxation runtime:
+
+```{literalinclude} ../../../examples/global_optimisation/runtimes/mace_omat_small.yaml
+:language: yaml
+```
+
+Use it with any exploration whose elements and chemistry are supported by the
+model. Add system-specific constraints to your own runtime copy when needed.
+This runtime uses GDPy's standard ASE path. The compiled timings below were
+measured with the upstream calculator; GDPy's current MACE adapter does not
+forward `compile_mode`.
+
+## Foundation-model CPU inference
+
+Local checkpoints from the
+[official MACE foundation registry](https://github.com/ACEsuit/mace-foundations)
+were tested on the {ref}`shared 184-atom CPU fixture <potential-cpu-inference-comparison>`
+with float32, one thread, and dispersion and specialized acceleration disabled.
+Each timing excludes loading and compilation. All outputs were finite.
+
+| Checkpoint | Standard CPU | `compile_mode="default"` |
+| --- | ---: | ---: |
+| MP-0a Small | 895.0 ms | — |
+| MP-0b Small | 665.0 ms | — |
+| MP-0b2 Small | 503.3 ms | **286.2 ms** |
+| OMAT-0 Small | 732.9 ms | **373.9 ms** |
+| OMAT-0 Medium | 1,570.0 ms | 1,117.4 ms |
+
+Compilation was tested directly with the upstream `MACECalculator`, using
+`device="cpu"`, `default_dtype="float32"`, and `compile_mode="default"`.
+MP-0a Small and MP-0b Small were tested on their standard paths only.
+MP-0b2 Small was the fastest of these tested configurations. Compilation made
+OMAT-0 Small about twice as fast as its standard path and three times faster
+than compiled OMAT-0 Medium.

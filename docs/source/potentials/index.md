@@ -126,3 +126,34 @@ Move `parameters.backend` to `potential.backend`. Replace CP2K/VASP's old
 `parameters.interface` with `potential.backend`, using `interactive` for
 `cp2k_shell` and `vasp_interactive`. Replace `vasp_interactive_disp` with
 `interactive` plus a `dftd3` modifier; see {doc}`vasp`.
+
+(potential-cpu-inference-comparison)=
+
+## CPU inference comparison
+
+The following measurements use the 184-atom Cu₄/alumina fixture
+`examples/global_optimisation/assets/cu4_alumina111_supported.xyz`. Each value
+is the median of ten uncached energy-and-force evaluations on slightly
+perturbed geometries after three warmups, with one CPU thread. Model loading,
+export, and compilation are excluded. All evaluations returned finite outputs.
+
+| Model | CPU inference path | Time per evaluation |
+| --- | --- | --- |
+| DPA4C-mini OMat24, v20260819 | CPU-exported `.pt2`, scalar code generation | **29.2 ms** |
+| MACE-MP-0b2 Small | ASE calculator with `compile_mode="default"`, float32 | 286.2 ms |
+| MACE-OMAT-0 Small | ASE calculator with `compile_mode="default"`, float32 | 373.9 ms |
+| MatterSim 1M | Standard ASE calculator, stress disabled | 421.0 ms |
+| DPA4-mini OMat24, v20260805 | CPU-exported `.pt2` | 601.1 ms |
+| MACE-OMAT-0 Medium | ASE calculator with `compile_mode="default"`, float32 | 1,117.4 ms |
+| TACE-OMat24-7M | Compiled ASE calculator, scalar code generation, energy/forces only | 6,104.7 ms |
+| TACE-OMat24-7M | Standard ASE calculator, energy/forces only | 10,312.2 ms |
+
+The environment was macOS ARM, Python 3.12 (`gdp3`), PyTorch 2.11.0,
+ASE 3.29.0, DeepMD-kit 3.2.0, MatterSim 1.2.5, and TACE 0.2.2. MACE 0.3.16
+with e3nn 0.4.4 used a temporary package overlay to preserve TACE dependencies.
+These results compare the stated deployment paths on one geometry, not model
+accuracy, GPU performance, or complete exploration times.
+
+See {doc}`deepmd` for DPA4/DPA4C exports, {doc}`mace` for foundation-model
+results, {doc}`mattersim` for its calculator settings, and {doc}`tace` for
+profiling and the CPU compilation workaround.

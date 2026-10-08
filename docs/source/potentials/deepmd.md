@@ -121,6 +121,70 @@ that will run the calculation. **gdp** currently requires a local model path;
 DeepMD preset names such as `dpa4c-nano-v20260901` are not resolved
 automatically.
 
+(deepmd-dpa4c-export-troubleshooting)=
+
+#### Export troubleshooting
+
+:::{note}
+Use Python 3.12 for DPA4C export rather than Python 3.10. Check the active
+environment with `python --version` before running `dp --pt-expt freeze`.
+
+If CPU export still fails on macOS ARM with an undeclared variable in generated
+C++ code, scalar code generation provides a workaround without changing the
+checkpoint weights:
+
+```shell
+DEVICE=cpu OMP_NUM_THREADS=1 python -c \
+    'import torch._inductor.config as cfg; cfg.cpp.simdlen = 1; from deepmd.main import main; main()' \
+    --pt-expt freeze -c /path/to/model.ckpt.pt \
+    -o ./frozen_model --lower-kind graph
+```
+
+This generated-code failure was also observed with Python 3.12 and PyTorch
+2.11, so upgrading Python alone may not resolve it.
+:::
+
+(bh-supported-nanoparticle-dpa4-example)=
+
+### User-provided DPA4-mini and DPA4C-mini
+
+With the `deepmd3-torch` extra and DeepMD-kit 3.2 or newer, export your own
+pretrained checkpoint for the device that will run inference. These examples
+neither bundle nor download weights. For CPU:
+
+```shell
+mkdir -p models
+DEVICE=cpu OMP_NUM_THREADS=1 dp --pt freeze \
+    -c /path/to/DPA4-Mini-OMat24-v20260805.pt -o ./models/dpa4-mini
+DEVICE=cpu OMP_NUM_THREADS=1 dp --pt-expt freeze \
+    -c /path/to/DPA4C-Mini-OMat24-v20260819.pt \
+    -o ./models/dpa4c-mini --lower-kind graph
+```
+
+DPA4 uses `--pt`; DPA4C uses `--pt-expt`. Alternatively, provide an existing
+`.pt2` export and update `potential.parameters.model` in your runtime. See
+{ref}`deepmd-dpa4c-export-troubleshooting` if DPA4C export fails.
+
+The following runtimes pair these local models with short ASE
+relaxations for the {ref}`supported-cluster exploration <bh-supported-nanoparticle-example>`.
+Both checkpoints must support Cu, Al, and O.
+
+The runtimes can also be used for other systems supported by the models. Add
+system-specific constraints to your own runtime copy when needed.
+
+```{literalinclude} ../../../examples/global_optimisation/runtimes/dpa4_mini.yaml
+:language: yaml
+```
+
+```{literalinclude} ../../../examples/global_optimisation/runtimes/dpa4c_mini.yaml
+:language: yaml
+```
+
+In the {ref}`single-thread CPU comparison <potential-cpu-inference-comparison>`,
+DPA4-mini measured **601.1 ms** per energy-and-force evaluation; DPA4C-mini
+measured **29.2 ms** with the scalar CPU export workaround. The latter was
+about 20.6 times faster on this fixture.
+
 ### Parameter notes
 
 `model` accepts one existing checkpoint or a list. `models` is also accepted

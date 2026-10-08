@@ -35,7 +35,7 @@ and guide.
 | Bulk | {ref}`Cu₄ <ga-bulk-example>` | EMT | |
 | Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | MatterSim | |
 | Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | MatterSim | Variable composition |
-| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | MatterSim | |
+| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | User-selected | GA and {ref}`BH <bh-supported-nanoparticle-example>` recipes |
 | Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | MatterSim | Two initial builders: random and site insertion |
 
 ```{toctree}

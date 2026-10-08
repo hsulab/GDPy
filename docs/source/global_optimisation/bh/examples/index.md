@@ -19,7 +19,7 @@ for queue and SSH execution, and {ref}`exploration-output-layout` for output
 directories and restart metadata. EMT examples require no model download;
 TACE and MatterSim require their optional model dependencies.
 
-The examples below cover finite **Cluster** systems. Select a chemical system
+The examples below cover finite **Cluster** systems and supported **Interface** systems. Select a chemical system
 to open its configuration and guide.
 
 | Main system | Specific system | Potential | Notes |
@@ -30,6 +30,7 @@ to open its configuration and guide.
 | Cluster | {ref}`Cu₆Niₓ <bh-variable-composition-example>` | EMT | Variable composition through Ni insertion/removal |
 | Cluster | {ref}`Cu₄O₄ <bh-cuox-tace-example>` | TACE | Oxide cluster search |
 | Cluster | {ref}`Cu₄O₄ <bh-cuox-thanos-example>` | MatterSim | Extinction and chain restarts |
+| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <bh-supported-nanoparticle-example>` | User-selected | Cu-only hops; bottom substrate planes fixed by runtime |
 
 ```{toctree}
 :maxdepth: 1
