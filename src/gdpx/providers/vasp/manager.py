@@ -141,6 +141,10 @@ class VaspManager(BasePotentialManager):
 
             # Update residual params
             calc.set(**calc_params)
+
+        # Preserve species-based settings consumed by the VASP driver.
+        calc.magmom_settings = magmom_init
+        calc.dft_plus_u = dft_plus_u
         self.calc = calc
 
         return
