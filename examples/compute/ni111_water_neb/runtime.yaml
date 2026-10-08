@@ -12,7 +12,7 @@ executor:
       interpolation:
         mic: true
       climb: false
-      constraint: lowest 4
+      constraint: "`zbot 4`"
       optimizer:
         name: bfgs
         parameters:

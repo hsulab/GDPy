@@ -11,7 +11,7 @@ runtime:
     provider: ase
     method: spc
     parameters:
-      constraint: lowest 4
+      constraint: "`zbot 4`"
   dispatch:
     worker: single
 

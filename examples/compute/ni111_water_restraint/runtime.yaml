@@ -11,7 +11,7 @@ executor:
     setup:
       ensemble: nvt
       timestep: 0.25
-      constraint: lowest 4
+      constraint: "`zbot 4`"
       velocities:
         initialize: if_missing
         seed: 7

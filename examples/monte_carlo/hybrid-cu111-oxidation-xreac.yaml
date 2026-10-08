@@ -11,7 +11,7 @@ runtime: &single_point
     provider: ase
     method: spc
     parameters:
-      constraint: lowest 4
+      constraint: "`zbot 4`"
   dispatch:
     worker: single
 
@@ -56,7 +56,7 @@ strategy:
             velocity_seed: 2026
             random_seed: 2026
             remove_rotation: false
-            constraint: lowest 4
+            constraint: "`zbot 4`"
             controller:
               name: langevin
               params:
