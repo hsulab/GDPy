@@ -250,9 +250,14 @@ class AtomsNDArray:
 
         Accepts a boolean array of shape ``self.shape``, or an integer
         coordinate array of shape ``(M, ndim)`` (old format, auto-converted).
+        An empty coordinate list clears the selection.
 
         """
         new_markers = np.asarray(new_markers)
+
+        # Selectors and their caches represent an empty coordinate list as [].
+        if new_markers.ndim == 1 and new_markers.size == 0 and new_markers.dtype != bool:
+            new_markers = np.empty((0, self.ndim), dtype=int)
 
         if new_markers.dtype == bool or new_markers.dtype == np.bool_:
             if new_markers.shape != self._shape:

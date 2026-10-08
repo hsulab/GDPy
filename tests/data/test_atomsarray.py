@@ -65,6 +65,20 @@ def random_atoms():
 # Existing tests (unchanged)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.parametrize("markers", [[], np.array([]), np.array([], dtype=int)])
+@pytest.mark.parametrize("ndim", [1, 2, 3])
+def test_empty_coordinate_markers(random_atoms, markers, ndim):
+    data = random_atoms[:2]
+    for _ in range(ndim - 1):
+        data = [data]
+    array = AtomsNDArray(data)
+    array.markers = markers
+    assert array.markers.shape == array.shape
+    assert array.markers.dtype == bool
+    assert not array.markers.any()
+    assert array.get_marked_structures() == []
+
+
 def test_shape(aa3d):
     """"""
     assert len(aa3d) == 21
