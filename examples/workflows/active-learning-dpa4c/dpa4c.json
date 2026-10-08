@@ -1,0 +1,73 @@
+{
+  "model": {
+    "type_map": [
+      "Cu",
+      "Au"
+    ],
+    "descriptor": {
+      "type": "dpa4c",
+      "rcut": 6.0,
+      "channels": 32,
+      "lmax": 2,
+      "radial_modes": 0,
+      "use_amp": false,
+      "precision": "float32",
+      "seed": 42
+    },
+    "fitting_net": {
+      "neuron": [
+        192,
+        192,
+        192
+      ],
+      "resnet_dt": true,
+      "activation_function": "silu",
+      "precision": "float32",
+      "seed": 42
+    }
+  },
+  "learning_rate": {
+    "type": "cosine",
+    "start_lr": 0.004,
+    "stop_lr": 1e-06,
+    "warmup_ratio": 0.003,
+    "warmup_start_factor": 0.2
+  },
+  "loss": {
+    "type": "ener",
+    "loss_func": "mae",
+    "f_use_norm": true,
+    "start_pref_e": 20,
+    "limit_pref_e": 20,
+    "start_pref_f": 20,
+    "limit_pref_f": 20,
+    "start_pref_v": 0,
+    "limit_pref_v": 0
+  },
+  "optimizer": {
+    "type": "HybridMuon",
+    "weight_decay": 0.001
+  },
+  "training": {
+    "training_data": {
+      "systems": [],
+      "batch_size": 4
+    },
+    "validation_data": {
+      "systems": [],
+      "batch_size": 4,
+      "numb_batch": 1
+    },
+    "numb_steps": 100,
+    "gradient_max_norm": 5,
+    "save_freq": 100,
+    "disp_file": "lcurve.out",
+    "disp_freq": 100,
+    "seed": 1112,
+    "zero_stage": 0,
+    "enable_ema": false,
+    "enable_compile": false,
+    "enable_tf32": false
+  },
+  "_comment": "CPU DPA4C committee for EMT-labeled Cu3Au1 active learning; energy and force training only, with resnet_dt for graph compression."
+}

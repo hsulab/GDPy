@@ -1,0 +1,20 @@
+includes: [common.yaml]
+
+workflow:
+  targets: save
+
+steps:
+  train:
+    __type__: train
+    inputs:
+      dataset: seed_data
+      trainer: dpa4c_trainer
+      potential: training_potential
+    options:
+      size: 2
+      share_dataset: true
+
+  save:
+    __type__: save_potential
+    inputs:
+      potential: train

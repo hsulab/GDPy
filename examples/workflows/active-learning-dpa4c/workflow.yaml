@@ -1,0 +1,118 @@
+includes: [common.yaml]
+
+workflow:
+  mode: repeat
+  targets: save
+  max_iterations: 2
+
+state:
+  potential:
+    initial: seed_committee
+    update: train
+  training_data:
+    initial: seed_data
+    update: {node: collect, output: dataset}
+
+resources:
+  seed_committee:
+    __type__: potential
+    options: {$file: bootstrap/steps/0001.save/potential.yaml}
+
+  md:
+    __type__: executor
+    options:
+      provider: ase
+      method: md
+      parameters:
+        ensemble: nvt
+        timestep: 0.5
+        temp: 300.0
+        steps: 20
+        dump_period: 5
+        controller: {name: langevin}
+
+  uncertain:
+    __type__: selector
+    options:
+      selection:
+        - method: property
+          name: max_devi_f
+          sparsify: {method: filter, range: [{$param: force_deviation_min}, null]}
+        - method: random
+          number: [4, 1.0]
+          random_seed: 1112
+
+  emt:
+    __type__: potential
+    options:
+      provider: emt
+
+  spc:
+    __type__: executor
+    options:
+      provider: ase
+      method: spc
+
+  labeling_runtime:
+    __type__: runtime
+    inputs:
+      potential: emt
+      executor: spc
+
+steps:
+  read:
+    __type__: read_stru
+    options:
+      fname: {$param: initial_structure}
+
+  sampling_runtime:
+    __type__: assemble
+    inputs:
+      potential: potential
+      executor: md
+    options:
+      variable: runtime
+
+  sample:
+    __type__: compute
+    inputs:
+      structures: read
+      runtime: sampling_runtime
+
+  select:
+    __type__: select
+    inputs:
+      structures: sample
+      selector: uncertain
+
+  label:
+    __type__: compute
+    inputs:
+      structures: select
+      runtime: labeling_runtime
+
+  collect:
+    __type__: transfer
+    inputs:
+      structures: label
+      dataset: training_data
+    options:
+      split_ratio: 1.0
+      prefix: active
+      suffix: bulk
+      version: emt
+
+  train:
+    __type__: train
+    inputs:
+      dataset: {node: collect, output: dataset}
+      trainer: dpa4c_trainer
+      potential: training_potential
+    options:
+      size: 2
+      share_dataset: true
+
+  save:
+    __type__: save_potential
+    inputs:
+      potential: train
