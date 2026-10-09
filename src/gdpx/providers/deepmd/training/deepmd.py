@@ -7,9 +7,11 @@ import json
 import os
 import pathlib
 import subprocess
+from collections.abc import Mapping
 from typing import Optional
 
 import numpy as np
+import yaml
 
 from gdpx.data.loaders.deepmd import DeepmdDataloader
 
@@ -30,7 +32,7 @@ class DeepmdTrainer(BasePotentialTrainer):
 
     def __init__(
         self,
-        config: dict,
+        config: dict | str | pathlib.Path,
         type_list: Optional[list[str]] = None,
         train_epochs: int = 200,
         print_epochs: int = 5,
@@ -42,7 +44,19 @@ class DeepmdTrainer(BasePotentialTrainer):
         *args,
         **kwargs,
     ) -> None:
-        """"""
+        """Initialize from a configuration mapping or a JSON/YAML file."""
+        if isinstance(config, (str, pathlib.Path)):
+            config_path = pathlib.Path(config)
+            with config_path.open() as stream:
+                if config_path.suffix == ".json":
+                    config = json.load(stream)
+                elif config_path.suffix in {".yaml", ".yml"}:
+                    config = yaml.safe_load(stream)
+                else:
+                    raise ValueError(f"Unsupported DeepMD configuration file: {config_path}")
+        if not isinstance(config, Mapping):
+            raise TypeError("DeepMD configuration must be a mapping or a JSON/YAML file containing a mapping.")
+
         super().__init__(
             config=config,
             type_list=type_list,

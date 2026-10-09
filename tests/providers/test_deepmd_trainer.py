@@ -2,9 +2,11 @@ import json
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from gdpx.providers.deepmd.training.deepmd import DeepmdTrainer
 from gdpx.providers.training import BasePotentialTrainer, FreezingFailed
+from gdpx.workflow.factory import create_trainer
 
 
 def _dpa4_config(compact=False, family="dpa4"):
@@ -22,6 +24,41 @@ def _dpa4_config(compact=False, family="dpa4"):
             "validation_data": {"systems": [], "batch_size": 1},
         },
     }
+
+
+@pytest.mark.parametrize("suffix", [".json", ".yaml", ".yml"])
+@pytest.mark.parametrize("type_list", [None, ["H", "O"]])
+def test_workflow_trainer_loads_config_file(tmp_path, suffix, type_list):
+    config = _dpa4_config()
+    path = tmp_path / f"input{suffix}"
+    path.write_text(json.dumps(config) if suffix == ".json" else yaml.safe_dump(config))
+
+    trainer = create_trainer({
+        "provider": "deepmd", "method": "default",
+        "parameters": {"config": str(path), "type_list": type_list},
+    })
+
+    assert trainer.config == config
+    assert trainer.type_list == ["H", "O"]
+    assert trainer.component_config.to_dict()["parameters"]["config"] == config
+    assert trainer._resolve_train_command().startswith("dp --pt train deepmd.json")
+
+
+def test_trainer_loads_path_object(tmp_path):
+    path = tmp_path / "input.json"
+    path.write_text(json.dumps(_dpa4_config()))
+
+    trainer = DeepmdTrainer(config=path)
+
+    assert trainer.config == _dpa4_config()
+
+
+def test_trainer_rejects_config_file_without_mapping(tmp_path):
+    path = tmp_path / "input.json"
+    path.write_text('"invalid"')
+
+    with pytest.raises(TypeError, match="DeepMD configuration must be a mapping"):
+        DeepmdTrainer(config=path, type_list=["H", "O"])
 
 
 def test_dpa4_commands_and_artifact(tmp_path):
