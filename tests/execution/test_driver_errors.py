@@ -6,6 +6,7 @@ from ase.calculators.calculator import Calculator
 
 from gdpx.execution.driver import BaseDriver, DriverSetting
 from gdpx.execution.workers import DriverBatchError, run_computation_in_commandline
+from gdpx.execution.workers.drive import DriverBasedWorker
 
 
 class _Calculator(Calculator):
@@ -45,6 +46,34 @@ class _BatchDriver:
         self.attempted.append(index)
         if index in self.failures:
             raise ValueError(f"failure-{index}")
+
+
+@pytest.mark.parametrize("retain_info", [False, True])
+def test_retrieval_rejects_empty_results_before_retaining_info(tmp_path, retain_info):
+    worker = SimpleNamespace(
+        n_jobs=1, _drivers=[], _info_data=None,
+        _retain_info=retain_info, compact_metadata=False, _print=lambda *args: None,
+        _iread_results=lambda drivers, wdir, **kwargs: [] if wdir.name == "cand38" else [Atoms("H")],
+    )
+
+    with pytest.raises(RuntimeError, match="Cannot retrieve empty calculation results:") as caught:
+        DriverBasedWorker._read_results(worker, [tmp_path / "cand37", tmp_path / "cand38"])
+
+    assert str(tmp_path / "cand38") in str(caught.value)
+    assert str(tmp_path / "cand37") not in str(caught.value)
+
+
+def test_retrieval_preserves_complete_result_order(tmp_path):
+    frames = {"cand38": [Atoms("H")], "cand37": [Atoms("He")]}
+    worker = SimpleNamespace(
+        n_jobs=1, _drivers=[], _info_data=None,
+        _retain_info=False, _print=lambda *args: None,
+        _iread_results=lambda drivers, wdir, **kwargs: frames[wdir.name],
+    )
+
+    results = DriverBasedWorker._read_results(worker, [tmp_path / "cand38", tmp_path / "cand37"])
+
+    assert results == [frames["cand38"], frames["cand37"]]
 
 
 def _structures(count):

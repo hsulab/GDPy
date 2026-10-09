@@ -1058,6 +1058,16 @@ class DriverBasedWorker(BaseWorker):
                 for wdir in unretrieved_wdirs
             )
 
+            empty_wdirs = [
+                str(wdir) for wdir, trajectory in zip(unretrieved_wdirs, results_)
+                if not trajectory
+            ]
+            if empty_wdirs:
+                raise RuntimeError(
+                    "Cannot retrieve empty calculation results: " + ", ".join(empty_wdirs)
+                    + ". Check calculation outputs and synchronize completed remote results before retrying."
+                )
+
             if self._retain_info and not self.compact_metadata:
                 info_keys, info_data = self._read_cached_xinfo()
                 retained_keys = [k for k in info_keys if k not in self.reserved_keys]
@@ -1067,12 +1077,7 @@ class DriverBasedWorker(BaseWorker):
                     }
                     traj_frames[0].info.update(retained_dict)
 
-            results = []
-            for i, traj_frames in enumerate(results_):
-                if traj_frames:
-                    results.append(traj_frames)
-                else:
-                    self._print(f"Found empty calculation at {str(self.directory)} with cand{i}...")
+            results = results_
 
             if results:
                 self._print(f"new_trajectories: {len(results)} nframes of the first: {len(results[0])}")
