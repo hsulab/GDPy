@@ -72,17 +72,25 @@ resources:
       provider: lammps
       method: md
       parameters:
-        ignore_atoms_velocities: true
-        dump_period: 1000
-        ckpt_period: 1000000
-        ensemble: nvt
-        controller:
-          name: nose_hoover_chain
-        timestep: 1.0
-        steps: 1000000
-        constraint: "`zbot 48`"
+        setup:
+          ensemble: nvt
+          timestep: 1.0
+          constraint: '`zbot 48`'
+          velocities:
+            initialize: always
+          regulator:
+            name: nose_hoover_chain
+            targets:
+              temperature: 300
+        output:
+          trajectory:
+            period: 1000
+          checkpoint:
+            period: 1000000
+        stop:
+          steps: 1000000
       broadcast:
-        temp: [300, 400, 500, 600]
+        setup.regulator.targets.temperature: [300, 400, 500, 600]
 
   scheduler_1h_gpu:
     __type__: scheduler

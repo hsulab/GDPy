@@ -72,13 +72,18 @@ resources:
       provider: ase
       method: md
       parameters:
-        ensemble: nvt
-        timestep: 1.0
-        temp: 600.0
-        steps: 100
-        dump_period: 10
-        controller: {name: langevin}
-
+        setup:
+          ensemble: nvt
+          timestep: 1.0
+          regulator:
+            name: langevin
+            targets:
+              temperature: 600.0
+        output:
+          trajectory:
+            period: 10
+        stop:
+          steps: 100
   spc:
     __type__: executor
     options:

@@ -11,7 +11,8 @@ runtime: &single_point
     provider: ase
     method: spc
     parameters:
-      constraint: "`zbot 4`"
+      setup:
+        constraint: '`zbot 4`'
   dispatch:
     worker: single
 
@@ -48,19 +49,25 @@ strategy:
           provider: ase
           method: md
           parameters:
-            ensemble: nvt
-            temp: 600.0
-            timestep: 0.25
-            steps: 40
-            dump_period: 5
-            velocity_seed: 2026
             random_seed: 2026
-            remove_rotation: false
-            constraint: "`zbot 4`"
-            controller:
-              name: langevin
-              params:
-                friction: 0.01
+            setup:
+              ensemble: nvt
+              timestep: 0.25
+              constraint: '`zbot 4`'
+              velocities:
+                seed: 2026
+                remove_rotation: false
+              regulator:
+                name: langevin
+                targets:
+                  temperature: 600.0
+                parameters:
+                  friction: 0.01
+            output:
+              trajectory:
+                period: 5
+            stop:
+              steps: 40
     - method: monte_carlo
       steps: 3
       runtime: *single_point

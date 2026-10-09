@@ -35,18 +35,24 @@ strategy:
           provider: ase
           method: md
           parameters:
-            ensemble: nvt
-            temp: 1200.0
-            timestep: 1.0
-            steps: 20
-            dump_period: 5
-            velocity_seed: 7
             random_seed: 7
-            remove_rotation: false
-            controller:
-              name: langevin
-              params:
-                friction: 0.01
+            setup:
+              ensemble: nvt
+              timestep: 1.0
+              velocities:
+                seed: 7
+                remove_rotation: false
+              regulator:
+                name: langevin
+                targets:
+                  temperature: 1200.0
+                parameters:
+                  friction: 0.01
+            output:
+              trajectory:
+                period: 5
+            stop:
+              steps: 20
     - method: monte_carlo
       steps: 5
       runtime: *single_point

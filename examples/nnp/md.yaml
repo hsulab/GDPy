@@ -8,13 +8,18 @@ executor:
   provider: ase
   method: md
   parameters:
-    timestep: 1.0
-    temp: 300.0
-    steps: 10000
-    dump_period: 100
-    controller:
-      name: langevin
-
+    setup:
+      timestep: 1.0
+      ensemble: nvt
+      regulator:
+        name: langevin
+        targets:
+          temperature: 300.0
+    output:
+      trajectory:
+        period: 100
+    stop:
+      steps: 10000
 scheduler:
   provider: direct
   parameters: {}
