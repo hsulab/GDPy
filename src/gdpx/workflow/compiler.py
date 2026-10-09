@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import inspect
 import pathlib
-import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -15,8 +14,7 @@ from gdpx.workflow.session.registry import workflow_registers as registers
 from .configuration import NodeSpec, OutputReference, WorkflowConfigError, WorkflowSpec
 from .state import OutputSelector, StateVariable, TargetBarrier
 
-STEP_DIRECTORY_LAYOUT = "topological-v1"
-_ORDERED_STEP_DIRECTORY = re.compile(r"^\d{4,}\..+")
+STEP_DIRECTORY_LAYOUT = "topological-flat-v2"
 
 
 @dataclass(frozen=True)
@@ -163,17 +161,9 @@ def _step_directory_names(spec: WorkflowSpec) -> dict[str, str]:
 
 def _reject_legacy_step_directories(root: pathlib.Path) -> None:
     steps = root / "steps"
-    if not steps.is_dir():
-        return
-    legacy = sorted(
-        path.name
-        for path in steps.iterdir()
-        if path.is_dir() and not _ORDERED_STEP_DIRECTORY.fullmatch(path.name)
-    )
-    if legacy:
-        names = ", ".join(legacy)
+    if steps.is_dir():
         raise WorkflowConfigError(
-            f"Legacy step directory layout detected at {steps}: {names}; "
+            f"Legacy step directory layout detected at {steps}; "
             "use a fresh run directory."
         )
 
@@ -214,7 +204,7 @@ def compile_workflow(
         if category == "variable":
             kwargs["directory"] = root / "resources" / name
         else:
-            kwargs["directory"] = root / "steps" / step_directories[name]
+            kwargs["directory"] = root / step_directories[name]
         try:
             nodes[name] = cls(**kwargs)
         except Exception as error:

@@ -202,9 +202,14 @@ steps:
     assert compiled.nodes["left"].directory.name == "0001.left"
     assert compiled.nodes["right"].directory.name == "0002.right"
     assert compiled.nodes["final"].directory.name == "0003.final"
+    assert all(
+        compiled.nodes[name].directory.parent == tmp_path / "run"
+        for name in ("root", "left", "right", "final")
+    )
 
 
-def test_legacy_step_directories_require_fresh_run(tmp_path):
+@pytest.mark.parametrize("step_name", ["result", "0000.result"])
+def test_legacy_step_directories_require_fresh_run(tmp_path, step_name):
     path = _write(
         tmp_path / "workflow.yaml",
         """
@@ -215,7 +220,7 @@ steps:
   result: {__type__: workflow_test_add, inputs: {value: value}}
 """,
     )
-    (tmp_path / "run" / "steps" / "result").mkdir(parents=True)
+    (tmp_path / "run" / "steps" / step_name).mkdir(parents=True)
 
     with pytest.raises(WorkflowConfigError, match="Legacy step directory layout.*fresh"):
         compile_workflow(load_workflow(path), tmp_path / "run")
@@ -235,8 +240,9 @@ steps:
     )
 
     assert run_workflow_spec(load_workflow(path), tmp_path / "runs")
-    steps = tmp_path / "runs" / "multiple" / "steps"
-    assert sorted(path.name for path in steps.iterdir()) == ["0000.left", "0001.right"]
+    run = tmp_path / "runs" / "multiple"
+    assert sorted(path.name for path in run.iterdir() if path.is_dir()) == ["0000.left", "0001.right"]
+    assert not (run / "steps").exists()
 
 
 def test_repeat_workflow_runs_each_iteration(tmp_path):
@@ -284,7 +290,8 @@ steps:
 
     assert manifest["iteration"] == 2
     assert manifest["values"]["counter"] == {"kind": "json", "value": 6}
-    assert (run / "iter.0002" / "steps" / "0000.pair").is_dir()
+    assert (run / "iter.0002" / "0000.pair").is_dir()
+    assert not any(run.glob("iter.*/steps"))
     assert not any(run.glob("iter.*/outputs"))
 
     messages = []
@@ -310,6 +317,38 @@ resources:
 
     with pytest.raises(RuntimeError, match="configuration changed"):
         run_workflow_spec(load_workflow(path), tmp_path / "runs")
+
+
+@pytest.mark.parametrize("manifest_name", ["initial.yaml", "current.yaml"])
+def test_repeat_workflow_rejects_nested_step_layout_on_resume(tmp_path, monkeypatch, manifest_name):
+    from gdpx.workflow import state_store
+
+    path = _write(
+        tmp_path / "stateful.yaml",
+        """
+workflow: {mode: repeat, targets: result, max_iterations: 1}
+state:
+  counter: {initial: seed, update: result}
+resources:
+  seed: {__type__: workflow_test, options: {value: 1}}
+steps:
+  result: {__type__: workflow_test_add, inputs: {value: counter}}
+""",
+    )
+    spec = load_workflow(path)
+    assert run_workflow_spec(spec, tmp_path / "runs")
+    state = tmp_path / "runs" / "stateful" / "state"
+    manifest_path = state / manifest_name
+    manifest = yaml.safe_load(manifest_path.read_text())
+    with monkeypatch.context() as patch:
+        patch.setattr(state_store, "STEP_DIRECTORY_LAYOUT", "topological-v1")
+        manifest["workflow"] = state_store.workflow_fingerprint(spec)
+    manifest_path.write_text(yaml.safe_dump(manifest))
+    if manifest_name == "initial.yaml":
+        (state / "current.yaml").unlink()
+
+    with pytest.raises(RuntimeError, match="configuration changed.*fresh run"):
+        run_workflow_spec(spec, tmp_path / "runs")
 
 
 def test_cli_overrides_use_yaml_types():

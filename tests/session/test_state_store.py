@@ -8,7 +8,7 @@ from gdpx.workflow.state_store import decode_state, encode_state
 
 
 def test_potential_state_preserves_backend_and_references_models_by_path(tmp_path):
-    model = tmp_path / "iter.0000" / "steps" / "train" / "m0" / "model.pb"
+    model = tmp_path / "iter.0000" / "0000.train" / "m0" / "model.pb"
     model.parent.mkdir(parents=True)
     model.write_bytes(b"model-v1")
     potential = PotentialConfig(
@@ -47,7 +47,7 @@ def test_initial_xyz_dataset_is_persisted_as_path_snapshot(tmp_path):
 
 
 def test_named_potential_state_uses_manifest_without_copying_model(tmp_path):
-    model = tmp_path / "iter.0000" / "steps" / "train" / "model.npz"
+    model = tmp_path / "iter.0000" / "0000.train" / "model.npz"
     model.parent.mkdir(parents=True)
     model.write_bytes(b"large-model-placeholder")
     potential = PotentialConfig("nnp", None, {"model": [str(model)]}, "ase")

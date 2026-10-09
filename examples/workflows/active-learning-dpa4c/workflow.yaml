@@ -16,7 +16,7 @@ state:
 resources:
   seed_committee:
     __type__: potential
-    options: {$file: bootstrap/steps/0001.save/potential.yaml}
+    options: {$file: bootstrap/0001.save/potential.yaml}
 
   md:
     __type__: executor

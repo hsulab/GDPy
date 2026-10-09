@@ -26,7 +26,7 @@ def test_transfer_returns_immutable_dataset_snapshots(tmp_path):
         dataset_test=Variable(test),
         split_ratio={"dataset": 0.5, "dataset_test": 0.5},
         prefix="active",
-        directory=tmp_path / "iteration" / "steps" / "transfer",
+        directory=tmp_path / "iteration" / "0000.transfer",
     )
 
     outputs = operation.forward([_labelled_hydrogen(0.0), _labelled_hydrogen(1.0)], train, test)
@@ -49,7 +49,7 @@ def test_state_dataset_is_centralized_and_versions_are_cumulative(tmp_path):
         version="ignored",
         dataset=Variable(seed),
         prefix="active",
-        directory=tmp_path / "iter.0000" / "steps" / "transfer",
+        directory=tmp_path / "iter.0000" / "0000.transfer",
     )
     first.bind_state_artifact("dataset", "training_data", tmp_path, 0)
     snapshot0 = first.forward([_labelled_hydrogen(0.0)], seed)["dataset"]
@@ -59,7 +59,7 @@ def test_state_dataset_is_centralized_and_versions_are_cumulative(tmp_path):
         version="ignored",
         dataset=Variable(snapshot0),
         prefix="active",
-        directory=tmp_path / "iter.0001" / "steps" / "transfer",
+        directory=tmp_path / "iter.0001" / "0000.transfer",
     )
     second.bind_state_artifact("dataset", "training_data", tmp_path, 1)
     snapshot1 = second.forward([_labelled_hydrogen(1.0)], snapshot0)["dataset"]
