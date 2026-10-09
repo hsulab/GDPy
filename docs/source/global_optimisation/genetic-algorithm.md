@@ -41,7 +41,7 @@ invocation boundaries, including partial results when an invocation fails.
 Timestamps come from the original database records. Resuming a search refreshes
 the files without duplicating entries and also reconstructs history for older runs.
 
-Completed searches also write a compact 1200 × 600 `results/family_tree.png`.
+Completed searches also write a compact 1200 × 600 `results/history/family_tree.png`.
 The family tree places candidates in generation rows
 and connects parents to offspring. Only candidate IDs, generation numbers, and
 the objective color bar are labeled, with the same `coolwarm` palette as BH.

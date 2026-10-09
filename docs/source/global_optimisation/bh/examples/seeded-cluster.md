@@ -72,7 +72,7 @@ for row in database.select(relaxed=1, generation=0):
 ```
 
 There are two initial rows labeled `random` and two labeled `seeds`, even if
-some candidates later relax to similar minima. Reports and the lineage figure
+some candidates later relax to similar minima. Reports and the history figure
 are under `results/`; see the {doc}`basic Cu₈ example <cluster>` for trajectory
 export and the output layout.
 

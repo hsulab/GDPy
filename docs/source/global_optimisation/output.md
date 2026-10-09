@@ -6,6 +6,11 @@ For a single exploration, `gdp -d work explore ...` writes algorithm outputs,
 checkpoints, calculation directories, and `gdp.out` directly under `work/`.
 There is no enclosing `expedition-0` directory.
 
+GA and BH save search history figures under `results/history/`: GA writes
+`family_tree.png`, and BH writes `genNNNN.png` for each generation. This replaces
+GA's former `results/family_tree.png` and BH's `results/lineage/` paths. Existing
+figures remain in place; reporting a completed search writes the new paths.
+
 When a recipe creates multiple explorations, each has its own `expo.<index>`
 directory. Indices start at zero. The number of decimal digits in the exploration
 count is rounded up to the next even width:

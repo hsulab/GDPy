@@ -93,4 +93,4 @@ configuration shared by these examples.
 | [Cu<sub>4</sub>O<sub>4</sub>](global_optimisation/bh/examples/cuox_thanos.md) | cluster | O-O extinction and chain restarts |
 
 See the {doc}`basin-hopping guide <global_optimisation/basin_hopping>` for
-acceptance, batching, checkpoints, and lineage output.
+acceptance, batching, checkpoints, and history output.

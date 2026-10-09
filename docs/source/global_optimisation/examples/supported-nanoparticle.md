@@ -103,7 +103,7 @@ gdp -d ./run-cu4-alumina111-bh --runtime ./runtime.yaml explore \
 ```
 
 Inspect `candidates.db` for relaxed structures and acceptance metadata,
-`results/lineage/gen0001.png` for the search history, and
+`results/history/gen0001.png` for the search history, and
 `tmp_folder/gen1/rounds/events.jsonl` for committed rounds. Repeating the
 command with the same output directory resumes the search.
 

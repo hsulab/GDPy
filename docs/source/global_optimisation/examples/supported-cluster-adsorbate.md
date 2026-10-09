@@ -80,7 +80,7 @@ The search is stored under `run-cu4-co-alumina111`. When it
 completes, `results/all_candidates.xyz` contains the relaxed candidates and
 `results/pop.png` summarises their energies by generation.
 
-`results/family_tree.png` labels the two initial builder groups as `random` and
+`results/history/family_tree.png` labels the two initial builder groups as `random` and
 `site_insertion`. Candidate IDs and black parent arrows trace their descendants;
 the shared energy color bar uses blue for lower energy and red for higher energy.
 Compare the initial groups to see whether site insertion gives better starting

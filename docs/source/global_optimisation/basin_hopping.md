@@ -237,9 +237,9 @@ in-progress generation with this implementation. Completed history remains
 readable; minima from older worker outputs are not backfilled automatically. Round ordering also changes trajectories for old
 random seeds; new runs are reproducible across restart boundaries.
 
-## Lineage figures
+## History figures
 
-Completed runs write compact 1200 × 600 PNGs to `results/lineage/`.
+Completed runs write compact 1200 × 600 PNGs to `results/history/`.
 `gen0001.png` combines all initial (generation 0) candidates with generation 1.
 `gen0002.png` combines the retained population at the start of generation 2 with
 its trials, and later generations follow the same pattern. Earlier candidates

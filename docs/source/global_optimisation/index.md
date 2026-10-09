@@ -143,7 +143,7 @@ combine them into one initial population, evaluated by the same runtime.
 ## Results and restart
 
 Inspect `gdp.out` for progress, `candidates.db` for evaluated candidates, and
-`results/` for strategy-specific reports and lineage figures. Rerun the same
+`results/` for strategy-specific reports and history figures. Rerun the same
 command with the same configuration and output directory to resume interrupted
 work. Use a new directory when changing the strategy, runtime, or search setup.
 See {doc}`output` for the complete directory layout and restart conventions.

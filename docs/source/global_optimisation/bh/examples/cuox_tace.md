@@ -42,7 +42,7 @@ or CUDA extensions. Relaxations are limited to 20 steps and may not reach the
 force tolerance. Use `device: cuda` on a compatible GPU installation.
 
 Under `run-cu4o4-bh-tace`, inspect `candidates.db` for relaxed
-structures and acceptance metadata, `results/lineage/gen0001.png` for the search
+structures and acceptance metadata, `results/history/gen0001.png` for the search
 history, and `tmp_folder/gen1/rounds/events.jsonl` for committed rounds.
 Running the same command with the same directory resumes the search; a completed
 search does not add duplicate calculations. See {doc}`cluster` for trajectory
@@ -75,5 +75,5 @@ MatterSim 1.2.3 also passed an energy/force smoke test in the same environment.
 With the earlier 300-step runtime, the complete recipe produced four initial relaxed candidates and 16 relaxed
 trials across all eight rounds, with a best energy of approximately
 −36.1774 eV. Every stored relaxed structure had finite energy and forces.
-The lineage figure was generated, and rerunning the completed search left the
+The history figure was generated, and rerunning the completed search left the
 database rows unchanged. Numerical differences can change the search trajectory.
