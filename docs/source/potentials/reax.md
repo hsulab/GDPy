@@ -45,8 +45,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 20
+    stop:
+      fmax: 0.05
+      steps: 20
 ```
 
 `model` is required. Use `bundled:<filename>` for an xreac parameter file,
@@ -89,7 +90,8 @@ executor:
   provider: lammps
   method: min
   parameters:
-    steps: 20
+    stop:
+      steps: 20
 ```
 
 The adapter resolves `model` to an absolute path and sets
@@ -114,8 +116,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 20
+    stop:
+      fmax: 0.05
+      steps: 20
 ```
 
 The model must be a local file. LAMMPS performs `run 0` energy/force evaluations

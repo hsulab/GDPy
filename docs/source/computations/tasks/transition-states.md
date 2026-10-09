@@ -105,12 +105,14 @@ executor:
   provider: cp2k
   method: dimer
   parameters:
-    steps: 100
-    fmax: 0.05
-    controller:
-      name: dimer
-      params:
-        dimer_vector: ./dimer-vector.txt
+    setup:
+      optimizer:
+        name: dimer
+        parameters:
+          dimer_vector: ./dimer-vector.txt
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 The template must reference the required basis and pseudopotential data.

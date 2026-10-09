@@ -26,9 +26,11 @@ executor:
   provider: lammps
   method: min
   parameters:
-    fmax: 0.05
-    steps: 400
-    constraint: "`zbot 120`"
+    setup:
+      constraint: '`zbot 120`'
+    stop:
+      fmax: 0.05
+      steps: 400
 ```
 
 This runtime executes directly on the current machine by default. Add a

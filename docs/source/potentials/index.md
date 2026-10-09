@@ -39,8 +39,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 20
+    stop:
+      fmax: 0.05
+      steps: 20
 ```
 
 Selecting `executor.provider: lammps` instead uses LAMMPS `reax/c` and requires

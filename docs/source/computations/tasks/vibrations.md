@@ -22,10 +22,11 @@ executor:
   provider: vasp
   method: freq
   parameters:
-    controller:
-      name: finite_difference
-      params:
-        maxstep: 0.015
+    setup:
+      optimizer:
+        name: finite_difference
+        parameters:
+          maxstep: 0.015
 ```
 
 ```shell
@@ -45,11 +46,12 @@ executor:
   provider: cp2k
   method: freq
   parameters:
-    controller:
-      name: finite_difference
-      params:
-        maxstep: 0.01
-        num_cpus_per_replica: 16
+    setup:
+      optimizer:
+        name: finite_difference
+        parameters:
+          maxstep: 0.01
+          num_cpus_per_replica: 16
 ```
 
 For CP2K, `maxstep` is in **Bohr**, not Å. The controller selects

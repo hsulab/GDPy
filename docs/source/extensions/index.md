@@ -46,7 +46,7 @@ only from the factory or materializer that needs them.
 
 ## Configuration
 
-Provider configurations use schema version 3:
+Provider configurations use schema version 4:
 
 ```
 potential:
@@ -58,8 +58,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    fmax: 0.05
-    steps: 10
+    stop:
+      fmax: 0.05
+      steps: 10
 ```
 
 The omitted scheduler defaults to direct execution on the current machine.

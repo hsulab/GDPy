@@ -42,8 +42,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    steps: 100
-    fmax: 0.05
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 The ASE backend loads models with `NequIPCalculator.from_compiled_model`.
@@ -81,8 +82,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    steps: 100
-    fmax: 0.05
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 The LAMMPS model must be an existing exported file. A list is accepted, but

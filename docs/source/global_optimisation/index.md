@@ -85,8 +85,9 @@ runtime:
     provider: ase
     method: min
     parameters:
-      fmax: 0.05
-      steps: 1000
+      stop:
+        fmax: 0.05
+        steps: 1000
 ```
 
 Now the single file contains both the search and its calculation settings:

@@ -38,9 +38,11 @@ executor:
   provider: ase
   method: min
   parameters:
-    constraint: "`zbot 60`"
-    fmax: 0.05
-    steps: 20
+    setup:
+      constraint: '`zbot 60`'
+    stop:
+      fmax: 0.05
+      steps: 20
 ```
 
 The 20-step limit keeps this demonstration short and may not reach the force

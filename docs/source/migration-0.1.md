@@ -71,7 +71,8 @@ executor:
   provider: lammps
   method: md
   parameters:
-    steps: 10000
+    stop:
+      steps: 10000
 modifiers: []
 scheduler:
   provider: direct

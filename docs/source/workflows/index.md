@@ -55,8 +55,9 @@ resources:
       provider: ase
       method: min
       parameters:
-        fmax: 0.05
-        steps: 100
+        stop:
+          fmax: 0.05
+          steps: 100
 
   relaxation:
     __type__: runtime

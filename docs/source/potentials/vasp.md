@@ -39,8 +39,9 @@ executor:
   provider: vasp
   method: min
   parameters:
-    steps: 100
-    fmax: 0.05
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 ### interactive + ase
@@ -60,8 +61,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    steps: 100
-    fmax: 0.05
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 ### interactive + ase with DFT-D3
@@ -86,8 +88,9 @@ executor:
   provider: ase
   method: min
   parameters:
-    steps: 100
-    fmax: 0.05
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 This requires `dftd3.ase`. The modifier adds its energy and forces to the VASP

@@ -17,12 +17,14 @@ executor:
   provider: ase
   method: neb
   parameters:
-    nimages: 7
-    interpolation:
-      mic: true
-    climb: true
-    fmax: 0.05
-    steps: 100
+    setup:
+      nimages: 7
+      interpolation:
+        mic: true
+      climb: true
+    stop:
+      fmax: 0.05
+      steps: 100
 ```
 
 The potential remains backend-neutral. Its provider materializes the interface
