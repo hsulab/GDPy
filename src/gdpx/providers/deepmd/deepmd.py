@@ -4,6 +4,7 @@
 
 import copy
 import importlib.util
+import pathlib
 from typing import Optional, Union
 
 from ase.calculators.calculator import Calculator
@@ -181,6 +182,9 @@ class DeepmdManager(BasePotentialManager[CalcType]):
                     pair_coeff += f"pair_coeff  * * dispersion/{dispersion_name}" + " {type_list}\n"
 
                 # Initialise the LAMMPS calculator
+                if any(pathlib.Path(model).suffix == ".pt2" for model in models):
+                    # Exported PyTorch models need the atom map for ghost owners.
+                    calc_params.setdefault("atom_modify", "map yes")
                 calc = Lammps(
                     command=command,
                     pair_style=pair_style,
