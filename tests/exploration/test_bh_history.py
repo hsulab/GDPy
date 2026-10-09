@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from gdpx.exploration.basin_hopping.lineage import collect_lineage, plot_lineage
+from gdpx.exploration.basin_hopping.history import collect_history, plot_history
 from gdpx.exploration.checkpoint import save_data
 
 
@@ -10,7 +10,7 @@ class Row(dict):
         return self[key]
 
 
-def test_lineage_preserves_rejected_extinct_and_restart(tmp_path):
+def test_history_preserves_rejected_extinct_and_restart(tmp_path):
     rounds = tmp_path / 'tmp_folder/gen1/rounds'
     rounds.mkdir(parents=True)
     events = [dict(step=0, decisions=[0], candidates=[1]),
@@ -24,26 +24,28 @@ def test_lineage_preserves_rejected_extinct_and_restart(tmp_path):
             Row(confid=3, generation=1, energy=-3, extinct=1, data=dict(round=2, chain=0, parents=[1], accepted=True)),
             Row(confid=4, generation=1, energy=-4, data=dict(round=3, chain=0, parents=[2], accepted=True))]
     connection = SimpleNamespace(select=lambda **kwargs: rows)
-    nodes, restarts = collect_lineage(connection, tmp_path)
+    nodes, restarts = collect_history(connection, tmp_path)
     assert set(nodes) == {1, 2, 3}
     assert nodes[2]['parents'] == [1] and not nodes[2]['accepted']
     assert nodes[3]['extinct']
     assert restarts == [(3, 2)]
-    paths = plot_lineage(connection, tmp_path)
+    paths = plot_history(connection, tmp_path)
     assert [p.name for p in paths] == ['gen0001.png']
+    assert paths == [tmp_path / 'results/history/gen0001.png']
+    assert not (tmp_path / 'results/lineage').exists()
     path = paths[-1]
     assert path.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
     assert not path.with_suffix('.svg').exists()
 
 
-def test_empty_lineage(tmp_path):
+def test_empty_history(tmp_path):
     connection = SimpleNamespace(select=lambda **kwargs: [])
-    assert plot_lineage(connection, tmp_path) == []
+    assert plot_history(connection, tmp_path) == []
 
 
 def test_dense_generation_is_compact_and_has_no_text(tmp_path, monkeypatch):
     from matplotlib.figure import Figure
-    from gdpx.exploration.basin_hopping.lineage import _plot_generation
+    from gdpx.exploration.basin_hopping.history import _plot_generation
     from PIL import Image
 
     nodes = {}
@@ -73,7 +75,7 @@ def test_dense_generation_is_compact_and_has_no_text(tmp_path, monkeypatch):
 
 def test_markers_and_ids_grow_to_fit_available_space():
     import matplotlib.pyplot as plt
-    from gdpx.exploration.basin_hopping.lineage import _node_style
+    from gdpx.exploration.basin_hopping.history import _node_style
     fig, ax = plt.subplots(figsize=(12, 6), dpi=100)
     try:
         ax.set(xlim=(-1, 10), ylim=(-1, 10))
@@ -87,18 +89,18 @@ def test_markers_and_ids_grow_to_fit_available_space():
 
 
 def test_generation_figures_include_initial_and_saved_population(tmp_path, monkeypatch):
-    import gdpx.exploration.basin_hopping.lineage as module
+    import gdpx.exploration.basin_hopping.history as module
     nodes = {1: dict(generation=0), 2: dict(generation=0),
              3: dict(generation=1), 4: dict(generation=1), 5: dict(generation=2)}
-    monkeypatch.setattr(module, 'collect_lineage', lambda *args: (nodes, []))
+    monkeypatch.setattr(module, 'collect_history', lambda *args: (nodes, []))
     calls = []
     monkeypatch.setattr(module, '_plot_generation',
                         lambda nodes, links, generation, path, population: calls.append((generation, population)))
     connection = SimpleNamespace(metadata={'generation_plans': {'2': {'parents': [3], 'population': [3, 4]}}})
-    paths = module.plot_lineage(connection, tmp_path)
+    paths = module.plot_history(connection, tmp_path)
     assert [path.name for path in paths] == ['gen0001.png', 'gen0002.png']
     assert calls == [(1, [1, 2]), (2, [3, 4])]
     calls.clear()
     connection.metadata['generation_plans']['2'].pop('population')
-    module.plot_lineage(connection, tmp_path)
+    module.plot_history(connection, tmp_path)
     assert calls[-1] == (2, [3])

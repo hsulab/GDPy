@@ -305,8 +305,8 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
 
         plot_evolution_figure(results, data, gen_num, self.target)
 
-        from .lineage import plot_lineage
-        plot_lineage(self.da.connection, self.directory, self.target)
+        from .history import plot_history
+        plot_history(self.da.connection, self.directory, self.target)
 
         return
 

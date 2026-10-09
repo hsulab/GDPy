@@ -7,7 +7,7 @@ import numpy as np
 from ..checkpoint import load_data
 
 
-def collect_lineage(connection, directory):
+def collect_history(connection, directory):
     """Return candidate metadata and restart links from committed BH rounds."""
     histories = {}
     for rounds in sorted((Path(directory) / 'tmp_folder').glob('gen*/rounds')):
@@ -175,9 +175,9 @@ def _plot_generation(nodes, restarts, generation, path, population=()):
         plt.close(fig)
 
 
-def plot_lineage(connection, directory):
+def plot_history(connection, directory):
     """Write one compact PNG per generation and return the output paths."""
-    nodes, restarts = collect_lineage(connection, directory)
+    nodes, restarts = collect_history(connection, directory)
     paths = []
     generations = sorted({node['generation'] for node in nodes.values()} - {0})
     if not generations and nodes:
@@ -190,7 +190,7 @@ def plot_lineage(connection, directory):
         else:
             plan = plans.get(str(generation), {})
             population = plan.get('population', plan.get('parents', []))
-        path = Path(directory) / 'results' / 'lineage' / f'gen{generation:04d}.png'
+        path = Path(directory) / 'results' / 'history' / f'gen{generation:04d}.png'
         _plot_generation(nodes, restarts, generation, path, population)
         paths.append(path)
     return paths

@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.db import connect
 from PIL import Image
 
-from gdpx.exploration.genetic_algorithm.lineage import collect_lineage, plot_lineage
+from gdpx.exploration.genetic_algorithm.history import collect_history, plot_history
 
 
 def test_original_parents_survive_mutation_and_relaxation(tmp_path):
@@ -28,7 +28,7 @@ def test_original_parents_survive_mutation_and_relaxation(tmp_path):
     db.write(atoms, confid=6, relaxed=0, generation=2,
              origin='Parthenogenesis', data={'parents': [2, 2]})
     before = db.count()
-    nodes = collect_lineage(db)
+    nodes = collect_history(db)
     assert len(nodes) == 6
     assert nodes[3]['parents'] == [1, 2]
     assert nodes[3]['generation'] == 1
@@ -38,12 +38,14 @@ def test_original_parents_survive_mutation_and_relaxation(tmp_path):
     assert not nodes[4]['evaluated']
     assert nodes[5]['parents'] == [] and nodes[5]['operation'] == 'builder'
     assert nodes[6]['parents'] == [2]
-    paths = plot_lineage(db, tmp_path, 'formation_energy')
+    paths = plot_history(db, tmp_path, 'formation_energy')
     assert [path.name for path in paths] == ['family_tree.png']
+    assert paths == [tmp_path / 'results/history/family_tree.png']
+    assert not (tmp_path / 'results/family_tree.png').exists()
     with Image.open(paths[0]) as image:
         assert image.size == (1200, 600)
     assert not paths[0].with_suffix('.svg').exists()
-    assert db.count() == before and collect_lineage(db) == nodes
+    assert db.count() == before and collect_history(db) == nodes
 
 
 def test_empty_and_incomplete_ancestry(tmp_path, monkeypatch):
@@ -55,15 +57,15 @@ def test_empty_and_incomplete_ancestry(tmp_path, monkeypatch):
         return original(figure, *args, **kwargs)
     monkeypatch.setattr(Figure, 'savefig', check)
     db = connect(tmp_path / 'candidates.db')
-    assert plot_lineage(db, tmp_path) == []
+    assert plot_history(db, tmp_path) == []
     db.write(Atoms('Cu'), confid=2, relaxed=1, generation=5,
              data={'parents': [99]})
-    paths = plot_lineage(db, tmp_path)
+    paths = plot_history(db, tmp_path)
     assert len(paths) == 1 and paths[0].exists()
 
 
 def test_production_size_keeps_all_nodes_and_readable_ids(tmp_path, monkeypatch):
-    import gdpx.exploration.genetic_algorithm.lineage as module
+    import gdpx.exploration.genetic_algorithm.history as module
     from matplotlib.figure import Figure
     nodes = {}
     for generation in range(11):
@@ -74,7 +76,7 @@ def test_production_size_keeps_all_nodes_and_readable_ids(tmp_path, monkeypatch)
             nodes[identifier] = dict(generation=generation, parents=parents,
                                      operation='crossover' if generation else 'builder',
                                      evaluated=True, extinct=False, target=-generation-index/20)
-    monkeypatch.setattr(module, 'collect_lineage', lambda connection: nodes)
+    monkeypatch.setattr(module, 'collect_history', lambda connection: nodes)
     original = Figure.savefig
     def check(figure, *args, **kwargs):
         assert not figure.texts and not figure.legends
@@ -89,21 +91,21 @@ def test_production_size_keeps_all_nodes_and_readable_ids(tmp_path, monkeypatch)
         assert len(figure.axes[0].patches) == 400
         return original(figure, *args, **kwargs)
     monkeypatch.setattr(Figure, 'savefig', check)
-    paths = module.plot_lineage(None, tmp_path)
+    paths = module.plot_history(None, tmp_path)
     with Image.open(paths[0]) as image:
         assert image.size == (1200, 600)
 
 
 def test_mixed_builders_are_grouped_and_labeled_without_a_legend(tmp_path, monkeypatch):
     from matplotlib.figure import Figure
-    from gdpx.exploration.genetic_algorithm.lineage import _layout
+    from gdpx.exploration.genetic_algorithm.history import _layout
     db = connect(tmp_path / 'candidates.db')
     for identifier, builder in enumerate(['random', 'site_insertion', 'random', 'site_insertion'], 1):
         db.write(Atoms('Cu'), confid=identifier, relaxed=0, generation=0,
                  origin=f'InitialBuilder:{builder}', data={'builder': builder})
         db.write(Atoms('Cu'), confid=identifier, relaxed=1, generation=0,
                  target=-float(identifier))
-    nodes = collect_lineage(db)
+    nodes = collect_history(db)
     positions, _, _ = _layout(nodes)
     assert max(positions[i][0] for i in (1, 3)) < min(positions[i][0] for i in (2, 4))
     original = Figure.savefig
@@ -113,4 +115,4 @@ def test_mixed_builders_are_grouped_and_labeled_without_a_legend(tmp_path, monke
         assert set(labels) == {'random', 'site_insertion', '1', '2', '3', '4'}
         return original(figure, *args, **kwargs)
     monkeypatch.setattr(Figure, 'savefig', check)
-    assert plot_lineage(db, tmp_path)[0].exists()
+    assert plot_history(db, tmp_path)[0].exists()

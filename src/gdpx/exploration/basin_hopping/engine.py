@@ -451,8 +451,8 @@ class BasinHopping(PopulationBasedExploration):
         all_relaxed_candidates = db.get_all_relaxed_candidates(use_extinct=False)
         write(results_folder / "all_candidates.xyz", all_relaxed_candidates)
 
-        from .lineage import plot_lineage
-        plot_lineage(db.connection, self.directory)
+        from .history import plot_history
+        plot_history(db.connection, self.directory)
 
         # Plot generations
         candidates_by_generations = {}

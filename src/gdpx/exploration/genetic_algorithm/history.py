@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 
-def collect_lineage(connection):
+def collect_history(connection):
     """Keep original parents when later mutations refer to the same candidate ID."""
     histories = defaultdict(list)
     for row in connection.select(sort='id', columns=['id', 'numbers', 'key_value_pairs', 'data']):
@@ -65,13 +65,13 @@ def _layout(nodes):
     return positions, sorted(generations), width
 
 
-def plot_lineage(connection, directory, objective='energy'):
+def plot_history(connection, directory, objective='energy'):
     """Write a compact PNG without altering candidates or random state."""
     import matplotlib.pyplot as plt
     from matplotlib.colors import Normalize
     from matplotlib.patches import FancyArrowPatch
 
-    nodes = collect_lineage(connection)
+    nodes = collect_history(connection)
     if not nodes:
         return []
     positions, generations, width = _layout(nodes)
@@ -137,7 +137,7 @@ def plot_lineage(connection, directory, objective='energy'):
         colorbar.set_label(f'{objective} [eV]', fontsize=8, color='#123b68')
         if not values:
             colorbar.set_ticks([])
-        output = Path(directory) / 'results'
+        output = Path(directory) / 'results' / 'history'
         output.mkdir(parents=True, exist_ok=True)
         path = output / 'family_tree.png'
         fig.savefig(path, dpi=100, facecolor=fig.get_facecolor())
