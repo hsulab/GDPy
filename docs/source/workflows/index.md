@@ -181,13 +181,17 @@ gdp workflow run examples/workflows/repeat.yaml --set input=other.xyz
 ```
 
 Each iteration gets its own `iter.0000`, `iter.0001`, and `iter.0002`
-directory. Step folders use a stable topological prefix, such as
-`iter.0001/steps/0003.explore`: every dependency sorts before its consumers,
+directory. Step folders live directly inside each iteration directory and use
+a stable topological prefix, such as
+`iter.0001/0003.explore`: every dependency sorts before its consumers,
 while independent steps follow their YAML declaration order. Changing graph
 dependencies requires a fresh run directory. When a step implements
 `report_convergence()`, the repeated workflow
 stops as soon as all reporting steps converge; otherwise it runs through
 `max_iterations`.
+
+Once-mode step folders likewise live directly inside the run directory.
+Existing runs with a nested `steps/` directory require a fresh run directory.
 
 Workflows containing stochastic builders can also rewind their random state:
 

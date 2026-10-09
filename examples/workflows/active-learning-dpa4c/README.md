@@ -26,7 +26,7 @@ gdp workflow status workflow.yaml
 `dataset/init-Cu3Au1-bulk/data.xyz` and writes an unlabeled `cu3au1.xyz` for MD.
 The bootstrap trains two independently seeded models and exports their
 compressed `deepmd-c.pt2` files. Its
-`bootstrap/steps/0001.save/potential.yaml` supplies the initial committee, so run
+`bootstrap/0001.save/potential.yaml` supplies the initial committee, so run
 the bootstrap before validating the repeat workflow.
 
 Each of two iterations performs 20 steps of DPA4C MD at 300 K, filters sampled
