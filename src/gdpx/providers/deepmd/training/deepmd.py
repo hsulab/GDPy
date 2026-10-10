@@ -187,7 +187,7 @@ class DeepmdTrainer(BasePotentialTrainer):
             if ckpt_info.exists() and ckpt_info.stat().st_size != 0:
                 # TODO: check if the ckpt model exists?
                 command = f"{self._resolve_dp_command(self.command)} train {self.name}.json "
-                command += f"--restart {self.checkpoint_name}"
+                command += f"--restart {self.checkpoint_name} {self.train_options}".rstrip()
                 self._print(f"TRAINING COMMAND: {command}")
             else:  # assume not at any ckpt so start from the scratch
                 command = self._train_from_the_scratch(dataset, init_model)

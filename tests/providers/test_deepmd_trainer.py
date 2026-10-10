@@ -227,3 +227,22 @@ def test_legacy_deepmd_commands_remain_unchanged(tmp_path):
     assert trainer.frozen_name == "deepmd.pb"
     assert trainer._resolve_train_command().startswith("dp train deepmd.json")
     assert trainer._resolve_freeze_command().startswith("dp freeze -o deepmd.pb")
+
+
+@pytest.mark.parametrize("family", ["dpa4", "dpa4c", "legacy"])
+@pytest.mark.parametrize("options", ["", "--skip-neighbor-stat --log-level DEBUG"])
+def test_train_options_apply_to_fresh_and_restart(tmp_path, family, options):
+    config = _dpa4_config(family="dpa4c" if family == "dpa4c" else "dpa4")
+    if family == "legacy":
+        config["model"].pop("type")
+        config["model"]["descriptor"]["type"] = "se_e2_a"
+    trainer = DeepmdTrainer(config=config, directory=tmp_path, train_options=options)
+    (tmp_path / "checkpoint").write_text("saved checkpoint\n")
+    fresh = trainer._resolve_train_command()
+    restart = trainer._train_from_the_restart(dataset=None, init_model=None)
+    assert f"--restart {trainer.checkpoint_name}" in restart
+    for command in [fresh, restart]:
+        assert command.count("--skip-neighbor-stat") == (1 if options else 0)
+        if options:
+            assert options in command
+    assert "--skip-neighbor-stat" not in trainer._resolve_freeze_command()
