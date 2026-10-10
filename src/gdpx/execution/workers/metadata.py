@@ -1,4 +1,4 @@
-"""Compact driver metadata with locked, atomic catalog updates.
+"""Compact worker metadata with locked, atomic catalog updates.
 
 The controller owns lifecycle records. Executing jobs append their scientific
 results to job-specific journals, while legacy embedded result catalogs remain
@@ -97,6 +97,24 @@ class WorkerMetadata:
             if not catalog.path.exists():
                 with catalog.transaction():
                     pass
+
+    def freeze_tasks(self, batches, machine_prefix):
+        """Publish non-structural task inputs using the shared job catalogs."""
+        definition = dict(version=1, batches=copy.deepcopy(batches), machine_prefix=machine_prefix)
+        with self.inputs.transaction() as data:
+            previous = data["workers"].get(self.worker)
+            if previous is not None:
+                if payload_digest(definition) != payload_digest(self.calculation_set(data, self.worker)):
+                    raise ValueError("Calculation set conflict: training inputs changed. Use a new working directory.")
+            else:
+                data["workers"][self.worker] = dict(
+                    calculation_set=definition, calculation_digest=payload_digest(definition),
+                )
+                for payload in batches:
+                    uid = str(uuid.uuid4())
+                    data["jobs"][uid] = dict(worker=self.worker, input=copy.deepcopy(payload),
+                        job_digest=payload_digest(payload), machine_prefix=machine_prefix)
+        return batches
 
     @staticmethod
     def structure_relative_path(digest):
@@ -360,7 +378,7 @@ class CatalogJobStore(JobStore):
         with metadata.state.transaction() as data:
             previous = data["providers"].get(metadata.worker)
             if previous is not None and previous != provider:
-                raise ValueError("Scheduler provider changed for an existing driver worker.")
+                raise ValueError("Scheduler provider changed for an existing worker.")
             data["providers"][metadata.worker] = provider
 
     def _documents(self, data):

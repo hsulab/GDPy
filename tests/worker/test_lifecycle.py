@@ -79,7 +79,8 @@ def test_runtime_worker_marks_finished(mock_sched, fake_driver, fake_structure, 
     assert len(worker.job_store.get_finished()) == 1
 
 
-def test_runtime_worker_retrieves_and_archives(mock_sched, fake_driver, fake_structure, tmp_path):
+def test_runtime_worker_retrieves_and_archives(mock_sched, fake_driver, fake_structure, tmp_path, monkeypatch):
+    monkeypatch.setattr(fake_driver, "read_trajectory", lambda **kwargs: [fake_structure.copy()])
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     worker.run([fake_structure])
     _create_computation_dirs(worker, tmp_path)
@@ -107,7 +108,8 @@ def test_runtime_config_is_the_only_serialized_worker_input(mock_sched, fake_dri
     assert "driver" not in serialized
 
 
-def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_structure, tmp_path):
+def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_structure, tmp_path, monkeypatch):
+    monkeypatch.setattr(fake_driver, "read_trajectory", lambda **kwargs: [fake_structure.copy()])
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     worker.run([fake_structure])
     metadata = tmp_path / "_meta"

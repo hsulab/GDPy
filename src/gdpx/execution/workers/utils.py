@@ -73,3 +73,40 @@ def split_batches(nframes: int, batchsize: int = 1) -> tuple[list[int], list[int
 
 if __name__ == "__main__":
     ...
+
+
+def render_concurrent_task_commands(command: str, task_count: int, concurrent_tasks: int) -> str:
+    """Render bounded Bash waves for a task command containing ``$task``."""
+    return f"""task_count={task_count}
+concurrent_tasks={concurrent_tasks}
+status=0
+
+for ((start=0; start<task_count; start+=concurrent_tasks)); do
+    pids=()
+    for ((offset=0; offset<concurrent_tasks; offset++)); do
+        task=$((start + offset))
+        if ((task >= task_count)); then
+            break
+        fi
+        (
+            {command}
+        ) &
+        pids+=("$!")
+    done
+    for pid in "${{pids[@]}}"; do
+        wait "$pid" || status=1
+    done
+done
+
+exit "$status"
+"""
+
+
+
+
+def render_worker_root_command(command, scheduler_name, relative_root="../.."):
+    """Launch from the submission directory, then enter the worker root."""
+    variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
+                "lsf": "LS_SUBCWD"}.get(scheduler_name)
+    launch = f'cd "${{{variable}:-$PWD}}" && ' if variable else ""
+    return launch + f"cd {relative_root} && " + command

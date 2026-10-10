@@ -26,15 +26,15 @@ from gdpx.providers.configuration import resolve_executor_parameters
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
 from gdpx.utils.profiler import CustomTimer
 
-from .store import JobRecord, JobStore
-from .metadata import WorkerMetadata, CatalogJobStore
-from .utils import copy_minimal_frames, split_batches
+from .store import JobRecord
+from .utils import (copy_minimal_frames, split_batches,
+                    render_concurrent_task_commands, render_worker_root_command)
 from gdpx.execution.fingerprint import (
     FINGERPRINT_VERSION, atomic_write_text, normalise_value, payload_digest, structure_digest,
     read_structure_inputs,
 )
 from ase.io.jsonio import decode, encode
-from .worker import BaseWorker
+from .catalog import CatalogWorker
 
 # ---------------------------------------------------------------------------
 # Module-level command-line runners
@@ -64,33 +64,6 @@ class DriverBatchError(RuntimeError):
             for failure in self.failures
         )
         super().__init__(f"{len(self.failures)} driver computation(s) failed: {details}")
-
-
-def render_concurrent_task_commands(command: str, task_count: int, concurrent_tasks: int) -> str:
-    """Render bounded Bash waves for a task command containing ``$task``."""
-    return f"""task_count={task_count}
-concurrent_tasks={concurrent_tasks}
-status=0
-
-for ((start=0; start<task_count; start+=concurrent_tasks)); do
-    pids=()
-    for ((offset=0; offset<concurrent_tasks; offset++)); do
-        task=$((start + offset))
-        if ((task >= task_count)); then
-            break
-        fi
-        (
-            {command}
-        ) &
-        pids+=("$!")
-    done
-    for pid in "${{pids[@]}}"; do
-        wait "$pid" || status=1
-    done
-done
-
-exit "$status"
-"""
 
 
 def run_computation_in_commandline(
@@ -264,7 +237,7 @@ def run_computation_in_commandline(
 
 
 @WORKER_REGISTRY.register
-class DriverBasedWorker(BaseWorker):
+class DriverBasedWorker(CatalogWorker):
     """Monitor driver-based jobs.
 
     Executes one resolved runtime over one or more input structures.
@@ -273,6 +246,8 @@ class DriverBasedWorker(BaseWorker):
 
     The database stores each unique job ID and its working directory.
     """
+
+    worker_kind = "driver"
 
     reserved_keys: list[str] = ["energy", "step", "wdir"]
     is_spawned: bool = False
@@ -297,24 +272,6 @@ class DriverBasedWorker(BaseWorker):
         self.scheduler = runtime.scheduler
         self._drivers: list[BaseDriver] = [runtime.executor]
 
-    @property
-    def metadata(self):
-        root = pathlib.Path(getattr(self, "metadata_root", self.directory))
-        key = str(self.directory.resolve().relative_to(root.resolve()))
-        return WorkerMetadata(root, key)
-
-    @property
-    def compact_metadata(self):
-        return self.metadata.compact
-
-    @property
-    def metadata_directory(self) -> pathlib.Path:
-        return self.metadata.directory
-
-    def _script_path(self, uid):
-        parent = self.metadata_directory / "jobscripts" if self.compact_metadata else self.metadata_directory
-        return parent / f"run-{uid}.script"
-
     def _job_reference(self, uid):
         return uid if self.compact_metadata else self.metadata_directory / f"job-{uid}.json"
 
@@ -323,59 +280,9 @@ class DriverBasedWorker(BaseWorker):
             return self.metadata.frames(digest)
         return read_structure_inputs(self.metadata_directory / f"{digest}.atoms.json", digest)
 
-    def _initialise(self, *args, **kwargs):
-        # Do not silently start new jobs beside an old worker's records.
-        legacy = list(self.directory.glob("_*_jobs.json"))
-        if (self.directory / "_data").exists() or legacy:
-            raise RuntimeError(
-                f"Legacy driver worker layout at {self.directory}; use a new working directory."
-            )
-        self.compact_metadata  # Reject old metadata before creating or changing files.
-        workers = self.metadata.inputs.read()["workers"]
-        if workers and self.metadata.worker not in workers:
-            raise ValueError("Calculation set conflict: workers changed. Use a new working directory.")
-        super()._initialise(*args, **kwargs)
-        self.metadata_directory.mkdir(parents=True, exist_ok=True)
-        if self.compact_metadata:
-            self.metadata.ensure()
-
-    @property
-    def job_store(self) -> JobStore:
-        self._initialise()
-        if self.compact_metadata:
-            if self._job_store is None:
-                self._job_store = CatalogJobStore(self.metadata, self.scheduler.name)
-            return self._job_store
-
-    def _configure_scheduler_paths(self):
-        if self.scheduler.transport_name == "ssh":
-            plan = getattr(self, "compute_plan_path", None)
-            self.scheduler.local_root = (
-                pathlib.Path(plan).resolve().parent.parent if plan else self.directory.resolve()
-            )
-            if self.compact_metadata:
-                self.scheduler.local_root = self.metadata.root.resolve()
-                self.scheduler.output_root = self.directory.resolve()
-                self.scheduler.staging_excludes = {
-                    self.metadata.state.path.resolve(),
-                    (self.metadata_directory / ".metadata.lock").resolve(),
-                }
-                self.scheduler.sync_excludes = {
-                    self.metadata.inputs.path.resolve(), self.metadata.state.path.resolve(),
-                    (self.metadata_directory / ".metadata.lock").resolve(),
-                }
-            else:
-                self.scheduler.output_root = None
-                self.scheduler.sync_excludes = set()
-                self.scheduler.staging_excludes = {
-                    (self.metadata_directory / "_scheduler.json").resolve()
-                }
-
     def _prepare_scheduler_for_job(self, job: JobRecord):
         self._validate_job(job)
-        self.scheduler.job_name = job.gdir
-        self.scheduler.script = self._script_path(job.uid)
-        self._configure_scheduler_paths()
+        super()._prepare_scheduler_for_job(job)
         self._configure_batch_transfer(
             job.uid, job.structure_digest, job.wdir_names, job.scheduler_job_id
         )
@@ -839,11 +746,8 @@ class DriverBasedWorker(BaseWorker):
             job_path = pathlib.Path("_meta") / f"job-{uid}.json"
             command = f"{gdp_command} compute run --job {shlex.quote(str(job_path))}"
 
-        submit_variable = {"pbs": "PBS_O_WORKDIR", "slurm": "SLURM_SUBMIT_DIR",
-                           "lsf": "LS_SUBCWD"}.get(self.scheduler.name)
-        launch = f'cd "${{{submit_variable}:-$PWD}}" && ' if submit_variable else ""
         relative_root = "../.." if self.compact_metadata else ".."
-        command = launch + f"cd {relative_root} && " + command
+        command = render_worker_root_command(command, self.scheduler.name, relative_root)
         self.scheduler.user_commands = (
             render_concurrent_task_commands(command, len(batch[1]), concurrent)
             if run_tasks_concurrently else command + "\n"

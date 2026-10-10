@@ -1,62 +1,34 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
+"""Training committees using the shared worker layout and lifecycle."""
 import functools
-import pathlib
 import shlex
-import uuid
-import warnings
 
 import numpy as np
 import yaml
-from tinydb import Query, TinyDB
 
 from gdpx.data.loaders.factory import create_dataloader
+from gdpx.execution.fingerprint import atomic_write_text, payload_digest
 from gdpx.providers import ComponentConfig
 from gdpx.providers.training import BasePotentialTrainer
 
+from .catalog import CatalogWorker
 from .registry import WORKER_REGISTRY
-
-from .worker import BaseWorker
+from .utils import render_concurrent_task_commands, render_worker_root_command
 
 
 @WORKER_REGISTRY.register
-class TrainerBasedWorker(BaseWorker):
+class TrainerBasedWorker(CatalogWorker):
+    """Prepare model directories and monitor committee training jobs."""
 
-    TRAIN_PREFIX: str = "m"
+    TRAIN_PREFIX = "m"
+    worker_kind = "training"
 
-    #: Whether share a dataset when training a group of models.
-    _share_dataset: bool = False
-
-    def __init__(
-        self,
-        trainer: BasePotentialTrainer,
-        scheduler,
-        share_dataset: bool = False,
-        auto_submit: bool = True,
-        directory=None,
-        *args,
-        **kwargs,
-    ) -> None:
-        """Initialise a TrainerBasedWorker.
-
-        Args:
-            share_dataset: Whether a group of models are traiend on a shared dataset.
-            auto_submit:
-                Whether submit scheduler jobs automatically. Otherwise, it must be
-                submitted manully.
-
-        """
-        super().__init__(directory)
-
+    def __init__(self, trainer, scheduler, share_dataset=False, auto_submit=True,
+                 directory=None, *args, **kwargs):
+        super().__init__(directory=directory, *args, **kwargs)
         self.trainer = trainer
         self.scheduler = scheduler
-
         self._share_dataset = share_dataset
         self._submit = auto_submit
-
-        return
 
     def _get_train_params(
         self,
@@ -64,6 +36,7 @@ class TrainerBasedWorker(BaseWorker):
         dataset,
         init_model,
         use_shared_dataset: bool = False,
+        random_seed=None,
     ) -> dict:
         """"""
         trainer_params = {}
@@ -88,7 +61,7 @@ class TrainerBasedWorker(BaseWorker):
         # TODO: we set a random seed for each trainer
         #       as a committee will be trained
         #       it changes the trainer's random state as well...
-        trainer_random_seed = np.random.randint(0, 10000)
+        trainer_random_seed = int(np.random.randint(0, 10000)) if random_seed is None else random_seed
         trainer_params["trainer"]["parameters"]["random_seed"] = trainer_random_seed
         trainer.set_rng(seed=trainer_random_seed)
 
@@ -97,272 +70,120 @@ class TrainerBasedWorker(BaseWorker):
 
         return trainer_params
 
-    def run(self, dataset, size: int = 1, init_models=None, *args, **kwargs) -> None:
-        """"""
-        super().run(*args, **kwargs)
-        if init_models is None:
-            init_models = [None for i in range(size)]
-        assert len(init_models) == size, "The number of init models is inconsistent with size."
+    def _prepare_shared_dataset(self, dataset, size, *args, **kwargs):
+        if size <= 1 or not self._share_dataset:
+            return dataset
+        path = self.directory / "shared_dataset"
+        configuration = path / "dataset.yaml"
+        if configuration.exists():
+            return create_dataloader(yaml.safe_load(configuration.read_text()))
+        if not hasattr(self.trainer, "_prepare_dataset"):
+            return dataset
+        previous_directory = self.trainer.directory
+        try:
+            self.trainer.directory = path
+            dataset = self.trainer._prepare_dataset(dataset, *args, **kwargs)
+            atomic_write_text(configuration, yaml.safe_dump(dataset.as_dict()))
+        finally:
+            self.trainer.directory = previous_directory
+        return dataset
 
-        trainer = self.trainer
-        scheduler = self.scheduler
-
-        self._print(f"{trainer.random_seed = }")
-
-        # - dump some metadata in case of resubmit
-        meta_path = self._directory / "_meta"
-        meta_path.mkdir(parents=True, exist_ok=True)
-
-        meta_params = {}
-        meta_params["dataset"] = dataset.as_dict()
-        meta_params["size"] = size
-        if init_models is not None:  # assume it is a List of path
-            meta_params["init_models"] = [str(x) for x in init_models]
-        else:
-            meta_params["init_models"] = init_models
-        with open(meta_path / "info.yaml", "w") as fopen:
-            yaml.safe_dump(meta_params, fopen)
-
-        # - check whether share a dataset?
-        if size > 1 and self._share_dataset:
-            dataset_path = self.directory / "shared_dataset"
-            if not dataset_path.exists():
-                self._print("prepare a shared dataset...")
-                if hasattr(trainer, "_prepare_dataset"):
-                    trainer.directory = dataset_path  # NOTE: only for creating dataset
-                    dataset = trainer._prepare_dataset(dataset, *args, **kwargs)
-                    self._print(f"{dataset =}")
-                    with open(dataset_path / "dataset.yaml", "w") as fopen:
-                        yaml.safe_dump(dataset.as_dict(), fopen)
-                else:
-                    self._print(f"{trainer.__class__.__name__} does not support a shared dataset.")
-            else:
-                # NOTE: sometimes local trainer does not finish,
-                #       we need to load the shared dataset
-                self._print("shared dataset exists...")
-                with open(dataset_path / "dataset.yaml", "r") as fopen:
-                    dataset_params = yaml.safe_load(fopen)
-                dataset = create_dataloader(dataset_params)
-                self._print(f"{dataset =}")
-        else:
-            self._print("trainers prepare their own datasets...")
-
-        # - read metadata from file or database
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-            queued_jobs = database.search(Query().queued.exists())
-        queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
-        if self.scheduler.concurrent_tasks > 1:
-            self._run_packed(dataset, size, init_models, queued_jobs)
-            return
-
-        # - run training
-        for i in range(size):
-            uid = str(uuid.uuid1())
-            batch_name = f"{self.TRAIN_PREFIX}{i}"
-            job_name = uid + "-" + batch_name
-            wdir = self.directory / f"{self.TRAIN_PREFIX}{i}"
-            if batch_name in queued_names:
-                self._print(f"{job_name} at {self.directory.name} was submitted.")
-                continue
-            wdir.mkdir(parents=True, exist_ok=True)
-
-            # - save trainer file for later reference
-            # NOTE: YAML accepts only string path
-            curr_init_model = init_models[i]
-            if curr_init_model is not None:
-                curr_init_model = str(curr_init_model)
-
-            trainer_params = self._get_train_params(trainer, dataset, curr_init_model, self._share_dataset)
-            with open(wdir / "trainer.yaml", "w") as fopen:
-                yaml.dump(trainer_params, fopen)
-
-            scheduler.job_name = job_name
-            scheduler.script = wdir / "train.script"
-            scheduler.user_commands = "gdp train trainer.yaml\n"
-            scheduler.write()
-            trainer.directory = wdir
-            train_func = functools.partial(trainer.train, dataset, init_model=curr_init_model)
-            if scheduler.is_direct and scheduler.transport_name == "local":
-                self._print(f"training model at {wdir.name}...")
-                self._print(f"{wdir.name}: {scheduler.submit(func_to_execute=train_func)}")
-            elif self._submit:
-                self._print(
-                    f"{wdir.name}: {scheduler.submit(func_to_execute=train_func)}"
-                )
-            else:
-                self._print(f"{wdir.name} waits to submit.")
-
-            # - update database
-            with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-                _ = database.insert(
-                    dict(
-                        uid=uid,
-                        gdir=job_name,
-                        group_number=i,
-                        wdir_names=[wdir.name],
-                        queued=True,
-                    )
-                )
-
-        return
-
-    def _run_packed(self, dataset, size, init_models, queued_jobs):
-        """Pack independent trainers according to scheduler.concurrent_tasks."""
-        if self.scheduler.transport_name != "local":
+    def run(self, dataset, size=1, init_models=None, *args, **kwargs):
+        if isinstance(size, bool) or not isinstance(size, int) or size < 1:
+            raise ValueError("Training size must be a positive integer.")
+        init_models = [None] * size if init_models is None else init_models
+        if len(init_models) != size:
+            raise ValueError("The number of initial models must match training size.")
+        if self.scheduler.concurrent_tasks > 1 and self.scheduler.transport_name != "local":
             raise ValueError("Packed training currently requires a local scheduler transport.")
-        queued_dirs = {name for job in queued_jobs for name in job["wdir_names"]}
+        super().run(*args, **kwargs)
+        dataset = self._prepare_shared_dataset(dataset, size, *args, **kwargs)
+        saved = self.metadata.inputs.read()["workers"].get(self.metadata.worker)
+        seeds = {}
+        if saved is not None:
+            definition = self.metadata.calculation_set(self.metadata.inputs.read(), self.metadata.worker)
+            seeds = {name: params["trainer"]["parameters"]["random_seed"]
+                     for batch in definition["batches"]
+                     for name, params in zip(batch["wdir_names"], batch["trainers"])}
+        batches = []
         concurrent = self.scheduler.concurrent_tasks
         for start in range(0, size, concurrent):
             names = [f"{self.TRAIN_PREFIX}{i}" for i in range(start, min(start + concurrent, size))]
-            existing = [name in queued_dirs for name in names]
-            if all(existing):
+            trainers = [self._get_train_params(
+                self.trainer, dataset, str(init_models[i]) if init_models[i] is not None else None,
+                self._share_dataset, random_seed=seeds.get(name),
+            ) for i, name in enumerate(names, start)]
+            batches.append(dict(version=1, group_number=start // concurrent,
+                                wdir_names=names, trainers=trainers))
+        self.metadata.freeze_tasks(batches, self.scheduler.machine_prefix)
+        for batch in batches:
+            uid = self.metadata.prepare_job(batch, self.scheduler.machine_prefix)
+            job_name = f"{uid}-group-{batch['group_number']}"
+            if self.job_store.get_by_gdir(job_name) is not None:
                 continue
-            if any(existing):
-                raise ValueError("Cannot change training packing with partially queued groups.")
-            uid = str(uuid.uuid1())
-            job_name = uid + f"-packed{start // concurrent}"
-            commands = ["pids=()", "status=0"]
-            for index, name in enumerate(names, start):
-                wdir = self.directory / name
-                wdir.mkdir(parents=True, exist_ok=True)
-                trainer_path = wdir / "trainer.yaml"
-                if not trainer_path.exists():
-                    model = init_models[index]
-                    params = self._get_train_params(
-                        self.trainer, dataset, str(model) if model is not None else None,
-                        self._share_dataset,
-                    )
-                    trainer_path.write_text(yaml.safe_dump(params))
-                prefix = self.scheduler.machine_prefix.strip()
-                launch = (prefix + " " if prefix else "") + "gdp train trainer.yaml"
-                commands.extend([
-                    "(",
-                    f"    cd {shlex.quote(str(wdir.resolve()))} || exit 1",
-                    '    export TORCHINDUCTOR_CACHE_DIR="$PWD/.inductor-cache"',
-                    f"    {launch} > training.log 2>&1",
-                    ") &",
-                    'pids+=("$!")',
-                ])
-            commands.extend([
-                'for pid in "${pids[@]}"; do',
-                '    wait "$pid" || status=1',
-                "done",
-                'exit "$status"',
-            ])
-            self.scheduler.job_name = job_name
-            self.scheduler.script = self.directory / names[0] / "train.script"
-            self.scheduler.user_commands = "\n".join(commands) + "\n"
-            self.scheduler.write()
+            self.job_store.insert(uid, "", job_name, batch["group_number"], batch["wdir_names"],
+                                  job_digest=payload_digest(batch))
+            job = self.job_store.get_by_gdir(job_name)
             if self._submit:
-                self._print(f"{job_name}: {self.scheduler.submit()}")
-            with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-                database.insert(dict(
-                    uid=uid, gdir=job_name, group_number=start // concurrent,
-                    wdir_names=names, queued=True,
-                ))
+                self._submit_job(job)
+            else:
+                self._write_job(job)
 
-    def inspect(self, resubmit=False, *args, **kwargs):
-        """"""
-        self._initialise(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+inspect")
+    def _write_job(self, job):
+        saved = self.metadata.manifest(job.uid)
+        batch = saved["input"]
+        if batch["wdir_names"] != job.wdir_names or saved["job_digest"] != job.job_digest:
+            raise ValueError("Training job metadata does not match its frozen inputs.")
+        for name, params in zip(batch["wdir_names"], batch["trainers"]):
+            path = self.directory / name
+            path.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(path / "trainer.yaml", yaml.safe_dump(params))
+        self._prepare_scheduler_for_job(job)
+        prefix = saved["machine_prefix"].strip()
+        launch = (prefix + " " if prefix else "") + "gdp train trainer.yaml > training.log 2>&1"
+        command = render_worker_root_command('cd "${workdirs[$task]}" && ' + launch,
+                                             self.scheduler.name)
+        names = " ".join(shlex.quote(name) for name in batch["wdir_names"])
+        self.scheduler.user_commands = f"workdirs=({names})\n" + render_concurrent_task_commands(
+            command, len(batch["wdir_names"]), self.scheduler.concurrent_tasks,
+        )
+        self.scheduler.script.parent.mkdir(parents=True, exist_ok=True)
+        self.scheduler.write()
 
-        running_jobs = self._get_running_jobs()
+    def _run_models(self, names):
+        from gdpx.cli.train import run_trainer
+        for name in names:
+            path = self.directory / name
+            run_trainer(path / "trainer.yaml", path)
 
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-            for job_name in running_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                uid = doc_data["uid"]
-                wdir_names = doc_data["wdir_names"]
+    def _submit_job(self, job):
+        self._write_job(job)
+        callback = (functools.partial(self._run_models, job.wdir_names)
+                    if self.scheduler.is_direct and len(job.wdir_names) == 1 else None)
+        job_id = self.scheduler.submit(func_to_execute=callback)
+        self.job_store.mark_submitted(job.gdir, job_id)
+        self._print(f"{self.directory.name} JOBID: {job_id}")
 
-                self.scheduler.job_name = job_name
-                self.scheduler.script = self.directory / wdir_names[0] / "train.script"
+    def _check_job_convergence(self, job):
+        for name in job.wdir_names:
+            path = self.directory / name
+            if not path.exists():
+                return False
+            self.trainer.directory = path
+            if not self.trainer.read_convergence():
+                return False
+        return True
 
-                if self.scheduler.is_finished():  # NOTE: scheduler only checks job_name
-                    self.scheduler.sync(wdir_names)
-                    # -- check if the job finished properly
-                    is_finished = False
-                    for x in wdir_names:
-                        wdir_path = self.directory / x
-                        if not wdir_path.exists():
-                            break
-                        else:
-                            self.trainer.directory = wdir_path
-                            if not self.trainer.read_convergence():
-                                break
-                    else:
-                        is_finished = True
-                    if is_finished:
-                        database.update({"finished": True}, doc_ids=[doc_data.doc_id])
-                    else:
-                        if resubmit:
-                            if not (
-                                self.scheduler.is_direct
-                                and self.scheduler.transport_name == "local"
-                            ):
-                                self._print(f"RESUBMIT: {str(self.trainer.directory)}")
-                                if self._submit:
-                                    self.scheduler.script = self.directory / wdir_names[0] / "train.script"
-                                    jobid = self.scheduler.submit()
-                                    self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
-                                else:
-                                    self._print(f"{job_name} waits to submit.")
-                            else:
-                                # NOTE: If training runs directly on this host,
-                                #       database stores this job only when the training
-                                #       is finished.
-                                #       The codes below will only be performed when
-                                #       self.inspect() is called without self.run() before.
-                                # NOTE: Local job will automatically re-run when
-                                #       self.run() is called.
-                                self._print(f"RESUBMIT: {self.trainer.directory = }")
-                                # self.trainer.train(dataset, init_model=init_models[i])
-                        else:
-                            warnings.warn(
-                                "Trainer does not support re-submit.",
-                                UserWarning,
-                            )
-                else:
-                    self._print(f"{job_name} is running...")
+    def _resubmit_job(self, job):
+        if self._submit:
+            self._submit_job(job)
 
-        return
-
-    def retrieve(self, include_retrieved: bool = False, *args, **kwargs):
-        """Retrieve training results."""
-        self.inspect(*args, **kwargs)
-        self._debug(f"@@@{self.__class__.__name__}+retrieve")
-
-        unretrieved_wdirs_ = []
-        if not include_retrieved:
-            unretrieved_jobs = self._get_unretrieved_jobs()
-        else:
-            unretrieved_jobs = self._get_finished_jobs()
-
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-            for job_name in unretrieved_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                unretrieved_wdirs_.extend((self.directory / w).resolve() for w in doc_data["wdir_names"])
-        unretrieved_wdirs = unretrieved_wdirs_
-
+    def _do_retrieve(self, include_retrieved=False, *args, **kwargs):
+        jobs = self.job_store.get_finished() if include_retrieved else self.job_store.get_unretrieved()
         results = []
-        if unretrieved_wdirs:
-            unretrieved_wdirs = [pathlib.Path(x) for x in unretrieved_wdirs]
-            # print("unretrieved_wdirs: ", unretrieved_wdirs)
-            for p in unretrieved_wdirs:
-                self.trainer.directory = p
-                # NOTE: Due to yaml.safe_dump, we require path should be str
+        for job in jobs:
+            for name in job.wdir_names:
+                self.trainer.directory = self.directory / name
                 results.append(str(self.trainer.freeze()))
-
-        with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
-            for job_name in unretrieved_jobs:
-                doc_data = database.get(Query().gdir == job_name)
-                database.update({"retrieved": True}, doc_ids=[doc_data.doc_id])
-
+            self.job_store.mark_retrieved(job.gdir)
         return results
-
-    def _read_results(self, gdirs, *args, **kwargs):
-        """"""
-        return
-
-
-if __name__ == "__main__":
-    ...
