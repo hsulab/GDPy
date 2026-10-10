@@ -4,6 +4,7 @@
 
 import functools
 import pathlib
+import shlex
 import uuid
 import warnings
 
@@ -150,6 +151,9 @@ class TrainerBasedWorker(BaseWorker):
         with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
             queued_jobs = database.search(Query().queued.exists())
         queued_names = [q["gdir"][self.UUIDLEN + 1 :] for q in queued_jobs]
+        if self.scheduler.concurrent_tasks > 1:
+            self._run_packed(dataset, size, init_models, queued_jobs)
+            return
 
         # - run training
         for i in range(size):
@@ -202,6 +206,61 @@ class TrainerBasedWorker(BaseWorker):
 
         return
 
+    def _run_packed(self, dataset, size, init_models, queued_jobs):
+        """Pack independent trainers according to scheduler.concurrent_tasks."""
+        if self.scheduler.transport_name != "local":
+            raise ValueError("Packed training currently requires a local scheduler transport.")
+        queued_dirs = {name for job in queued_jobs for name in job["wdir_names"]}
+        concurrent = self.scheduler.concurrent_tasks
+        for start in range(0, size, concurrent):
+            names = [f"{self.TRAIN_PREFIX}{i}" for i in range(start, min(start + concurrent, size))]
+            existing = [name in queued_dirs for name in names]
+            if all(existing):
+                continue
+            if any(existing):
+                raise ValueError("Cannot change training packing with partially queued groups.")
+            uid = str(uuid.uuid1())
+            job_name = uid + f"-packed{start // concurrent}"
+            commands = ["pids=()", "status=0"]
+            for index, name in enumerate(names, start):
+                wdir = self.directory / name
+                wdir.mkdir(parents=True, exist_ok=True)
+                trainer_path = wdir / "trainer.yaml"
+                if not trainer_path.exists():
+                    model = init_models[index]
+                    params = self._get_train_params(
+                        self.trainer, dataset, str(model) if model is not None else None,
+                        self._share_dataset,
+                    )
+                    trainer_path.write_text(yaml.safe_dump(params))
+                prefix = self.scheduler.machine_prefix.strip()
+                launch = (prefix + " " if prefix else "") + "gdp train trainer.yaml"
+                commands.extend([
+                    "(",
+                    f"    cd {shlex.quote(str(wdir.resolve()))} || exit 1",
+                    '    export TORCHINDUCTOR_CACHE_DIR="$PWD/.inductor-cache"',
+                    f"    {launch} > training.log 2>&1",
+                    ") &",
+                    'pids+=("$!")',
+                ])
+            commands.extend([
+                'for pid in "${pids[@]}"; do',
+                '    wait "$pid" || status=1',
+                "done",
+                'exit "$status"',
+            ])
+            self.scheduler.job_name = job_name
+            self.scheduler.script = self.directory / names[0] / "train.script"
+            self.scheduler.user_commands = "\n".join(commands) + "\n"
+            self.scheduler.write()
+            if self._submit:
+                self._print(f"{job_name}: {self.scheduler.submit()}")
+            with TinyDB(self.directory / f"_{self.scheduler.name}_jobs.json", indent=2) as database:
+                database.insert(dict(
+                    uid=uid, gdir=job_name, group_number=start // concurrent,
+                    wdir_names=names, queued=True,
+                ))
+
     def inspect(self, resubmit=False, *args, **kwargs):
         """"""
         self._initialise(*args, **kwargs)
@@ -242,7 +301,7 @@ class TrainerBasedWorker(BaseWorker):
                             ):
                                 self._print(f"RESUBMIT: {str(self.trainer.directory)}")
                                 if self._submit:
-                                    self.scheduler.script = self.trainer.directory / "train.script"
+                                    self.scheduler.script = self.directory / wdir_names[0] / "train.script"
                                     jobid = self.scheduler.submit()
                                     self._print(f"{job_name} is re-submitted with JOBID {jobid}.")
                                 else:
