@@ -18,6 +18,7 @@ from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.workflow.session.variable import DummyVariable, Variable
 
 from .scheduler import SchedulerVariable
+from .runtime import PotentialVariable
 
 
 @registers.variable.register
@@ -43,14 +44,23 @@ class train(Operation):
         self,
         dataset,
         trainer,
-        potential,
+        potential=None,
         scheduler=DummyVariable(),
         size: int = 1,
         share_dataset: bool = False,
         auto_submit: bool = True,
         directory="./",
     ) -> None:
-        """"""
+        """Train from scratch unless an initial potential is supplied."""
+        if potential is None:
+            potential = PotentialVariable(
+                provider=trainer.config.provider,
+                parameters={
+                    "type_list": list(trainer.value.type_list),
+                    "estimate_uncertainty": size > 1,
+                },
+                directory=directory,
+            )
         input_nodes = [dataset, trainer, scheduler, potential]
         super().__init__(input_nodes=input_nodes, directory=directory)
 
