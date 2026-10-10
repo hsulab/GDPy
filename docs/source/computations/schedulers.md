@@ -94,6 +94,18 @@ For example, use `machine_prefix: srun --exact -n 4 -c 1` with a bare
 `command: vasp_std`; do not wrap `gdp` itself with a multi-rank launcher.
 Resource syntax and concurrency behavior are documented on each scheduler page.
 
+## Packed training
+
+For training committees, scheduler `parameters.concurrent_tasks` greater than
+one packs that many independent models into each job. Set the allocation's
+task, CPU, GPU, and memory totals in the scheduler parameters. Its
+`machine_prefix` launches each single-model CLI (for Slurm, use a single-task
+`srun --exclusive --exact` with the per-model resources). Each model has its
+own work directory and log; the job fails if any child fails, and convergence
+requires all models in the group. Packing currently supports local scheduler
+transports. Existing submitted metadata must not be regrouped while jobs are
+active. Set the train step's `auto_submit: false` to prepare without submitting.
+
 ## Queue lifecycle
 
 Prepare, review, submit, inspect, and collect a queued calculation using one
