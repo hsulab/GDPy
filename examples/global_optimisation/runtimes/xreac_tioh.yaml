@@ -1,0 +1,25 @@
+potential:
+  provider: reax
+  backend: xreac
+  parameters:
+    model: bundled:ffield.reax.TiOH.Monti2012
+executor:
+  provider: ase
+  method: min
+  parameters:
+    setup:
+      constraint: "`zbot 48`"
+      optimizer:
+        name: bfgs
+        parameters:
+          maxstep: 0.1
+    output:
+      trajectory:
+        period: 10
+    stop:
+      steps: 500
+      fmax: 0.02
+scheduler:
+  provider: direct
+dispatch:
+  batch_size: 2

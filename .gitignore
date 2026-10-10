@@ -26,6 +26,8 @@ cand*
 !examples/compute/assets/ni111_water_neb_endpoints.xyz
 !examples/compute/ni111_water_neb/structure.xyz
 !examples/compute/ni111_water_restraint/structure.xyz
+!examples/global_optimisation/assets/tio2_water2_seeds.xyz
+!examples/global_optimisation/assets/tio2_water3_seeds.xyz
 *.pbs
 *.slurm
 slurm.*

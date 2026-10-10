@@ -11,6 +11,7 @@ from .moves import (
     MoveOperator,
     RattleOperator,
     ReactOperator,
+    RotateOperator,
     SwapOperator,
     SwapTypeOperator,
 )
@@ -42,6 +43,8 @@ def parse_operators(op_params: list[dict]):
             op = MoveOperator(**param)
         elif name == "rattle":
             op = RattleOperator(**param)
+        elif name == "rotate":
+            op = RotateOperator(**param)
         elif name == "bounce":
             op = BounceOperator(**param)
         elif name == "swap":
