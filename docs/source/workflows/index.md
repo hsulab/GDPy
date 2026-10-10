@@ -244,6 +244,12 @@ steps:
       potential: current_potential
 ```
 
+`train.inputs.potential` is optional. Omit it to train every ensemble member
+from scratch on each iteration. The output potential uses the trainer's provider
+and element types, and enables uncertainty estimation when `size` is greater
+than one. Supply a potential explicitly to initialize from its models or to
+preserve custom potential parameters and backend selection.
+
 Use `initial: null` when no resource exists before the first iteration. For
 example, an exploration can explicitly carry its provider-owned continuation:
 
