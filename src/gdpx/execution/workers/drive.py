@@ -442,6 +442,8 @@ class DriverBasedWorker(CatalogWorker):
             batch_seeds = []
             for gi in global_indices:
                 si = struct_for_wdir[gi]
+                if len(self._drivers) > 1 and isinstance(rng_states, list) and len(rng_states) == num_tasks:
+                    si = gi
                 if si < len(rng_states):
                     batch_seeds.append(rng_states[si] if isinstance(rng_states, list) else rng_states)
                 else:
@@ -496,11 +498,13 @@ class DriverBasedWorker(CatalogWorker):
                     provenance=self._input_provenance, retained=self._input_retained,
                     batches=[self._job_payload(identifier, batch, index) for index, batch in enumerate(batches)],
                     machine_prefix=self.scheduler.machine_prefix,
-                    reuse_saved_seeds=not rng_states and
-                    resolve_executor_parameters(
-                        self.runtime.config.executor.parameters,
-                        self.runtime.config.executor.method,
-                    ).get("random_seed") is None)
+                    reuse_saved_seeds=not rng_states and self._uses_implicit_seed())
+
+    def _uses_implicit_seed(self):
+        return resolve_executor_parameters(
+            self.runtime.config.executor.parameters,
+            self.runtime.config.executor.method,
+        ).get("random_seed") is None
 
     # ------------------------------------------------------------------
     # Run
@@ -520,10 +524,7 @@ class DriverBasedWorker(CatalogWorker):
         get_reporter(self).configure(selected)
 
         if not self.is_spawned:
-            implicit_seed = resolve_executor_parameters(
-                self.runtime.config.executor.parameters,
-                self.runtime.config.executor.method,
-            ).get("random_seed") is None
+            implicit_seed = self._uses_implicit_seed()
             self._run_by_scheduler(
                 identifier, frames, batches, target_batch=target_batch,
                 reuse_saved_seeds=not rng_states and implicit_seed,
@@ -1031,4 +1032,6 @@ class DriverBasedWorker(CatalogWorker):
             "share_workdir": self._share_wdir,
             "retain_info": self._retain_info,
         }
+        if self.runtime.config.dispatch.to_dict().get("group_variants"):
+            worker_params["dispatch"]["group_variants"] = True
         return copy.deepcopy(worker_params)

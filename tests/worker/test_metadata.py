@@ -31,6 +31,7 @@ def atom(x=0.12345678901234567):
 
 def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
     configs = [config(), config()]
+    configs[1]["dispatch"]["retain_info"] = True  # Distinct worker policies.
     plan = prepare_compute(configs, [atom()], tmp_path)
     inputs = tmp_path / "_meta" / "inputs.json"
     state = tmp_path / "_meta" / "scheduler.json"
@@ -299,7 +300,9 @@ def test_multiworker_staged_job_executes_only_its_worker(tmp_path):
     from gdpx.cli.compute import run_computation
 
     source, staged = tmp_path / "source", tmp_path / "staged"
-    prepare_compute([config("slurm"), config("slurm")], [atom()], source)
+    configs = [config("slurm"), config("slurm")]
+    configs[1]["dispatch"]["retain_info"] = True
+    prepare_compute(configs, [atom()], source)
     data = WorkerMetadata(source).inputs.read()
     uid = next(uid for uid, saved in data["jobs"].items() if saved["worker"] == "w1")
     shutil.copytree(source, staged)

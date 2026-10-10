@@ -38,7 +38,8 @@ def test_runtime_service_expands_executor_broadcast():
 
     workers = create_runtime_workers(config)
 
-    assert [worker.runtime.config.executor.parameters["steps"] for worker in workers] == [1, 2]
+    assert len(workers) == 1
+    assert [runtime.config.executor.parameters["steps"] for runtime in workers[0].runtimes] == [1, 2]
 
 
 def test_runtime_service_expands_modifier_broadcast():

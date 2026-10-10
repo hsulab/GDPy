@@ -147,8 +147,9 @@ def test_prepare_expands_executor_broadcast_like_an_explicit_runtime_list(tmp_pa
 
     assert config == original
     assert broadcast.config == explicit.config
-    assert len(broadcast.workers) == 2
-    assert [worker.directory for worker in broadcast.workers] == ["w0", "w1"]
+    assert len(broadcast.workers) == 1
+    assert broadcast.workers[0].directory == "."
+    assert [task.driver_index for task in broadcast.workers[0].batches[0].tasks] == [0, 1]
     assert all("broadcast" not in item["executor"] for item in broadcast.config)
 
 

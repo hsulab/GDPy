@@ -372,6 +372,9 @@ class DispatchConfig:
     batch_size: int = 1
     share_workdir: bool = False
     retain_info: bool = False
+    # Preserve old job fingerprints when reading manifests written before
+    # batching compatible variants became automatic. This does not affect policy.
+    _legacy_group_variants: bool = field(default=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.worker not in ("batch", "single"):
@@ -386,7 +389,7 @@ class DispatchConfig:
             raise ProviderConfigurationError(
                 f"Dispatch batch_size must be a positive integer; got {self.batch_size!r}."
             )
-        for name in ("share_workdir", "retain_info"):
+        for name in ("share_workdir", "retain_info", "_legacy_group_variants"):
             value = getattr(self, name)
             if not isinstance(value, bool):
                 raise ProviderConfigurationError(
@@ -398,21 +401,29 @@ class DispatchConfig:
         if not isinstance(value, Mapping):
             raise ProviderConfigurationError("Dispatch configuration must be a mapping.")
         data = copy.deepcopy(dict(value))
-        allowed = {"worker", "batch_size", "share_workdir", "retain_info"}
+        allowed = {"worker", "batch_size", "share_workdir", "retain_info", "group_variants"}
         unknown = set(data) - allowed
         if unknown:
             raise ProviderConfigurationError(
                 f"Unknown dispatch fields: {', '.join(sorted(unknown))}."
             )
+        if "group_variants" in data:
+            legacy = data.pop("group_variants")
+            if not isinstance(legacy, bool):
+                raise ProviderConfigurationError("Historical dispatch group_variants must be a boolean.")
+            data["_legacy_group_variants"] = legacy
         return cls(**data)
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "worker": self.worker,
             "batch_size": self.batch_size,
             "share_workdir": self.share_workdir,
             "retain_info": self.retain_info,
         }
+        if self._legacy_group_variants:
+            data["group_variants"] = True
+        return data
 
 
 @dataclass(frozen=True)

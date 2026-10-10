@@ -30,12 +30,18 @@ def _resolve(value: RuntimeInput) -> Runtime:
 
 
 def create_worker(
-    value: RuntimeInput,
+    value: RuntimeInput | Sequence[RuntimeInput],
     *,
     directory="./",
     print_func: Callable = config.logger.debug,
 ) -> BaseWorker:
-    """Create exactly one worker from one complete runtime."""
+    """Create one worker from a runtime or compatible batch variants."""
+    if isinstance(value, (list, tuple)):
+        from gdpx.execution.workers.grouped import GroupedDriverWorker
+
+        worker = GroupedDriverWorker(tuple(_resolve(item) for item in value))
+        worker.directory = pathlib.Path(directory)
+        return worker
     runtime = _resolve(value)
     dispatch = runtime.config.dispatch
     batch_size = dispatch.batch_size
@@ -78,20 +84,30 @@ def create_workers(
     directory="./",
     print_func: Callable = config.logger.debug,
 ) -> list[BaseWorker]:
-    """Create independent workers from an explicit non-empty runtime list."""
+    """Batch compatible runtimes and choose directories from the worker count."""
     if isinstance(values, (str, bytes, Mapping, Runtime, RuntimeConfig)):
         raise TypeError("create_workers requires an explicit sequence; use create_worker for one runtime.")
-    runtimes = list(values)
+    runtimes = [_resolve(value) for value in values]
     if not runtimes:
         raise ValueError("At least one runtime is required.")
     root = pathlib.Path(directory)
+    from gdpx.execution.workers.grouped import GroupedDriverWorker
+
+    groups = []
+    for runtime in runtimes:
+        for group in groups:
+            if GroupedDriverWorker.compatible(group[0], runtime):
+                group.append(runtime)
+                break
+        else:
+            groups.append([runtime])
     return [
         create_worker(
-            value,
-            directory=root if len(runtimes) == 1 else root / f"w{index}",
+            group[0] if len(group) == 1 else group,
+            directory=root if len(groups) == 1 else root / f"w{index}",
             print_func=print_func,
         )
-        for index, value in enumerate(runtimes)
+        for index, group in enumerate(groups)
     ]
 
 

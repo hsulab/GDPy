@@ -25,6 +25,21 @@ from gdpx.utils.profiler import CustomTimer
 from gdpx.execution.workers.drive import DriverBasedWorker
 
 
+def _logical_trajectories(worker, trajectories):
+    """Restore the variant axis independently of physical batch workers."""
+    runtimes = getattr(worker, "runtimes", ())
+    if len(runtimes) <= 1:
+        return [trajectories]
+    count = len(runtimes)
+    if len(trajectories) % count:
+        raise ValueError("Grouped trajectories do not contain every runtime variant.")
+    return [trajectories[index::count] for index in range(count)]
+
+
+def _logical_runtime_count(workers):
+    return sum(len(getattr(worker, "runtimes", ())) or 1 for worker in workers)
+
+
 def extract_results_from_workers(
     directory: pathlib.Path,
     workers: list[DriverBasedWorker],
@@ -70,7 +85,7 @@ def extract_results_from_workers(
         else:
             curr_trajectories = AtomsNDArray.from_file(cached_trajs_dpath / "dataset.h5").tolist()
 
-        trajectories.append(curr_trajectories)
+        trajectories.extend(_logical_trajectories(worker, curr_trajectories))
 
         worker_status[i] = True
 
@@ -128,7 +143,7 @@ def extract_results_from_workers_compact(
             else:
                 curr_trajectories = AtomsNDArray.from_file(fopen, grp_name=grp_name).tolist()
 
-            trajectories.append(curr_trajectories)
+            trajectories.extend(_logical_trajectories(worker, curr_trajectories))
 
             worker_status[i] = True
 
@@ -173,6 +188,7 @@ def convert_results_to_structures(
     *,
     reduce_single_worker: bool = True,
     merge_workers: bool = False,
+    workers=None,
     print_func=print,
     debug_func=print,
 ):
@@ -218,12 +234,30 @@ def convert_results_to_structures(
         converted_structures = structures
 
     # Further convert
-    if reduce_single_worker:  #  nworkers == 1
+    if reduce_single_worker and converted_structures.shape[0] == 1:
         converted_structures = converted_structures[0]
 
     if merge_workers:  # squeeze the dimension one...
         converted_structures = list(itertools.chain(*converted_structures))
     converted_structures = AtomsNDArray(converted_structures)
+    if workers is not None and inp_shape is None and not merge_workers:
+        from gdpx.providers.configuration import resolve_executor_parameters
+
+        runtimes = [runtime for worker in workers
+                    for runtime in (getattr(worker, "runtimes", ()) or (worker.runtime,))]
+        if converted_structures.ndim == 3:
+            temperatures = [resolve_executor_parameters(
+                runtime.config.executor.parameters, runtime.config.executor.method
+            ).get("temp") for runtime in runtimes]
+            temperature_axis = (all(value is not None for value in temperatures)
+                                and len(set(temperatures)) == len(temperatures))
+            name = "temperature" if temperature_axis else "variant"
+            converted_structures = AtomsNDArray(
+                converted_structures, dims=(name, "structure", "frame"),
+                coords={name: temperatures if temperature_axis else list(range(len(runtimes)))},
+            )
+        elif converted_structures.ndim == 2:
+            converted_structures = AtomsNDArray(converted_structures, dims=("structure", "frame"))
     print_func(f"extracted_results: {converted_structures}")
 
     return converted_structures
@@ -422,7 +456,7 @@ class compute(Operation):
                 self.status = status
                 if self.status:
                     self._print(f"extracted structures: {computed_structures}")
-                    num_workers = len(workers)
+                    num_workers = _logical_runtime_count(workers)
                     reduce_single_worker = self.reduce_single_worker
                     if num_workers != 1:
                         reduce_single_worker = False
@@ -432,6 +466,7 @@ class compute(Operation):
                         inp_markers,
                         reduce_single_worker=reduce_single_worker,
                         merge_workers=self.merge_workers,
+                        workers=workers,
                         print_func=self._print,
                         debug_func=self._debug,
                     )
@@ -873,7 +908,7 @@ class extract(Operation):
         )
         if status:
             self._print(f"extracted structures: {computed_structures}")
-            num_workers = len(workers)
+            num_workers = _logical_runtime_count(workers)
             reduce_single_worker = self.reduce_single_worker
             if num_workers != 1:
                 reduce_single_worker = False
@@ -883,6 +918,7 @@ class extract(Operation):
                 inp_markers,
                 reduce_single_worker=reduce_single_worker,
                 merge_workers=self.merge_workers,
+                workers=workers,
                 print_func=self._print,
                 debug_func=self._debug,
             )

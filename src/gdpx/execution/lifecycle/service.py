@@ -365,9 +365,42 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
 def _restore(plan: ComputePlan):
     if plan.schema_version != PLAN_SCHEMA_VERSION or _plan_digest(_plan_payload(plan)) != plan.plan_id:
         raise ComputeLifecycleError("Compute plan fingerprint mismatch; prepare a new run.")
-    workers = _create_workers(plan.config)
-    if len(workers) != len(plan.workers):
-        raise ComputeLifecycleError("Saved plan and reconstructed worker counts differ.")
+    # Restore the frozen worker partition instead of reapplying today's layout
+    # policy. Old independent workers and new batches keep their saved folders.
+    metadata = WorkerMetadata(plan.directory)
+    catalog = metadata.inputs.read()
+    worker_configs = []
+    for worker_plan in plan.workers:
+        definition = metadata.calculation_set(catalog, worker_plan.directory)
+        batches = definition["batches"]
+        if not batches:
+            raise ComputeLifecycleError("Saved worker has no calculation batches.")
+        runtime = batches[0]["runtime"]
+        if any(payload_digest(batch["runtime"]) != payload_digest(runtime) for batch in batches):
+            raise ComputeLifecycleError("Saved worker runtime differs between batches.")
+        worker_configs.append(runtime)
+    saved_configs = [item for value in worker_configs
+                     for item in (value if isinstance(value, list) else [value])]
+    expected_configs = plan.config if isinstance(plan.config, list) else [plan.config]
+    unmatched = copy.deepcopy(saved_configs)
+    for expected in expected_configs:
+        for index, saved in enumerate(unmatched):
+            candidate = copy.deepcopy(saved)
+            components = [(candidate["potential"], expected["potential"])]
+            components.extend(zip(candidate.get("modifiers", []), expected.get("modifiers", [])))
+            for actual, configured in components:
+                # A frozen runtime records automatically selected backends even
+                # when the original plan left backend selection to the provider.
+                if "backend" not in configured:
+                    actual.pop("backend", None)
+            if payload_digest(candidate) == payload_digest(expected):
+                unmatched.pop(index)
+                break
+        else:
+            raise ComputeLifecycleError("Saved worker runtimes differ from the compute plan.")
+    if unmatched:
+        raise ComputeLifecycleError("Saved worker runtimes differ from the compute plan.")
+    workers = [create_worker(value) for value in worker_configs]
     frames = read_structure_inputs(
         pathlib.Path(plan.directory) / plan.structure_file, plan.structure_digest
     )

@@ -177,9 +177,11 @@ def run_computation(
         runtime_input = load_runtime_input(runtime)
         from gdpx.execution.factory import create_worker
         from gdpx.execution.workers.react import ReactorBasedWorker
+        from gdpx.providers import expand_runtime_configs
 
-        candidate = None if isinstance(runtime_input, (list, tuple)) else create_worker(
-            runtime_input, directory=directory
+        variants = expand_runtime_configs(runtime_input)
+        candidate = None if isinstance(runtime_input, (list, tuple)) or len(variants) > 1 else create_worker(
+            variants[0], directory=directory
         )
         if isinstance(candidate, ReactorBasedWorker):
             result = _run_reactor_once(candidate, structures, directory, archive=archive)
