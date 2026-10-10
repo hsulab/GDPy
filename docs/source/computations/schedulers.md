@@ -118,6 +118,12 @@ directories with `_<scheduler>_jobs.json` require a new working directory.
 Submitting training does not require a persistent workflow controller. A later
 workflow invocation can inspect completed jobs and continue with validation.
 
+Before loading a dataset, the common training entry point checks each model's
+training convergence. Completed models skip training and only ensure their
+export exists; unfinished models use their trainer's normal restart behavior.
+This applies to direct, single-model, and packed jobs. Packed resubmissions retain
+the configured resource request even when some models are already complete.
+
 ## Queue lifecycle
 
 Prepare, review, submit, inspect, and collect a queued calculation using one
