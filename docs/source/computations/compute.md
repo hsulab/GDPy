@@ -74,8 +74,12 @@ trajectories. Routine worker diagnostics remain available at DEBUG level.
 ## Independent runtimes
 
 A runtime file can contain a list of complete runtime mappings to evaluate the
-same structures independently with different settings. Each gets its own
-worker directory. The current `gdp compute` lifecycle accepts a mapping or a
+same structures independently with different settings. Compatible batch
+runtimes share a worker automatically; incompatible settings create separate
+workers. One worker uses `cand0`, `cand1`, etc. under the run directory.
+Multiple workers add `w0`, `w1`, etc., each containing its own candidates.
+The saved plan freezes this layout for restart. The current `gdp compute`
+lifecycle accepts a mapping or a
 flat list of mappings; it does not accept nested sequential chains or perform
 a Cartesian product of implicit list settings. An explicit
 `executor.broadcast` does expand executor parameters as described in
