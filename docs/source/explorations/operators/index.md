@@ -40,6 +40,7 @@ settings belong directly in each operator mapping beside `method`.
 | --- | --- | --- |
 | {doc}`move` | Displace one selected particle | `particles`, `max_disp` (default 2.0 Å) |
 | {doc}`rattle` | Displace a randomly selected subset of particles together | `particles`, `rattle_strength` (0.8 Å), `rattle_prop` (0.4) |
+| {doc}`rotate` | Rotate one tagged molecule about a fixed pivot | `particles`, `max_angle` (180°), `center` (`com`), optional `axis` |
 | {doc}`bounce` | Bias an atomic displacement along an axis | `particles`, required `direction` (`+x`, `-x`, `+y`, `-y`, `+z`, `-z`), `bias_ratio`, `max_disp`, `repulsion_strength` |
 | {doc}`swap` | Exchange positions of two particle types | Two distinct `particles`, `swap_mode` (`atomic` or `cop_z`), `check_used_pairs` |
 | {doc}`swap_type` | Change atomic identity | At least two atomic `particles` |
@@ -61,6 +62,7 @@ they do not bound later exchange moves.
 
 move
 rattle
+rotate
 bounce
 swap
 swap_type
