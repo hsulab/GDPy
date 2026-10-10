@@ -15,6 +15,13 @@ def run_trainer(configuration, directory) -> None:
     trainer = create_trainer(params["trainer"])
     trainer.directory = directory
 
+    # Keep this common to all providers and both direct and queued workers.
+    # Export can be retried independently after training has completed.
+    if trainer.read_convergence():
+        config._print(f"Training already completed in {directory}; skipping training.")
+        trainer.freeze()
+        return
+
     # Process the dataset
     dataset_params = params["dataset"]
     name = dataset_params.pop("name", None)

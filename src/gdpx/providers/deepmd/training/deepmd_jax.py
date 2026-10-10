@@ -170,7 +170,7 @@ class DeepmdJaxTrainer(BasePotentialTrainer):
         """"""
         converged = False
 
-        if self.directory / self.frozen_name:
+        if (self.directory / self.frozen_name).is_file():
             converged = True
 
         return converged

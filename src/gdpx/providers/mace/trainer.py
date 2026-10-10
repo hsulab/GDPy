@@ -305,10 +305,12 @@ class MaceTrainer(BasePotentialTrainer):
 
         converged = False
         logs = list((self.directory / "logs").glob("*.log"))
+        if not logs:
+            return False
         assert len(logs) == 1, "There should be only one log."
         with open(logs[0], "r") as fopen:
             lines = fopen.readlines()
-        if self.CONVERGENCE_FLAG in lines[-1]:
+        if lines and self.CONVERGENCE_FLAG in lines[-1]:
             converged = True
 
         return converged

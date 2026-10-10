@@ -1,4 +1,5 @@
 from typing import List
+from pathlib import Path
 
 from .serialization import save_model
 from .sgp import SGP
@@ -49,4 +50,4 @@ class GaussianProcessTrainer:
         return
 
     def read_convergence(self) -> bool:
-        return True
+        return (Path(self.directory) / self.frozen_name).is_file()

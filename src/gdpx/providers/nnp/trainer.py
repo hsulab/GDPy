@@ -10,6 +10,7 @@ from ..training import BasePotentialTrainer
 
 WEIGHTS_NAME = "nn_weights.npz"
 INPUT_DATASET_NAME = "input_dataset.xyz"
+COMPLETION_NAME = "training.done"
 
 
 def _materialize_dataset(dataset):
@@ -72,11 +73,14 @@ class NnpTrainer(BasePotentialTrainer):
             write(self.directory / INPUT_DATASET_NAME, dataset)
 
     def read_convergence(self) -> bool:
-        return True
+        return (self.directory / COMPLETION_NAME).is_file() and (
+            self.directory / WEIGHTS_NAME
+        ).is_file()
 
     def train(self, dataset, init_model=None, *args, **kwargs):
         train_dir = self.directory
         train_dir.mkdir(parents=True, exist_ok=True)
+        (train_dir / COMPLETION_NAME).unlink(missing_ok=True)
 
         dataset = _materialize_dataset(dataset)
         if not dataset:
@@ -577,6 +581,7 @@ class NnpTrainer(BasePotentialTrainer):
             g4_norm,
             r_cut,
         )
+        (train_dir / COMPLETION_NAME).write_text("Training completed.\n")
 
     def freeze(self):
         model_path = (self.directory / self.frozen_name).resolve()

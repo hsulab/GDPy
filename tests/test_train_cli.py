@@ -1,3 +1,7 @@
+import copy
+import json
+
+import pytest
 import yaml
 
 from gdpx.cli import train as train_cli
@@ -20,6 +24,9 @@ class _StructuredTrainer:
     def train(self, dataset, init_model=None):
         self.dataset = dataset
         self.init_model = init_model
+
+    def read_convergence(self):
+        return self.frozen
 
     def freeze(self):
         self.frozen = True
@@ -47,6 +54,65 @@ def test_run_trainer_preserves_dataloader_for_structured_trainers(monkeypatch, t
     assert trainer.dataset is dataloader
     assert trainer.init_model == "pretrained.pt"
     assert trainer.frozen
+
+
+def test_completed_training_skips_dataset_and_retries_export(monkeypatch, tmp_path):
+    trainer = _StructuredTrainer()
+    trainer.frozen = True
+    parameters = {"trainer": {"provider": "any-provider"}}
+    monkeypatch.setattr(train_cli, "parse_input_file", lambda configuration: parameters)
+    monkeypatch.setattr(train_cli, "create_trainer", lambda configuration: trainer)
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Completed training must not load a dataset or start training")
+
+    trainer.train = unexpected
+    monkeypatch.setattr(train_cli, "create_dataloader", unexpected)
+    exports = []
+
+    def freeze():
+        exports.append(trainer.directory)
+        if len(exports) == 1:
+            raise RuntimeError("Export failed")
+
+    trainer.freeze = freeze
+    with pytest.raises(RuntimeError, match="Export failed"):
+        train_cli.run_trainer("trainer.yaml", tmp_path)
+    train_cli.run_trainer("trainer.yaml", tmp_path)
+    assert exports == [tmp_path, tmp_path]
+
+
+def test_mixed_committee_trains_only_unfinished_models(monkeypatch, tmp_path):
+    trainers = [_StructuredTrainer() for _ in range(4)]
+    trainers[0].frozen = trainers[2].frozen = True
+    parameters = {
+        "trainer": {}, "dataset": {"name": "xyz"}, "init_model": "initial.pt",
+    }
+    dataloader = object()
+    monkeypatch.setattr(train_cli, "parse_input_file", lambda configuration: copy.deepcopy(parameters))
+    monkeypatch.setattr(train_cli, "create_trainer", lambda configuration: trainers.pop(0))
+    monkeypatch.setattr(train_cli, "create_dataloader", lambda configuration: dataloader)
+    models = trainers.copy()
+    for index in range(4):
+        train_cli.run_trainer("trainer.yaml", tmp_path / f"m{index}")
+    assert [trainer.dataset for trainer in models] == [None, dataloader, None, dataloader]
+    assert all(trainer.frozen for trainer in models)
+    assert models[1].init_model == models[3].init_model == "initial.pt"
+
+
+def test_completed_deepmd_training_only_exports(monkeypatch, tmp_path):
+    from gdpx.providers.deepmd.training.deepmd import DeepmdTrainer
+
+    trainer = DeepmdTrainer(config=_dpa4_config(), directory=tmp_path)
+    (tmp_path / "out.json").write_text(json.dumps({"training": {"numb_steps": 5000}}))
+    (tmp_path / "lcurve.out").write_text("# step loss\n5000 1.0e-3\n")
+    monkeypatch.setattr(train_cli, "parse_input_file", lambda configuration: {"trainer": {}})
+    monkeypatch.setattr(train_cli, "create_trainer", lambda configuration: trainer)
+    exports = []
+    monkeypatch.setattr(trainer, "freeze", lambda: exports.append(trainer.directory))
+    monkeypatch.setattr(trainer, "train", lambda *args, **kwargs: pytest.fail("Retraining completed model"))
+    train_cli.run_trainer("trainer.yaml", tmp_path)
+    assert exports == [tmp_path]
 
 
 class _Dataset:

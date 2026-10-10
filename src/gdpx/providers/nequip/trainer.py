@@ -141,7 +141,10 @@ class NequipTrainer(BasePotentialTrainer):
     def read_convergence(self) -> bool:
         """"""
         converged = False
-        with open(self.directory / self.RUN_NAME / "log", "rb") as fopen:
+        log_path = self.directory / self.RUN_NAME / "log"
+        if not log_path.is_file():
+            return False
+        with open(log_path, "rb") as fopen:
             try:  # catch OSError in case of a one line file
                 fopen.seek(-2, os.SEEK_END)
                 while fopen.read(1) != b"\n":
