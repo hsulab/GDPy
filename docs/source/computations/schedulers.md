@@ -106,6 +106,18 @@ requires all models in the group. Packing currently supports local scheduler
 transports. Existing submitted metadata must not be regrouped while jobs are
 active. Set the train step's `auto_submit: false` to prepare without submitting.
 
+Training and drive workers share a compact layout: `_meta/inputs.json` stores
+the frozen job inputs, `_meta/scheduler.json` tracks submissions and completion,
+and `_meta/jobscripts/run-<uuid>.script` contains each generated job script.
+Model configurations, logs, checkpoints, and exports stay in `m0`, `m1`, etc.;
+the shared training dataset stays in `shared_dataset`. Resubmission reconstructs
+missing scripts and model configurations from the saved inputs, preserving model
+seeds. Single-model and packed training use the same lifecycle. Old training
+directories with `_<scheduler>_jobs.json` require a new working directory.
+
+Submitting training does not require a persistent workflow controller. A later
+workflow invocation can inspect completed jobs and continue with validation.
+
 ## Queue lifecycle
 
 Prepare, review, submit, inspect, and collect a queued calculation using one
