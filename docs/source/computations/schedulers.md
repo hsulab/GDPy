@@ -32,6 +32,53 @@ lsf.md
 
 ## Scheduler and transport
 
+### Named user presets
+
+Store reusable scheduler configurations in `~/.config/gdpx/config.yaml`:
+
+```yaml
+schedulers:
+  nersc-gpu:
+    provider: slurm
+    parameters:
+      account: m944_g
+      constraint: gpu
+      qos: premium
+      nodes: 1
+      ntasks: 1
+      gpus-per-task: 1
+      environs:
+        - module load conda
+        - conda activate gdp3
+```
+
+If `XDG_CONFIG_HOME` is set, GDPy reads `$XDG_CONFIG_HOME/gdpx/config.yaml`
+instead. The file is read only when a preset is explicitly requested.
+
+Select a preset with `scheduler: nersc-gpu`, or override individual settings:
+
+```yaml
+scheduler:
+  preset: nersc-gpu
+  parameters:
+    qos: regular
+    time: "02:00:00"
+```
+
+Mapping values merge recursively. Lists, including `environs`, replace the
+entire preset value; they do not append. An explicit `null` replaces the value
+too. Presets define complete scheduler configurations and cannot reference
+other presets. Inline configurations continue to work without a user file.
+
+In a workflow, the same syntax works inside runtime and assemble options.
+A standalone scheduler resource uses `options: {preset: nersc-gpu}`.
+GDPy resolves presets before computing workflow fingerprints and freezing job
+inputs. Replacing an inline scheduler with an equivalent preset preserves the
+saved run's fingerprint. Editing effective preset settings changes that
+fingerprint, so it cannot silently change an existing run or prepared job.
+
+### Execution host
+
 The scheduler provider selects how work starts. Its optional nested transport
 selects where the scheduler command runs.
 
