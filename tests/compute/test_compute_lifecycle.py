@@ -240,6 +240,35 @@ def test_submit_retries_an_attempt_zero_record(tmp_path):
     assert retried["attempt"] == 1
 
 
+def test_submit_limit_counts_later_plan_batches(tmp_path, monkeypatch):
+    import pytest
+    from gdpx.execution.schedulers.scheduler import JobSubmissionError
+    from gdpx.execution.schedulers.slurm import SlurmScheduler
+
+    config = _emt_config()
+    config['scheduler'] = {'provider': 'slurm', 'parameters': {}}
+    config['dispatch'] = {'batch_size': 1}
+    structures = [_cu() for _ in range(3)]
+    for index, atoms in enumerate(structures):
+        atoms.positions[0, 0] = index / 10
+    plan = prepare_compute(config, structures, tmp_path)
+    calls = []
+
+    def submit(scheduler, func_to_execute=None):
+        calls.append(scheduler.job_name)
+        if len(calls) == 2:
+            raise JobSubmissionError(scheduler.script, 'QOSMaxSubmitJobPerUserLimit', 1)
+        return str(len(calls))
+
+    monkeypatch.setattr(SlurmScheduler, 'submit', submit)
+    with pytest.raises(JobSubmissionError) as caught:
+        submit_compute(plan)
+    assert caught.value.remaining_jobs == 2
+    assert caught.value.summary.count('unsubmitted') == 1
+    assert submit_compute(plan).submitted_batches == ('w0/b1', 'w0/b2')
+    assert len(calls) == 4
+
+
 def test_prepare_renders_bounded_concurrent_task_loop(tmp_path):
     config = _emt_config()
     config["scheduler"] = {

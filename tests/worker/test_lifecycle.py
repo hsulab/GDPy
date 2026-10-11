@@ -51,15 +51,16 @@ def test_concurrent_shell_loop_runs_all_tasks_and_aggregates_failures(tmp_path):
 
 def test_attempt_zero_job_is_launched_again(mock_sched, fake_driver, fake_structure, tmp_path):
     import pytest
+    from gdpx.execution.schedulers.scheduler import JobSubmissionError
 
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     submit = mock_sched.submit
 
     def fail_submission(func_to_execute=None):
-        raise RuntimeError("submission failed")
+        raise JobSubmissionError(mock_sched.script, "QOSMaxSubmitJobPerUserLimit", 1)
 
     mock_sched.submit = fail_submission
-    with pytest.raises(RuntimeError, match="submission failed"):
+    with pytest.raises(JobSubmissionError, match="QOSMaxSubmitJobPerUserLimit"):
         worker.run([fake_structure])
     assert worker.job_store.get_running()[0].attempt == 0
 
@@ -77,6 +78,32 @@ def test_runtime_worker_marks_finished(mock_sched, fake_driver, fake_structure, 
     mock_sched.finish(True)
     worker.inspect(resubmit=False)
     assert len(worker.job_store.get_finished()) == 1
+
+
+def test_submission_limit_counts_unsubmitted_batches_and_reuses_accepted_jobs(
+    mock_sched, fake_driver, fake_structure, tmp_path,
+):
+    import pytest
+    from gdpx.execution.schedulers.scheduler import JobSubmissionError
+
+    worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path, batchsize=2)
+    submit = mock_sched.submit
+
+    def reject_after_first(func_to_execute=None):
+        if mock_sched.submit_count == 1:
+            raise JobSubmissionError(mock_sched.script, 'QOSMaxSubmitJobPerUserLimit', 1)
+        return submit(func_to_execute=func_to_execute)
+
+    mock_sched.submit = reject_after_first
+    with pytest.raises(JobSubmissionError) as caught:
+        worker.run([fake_structure] * 5)
+    assert caught.value.remaining_jobs == 2
+    assert mock_sched.submit_count == 1
+    assert sorted(job.attempt for job in worker.job_store.get_queued()) == [0, 1]
+    mock_sched.submit = submit
+    worker.run([fake_structure] * 5)
+    assert mock_sched.submit_count == 3
+    assert [job.attempt for job in worker.job_store.get_queued()] == [1, 1, 1]
 
 
 def test_runtime_worker_retrieves_and_archives(mock_sched, fake_driver, fake_structure, tmp_path, monkeypatch):

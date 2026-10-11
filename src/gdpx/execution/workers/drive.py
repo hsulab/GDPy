@@ -22,6 +22,7 @@ from gdpx.execution.driver import BaseDriver
 from gdpx.execution.output import get_reporter, worker_output
 from .registry import WORKER_REGISTRY
 from gdpx.execution.runtime import Runtime
+from gdpx.execution.schedulers.scheduler import JobSubmissionError
 from gdpx.providers.configuration import resolve_executor_parameters
 from gdpx.utils.archive import ZSTD_ARCHIVE_NAME, create_zstd_archive, find_driver_archive
 from gdpx.utils.profiler import CustomTimer
@@ -674,7 +675,7 @@ class DriverBasedWorker(CatalogWorker):
                 continue
             prepared.append((ig, batch, payload, digest, None))
 
-        for ig, batch, payload, digest, existing in prepared:
+        for submission_index, (ig, batch, payload, digest, existing) in enumerate(prepared):
             uid = (
                 existing.uid
                 if existing is not None
@@ -697,7 +698,11 @@ class DriverBasedWorker(CatalogWorker):
             if not self.compact_metadata:
                 with open(self.metadata_directory / f"MACHINE_{identifier}", "w") as handle:
                     handle.write(self.scheduler.machine_prefix)
-            self._irun(batch_name, uid, identifier, frames, batch)
+            try:
+                self._irun(batch_name, uid, identifier, frames, batch)
+            except JobSubmissionError as error:
+                error.set_remaining_jobs(len(prepared) - submission_index, self.directory)
+                raise
 
     def _irun(
         self,

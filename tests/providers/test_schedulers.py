@@ -167,7 +167,7 @@ def test_ssh_transport_wraps_queue_and_direct_schedulers_lazily(monkeypatch, tmp
                 output = "completed\n"
             else:
                 output = "123 compute target R 00:01 1:00 1 4\n"
-            return None, Stream(output), Stream("")
+            return None, Stream(output), Stream(getattr(self, "error", ""))
 
         def close(self):
             pass
@@ -214,6 +214,11 @@ def test_ssh_transport_wraps_queue_and_direct_schedulers_lazily(monkeypatch, tmp
     ssh_direct.scheduler.is_dry_run = False
 
     monkeypatch.setattr(Channel, "recv_exit_status", staticmethod(lambda: 9))
+    from gdpx.execution.schedulers.scheduler import JobSubmissionError
+    client.error = "sbatch: error: QOSMaxSubmitJobPerUserLimit"
+    with pytest.raises(JobSubmissionError, match="QOSMaxSubmitJobPerUserLimit") as rejected:
+        remote.submit()
+    assert rejected.value.returncode == 9
     with pytest.raises(RuntimeError, match="Remote command failed"):
         ssh_direct.submit()
 

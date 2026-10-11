@@ -1,10 +1,47 @@
 import abc
 import copy
 import pathlib
+import re
+import shlex
 import subprocess
 from typing import Callable, Iterable, Optional, Union
 
 from gdpx import config
+
+
+class JobSubmissionError(RuntimeError):
+    """A scheduler rejection that the CLI can report without a traceback."""
+
+    def __init__(self, script, reason, returncode=None):
+        self.script = pathlib.Path(script)
+        self.reason = reason.strip()
+        self.returncode = returncode
+        self.remaining_jobs = None
+        lines = [re.sub(r"^sbatch:\s*error:\s*", "", line.strip())
+                 for line in self.reason.splitlines() if line.strip()]
+        detail = "\n".join(lines) or f"submission command exited with status {returncode}"
+        self.summary = "Job submission failed: " + "; ".join(detail.splitlines())
+        message = f"Job submission failed for {self.script}:\n{detail}"
+        if any(code in detail for code in (
+            "QOSMaxSubmitJobPerUserLimit", "QOSMaxSubmitJobPerAccountLimit",
+            "AssocMaxSubmitJobLimit", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount",
+        )):
+            self.summary = "Job submission paused: Slurm job limit reached. Rerun when a slot is available."
+            message += "\nThe running/pending job limit has been reached. Rerun the command when a submission slot is available."
+        self._summary = self.summary
+        super().__init__(message)
+
+    def set_remaining_jobs(self, count, directory):
+        """Include rejected and not-yet-attempted jobs in the CLI summary."""
+        self.remaining_jobs = count
+        self.summary = self._summary
+        noun, verb = ("job", "remains") if count == 1 else ("jobs", "remain")
+        pending = f"{count} {noun} {verb} unsubmitted in {pathlib.Path(directory).name}."
+        guidance = " Rerun when a slot is available."
+        if self.summary.endswith(guidance):
+            self.summary = self.summary[:-len(guidance)] + " " + pending + guidance
+        else:
+            self.summary += " " + pending
 
 
 def submit_job_script(
@@ -15,7 +52,7 @@ def submit_job_script(
     parse_output: Optional[Callable[[str], str]] = None,
 ) -> str:
     """Submit job script."""
-    command = f"{submit_command} {script_fpath.name}"
+    command = f"{submit_command} {shlex.quote(script_fpath.name)}"
     if not is_dry_run:
         proc = subprocess.Popen(
             command,
@@ -25,13 +62,11 @@ def submit_job_script(
             stderr=subprocess.PIPE,
             encoding="utf-8",
         )
-        errorcode = proc.wait(timeout=submit_timeout)
-        if errorcode:
-            raise RuntimeError(f"Error in submitting job script {str(script_fpath)}")
-
-        output = "".join(proc.stdout.readlines())  # type: ignore
+        output, error = proc.communicate(timeout=submit_timeout)
+        if proc.returncode:
+            raise JobSubmissionError(script_fpath, error or output, proc.returncode)
         if not output.strip():
-            raise RuntimeError(f"Scheduler returned no job id for {str(script_fpath)}")
+            raise JobSubmissionError(script_fpath, error or "Scheduler returned no job id.")
         job_id = (parse_output or (lambda value: value.strip().split()[-1]))(output)
     else:
         job_id = f"Attempt to submit the job script `{script_fpath.name}` with command `{command}`."

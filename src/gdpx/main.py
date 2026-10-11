@@ -5,6 +5,7 @@
 import argparse
 import logging
 import pathlib
+import sys
 
 import numpy as np
 
@@ -15,6 +16,17 @@ from gdpx.utils.strconv import dictionary_to_string
 
 
 def main():
+    from gdpx.execution.schedulers.scheduler import JobSubmissionError
+
+    try:
+        return _main()
+    except JobSubmissionError as error:
+        config.logger.info(error.summary)
+        config.logger.debug(str(error))
+        return 1
+
+
+def _main():
     # The arguments
     description = "gdpx: Generating Deep Potential with Python\n"
 
@@ -357,4 +369,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

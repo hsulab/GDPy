@@ -25,6 +25,7 @@ from gdpx.execution.fingerprint import (
     structure_digest,
 )
 from gdpx.execution.output import get_reporter, reporting_session
+from gdpx.execution.schedulers.scheduler import JobSubmissionError
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.metadata import WorkerMetadata
 from gdpx.providers import expand_runtime_configs
@@ -447,7 +448,16 @@ def submit_compute(
             before = {
                 record.gdir: record.attempt for record in worker.job_store.get_queued()
             }
-            worker._run_by_scheduler(worker_plan.structure_digest, frames, worker_batches, target_batch=batch_index)
+            try:
+                worker._run_by_scheduler(worker_plan.structure_digest, frames, worker_batches, target_batch=batch_index)
+            except JobSubmissionError as error:
+                remaining = 0
+                for pending_worker, pending_plan, _ in restored:
+                    accepted = {record.group_number for record in pending_worker.job_store.get_queued()
+                                if record.attempt > 0}
+                    remaining += len(set(_selected_batches(pending_plan, batches)) - accepted)
+                error.set_remaining_jobs(remaining, plan.directory)
+                raise
             after = {
                 record.gdir: record.attempt for record in worker.job_store.get_queued()
             }

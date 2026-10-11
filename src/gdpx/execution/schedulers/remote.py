@@ -15,7 +15,17 @@ import paramiko
 
 from gdpx.core.output import message
 
-from .scheduler import BaseScheduler
+from .scheduler import BaseScheduler, JobSubmissionError
+
+
+class RemoteCommandError(RuntimeError):
+    """Preserve remote command output for submission diagnostics."""
+
+    def __init__(self, command, output, error, returncode):
+        self.output = output
+        self.error = error
+        self.returncode = returncode
+        super().__init__(f"Remote command failed: {error.strip() or command}")
 
 
 def _should_sync_file(sftp: paramiko.SFTPClient, remote_file_path, local_file_path) -> bool:
@@ -277,8 +287,9 @@ class SshTransport(BaseScheduler):
             output = output_future.result().decode()
             error = error_future.result().decode()
         channel = getattr(stdout, "channel", None)
-        if channel is not None and channel.recv_exit_status() != 0:
-            raise RuntimeError(f"Remote command failed: {error.strip() or command}")
+        returncode = channel.recv_exit_status() if channel is not None else 0
+        if returncode != 0:
+            raise RemoteCommandError(command, output, error, returncode)
         return output, error
 
     def submit(self, func_to_execute: Optional[Callable] = None) -> str:
@@ -301,11 +312,17 @@ class SshTransport(BaseScheduler):
                     shlex.quote(script_relative.name)
                 )
             command = f"cd {shlex.quote(str(remote_cwd))} && {launch_command}"
-            output, error = self._command_result(client, command)
+            try:
+                output, error = self._command_result(client, command)
+            except RemoteCommandError as failure:
+                if self.scheduler.is_direct:
+                    raise
+                raise JobSubmissionError(self.script, failure.error or failure.output,
+                                         failure.returncode) from failure
             if self.scheduler.is_direct:
                 return "direct"
             if not output.strip():
-                raise RuntimeError(f"Remote submission returned no output: {error.strip()}")
+                raise JobSubmissionError(self.script, error or "Scheduler returned no job id.")
             return self.scheduler.parse_submit_output(output)
         finally:
             if sftp is not None:
