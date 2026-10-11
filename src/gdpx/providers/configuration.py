@@ -529,6 +529,11 @@ def scheduler_component(value: Any) -> SchedulerConfig:
         return value
     if isinstance(value, ComponentConfig):
         value = value.to_dict()
+    from gdpx.user_config import UserConfigError, resolve_scheduler_preset
+    try:
+        value = resolve_scheduler_preset(value)
+    except UserConfigError as error:
+        raise ProviderConfigurationError(str(error)) from error
     if not isinstance(value, Mapping):
         raise ProviderConfigurationError("Scheduler configuration must be a mapping.")
     data = copy.deepcopy(dict(value))

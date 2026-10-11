@@ -10,6 +10,8 @@ from typing import Any, Mapping
 
 import yaml
 
+from gdpx.user_config import UserConfigError, resolve_scheduler_preset
+
 
 class WorkflowConfigError(ValueError):
     """A user-facing workflow configuration error."""
@@ -258,6 +260,13 @@ def _parse_node(name: str, value: Any, parameters: Mapping[str, Any], section: s
     if "directory" in options or "directory" in inputs:
         raise WorkflowConfigError(f"{section}.{name}.directory is managed by the workflow runner.")
     resolved = _resolve_parameters(options, parameters, f"{section}.{name}.options")
+    try:
+        if node_type == "scheduler":
+            resolved = resolve_scheduler_preset(resolved)
+        elif "scheduler" in resolved:
+            resolved["scheduler"] = resolve_scheduler_preset(resolved["scheduler"])
+    except UserConfigError as error:
+        raise WorkflowConfigError(f"{section}.{name}: {error}") from error
     parsed_inputs = {
         key: _parse_reference(item, f"{section}.{name}.inputs.{key}")
         for key, item in inputs.items()
