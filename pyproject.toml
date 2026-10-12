@@ -53,6 +53,9 @@ reax = ["xreac[ase] @ git+https://github.com/hsulab/xreac.git@2d0f2bda35056a1ac9
 mace = ["mace-torch", "torch>=1.12,!=2.4.1"]
 reann = ["torch>=2.0", "opt_einsum>=3.2.0"]
 tace = ["tace @ git+https://github.com/xvzemin/tace.git@90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896"]
+# Prophet extras require Python >=3.11; kernels additionally require a CUDA toolchain.
+prophet = ["prophet-mlip @ git+https://github.com/kairosmaterial/prophet.git@62bc2769fa83214fd564c7df263ee254e73fc6e9"]
+prophet-kernel = ["prophet-mlip[kernel] @ git+https://github.com/kairosmaterial/prophet.git@62bc2769fa83214fd564c7df263ee254e73fc6e9"]
 
 [tool.pyright]
 include = [

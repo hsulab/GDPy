@@ -1,0 +1,17 @@
+potential:
+  provider: prophet
+  backend: ase
+  parameters:
+    # Download the standard Prophet energy/force checkpoint before running.
+    model: ./models/prophet-oame-mbd.pt
+    device: cpu
+    use_kernel: false
+executor:
+  provider: ase
+  method: min
+  parameters:
+    setup:
+      constraint: '`zbot 60`'
+    stop:
+      fmax: 0.05
+      steps: 20

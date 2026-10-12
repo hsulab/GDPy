@@ -1,0 +1,30 @@
+{
+  "model": "Prophet-OAME-MBD",
+  "atoms": 184,
+  "threads": 1,
+  "device": "cpu",
+  "use_kernel": false,
+  "use_compile": false,
+  "perturbation_std_angstrom": 0.001,
+  "seed": 20261012,
+  "warmup_seconds": [
+    205.159
+  ],
+  "evaluation_seconds": [
+    172.832,
+    140.694
+  ],
+  "finite_outputs": true,
+  "protocol": "One warmup followed by two uncached warmed evaluations; the longer run was interrupted after the third completed evaluation at user request. Times recorded from benchmark stdout to 1 ms precision.",
+  "platform": "macOS-26.6-arm64-arm-64bit",
+  "python": "3.12.15",
+  "versions": {
+    "prophet-mlip": "1.0.1",
+    "torch": "2.11.0",
+    "ase": "3.29.0",
+    "e3nn": "0.6.0",
+    "torch_geometric": "2.8.0.post1",
+    "matscipy": "1.3.0"
+  },
+  "median_ms": 156763.0
+}
