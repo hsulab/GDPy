@@ -60,6 +60,11 @@ excluding loading and compilation; they are not complete relaxation times.
 | {ref}`DPA4-mini <potential-deepmd>` | CPU-exported `.pt2` | 601.1 ms |
 | {ref}`DPA4C-mini <potential-deepmd>` | CPU-exported `.pt2`, scalar code generation | 29.2 ms |
 
+Prophet-OAME-MBD took **156.8 s per energy-and-force evaluation** (median of
+two warmed samples, 140.7–172.8 s) in a shorter one-thread CPU check on the
+same structure after one 205.2 s warmup. This is an estimate rather than the ten-sample median protocol
+used in the table. See {ref}`the Prophet timing details <prophet-cpu-timing>`.
+
 See the {ref}`potential comparison <potential-cpu-inference-comparison>` for
 the test protocol and model-specific setup.
 
@@ -106,6 +111,37 @@ Inspect `candidates.db` for relaxed structures and acceptance metadata,
 `results/history/gen0001.png` for the search history, and
 `tmp_folder/gen1/rounds/events.jsonl` for committed rounds. Repeating the
 command with the same output directory resumes the search.
+
+### Prophet runtime
+
+Prophet-OAME-MBD is the currently released standard Prophet energy/force
+checkpoint. Upstream does not release a smaller standard checkpoint or report
+a speed comparison between Prophet models, so no fastest-model ranking is
+available. Download `prophet-oame-mbd.pt` from
+[Kairos Materials' model repository](https://huggingface.co/kairosmaterial/prophet)
+to `./models/prophet-oame-mbd.pt`, and install GDPy's `prophet` extra as described
+in {doc}`../../potentials/prophet`.
+
+This runtime fixes the bottom 60 substrate atoms and uses the same short
+relaxation budget as the example above:
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/prophet_oame_mbd.yaml
+:language: yaml
+```
+
+```shell
+mamba run -n gdp3 gdp -d ./run-cu4-alumina111-bh-prophet \
+    --runtime ./examples/global_optimisation/runtimes/prophet_oame_mbd.yaml explore \
+    ./examples/global_optimisation/explorations/basin_hopping/cu4_alumina111.yaml
+```
+
+For accelerated inference on an NVIDIA GPU, install Prophet's optional CUDA
+kernels and change the potential parameters to `device: cuda`,
+`use_kernel: true`, and `use_compile: true`; see
+{ref}`the Prophet acceleration instructions <prophet-supported-cluster>`.
+Compilation adds first-evaluation overhead. The supplied CPU configuration
+also runs on machines without CUDA. The CPU estimate above indicates that
+this checkpoint is costly for this example on the measured hardware.
 
 The compact populations and short search budgets demonstrate the workflow.
 Converge the slab thickness, surface area, vacuum, relaxation budget, and search

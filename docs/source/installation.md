@@ -6,6 +6,8 @@ Use Python 3.10 or newer. Required packages, optional extras, and their version
 constraints are declared in
 [`pyproject.toml`](https://github.com/hsulab/GDPy/blob/main/pyproject.toml).
 Pip installs the dependencies for the extras you select.
+Prophet requires Python 3.11 or newer; its pinned upstream package requires
+ASE >=3.29, e3nn >=0.6, PyTorch >=2.7, and torch_geometric >=2.7.
 
 ## Create an environment
 
@@ -35,7 +37,7 @@ python -m pip install -e .
 
 ## CPU-only installation
 
-For DeepMD 3 (PyTorch and TensorFlow), TACE, and MatterSim, use the command for
+For DeepMD 3 (PyTorch and TensorFlow), TACE, MatterSim, and Prophet, use the command for
 your platform from the repository root.
 
 ### macOS
@@ -44,7 +46,7 @@ PyTorch's macOS wheels use the plain version number and are installed from
 PyPI. On both Apple Silicon and Intel macOS, run:
 
 ```shell
-python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0'
+python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim,prophet]' 'deepmd-kit==3.2.0' 'torch==2.11.0'
 ```
 
 ### Linux
@@ -52,7 +54,7 @@ python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-k
 Linux CPU wheels use the `+cpu` suffix and PyTorch's CPU wheel index:
 
 ```shell
-python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim,prophet]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cpu' --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
 This uses DeepMD's `deepmd3-cpu` extra for TensorFlow and CPU PyTorch wheels
@@ -65,25 +67,30 @@ Add `-e` to that command if you also want an editable installation.
 
 ## Recommended GPU installation
 
-For DeepMD 3 (PyTorch and TensorFlow), TACE, and MatterSim, run this from the
+For DeepMD 3 (PyTorch and TensorFlow), TACE, MatterSim, and Prophet, run this from the
 repository root on either a CPU or GPU Linux node:
 
 ```shell
-python -m pip install '.[deepmd3-torch,deepmd3-cu12,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cu128' --extra-index-url https://download.pytorch.org/whl/cu128
+python -m pip install '.[deepmd3-torch,deepmd3-cu12,tace,mattersim,prophet]' 'deepmd-kit==3.2.0' 'torch==2.11.0+cu128' --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
 We use DeepMD's explicit backend extras to establish the PyTorch and TensorFlow
-GPU dependencies. TACE and MatterSim reuse the same compatible PyTorch and
+GPU dependencies. TACE, MatterSim, and Prophet reuse the same compatible PyTorch and
 shared libraries. Resolving them together with the pinned CUDA wheel reduces
 version mismatches from separate installations. Their declared shared
 dependency constraints overlap; the complete environment has not yet been
 validated end to end.
 
 This selects the CUDA-enabled packages even when no GPU is visible during
-installation. Git is required for TACE. GPU execution requires a compatible
+installation. Git is required for TACE and Prophet. GPU execution requires a compatible
 NVIDIA driver on the compute node; `CONDA_OVERRIDE_CUDA` is unnecessary. The
 GPU installation can also run calculations on CPUs, but includes CUDA
 libraries and is therefore larger than the CPU-only installation.
+
+The `prophet` extra uses pure e3nn operations by default. For Prophet's optional
+CUDA kernels, replace `prophet` with `prophet-kernel` in the GPU command and
+provide a CUDA toolchain with `nvcc` and headers on the execution node. Set
+`device: cuda` and `use_kernel: true` in the runtime; see {doc}`potentials/prophet`.
 
 (gpu-verification)=
 
@@ -116,7 +123,8 @@ separate environment rather than adding `mace` to the command above.
 Install individual providers with `python -m pip install '.[mace]'`, replacing
 `mace` with the extra you need. See the provider pages for other backends and
 training setup: {doc}`potentials/deepmd`, {doc}`potentials/mace`,
-{doc}`potentials/mattersim`, {doc}`potentials/reann`, and {doc}`potentials/tace`.
+{doc}`potentials/mattersim`, {doc}`potentials/reann`, {doc}`potentials/tace`,
+and {doc}`potentials/prophet`.
 
 For a different PyTorch CPU/CUDA build, use the
 [PyTorch installation selector](https://pytorch.org/get-started/locally/).

@@ -26,6 +26,7 @@ deepmd
 mace
 mattersim
 tace
+prophet
 nequip
 allegro
 reann

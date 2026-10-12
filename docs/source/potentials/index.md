@@ -158,3 +158,12 @@ accuracy, GPU performance, or complete exploration times.
 See {doc}`deepmd` for DPA4/DPA4C exports, {doc}`mace` for foundation-model
 results, {doc}`mattersim` for its calculator settings, and {doc}`tace` for
 profiling and the CPU compilation workaround.
+
+Prophet-OAME-MBD was measured separately in a shorter check in `gdp3`:
+**156,763 ms (156.8 s)** median of two warmed energy-and-force evaluations
+(140.7–172.8 s), after one 205.2 s warmup on the same 184-atom structure,
+with one CPU thread.
+It used Prophet 1.0.1, e3nn 0.6.0, and the uncompiled pure e3nn path.
+This two-sample estimate is not a ten-evaluation median and remains outside the
+table's protocol. See {ref}`prophet-cpu-timing` for the recorded settings
+and reproduction command.
