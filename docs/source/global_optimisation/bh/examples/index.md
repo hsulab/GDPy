@@ -32,6 +32,7 @@ to open its configuration and guide.
 | Cluster | {ref}`Cu₄O₄ <bh-cuox-thanos-example>` | MatterSim | Extinction and chain restarts |
 | Interface | {ref}`Cu₄/α-Al₂O₃(0001) <bh-supported-nanoparticle-example>` | User-selected | Cu-only hops; bottom substrate planes fixed by runtime |
 | Interface | {ref}`Two or three waters/TiO₂(101) <bh-tio2-water-rotation>` | xreac | Oxygen-pivot rotations; parallel and hydrogen-bonded seeds |
+| Interface | {ref}`Water dissociation/TiO₂(101) <bh-tio2-water-bond-change>` | xreac | Bond breaking/forming with relaxed fragment tags |
 
 ```{toctree}
 :maxdepth: 1
@@ -44,4 +45,5 @@ variable-composition
 cuox_tace
 cuox_thanos
 tio2-water-rotation
+tio2-water-bond-change
 ```
