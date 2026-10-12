@@ -442,8 +442,10 @@ class VaspDriver(BaseDriver):
                     verified = False
                 # check if vasp refuses to start
                 outcar = self.directory / "OUTCAR"
-                with open(outcar, "r") as fopen:
-                    outcar_lines = fopen.readlines()
+                outcar_lines = []
+                if outcar.is_file():
+                    with open(outcar, "r") as fopen:
+                        outcar_lines = fopen.readlines()
                 is_bad_geometry = False
                 for line in outcar_lines:
                     if "|       ---->  I REFUSE TO CONTINUE WITH THIS SICK JOB ... BYE!!! <----       |" in line:
