@@ -4,6 +4,7 @@
 
 from .bounce import BounceOperator
 from .exchange import AdsorbateExchangeOperator, BiasedVolumeExchangeOperator, CavityExchangeOperator, ExchangeOperator
+from .bond_change import BondChangeOperator
 from .move import MoveOperator
 from .rattle import RattleOperator
 from .react import ReactOperator
@@ -12,6 +13,7 @@ from .swap import SwapOperator
 from .swap_type import SwapTypeOperator
 
 __all__ = [
+    "BondChangeOperator",
     "MoveOperator",
     "RattleOperator",
     "RotateOperator",

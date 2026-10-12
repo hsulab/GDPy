@@ -6,6 +6,7 @@ from .moves import (
     AdsorbateExchangeOperator,
     BiasedVolumeExchangeOperator,
     BounceOperator,
+    BondChangeOperator,
     CavityExchangeOperator,
     ExchangeOperator,
     MoveOperator,
@@ -45,6 +46,8 @@ def parse_operators(op_params: list[dict]):
             op = RattleOperator(**param)
         elif name == "rotate":
             op = RotateOperator(**param)
+        elif name == "bond_change":
+            op = BondChangeOperator(**param)
         elif name == "bounce":
             op = BounceOperator(**param)
         elif name == "swap":

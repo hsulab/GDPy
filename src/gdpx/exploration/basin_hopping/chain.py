@@ -11,6 +11,7 @@ from ase import Atoms
 
 from ..sampling import select_operator
 from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from ..sampling.fragments import fragment_policy_for
 from ..accepted_state import load_accepted_state, save_accepted_state, load_structure, save_structure
 from ..checkpoint import save_data, load_data, publish_snapshot, read_snapshot, prune_snapshots
 from ..generation import EvaluationStatus
@@ -127,6 +128,9 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     Optional move_logger routes proposal diagnostics and committed outcomes.
     """
     directory.mkdir(parents=True, exist_ok=True)
+    fragment_policy = fragment_policy_for(operators)
+    bond_settings = [dict(index=i, settings=op.as_dict()) for i, op in enumerate(operators)
+                     if op.name == "bond_change"] or None
     # Standalone coordinators use an ASE history database. The engine disables
     # this because record_trial already persists structures in candidates.db.
     history = None
@@ -134,7 +138,9 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         history = ase.db.connect(directory / 'history.db')
     def history_record(frame, key):
         rows = list(history.select(event_key=key))
-        return rows[0].id if rows else history.write(frame, event_key=key)
+        data = {name: copy.deepcopy(frame.info[name]) for name in ("bond_change", "fragment_changes")
+                if name in frame.info}
+        return rows[0].id if rows else history.write(frame, event_key=key, data=data)
 
     resumed = (directory / 'current.json').exists()
     if resumed:
@@ -144,17 +150,24 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
         rng.bit_generator.state = state["rng"]
         step, states = state["step"], []
         context = state["context"]
+        if context.get("bond_change_settings") != bond_settings:
+            raise ValueError("Incompatible bond_change checkpoint settings; use the original recipe or start a new run.")
         if random_streams is not None:
             random_streams.restore(context["random_states"])
     else:
         if any(directory.glob('round-*')) or any(directory.glob('pending-*')):
             raise ValueError("Legacy BH checkpoint is not supported; start a new run.")
         atoms = list(starts)
+        if fragment_policy is not None:
+            for frame in atoms:
+                fragment_policy.reconcile(frame)
         step, states = 0, []
         ids = [history_record(a, f'start:{i}') if history is not None else a.info['confid'] for i, a in enumerate(atoms)]
         context = dict(segments=[0] * len(atoms), segment_starts=[a.info.get("confid") for a in atoms],
                        current_ids=ids, journal_offset=0, terminated=[], exhausted=False,
                        random_states=random_streams.snapshot() if random_streams is not None else {})
+        if bond_settings is not None:
+            context["bond_change_settings"] = bond_settings
         _commit(directory, 0, atoms, states, rng, mcsteps, context)
     if move_logger is not None:
         move_logger.write(f"{'resumed' if resumed else 'started'} after committed round {step}")
@@ -180,6 +193,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                 move_logger.write("reusing pending proposals; no new proposals generated", round=step)
             if data.get("version") != 5:
                 raise ValueError("Unsupported BH pending round checkpoint; start a new run.")
+            if data.get("bond_change_settings") != bond_settings:
+                raise ValueError("Incompatible pending bond_change settings; start a new run.")
             rng.bit_generator.state = data["rng"]
             if random_streams is not None:
                 random_streams.restore(data["random_states"])
@@ -218,6 +233,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     trials.append(accepted)
                 data = dict(version=5, entries=entries, rng=copy.deepcopy(rng.bit_generator.state),
                             random_states=random_streams.snapshot() if random_streams is not None else {})
+                if bond_settings is not None:
+                    data["bond_change_settings"] = bond_settings
                 _save(staging / "proposal.json", data)
                 staging.rename(pending)
                 if trials:
@@ -242,7 +259,16 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     log_outcomes.append("invalid proposal; no evaluation")
                 continue
             trial = results[index]
+            if fragment_policy is not None:
+                if len(trial) != len(atoms[index]) or (trial.numbers != atoms[index].numbers).any():
+                    raise ValueError("Fragment reconciliation requires workers to preserve atom order and composition.")
+                trial.set_constraint(atoms[index].constraints)
             trial.set_tags(entry["tags"])
+            if fragment_policy is not None:
+                trial.info.pop("bond_change", None)
+                if "bond_change" in entry["metadata"]:
+                    trial.info["bond_change"] = copy.deepcopy(entry["metadata"]["bond_change"])
+                fragment_policy.reconcile(trial)
             trial_energy = trial.get_potential_energy()
             accepted = operators[entry["operator"]].acceptance.accept(
                 entry["metadata"], entry["energy"], trial_energy, rng)

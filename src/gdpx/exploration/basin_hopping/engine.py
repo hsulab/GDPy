@@ -16,6 +16,7 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
+from ..sampling.fragments import fragment_policy_for
 
 from ..population.exploration import PopulationBasedExploration, validate_strategy, reject_legacy_settings
 from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
@@ -56,7 +57,8 @@ def canonical_candidates_from_worker_results(
 
     for candidate in relaxed_candidates:
         extra_info = dict(
-            data={},
+            data={key: copy.deepcopy(candidate.info[key]) for key in ("bond_change", "fragment_changes")
+                  if key in candidate.info},
             key_value_pairs={
                 "generation": gen_num,
             },
@@ -160,6 +162,7 @@ class BasinHopping(PopulationBasedExploration):
         # Parse monte carlo settings
         self.steps_per_chain = steps_per_chain
         self.operators, self.op_probs = parse_operators(operators)
+        self.fragment_policy = fragment_policy_for(self.operators)
 
         # Some convergence criteria
         self.convergence = convergence
@@ -409,6 +412,7 @@ class BasinHopping(PopulationBasedExploration):
             return EvaluationStatus.PENDING
         # Worker outputs need not preserve input metadata. Keep persisted builder provenance by ID.
         expected = {a.info["confid"]: copy.deepcopy(a.info.get("data", {})) for a in candidates}
+        inputs = {a.info["confid"]: a for a in candidates}
         # Every hopping evaluation was already persisted by the round coordinator.
         results = evaluate_batch(candidates, self.worker, gen_wdir, self.use_archive) if gen_num == 0 else []
         if results is None:
@@ -421,6 +425,13 @@ class BasinHopping(PopulationBasedExploration):
             if confid in committed:
                 continue
             provenance = expected[confid]
+            if self.fragment_policy is not None:
+                source = inputs[confid]
+                if len(candidate) != len(source) or (candidate.numbers != source.numbers).any():
+                    raise ValueError("Fragment reconciliation requires workers to preserve atom order and composition.")
+                candidate.set_tags(source.get_tags())
+                candidate.set_constraint(source.constraints)
+                self.fragment_policy.reconcile(candidate)
             canonical_candidates_from_worker_results(
                 [candidate], gen_num=gen_num, use_tags=True, objective=self.objective,
                 extinct_callbacks=self.population_config.extinct_callbacks)

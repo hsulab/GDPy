@@ -107,10 +107,11 @@ class BaseMCOperator(abc.ABC):
             else:
                 if trial is not atoms:
                     raise RuntimeError("Moves must return their borrowed Atoms object.")
-                # Only scalar acceptance context escapes the short-lived attempt.
+                # Acceptance context and portable reaction provenance escape
+                # the short-lived attempt; no borrowed array references do.
                 keys = (
                     "operation", "num_particles", "volume", "symm_factor",
-                    "first_ptype", "second_ptype", "proposal_ratio",
+                    "first_ptype", "second_ptype", "proposal_ratio", "bond_change",
                 )
                 proposal.metadata = {key: attempt._state[key] for key in keys if key in attempt._state}
                 if self.name == "react":
