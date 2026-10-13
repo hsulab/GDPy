@@ -6,7 +6,7 @@ Mutations modify one candidate to create structural or compositional variation.
 
 | Method | Description |
 | --- | --- |
-| `mirror` | Keeps one side of a randomly oriented cutting plane and mirrors it to replace the other side. This currently supports atomic structures only. |
+| {ref}`mirror <ga-mirror-mutation>` | Keeps one side of a randomly oriented cutting plane and mirrors it to replace the other side. Requires `system.preserve_fragments: false`; currently supports atomic structures only. |
 | {ref}`rattle <ga-rattle-mutation>` | Randomly displaces a fraction of the optimised atoms or tagged fragments while enforcing minimum distances. |
 | `soft` | Displaces the structure along a smooth low-frequency mode generated from its local geometry. |
 | `strain` | Applies a random strain to the cell. It is intended for variable-cell searches and respects configured cell bounds. |
@@ -23,6 +23,7 @@ Mutations modify one candidate to create structural or compositional variation.
 :hidden:
 
 exchange
+mirror
 rattle
 swap
 ```

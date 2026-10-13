@@ -30,6 +30,11 @@ automatically. Periodicity and fragment preservation are configured once as
 `true`; set either value explicitly to `false` when the searched system or its
 operators require it.
 
+Fragment preservation is enforced during operator setup: operators that cannot
+guarantee it are rejected when `system.preserve_fragments: true`. In particular,
+{ref}`mirror <ga-mirror-mutation>` requires `system.preserve_fragments: false`.
+There is no per-operator `use_tags` override.
+
 The standard GA operator interfaces are gdpx-owned implementations inspired
 by the algorithms and configuration surface in ASE-GA 1.0.3. They use explicit
 NumPy `Generator` streams; gdpx does not import the legacy `ase.ga` package at
