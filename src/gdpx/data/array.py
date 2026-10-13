@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io.jsonio import decode, encode
 
 #: The retained keys in atoms.info.
 RETAINED_INFO_NAMES: list[str] = [
@@ -585,6 +586,13 @@ class AtomsNDArray:
                 tags=tags[:natoms],
             )
             images.append(atoms)
+        # Prefer lossless calculation inputs when available. The legacy numeric
+        # datasets omit custom arrays (e.g. LAMMPS atom types) and constraints,
+        # which changes downstream fingerprints when a workflow resumes.
+        inputs = grp.get("structure_inputs")
+        if inputs is not None:
+            images = [decode(value.decode("utf-8") if isinstance(value, bytes) else value)
+                      for value in inputs]
         nimages = len(images)
 
         for name in RETAINED_INFO_NAMES:
@@ -594,7 +602,7 @@ class AtomsNDArray:
                     atoms.info[name] = v
 
         data = grp.get("momenta", default=None)
-        if data is not None:
+        if data is not None and inputs is None:
             for i, v in enumerate(data):
                 a_v = v[: natoms_list[i]]
                 if not np.all(np.isnan(a_v)):
@@ -692,6 +700,17 @@ class AtomsNDArray:
         _ = grp.create_dataset("atype", data=atomic_numbers, dtype="i8")
         _ = grp.create_dataset("tags", data=tags, dtype="i8")
         _ = grp.create_dataset("positions", data=positions, dtype="f8")
+
+        # Keep the numeric datasets for older readers, and preserve complete ASE
+        # inputs separately. Info and calculator results follow the existing
+        # retained-field policy below; Atoms.copy() excludes the calculator.
+        structure_inputs = []
+        for atoms in images:
+            snapshot = atoms.copy()
+            snapshot.info = {}
+            structure_inputs.append(encode(snapshot))
+        grp.create_dataset("structure_inputs", data=structure_inputs,
+                           dtype=h5py.string_dtype(encoding="utf-8"))
 
         for name, dtype in zip(RETAINED_INFO_NAMES, RETAINED_INFO_DTYPES):
             data = [a.info.get(name, np.nan) for a in images]
