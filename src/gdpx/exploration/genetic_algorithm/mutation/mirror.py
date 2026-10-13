@@ -1,11 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from typing import Optional
 
 import numpy as np
 from ase import Atoms
+
 from gdpx.structures.geometry.ga import atoms_too_close, atoms_too_close_two_sets
 
 from ..core import OffspringCreator
@@ -54,9 +51,7 @@ class MirrorMutation(OffspringCreator):
 
         self.use_tags = use_tags
         if self.use_tags:
-            raise NotImplementedError(
-                "MirrorMutataion does not support molecules."
-            )
+            raise NotImplementedError("MirrorMutataion does not support molecules.")
 
         return
 
@@ -190,7 +185,3 @@ class MirrorMutation(OffspringCreator):
             return None
 
         return tot
-
-
-if __name__ == "__main__":
-    ...
