@@ -1,9 +1,43 @@
 from pathlib import Path
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 import yaml
 
-from gdpx.providers.mattersim.manager import canonicalise_mattersim_model
+from gdpx.providers.mattersim.manager import MatterSimManager, canonicalise_mattersim_model
+
+
+@pytest.mark.parametrize("backend", ["ase", "graph_pes"])
+@pytest.mark.parametrize("cuda_available", [False, True])
+@pytest.mark.parametrize("device", ["cpu", "cuda:1", None, "omitted"])
+def test_device_selection(backend, cuda_available, device, monkeypatch):
+    calls = []
+
+    def calculator(**kwargs):
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setitem(
+        sys.modules, "torch",
+        SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: cuda_available)),
+    )
+    for name in ("mattersim", "mattersim.forcefield", "graph_pes",
+                 "graph_pes.interfaces", "graph_pes.utils", "graph_pes.utils.calculator"):
+        monkeypatch.setitem(sys.modules, name, ModuleType(name))
+    sys.modules["mattersim.forcefield"].MatterSimCalculator = SimpleNamespace(from_checkpoint=calculator)
+    sys.modules["graph_pes.interfaces"].mattersim = lambda **kwargs: object()
+    sys.modules["graph_pes.utils.calculator"].GraphPESCalculator = lambda model, **kwargs: calculator(**kwargs)
+
+    params = {"backend": backend, "model": "MatterSim-v1.0.0-1M"}
+    if device != "omitted":
+        params["device"] = device
+    manager = MatterSimManager()
+    manager.register_calculator(params)
+    expected = device if device not in (None, "omitted") else "cuda" if cuda_available else "cpu"
+    assert calls[0]["device"] == expected
+    if device != "omitted":
+        assert manager.calc_params["device"] == device
 
 
 @pytest.mark.parametrize(

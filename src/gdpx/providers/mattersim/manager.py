@@ -57,8 +57,8 @@ class MatterSimManager(BasePotentialManager):
         # Whether compute stress
         compute_stress = calc_params.pop("compute_stress", True)
 
-        # Set the default device and update it when torch is available.
-        device = calc_params.pop("device", "cpu")
+        # Preserve an explicit device; select automatically only when omitted/null.
+        device = calc_params.pop("device", None)
 
         calc = DummyCalculator()
         if self.calc_backend == "ase":
@@ -66,7 +66,8 @@ class MatterSimManager(BasePotentialManager):
                 import torch
                 from mattersim.forcefield import MatterSimCalculator
 
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+                if device is None:
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
                 raise ModuleNotFoundError("Please install mattersim and torch to use the ase interface.")
             calc = MatterSimCalculator.from_checkpoint(
@@ -78,7 +79,8 @@ class MatterSimManager(BasePotentialManager):
                 from graph_pes.interfaces import mattersim
                 from graph_pes.utils.calculator import GraphPESCalculator
 
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+                if device is None:
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
             except:
                 raise ModuleNotFoundError("Please install mattersim and graph_pes to use the graph_pes interface.")
 
