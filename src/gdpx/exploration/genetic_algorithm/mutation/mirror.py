@@ -170,6 +170,10 @@ class MirrorMutation(OffspringCreator):
 
             # Finally we check that nothing is too close in the end product.
             cand = Atoms(num, p_use, cell=slab.get_cell(), pbc=slab.get_pbc())
+            # Coordinates are reordered to match the parent's element order,
+            # so retain tags at the corresponding mobile-atom indices.
+            if top.has("tags"):
+                cand.set_tags(top.get_tags())
 
             tc = atoms_too_close(cand, self.blmin)
             if tc:
