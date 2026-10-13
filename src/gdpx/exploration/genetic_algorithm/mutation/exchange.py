@@ -10,7 +10,7 @@ from gdpx.structures.geometry.composition import convert_string_to_adsorbate, co
 from gdpx.structures.geometry.exchange import insert_one_particle, insert_one_particle_on_site, remove_one_particle
 from gdpx.structures.topology.adsorption import find_adsorption_sites_by_graph
 from gdpx.structures.regions.factory import create_region
-from gdpx.structures.regions.region import BaseRegion
+from gdpx.structures.regions.base import BaseRegion
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 

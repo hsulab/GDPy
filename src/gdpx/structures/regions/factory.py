@@ -4,7 +4,7 @@ import copy
 from collections.abc import Mapping
 
 from gdpx.structures.regions.registry import REGION_REGISTRY
-from gdpx.structures.regions.region import BaseRegion
+from gdpx.structures.regions.base import BaseRegion
 
 
 def create_region(config=None, **overrides) -> BaseRegion:
