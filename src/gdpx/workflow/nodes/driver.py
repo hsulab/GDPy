@@ -3,6 +3,7 @@ import itertools
 import pathlib
 import time
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Optional, Union
 
 import h5py
@@ -15,7 +16,8 @@ from gdpx import config
 from gdpx.providers.ase.observer import create_an_observer
 from gdpx.workflow.session.registry import workflow_registers as registers
 from gdpx.data.array import AtomsNDArray
-from gdpx.execution import Runtime
+from gdpx.execution import Runtime, resolve_runtime
+from gdpx.providers.specs import thaw
 from gdpx.execution.factory import create_worker, create_worker_chains, create_workers
 from gdpx.workflow.nodes.runtime import RuntimeVariable
 from gdpx.analysis.selectors.scf import ScfSelector
@@ -281,6 +283,7 @@ class compute(Operation):
         merge_workers: bool = False,
         reduce_single_worker: bool = True,
         check_scf_convergence: bool = False,
+        estimate_uncertainty: Optional[bool] = None,
         ignore_previous_selections: bool = False,
         directory: Union[str, pathlib.Path] = "./",
     ):
@@ -292,9 +295,15 @@ class compute(Operation):
             batchsize: Worker's batchsize can be overwritten by this.
             share_wdir: Worker's share_wdir can be overwritten by this.
             retain_info: Worker's retain_info parameter.
+            estimate_uncertainty: Override the runtime potential for this step only;
+                None preserves its configured uncertainty setting.
             directory: Operation's directory that stores results can be set by Session.
 
         """
+        if estimate_uncertainty is not None and not isinstance(estimate_uncertainty, bool):
+            raise TypeError("estimate_uncertainty must be a boolean or None.")
+        self.estimate_uncertainty = estimate_uncertainty
+
         # We need deprecate builder in the newer versions.
         if structures is None:
             if builder is not None:
@@ -347,6 +356,20 @@ class compute(Operation):
 
         """
         super().forward()
+
+        if self.estimate_uncertainty is not None:
+            def override(runtime):
+                if not isinstance(runtime, Runtime):
+                    raise TypeError("compute requires Runtime values.")
+                parameters = thaw(runtime.config.potential.parameters)
+                parameters["estimate_uncertainty"] = self.estimate_uncertainty
+                potential = replace(runtime.config.potential, parameters=parameters)
+                return resolve_runtime(replace(runtime.config, potential=potential))
+
+            if isinstance(runtimes, Runtime):
+                runtimes = override(runtimes)
+            elif isinstance(runtimes, (list, tuple)):
+                runtimes = tuple(override(runtime) for runtime in runtimes)
 
         if isinstance(runtimes, Runtime):
             workers = [create_worker(runtimes)]
