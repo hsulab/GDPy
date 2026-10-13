@@ -14,7 +14,9 @@ python -m pip install -e '.[mattersim]'
 
 The extra installs MatterSim and its PyTorch dependencies. See
 {doc}`../installation` for the recommended GPU installation and verification.
-gdpx uses CUDA when available and otherwise uses CPU. Backend `graph_pes`
+When `device` is omitted or null, gdpx uses CUDA when available and otherwise
+uses CPU. An explicit `device: cpu` forces CPU execution even on GPU nodes;
+both backends respect an explicit device. Backend `graph_pes`
 also requires the `graph_pes` package with its MatterSim interface.
 
 ## Backends
@@ -57,6 +59,23 @@ executor:
 ```
 
 ### Parameter notes
+
+Set `potential.parameters.device: cpu` to enforce CPU execution. For example:
+
+```yaml
+potential:
+  provider: mattersim
+  parameters:
+    model: MatterSim-v1.0.0-1M
+    device: cpu
+    compute_stress: false
+executor:
+  provider: ase
+  method: spc
+```
+
+To select a particular GPU, use a device such as `cuda:1`. An explicit device
+is preserved; it does not fall back when unavailable.
 
 For backend `ase`, `compute_stress: false` avoids unnecessary stress evaluation for fixed-cell
 molecules and clusters. Keep stress enabled when the calculation requires it. The `graph_pes` branch
