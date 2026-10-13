@@ -40,3 +40,34 @@ inputs:
 
 Plain node-name references remain the concise form for single-output steps.
 Named output references are checked during workflow validation.
+
+## Uncertainty per compute step
+
+A `compute` step can override the potential's `estimate_uncertainty` flag without
+changing the shared runtime or loop-carried potential. Omit the option (or use
+`null`) to inherit the potential setting. The resolved override is stored in the
+worker runtime configuration, including for broadcast variants and resumed jobs.
+
+For DeepMD active learning, use the first model for NVT and evaluate the ensemble
+on saved frames afterwards:
+
+```yaml
+steps:
+  run_nvt:
+    __type__: compute
+    inputs:
+      structures: read_stru
+      runtime: exploration_runtime
+    options:
+      estimate_uncertainty: false
+  est_devi:
+    __type__: compute
+    inputs:
+      structures: run_nvt
+      runtime: uncertainty_runtime
+    options:
+      estimate_uncertainty: true
+```
+
+Both runtimes can reference the same `current_potential` ensemble. The overrides
+apply to each iteration's potential, including newly trained models.
