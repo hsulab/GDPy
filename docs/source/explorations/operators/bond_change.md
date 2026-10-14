@@ -2,101 +2,129 @@
 
 # `bond_change`
 
-Propose bond breaking or formation by translating or rotating a connected
-fragment. This geometry operator preserves atom count, atom order and chemical
-elements. It is intended for basin-hopping searches of molecular and dissociated
-minima; it does not implement equilibrium reaction proposal corrections.
-The calculator evaluates coordinates and determines the relaxed bonding.
+Change one bond by moving a connected fragment. Atom count, atom order and
+chemical elements are preserved. This operator targets basin-hopping searches;
+the calculator determines the bonding after relaxation. These biased proposals
+do not implement equilibrium reaction proposal corrections.
 
 ```yaml
 - method: bond_change
-  pairs: [[O, H]]
-  mode: both
-  form_distance: 1.0
-  break_distance: 2.5
-  bond_cutoffs:
-    O-H: 1.25
-  allow_isolated: true
+  particles: [H2O, HO, H]
+  bond: [O, H]
+  cutoffs: [0.8, 3.5]
+  covalent_ratio: [0.8, 1.2]
   temperature: 500.0
 ```
 
-Place this under `strategy.operators`. Element pairs are unordered and can
-include pairs other than O–H. `bond_ratio` times the sum of covalent radii
-defines connectivity unless `bond_cutoffs` overrides that pair. These are
-geometric classifications, not ReaxFF bond orders. They are separate from
-the ordinary `covalent_ratio` collision checks.
+Place this under `strategy.operators`. At least one endpoint must belong to a
+selected positive-tag fragment in the operator's region. The other endpoint
+can belong to any suitable fragment, including the substrate or a partner
+outside the region. Formula aliases such as `OH` and `HO` are normalized to
+Hill notation. Filters refer to current fragments, not original molecules.
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `pairs` | Nonempty list of eligible element pairs | Required |
-| `mode` | `break`, `form`, or `both` | `both` |
-| `form_distance` | Proposed formed-bond distance, below each eligible pair's bond cutoff when formation is enabled | 1.0 Å |
-| `break_distance` | Proposed broken-bond distance, above each eligible pair's bond cutoff when breaking is enabled | 2.5 Å |
-| `max_pair_distance` | Largest initial distance for a formation pair | 3.5 Å |
-| `break_angle` | Maximum angular deviation from the original bond direction, in `(0, 180]` | 10° |
-| `bond_ratio` | Covalent-radius multiplier for connectivity | 1.2 |
-| `bond_cutoffs` | Positive pair-specific distances, keyed as `O-H` | `{}` |
-| `break_fragments` | Optional source-fragment formulas; either endpoint can match | `null` |
-| `form_fragments` | Optional pairs of endpoint-fragment formulas | `null` |
+| `particles` | Eligible fragment formulas | Required |
+| `bond` | One unordered element pair, `[O, H]` or `O-H` | Required |
+| `cutoffs` | Inclusive candidate-distance window `[min, max]`, in Å | `[0.0, 3.5]` |
+| `covalent_ratio` | Relative overlap and connectivity bounds `[lower, upper]` | `[0.8, 1.2]` |
 
-Formula filters use Hill notation internally, so `OH` and `HO` are equivalent
-in these filters. `substrate` selects an endpoint with tag 0. Filters match
-current fragments rather than original molecule identities. For water on a
-surface, `break_fragments: [H2O, H]` permits water O–H breaking and removal of a
-surface-bound H; `form_fragments: [[HO, H], [substrate, H]]` permits OH + H
-recombination and surface H attachment. Filters do not impose general valence
-rules on a force field.
+`cutoffs` must contain two finite numbers with `0 <= min < max`.
+`covalent_ratio` must satisfy `0 < lower < 1 < upper`. Shared MC settings such
+as temperature, probability, region and collision checks remain available.
+Temperature affects acceptance, not the geometry functions.
 
-## Geometry and fixed components
+## Finding and classifying pairs
 
-Breaking requires a bridge: removing the selected bond must disconnect its
-endpoints. Ring bonds and alternative paths through the substrate are skipped.
-The moving component is translated to the target distance with a bounded
-angular perturbation. Its internal geometry is preserved.
+First find pairs of the selected elements whose current minimum-image distance
+lies inside `cutoffs`. Then let `R` be their covalent-radius sum:
 
-Formation requires two separate connected components. The moving component is
-rigidly rotated about its selected endpoint and translated to the target
-distance in a random direction. Proposals within an already connected component
-are skipped. Minimum-image geometry is used for compact fragments crossing
-periodic boundaries; extended periodic networks are outside this version.
-Attempts whose target distance aliases to a different minimum-image distance
-in a small periodic cell are rejected.
+| Current pair distance | Classification |
+| --- | --- |
+| `d < lower * R` | Too close; exclude |
+| `lower * R <= d <= upper * R` | Bonded; consider breaking |
+| `d > upper * R` | Unbonded; consider formation |
 
-All tag-0 atoms form one immovable substrate body. A component containing any
-substrate or fixed atom cannot move. Other constraints must expose atom indices;
-constraints without `get_indices()` are rejected. If both components can move,
-either is chosen with equal probability. If both modes have eligible pairs,
-`both` chooses each mode with equal probability. Otherwise it uses the available
-mode. Geometric retries begin from the original coordinates; exhausted attempts
-are invalid proposals. Use `allow_isolated: true` when disconnected fragments
-are intentionally allowed.
+Topology determines whether the classified operation is possible. Breaking
+requires a bridge: removing the bond must disconnect its endpoints. Formation
+requires separate connected components. Ring bonds, alternative paths through
+the substrate and joins inside one component are skipped. The upper ratio also
+controls connectivity and fragment reconciliation throughout the BH search.
 
-## Fragment tags and history
+The formed distance is `R`; the broken distance is `1.25 * upper * R`. For O–H
+with default ratios, these are 0.97 and 1.455 Å. These proposed distances need
+not lie inside `cutoffs`, which only filters the starting pair. To restrict a
+search to currently bonded or unbonded pairs, set the search window accordingly.
+
+## Motion and fixed components
+
+Breaking translates the moving component with an angular perturbation of up
+to 10 degrees. Formation rigidly rotates and translates it in a random direction.
+Fragment internal geometry is preserved. Compact fragments crossing periodic
+boundaries use minimum-image geometry; extended periodic networks are outside
+this implementation. Target distances that alias in a small cell are rejected.
+
+All tag-0 atoms represent one immovable substrate. Components containing any
+substrate or fixed atom cannot move. Constraints must expose `get_indices()`.
+When both components can move, either orientation is equally likely. Breaking
+and formation are equally likely when both have candidates; otherwise the
+available operation is used.
+
+Collision checks use the lower covalent ratio for minimum separations to other
+atoms. Detached fragments are allowed by default, including the intended broken
+bond; `allow_isolated: false` enables the usual neighbor requirement. Geometric
+retries start from the original coordinates. Exhausted attempts are invalid.
+
+## Geometry functions
+
+The MC operator wraps `gdpx.structures.geometry.bond_change` functions:
+
+```python
+from gdpx.structures.geometry.bond_change import change_bond
+
+trial = atoms.copy()
+event, diagnostic = change_bond(
+    trial, rng, particles=["H2O"], bond="O-H",
+    cutoffs=[0.8, 1.1], covalent_ratio=[0.8, 1.2],
+)
+if event is not None:
+    trial.info["bond_change"] = event
+```
+
+`change_bond` edits coordinates and fragment tags in place. Failure or exceptions
+restore those arrays. Success returns the operation, selected pair, moved
+indices, tag changes and proposed distance. Atom order, constraints, calculator
+and metadata remain unchanged. The caller decides whether to keep the edits
+and where to store the event.
+
+`find_bond_change_candidates` enumerates possible operations on reconciled tags;
+`bond_change_settings` validates and normalizes the four domain arguments.
+Connectivity lives in `gdpx.structures.geometry.fragments`. The MC wrapper owns
+region selection, transactions and proposal history.
+
+## Tags, history and recovery
 
 Positive tags identify current connected components after excluding substrate
-atoms from the fragment graph. Substrate atoms always retain tag 0. A
-surface-bound H has its own positive tag and is not grouped with the slab.
-Atoms must carry nonnegative tags before proposing moves.
+atoms from the fragment graph. Substrate atoms retain tag 0. A surface-bound H
+keeps its own positive tag. Input atoms must carry nonnegative tags.
 
-On a break, the stationary fragment retains its tag and the moving fragment
-gets an unused positive tag. On formation, the stationary fragment's tag
-survives. Atom indices identify reaction participants; tags are fragment labels
-and are not permanent molecule provenance. Position, tag and history edits are
-transactional: invalid proposals and rejection restore the original state.
+On breaking, the stationary fragment retains its tag and the separated fragment
+gets an unused tag. On formation, the stationary fragment's tag survives.
+Relaxation can reverse a proposal or transfer atoms between fragments, so BH
+reconciles tags after every relaxation, including trials from other operators.
+Largest atom overlap retains existing labels, with deterministic tie breaking.
+Invalid or rejected proposals restore coordinates, tags and history exactly.
 
-When BH includes this operator, it reconciles tags after initial relaxation and
-every relaxed trial, including trials from other operators. Largest atom overlap
-retains existing labels, with deterministic ties and fresh labels for splits.
-This captures relaxation-driven recombination and transfer between molecules.
-Use Hill formulas such as `HO` when selecting hydroxyls with `rotate` or `move`.
+`candidates.db` stores proposed operations in `data.bond_change` and actual final
+connectivity in `data.fragment_changes`. Accepted and rejected evaluated trials
+are both recorded. All bond-change operators in one search must use the same
+upper covalent ratio. Mixtures require atom-order-preserving operators:
+`bond_change`, `rotate`, `move`, `rattle` or `bounce`.
 
-Candidate database `data.bond_change` records the proposed operation, selected
-pair, moving atoms, proposed distance and tag edits. `data.fragment_changes`
-records final tag edits and bonds involving mobile atoms. Both accepted and
-rejected evaluated trials are recorded; the accepted parent keeps its own tags.
-Checkpoint recovery requires identical bond-change settings. All bond-change
-operators in one search must share their connectivity settings. BH currently
-combines them with atom-order-preserving geometry operators (`move`, `rattle`,
-`rotate`, and `bounce`).
+Presets and the former detailed bond-specific arguments are no longer accepted.
+Replace them with `particles`, `bond`, `cutoffs` and `covalent_ratio`. Start a
+fresh BH directory: old checkpoints are incompatible with this classification
+algorithm. New checkpoints record normalized arguments and the geometry
+algorithm version; changed settings require a fresh search.
 
 See {ref}`bh-tio2-water-bond-change` for water dissociation and recombination.

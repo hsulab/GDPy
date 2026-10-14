@@ -10,16 +10,24 @@ on the same slab. Install GDPy's `reax` extra to use the pinned xreac revision.
 
 ## Seeds and independent relaxation
 
-The first seed contains molecular water. The second is generated with an O–H
-breaking proposal pointed toward a neighboring surface oxygen. For this site,
-`break_distance: 1.5` Å leaves the H near the surface oxygen while breaking its
-original water bond; the operator's general default is 2.5 Å.
+The first seed contains molecular water. The builder creates the dissociated
+seed by breaking an O–H bond above the surface and then forming an O–H bond
+with a neighboring surface oxygen. Both steps use the standalone geometry API.
+With `covalent_ratio: [0.8, 1.2]`, their proposed distances are 1.455 Å for
+breaking and 0.97 Å for formation. The regenerated seed records both events
+in `seed_bond_changes`.
 
 Both seed slabs receive the same reproducible 0.001 Å perturbation on mobile
 slab atoms. Protonation activates torsions involving exactly collinear atoms
 in the ideal slab, for which xreac rejects undefined derivatives. Fixed atoms
-are unchanged. Connectivity uses O–H and Ti–H cutoffs of 1.25 Å; the Ti–H
-override prevents nearby metal–hydrogen contacts from creating false cycles.
+are unchanged. Connectivity uses 1.2 times each element pair's covalent-radius
+sum, consistently with the search operator.
+
+The committed XYZ seed files and results below are archived from the earlier
+implementation, which used a single break proposal at 1.5 Å and O–H/Ti–H
+connectivity overrides of 1.25 Å. Regeneration now follows the radius-based
+rules and need not reproduce those coordinates or energies. The archived files
+remain valid inputs and are reconciled under the current policy at search start.
 
 ```shell
 python examples/global_optimisation/tio2_water_bond_change.py \
@@ -51,10 +59,12 @@ gdp --runtime examples/global_optimisation/runtimes/xreac_tioh.yaml \
 The search starts two chains with molecular and dissociated seeds and attempts
 four hops per chain, mixing oxygen-pivot rotations and bond changes equally.
 The rotation operator selects `H2O` and `HO` (Hill notation for hydroxyl).
-The bond-change filters allow breaking water or surface O–H bonds and forming
-OH + H or surface O + H bonds. Separate break/form operations can change other
-bonds during relaxation; the proposed operation and actual final connectivity
-are recorded separately in `candidates.db`.
+The bond-change operator selects `particles: [H2O, HO, H]`, `bond: [O, H]`,
+`cutoffs: [0.8, 3.5]` and `covalent_ratio: [0.8, 1.2]`. At least one endpoint
+must belong to a selected fragment; its partner can be another fragment or the
+substrate. Current distance and connectivity determine whether breaking or
+formation is feasible. Proposed operations and actual final connectivity are
+recorded separately in `candidates.db`.
 
 Tags are reconciled after all relaxations. OH and molecular water have their
 own positive tags; surface H retains an independent positive tag. Substrate
