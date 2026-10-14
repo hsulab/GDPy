@@ -91,8 +91,10 @@ GA's `preserve_fragments` setting controls its genetic operators.
 ## Comparison and selection
 
 `system.comparator.method` defaults to `interatomic_distance`. Other search
-comparators are `ofp`, `nnmat`, and `atoms` (exact ASE Atoms equality). Existing
-analysis comparator methods are also available.
+comparators are `oganov_fingerprint`, `nnmat`, and `atoms` (exact ASE Atoms
+equality). Analysis comparators also include the independent `energy` criterion,
+`combined` for composition, and `energetic_oganov_fingerprint` for a quick combined
+definition. Oganov fingerprints alone do not apply an energy gate.
 
 Candidates are ranked by descending objective score and duplicates removed.
 Fitness includes similarity counts across eligible search history. GA additionally
