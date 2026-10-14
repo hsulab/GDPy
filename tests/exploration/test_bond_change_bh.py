@@ -26,9 +26,7 @@ def water():
 
 
 def operators(**settings):
-    params = dict(method="bond_change", pairs=[["O", "H"]], bond_cutoffs={"O-H": 1.25},
-                  break_fragments=["H2O", "H"], form_fragments=[["OH", "H"], ["substrate", "H"]],
-                  allow_isolated=True)
+    params = dict(method="bond_change", particles=["H2O", "HO", "H"], bond=["O", "H"])
     params.update(settings)
     ops, _ = parse_operators([params])
     for op in ops:
@@ -74,7 +72,7 @@ def run(path, worker, rng=None, ops=None, steps=1):
 
 @pytest.mark.parametrize("energy,accepted", [(0., True), (100., False)])
 def test_acceptance_records_final_tags_without_changing_rejected_parent(tmp_path, energy, accepted):
-    result = run(tmp_path, Worker(energy), ops=operators(mode="break"))
+    result = run(tmp_path, Worker(energy), ops=operators(cutoffs=[0., 1.2]))
     assert result.status is EvaluationStatus.FINISHED
     endpoint = result.endpoints[0]
     assert ("HO" in get_tags_per_species(endpoint)) == accepted
@@ -90,7 +88,7 @@ def test_acceptance_records_final_tags_without_changing_rejected_parent(tmp_path
 
 
 def test_relaxation_recombines_proposed_break_and_preserves_history(tmp_path):
-    result = run(tmp_path, Worker(relax="recombine"), ops=operators(mode="break"))
+    result = run(tmp_path, Worker(relax="recombine"), ops=operators(cutoffs=[0., 1.2]))
     np.testing.assert_array_equal(result.endpoints[0].get_tags(), [0, 1, 1, 1])
     trial = list(ase.db.connect(tmp_path / "history.db").select())[-1]
     assert trial.data["bond_change"]["operation"] == "break"
@@ -131,10 +129,32 @@ def test_pending_resume_matches_positions_tags_history_and_rng(tmp_path):
     assert records[0] == records[1]
 
 
-def test_resume_rejects_changed_or_removed_bond_policy(tmp_path):
+def test_pending_resume_accepts_equivalent_normalized_inputs(tmp_path):
+    assert run(tmp_path, Worker(pending=True)).status is EvaluationStatus.PENDING
+    equivalent = operators(particles=["H", "OH", "H2O"], bond="H-O")
+    assert run(tmp_path, Worker(), ops=equivalent).status is EvaluationStatus.FINISHED
+
+
+def test_resume_rejects_checkpoint_without_geometry_version(tmp_path):
+    from gdpx.exploration.basin_hopping import chain
+
+    run(tmp_path, Worker(pending=True))
+    state_path = tmp_path / "round-000000/state.json"
+    state = chain._load(state_path)
+    state["context"]["bond_change_settings"][0].pop("version")
+    chain._save(state_path, state)
+    with pytest.raises(ValueError, match="Incompatible bond_change"):
+        run(tmp_path, Worker())
+
+
+@pytest.mark.parametrize("settings", [
+    dict(covalent_ratio=[0.8, 1.3]), dict(cutoffs=[0.8, 2.5]),
+    dict(particles=["H2O"]), dict(bond="O-O"),
+])
+def test_resume_rejects_changed_or_removed_bond_policy(tmp_path, settings):
     run(tmp_path, Worker(pending=True))
     with pytest.raises(ValueError, match="Incompatible bond_change"):
-        run(tmp_path, Worker(), ops=operators(bond_cutoffs={"O-H": 1.3}))
+        run(tmp_path, Worker(), ops=operators(**settings))
     move = parse_operators([dict(method="move", particles=["H2O"], skip_distance_check=True)])[0]
     with pytest.raises(ValueError, match="Incompatible bond_change"):
         run(tmp_path, Worker(), ops=move)

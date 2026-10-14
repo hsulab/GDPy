@@ -24,9 +24,12 @@ def test_seeds_and_bh_recipe_preserve_slab_and_describe_dissociation(waters):
     recipe["system"]["builders"]["seeds"]["frames"] = str(EXAMPLES / f"assets/tio2_water{waters}_bond_seeds.xyz")
     search = create_exploration(recipe)
     for stored, generated in zip(seeds, rebuilt):
-        np.testing.assert_allclose(stored.positions, generated.positions, atol=1e-8)
-        np.testing.assert_array_equal(stored.get_tags(), generated.get_tags())
-        search.population_config.validate_candidate(stored, "water bond-change seed")
+        search.population_config.validate_candidate(stored, "archived water bond-change seed")
+        search.population_config.validate_candidate(generated, "regenerated water bond-change seed")
+        assert generated.get_chemical_formula() == stored.get_chemical_formula()
+        np.testing.assert_array_equal(generated.get_tags()[:192], 0)
+        np.testing.assert_array_equal(generated.positions[generated.constraints[0].get_indices()],
+                                      stored.positions[stored.constraints[0].get_indices()])
         assert len(stored) == 192+3*waters
         assert stored.pbc.all()
         assert len(stored.constraints[0].get_indices()) == 48
@@ -35,11 +38,16 @@ def test_seeds_and_bh_recipe_preserve_slab_and_describe_dissociation(waters):
     reference = read(EXAMPLES / f"assets/tio2_water{waters}_seeds.xyz")
     fixed = reference.constraints[0].get_indices()
     np.testing.assert_array_equal(seeds[0].positions[fixed], reference.positions[fixed])
-    molecular, dissociated = [DEMO["adsorption_report"](atoms) for atoms in seeds]
-    assert molecular["molecular_waters"] == waters and molecular["hydroxyls"] == 0
-    assert dissociated["molecular_waters"] == waters-1
-    assert dissociated["hydroxyls"] == dissociated["surface_hydrogens"] == 1
-    assert dissociated["free_hydrogens"] == 0
+    for pair in (seeds, rebuilt):
+        molecular, dissociated = [DEMO["adsorption_report"](atoms) for atoms in pair]
+        assert molecular["molecular_waters"] == waters and molecular["hydroxyls"] == 0
+        assert dissociated["molecular_waters"] == waters-1
+        assert dissociated["hydroxyls"] == dissociated["surface_hydrogens"] == 1
+        assert dissociated["free_hydrogens"] == 0
+    events = rebuilt[1].info["seed_bond_changes"]
+    assert [event["operation"] for event in events] == ["break", "form"]
+    assert events[0]["bond_distance"] == pytest.approx(1.455)
+    assert events[1]["bond_distance"] == pytest.approx(0.97)
     assert seeds[1].info["bond_change"]["operation"] == "break"
     assert seeds[1].info["bond_change"]["bond_distance"] == pytest.approx(1.5)
 
@@ -52,9 +60,8 @@ def test_form_operator_recombines_oh_and_free_h_on_tio2(waters):
     report = DEMO["adsorption_report"](atoms)
     assert report["free_hydrogens"] == report["hydroxyls"] == 1
     original = atoms.positions.copy()
-    op = parse_operators([dict(method="bond_change", pairs=[["O", "H"]], mode="form",
-                               bond_cutoffs=DEMO["CUTOFFS"], form_fragments=[["OH", "H"]],
-                               allow_isolated=True)])[0][0]
+    op = parse_operators([dict(method="bond_change", particles=["HO"], bond=["O", "H"],
+                               cutoffs=[1.2, 3.5])])[0][0]
     op._print = op._debug = lambda *args: None
     prepare_operators([op], sorted(set(atoms.numbers)))
     proposal = op.propose(atoms, np.random.default_rng(12))

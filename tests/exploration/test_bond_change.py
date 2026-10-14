@@ -21,7 +21,7 @@ def water():
 
 
 def operator(frame=None, **kwargs):
-    settings = dict(method="bond_change", pairs=[["O", "H"]], bond_cutoffs={"O-H": 1.25},
+    settings = dict(method="bond_change", particles=["H2O", "HO", "H"], bond=["O", "H"],
                     allow_isolated=True)
     settings.update(kwargs)
     op = parse_operators([settings])[0][0]
@@ -36,13 +36,13 @@ def test_water_break_form_and_exact_rollback():
     original = {name: array.copy() for name, array in frame.arrays.items()}
     calc = frame.calc
     frame.info["bond_change"] = {"previous": True}
-    op = operator(frame, mode="break", break_fragments=["H2O"])
+    op = operator(frame, particles=["H2O"], cutoffs=[0., 1.2])
     proposal = op.propose(frame, np.random.default_rng(1))
     assert proposal.valid
     event = proposal.metadata["bond_change"]
     stationary, moving = event["pair"]
     assert stationary == 1 and frame[moving].symbol == "H"
-    assert frame.get_distance(stationary, moving, mic=True) == pytest.approx(2.5)
+    assert frame.get_distance(stationary, moving, mic=True) == pytest.approx(1.455)
     assert set(get_tags_per_species(frame)) == {"O", "HO", "H"}
     np.testing.assert_array_equal(frame.positions[:2], original["positions"][:2])
     proposal.rollback()
@@ -52,10 +52,10 @@ def test_water_break_form_and_exact_rollback():
     assert frame.info["bond_change"] == {"previous": True}
     op.propose(frame, np.random.default_rng(1)).commit()
     broken = frame.positions.copy()
-    join = operator(frame, mode="form", form_fragments=[["OH", "H"]])
+    join = operator(frame, particles=["HO"], cutoffs=[1.2, 3.5])
     proposal = join.propose(frame, np.random.default_rng(3))
     assert proposal.valid
-    assert frame.get_distance(*proposal.metadata["bond_change"]["pair"], mic=True) == pytest.approx(1.)
+    assert frame.get_distance(*proposal.metadata["bond_change"]["pair"], mic=True) == pytest.approx(0.97)
     assert set(get_tags_per_species(frame)) == {"O", "H2O"}
     np.testing.assert_array_equal(frame.get_tags(), [0, 1, 1, 1])
     proposal.rollback()
@@ -66,17 +66,16 @@ def test_nonwater_multiatom_fragment_is_rigid():
     frame = Atoms("CCHH", positions=[[5, 5, 5], [6.5, 5, 5], [5, 6, 5], [6.5, 6, 5]],
                   tags=[1]*4, cell=[20]*3, pbc=True)
     frame.set_constraint(FixAtoms(indices=[0]))
-    op = operator(frame, pairs=[["C", "C"]], bond_cutoffs={}, form_distance=1.5,
-                  break_distance=2.5, mode="break")
+    op = operator(frame, particles=["C2H2"], bond=["C", "C"], cutoffs=[0., 1.8])
     proposal = op.propose(frame, np.random.default_rng(2))
     assert proposal.valid
     assert proposal.metadata["bond_change"]["moved_indices"] == [1, 3]
     assert frame.get_distance(1, 3, mic=True) == pytest.approx(1.)
     proposal.commit()
-    op = operator(frame, pairs=[["C", "C"]], bond_cutoffs={}, form_distance=1.5, mode="form")
+    op = operator(frame, particles=["CH"], bond=["C", "C"], cutoffs=[1.9, 3.5])
     proposal = op.propose(frame, np.random.default_rng(5))
     assert proposal.valid
-    assert frame.get_distance(0, 1, mic=True) == pytest.approx(1.5)
+    assert frame.get_distance(0, 1, mic=True) == pytest.approx(1.52)
     assert frame.get_distance(1, 3, mic=True) == pytest.approx(1.)
     np.testing.assert_array_equal(frame.positions[[0, 2]], [[5, 5, 5], [5, 6, 5]])
     proposal.rollback()
@@ -88,7 +87,7 @@ def test_surface_hydrogen_keeps_separate_positive_tag(mode):
     frame = Atoms("OH", positions=[[5, 5, 5], [5+distance, 5, 5]], tags=[0, 4], cell=[20]*3)
     frame.set_constraint(FixAtoms(indices=[0]))
     original = frame.positions.copy()
-    op = operator(frame, mode=mode, form_fragments=[["substrate", "H"]])
+    op = operator(frame, particles=["H"])
     proposal = op.propose(frame, np.random.default_rng(1))
     assert proposal.valid
     np.testing.assert_array_equal(frame.get_tags(), [0, 4])
@@ -100,10 +99,10 @@ def test_surface_hydrogen_keeps_separate_positive_tag(mode):
 def test_periodic_bond_uses_minimum_image():
     frame = water()
     frame.positions[1:] = [[19.7, 5, 5], [0.7, 5, 5], [19.7, 6, 5]]
-    op = operator(frame, mode="break", break_fragments=["H2O"])
+    op = operator(frame, particles=["H2O"], cutoffs=[0., 1.2])
     proposal = op.propose(frame, np.random.default_rng(7))
     assert proposal.valid
-    assert frame.get_distance(*proposal.metadata["bond_change"]["pair"], mic=True) == pytest.approx(2.5)
+    assert frame.get_distance(*proposal.metadata["bond_change"]["pair"], mic=True) == pytest.approx(1.455)
     proposal.rollback()
     np.testing.assert_array_equal(frame.positions[2], [0.7, 5, 5])
 
@@ -114,7 +113,7 @@ def test_periodic_bond_uses_minimum_image():
 ])
 def test_cycles_and_intracomponent_formation_are_skipped(mode, positions):
     frame = Atoms("C3", positions=positions, tags=[1]*3, cell=[20]*3)
-    op = operator(frame, pairs=[["C", "C"]], bond_cutoffs={}, form_distance=1.5, mode=mode)
+    op = operator(frame, particles=["C3"], bond=["C", "C"], cutoffs=([0., 1.8] if mode == "break" else [2., 3.5]))
     proposal = op.propose(frame, np.random.default_rng(1))
     assert not proposal.valid and proposal.closed
     np.testing.assert_array_equal(frame.positions, positions)
@@ -123,15 +122,15 @@ def test_cycles_and_intracomponent_formation_are_skipped(mode, positions):
 def test_all_fixed_is_skipped():
     frame = water()
     frame.set_constraint(FixAtoms(indices=range(len(frame))))
-    proposal = operator(frame, mode="break").propose(frame, np.random.default_rng(2))
+    proposal = operator(frame, cutoffs=[0., 1.2]).propose(frame, np.random.default_rng(2))
     assert not proposal.valid and proposal.closed
 
 
 def test_collision_exhaustion_and_exception_restore_tags_positions_info(monkeypatch):
     frame = water()
     positions, tags, calc = frame.positions.copy(), frame.get_tags(), frame.calc
-    op = operator(frame, mode="break", max_random_attempts=2)
-    import gdpx.exploration.sampling.moves.bond_change as module
+    op = operator(frame, cutoffs=[0., 1.2], max_random_attempts=2)
+    import gdpx.structures.geometry.bond_change as module
     monkeypatch.setattr(module, "check_atomic_distances", lambda *args, **kwargs: False)
     proposal = op.propose(frame, np.random.default_rng(2))
     assert not proposal.valid and proposal.diagnostic == "BondChange_Failed"
@@ -173,8 +172,7 @@ def test_policy_tracks_recombination_and_other_water_transfer():
 
 def test_config_roundtrip_and_rng_replay():
     first, second = water(), water()
-    op = operator(first, mode="both", break_fragments=["H2O", "H"],
-                  form_fragments=[["OH", "H"], ["substrate", "H"]])
+    op = operator(first)
     replay = parse_operators([op.as_dict()])[0][0]
     prepare_operators([replay], sorted(set(second.numbers)))
     replay._print = replay._debug = lambda *args: None
@@ -186,11 +184,10 @@ def test_config_roundtrip_and_rng_replay():
 
 
 @pytest.mark.parametrize("settings", [
-    {"pairs": []}, {"pairs": [["Q", "H"]]}, {"mode": "transfer"},
-    {"form_distance": 2.}, {"break_distance": 1.}, {"max_pair_distance": .5},
-    {"bond_ratio": float("nan")}, {"bond_cutoffs": {"O-H": -1}},
-    {"bond_cutoffs": {"O-H": 1.25, "H-O": 1.3}}, {"break_angle": 181},
-    {"break_fragments": "H2O"}, {"form_fragments": [["H"]]},
+    {"particles": []}, {"particles": ["Q"]}, {"bond": ["Q", "H"]},
+    {"cutoffs": [1., 0.]}, {"cutoffs": [-1., 3.]}, {"cutoffs": [0., float("nan")]},
+    {"covalent_ratio": [0.8, 1.]}, {"covalent_ratio": [1., 1.2]},
+    {"covalent_ratio": [0., 1.2]},
 ])
 def test_invalid_settings(settings):
     with pytest.raises(ValueError):
@@ -199,24 +196,24 @@ def test_invalid_settings(settings):
 
 def test_conflicting_fragment_policies_are_rejected():
     with pytest.raises(ValueError, match="same fragment policy"):
-        fragment_policy_for([operator(), operator(bond_cutoffs={"O-H": 1.3})])
+        fragment_policy_for([operator(), operator(covalent_ratio=[0.8, 1.3])])
 
 
-def test_break_only_hydrogen_bond_does_not_validate_unused_form_distance():
+def test_hydrogen_bond_uses_its_own_covalent_radii():
     frame = Atoms("H2", positions=[[5, 5, 5], [5.7, 5, 5]], tags=[1, 1], cell=[20]*3)
     frame.set_constraint(FixAtoms(indices=[0]))
-    op = operator(frame, pairs=[["H", "H"]], bond_cutoffs={}, mode="break")
+    op = operator(frame, particles=["H2"], bond=["H", "H"])
     proposal = op.propose(frame, np.random.default_rng(1))
     assert proposal.valid
-    assert frame.get_distance(0, 1) == pytest.approx(2.5)
+    assert frame.get_distance(0, 1) == pytest.approx(0.93)
     proposal.rollback()
 
 
 def test_periodic_alias_of_target_distance_is_rejected():
-    frame = Atoms("OH", positions=[[1, 1, 1], [2, 1, 1]], tags=[1, 1], cell=[3]*3, pbc=True)
+    frame = Atoms("OH", positions=[[0.5, 1, 1], [1.5, 1, 1]], tags=[1, 1], cell=[2.5]*3, pbc=True)
     frame.set_constraint(FixAtoms(indices=[0]))
     positions = frame.positions.copy()
-    op = operator(frame, mode="break", max_random_attempts=3, skip_distance_check=True)
+    op = operator(frame, cutoffs=[0., 1.2], max_random_attempts=3, skip_distance_check=True)
     proposal = op.propose(frame, np.random.default_rng(1))
     assert not proposal.valid
     np.testing.assert_array_equal(frame.positions, positions)

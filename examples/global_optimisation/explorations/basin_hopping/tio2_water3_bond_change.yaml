@@ -35,18 +35,9 @@ strategy:
       allow_isolated: true
       probability: 0.5
     - method: bond_change
-      pairs: [[O, H]]
-      mode: both
-      form_distance: 1.0
-      break_distance: 1.5
-      max_pair_distance: 3.5
-      bond_cutoffs:
-        O-H: 1.25
-        Ti-H: 1.25
-      break_fragments: [H2O, H]
-      form_fragments: [[HO, H], [substrate, H]]
+      particles: [H2O, HO, H]
+      bond: [O, H]
+      cutoffs: [0.8, 3.5]
+      covalent_ratio: [0.8, 1.2]
       temperature: 500.0
-      covalent_ratio: [0.7, 2.0]
-      allow_isolated: true
-      max_random_attempts: 100
       probability: 0.5

@@ -129,7 +129,7 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
     """
     directory.mkdir(parents=True, exist_ok=True)
     fragment_policy = fragment_policy_for(operators)
-    bond_settings = [dict(index=i, settings=op.as_dict()) for i, op in enumerate(operators)
+    bond_settings = [dict(index=i, version=op.geometry_version, settings=op.as_dict()) for i, op in enumerate(operators)
                      if op.name == "bond_change"] or None
     # Standalone coordinators use an ASE history database. The engine disables
     # this because record_trial already persists structures in candidates.db.

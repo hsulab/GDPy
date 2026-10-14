@@ -8,15 +8,14 @@ import numpy as np
 from ase.io import read, write
 from ase.optimize import BFGS
 
-from gdpx.exploration.sampling import parse_operators
-from gdpx.exploration.sampling.fragments import FragmentPolicy
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.structures.geometry.bond_change import change_bond
+from gdpx.structures.geometry.fragments import FragmentPolicy
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = "ffield.reax.TiOH.Monti2012"
-CUTOFFS = {"O-H": 1.25, "Ti-H": 1.25}
-POLICY = FragmentPolicy(bond_cutoffs=CUTOFFS)
+POLICY = FragmentPolicy()
+OH_CUTOFF = POLICY.cutoff(("O", "H"))
 
 
 def adsorption_report(atoms):
@@ -29,7 +28,7 @@ def adsorption_report(atoms):
         distances = atoms.get_distances(hydrogen, oxygens, mic=True)
         nearest = int(np.argmin(distances))
         oxygen, distance = int(oxygens[nearest]), float(distances[nearest])
-        kind = "free" if distance > 1.25 else ("surface" if tags[oxygen] == 0 else "adsorbate")
+        kind = "free" if distance > OH_CUTOFF else ("surface" if tags[oxygen] == 0 else "adsorbate")
         if kind == "adsorbate":
             counts[oxygen] += 1
         hydrogen_sites.append(dict(hydrogen=int(hydrogen), oxygen=oxygen, distance_angstrom=distance, kind=kind))
@@ -58,27 +57,34 @@ def build_seeds(waters=2):
     surface_oxygens = np.flatnonzero((trial.numbers == 8) & (trial.get_tags() == 0))
     distances = trial.get_distances(oxygen, surface_oxygens, mic=True)
     acceptor = int(surface_oxygens[np.argmin(distances)])
-    direction = trial.get_distance(oxygen, acceptor, mic=True, vector=True)
-    direction /= np.linalg.norm(direction)
-    # Point one intact O-H toward the surface before proposing its break.
-    trial.positions[hydrogen] = trial.positions[oxygen] + direction
-    params = dict(method="bond_change", pairs=[["O", "H"]], mode="break", break_distance=1.5,
-                  bond_cutoffs=CUTOFFS, break_fragments=["H2O"], allow_isolated=True)
-    op = parse_operators([params])[0][0]
-    op._print = op._debug = lambda *args: None
-    prepare_operators([op], sorted(set(trial.numbers)))
+    # Detach H above the surface, then attach it to the chosen surface O.
+    # Pointing the intact O-H directly at the surface can create a Ti-H path,
+    # which correctly prevents that bond from being treated as a bridge.
+    trial.positions[hydrogen] = trial.positions[oxygen] + [0., 0., 1.]
+    detached = None
     for seed in range(100):
-        proposal = op.propose(trial, np.random.default_rng(seed))
-        if not proposal.valid:
+        candidate = trial.copy()
+        event, _ = change_bond(candidate, np.random.default_rng(seed), particles=["H2O"], bond="O-H",
+                               cutoffs=[0.8, 1.1])
+        if event is not None and event["pair"] == [oxygen, hydrogen]:
+            detached, break_event = candidate, event
+            break
+    if detached is None:
+        raise RuntimeError("Could not detach H using bond_change.")
+    for seed in range(100):
+        candidate = detached.copy()
+        event, _ = change_bond(candidate, np.random.default_rng(seed), particles=["H"], bond="O-H",
+                               cutoffs=[1.2, 4.0])
+        if event is None:
             continue
-        report = adsorption_report(trial)
-        if proposal.metadata["bond_change"]["pair"] == [oxygen, hydrogen] and report["surface_hydrogens"] == 1:
-            proposal.commit()
-            trial.info["initial_state"] = "dissociated"
-            POLICY.reconcile(trial)
-            return [molecular, trial]
-        proposal.rollback()
-    raise RuntimeError("Could not generate the surface-dissociated seed using bond_change.")
+        report = adsorption_report(candidate)
+        if event["pair"] == [acceptor, hydrogen] and report["surface_hydrogens"] == 1:
+            candidate.info["bond_change"] = event
+            candidate.info["seed_bond_changes"] = [break_event, event]
+            candidate.info["initial_state"] = "dissociated"
+            POLICY.reconcile(candidate)
+            return [molecular, candidate]
+    raise RuntimeError("Could not attach detached H to surface O using bond_change.")
 
 
 def main():
