@@ -9,6 +9,7 @@ This prevents duplicate structures from dominating the population.
 | --- | --- |
 | `interatomic_distance` | Compares energy and sorted interatomic-distance fingerprints. `pair_cor_cum_diff` and `pair_cor_max` control the cumulative and maximum fingerprint differences; `dE` controls the energy tolerance. |
 | `oganov_fingerprint` | Compares species-resolved radial environments using weighted cosine distance, independently of energy. |
+| `displacement` | Compares RMS atomic displacement, optionally matching same-species atoms and using MIC, without alignment. |
 | `energy` | Compares total potential energies; similarity means absolute difference strictly below `ene_diff_tol` (eV). |
 | `combined` | Requires every comparator in its `comparators` list to consider the candidates similar. |
 | `energetic_oganov_fingerprint` | Preset expanding flat energy and Oganov fingerprint parameters into a combined comparator. |
@@ -26,10 +27,14 @@ Population derives its periodicity from `system.periodic`; do not set `pbc`
 in this mapping or in nested structural comparators.
 The former `ofp` name and `n_top` parameter are removed.
 
-`permutation_rmsd` is also available through the analysis registry. It compares
-contiguous clusters with species-preserving fitted RMSD and supports
-`group_expression` and `rmsd_max` (Angstrom). This comparator uses nonperiodic
-cluster geometry and has no energy gate.
+`displacement` compares RMS atomic displacement in the input coordinate frame.
+It supports `group_expression`, `rmsd_max` (Angstrom), and
+`permutation_invariant` (default `false`). When enabled, same-species assignment
+minimizes the total squared displacement. Periodic comparison applies MIC
+before assignment, using the structures' actual periodic directions.
+Population supplies `mic` from `system.periodic`; do not set it in the
+comparator mapping. No alignment is performed. This replaces
+`cartesian_coordinate` and `permutation_rmsd` without presets.
 
 ## Combining energy and structure
 
@@ -71,8 +76,9 @@ children and the combined comparator.
 
 Group selection affects only fingerprints. Energy always uses the complete
 input's total potential energy. The IDs above are specific to Cu08Pt24/O08.
-To combine energy with RMSD, put `method: permutation_rmsd` as the second
-criterion in the general `combined` definition.
+To combine energy with displacement, put `method: displacement` as the second
+criterion in the general `combined` definition and set `permutation_invariant`
+to the intended matching policy.
 
 In Python, construct `CombinedComparator(comparators=[...])` from
 `gdpx.analysis.comparators.combined`, or pass the comparator list directly to

@@ -10,9 +10,11 @@ number: 8
 fmax: 0.05
 random_seed: 0
 comparator:
-  method: permutation_rmsd
+  method: displacement
   group_expression: "`id 257:296`"
   rmsd_max: 0.5
+  permutation_invariant: true
+  mic: false
 ```
 
 For Cu08Pt24/O08, the one-based inclusive IDs 257–296 select exactly Cu8Pt24O8
@@ -21,15 +23,29 @@ support oxygen. Other datasets can use tags, symbols, regions, or combinations
 from {doc}`../groups-and-constraints`. Omit `group_expression` to compare all
 atoms. Empty selections and incompatible selected compositions are rejected.
 
-## Permutation-aware RMSD
+## Atomic displacement
 
-`permutation_rmsd` removes rigid translation and rotation and matches atoms
-only within the same species. Similarity means fitted RMSD strictly below
-`rmsd_max`, in Angstrom. The algorithm alternates Hungarian assignment and
-Kabsch fitting, starting from the identity and all 24 proper principal-axis
-orientations. This multiple-start procedure estimates the best match; it
-is not exhaustive permutation enumeration. Compare contiguous, nonperiodic
-clusters. Placement relative to an excluded support is not compared.
+`displacement` compares root-mean-square atomic displacement in the input
+coordinate frame. Similarity means RMS displacement strictly below
+`rmsd_max`, in Angstrom. No translation or rotation fitting is performed.
+
+`permutation_invariant: false` (the default) pairs atoms by their order within
+the selected group and requires the same species at corresponding indices.
+With `permutation_invariant: true`, Hungarian assignment minimizes total
+squared displacement independently within each species. Atoms of different
+elements are never exchanged. This is an exact assignment for the supplied
+coordinate frame; atom ordering is preserved during group preparation.
+
+`mic: true` uses the minimum-image distance for each candidate pair before
+assignment, respecting the input structures' periodic directions. MIC requires
+matching periodic boundary conditions and, when periodic, matching cells with
+valid periodic vectors. The default `mic: false` measures ordinary Cartesian
+displacements. Global optimisation supplies `mic` from `system.periodic`.
+
+Use fixed-index comparison for structures whose atom order represents atom
+identity, and enable permutation invariance when order may differ between
+structures. Translation and orientation differences remain part of the
+comparison, including movement relative to a support.
 
 ## Oganov fingerprints
 
@@ -55,8 +71,8 @@ Similarity means distance strictly below `cos_dist_max`. Calibrate smoothing
 and distance thresholds against known similar structures: narrow smoothing
 can distinguish small bond-length distortions rather than different structural
 families. With `pbc: false`, clusters must be contiguous across cell boundaries.
-These illustrative fingerprint settings do not reproduce the RMSD
-selection above.
+These illustrative fingerprint settings use a different similarity criterion
+from the displacement example above.
 
 Structural comparators expose `prepare_data(structures)`,
 `compare_fingerprints(first, second)`, and `fingerprint_distance(first, second)`.
@@ -64,7 +80,7 @@ Energy and combined comparators provide preparation and comparison without
 requiring a structural distance metric.
 Preparation computes fresh, operation-owned representations without using or
 changing fingerprints stored in input metadata. `oganov_fingerprint` and
-`permutation_rmsd` compare geometry alone. The
+`displacement` compare geometry alone. The
 independent `energy` comparator uses total potential energies. Use `combined` or
 the `energetic_oganov_fingerprint` preset to require both energy and structural
 similarity. Prepared comparisons preserve every composed criterion, so minima
@@ -97,3 +113,12 @@ so the former metadata-cache `recalculate` option is also removed.
 The former Oganov `dE` energy gate is removed. Request it explicitly with
 `comparator.method: energetic_oganov_fingerprint`, `ene_diff_tol`, and the
 fingerprint parameters in the same mapping; see {doc}`../global_optimisation/operators/comparators/index`.
+
+`cartesian_coordinate` and `permutation_rmsd` are replaced by `displacement`,
+without compatibility presets. Replace `group` with `group_expression` and set
+`permutation_invariant` and `mic` explicitly for the intended comparison.
+`rmsd_max` is the RMS displacement threshold, replacing the Cartesian
+comparator's separate `dtol_avg` and `dtol_std` criteria; their numeric values
+are not interchangeable. The former permutation RMSD performed rotation and
+translation fitting; `displacement` retains the input coordinate frame and
+does not accept `align`.
