@@ -242,19 +242,21 @@ class GeneticGenerationManager:
                     "data": data,
                     "confid": confid,
                 }
-                # we use the first row to determine the origin as the pairing may be followed by a mutation
-                # but it should be considered still from the pairing.
-                origin = curr_rows[0]["origin"]
-                if "Pairing" in origin:
+                # Classify the original production record, even when the latest
+                # structure comes from a subsequent mutation. Operator names are
+                # descriptive only; persisted flags identify the production step.
+                if row.get("pairing", 0):
                     candidate_groups["paired"].append(curr_atoms)
-                elif "Mutation" in origin:
+                elif row.get("mutation", 0):
                     candidate_groups["mutated"].append(curr_atoms)
-                elif origin.startswith("CompletionBuilder:"):
-                    candidate_groups["completion"].append(curr_atoms)
-                elif origin.startswith("InitialBuilder:"):
-                    candidate_groups["initial"].append(curr_atoms)
+                elif row.data.get("builder"):
+                    group = "initial" if curr_gen == 0 else "completion"
+                    candidate_groups[group].append(curr_atoms)
                 else:
-                    ...
+                    raise RuntimeError(
+                        f"Cannot classify candidate {confid} in generation {curr_gen}: "
+                        "missing pairing, mutation, or builder metadata."
+                    )
 
         return candidate_groups
 
