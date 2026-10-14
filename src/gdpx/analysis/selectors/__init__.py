@@ -35,6 +35,7 @@ from .sinfo import StructureInfoSelector
 REGISTER.register("structure_info")(StructureInfoSelector)
 
 REGISTER.register_lazy("descriptor", "gdpx.analysis.selectors.descriptor", "DescriptorSelector")
+REGISTER.register_lazy("minima", "gdpx.analysis.selectors.minima", "MinimaSelector")
 
 from .selector import BaseSelector
 

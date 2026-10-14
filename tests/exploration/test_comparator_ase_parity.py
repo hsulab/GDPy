@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 
 from gdpx.exploration.population.comparators.basic import NNMatComparator
-from gdpx.exploration.population.comparators.ofp import OFPComparator
+from gdpx.analysis.comparators.oganov_fingerprint import OganovFingerprintComparator
 
 ase_ofp = pytest.importorskip("ase_ga.ofp_comparator")
 ase_particle = pytest.importorskip("ase_ga.particle_comparator")
@@ -37,6 +37,7 @@ def test_ofp_distance_matches_ase_ga(pbc):
     second = first.copy()
     second.positions[3] += [0.2, -0.1, 0.1]
     parameters = dict(rcut=5.0, binwidth=0.1, sigma=0.05, nsigma=4, pbc=pbc)
-    gdpx_distance = OFPComparator(**parameters)._compare_structure(first.copy(), second.copy())
+    comparator = OganovFingerprintComparator(**parameters)
+    gdpx_distance = comparator.fingerprint_distance(*comparator.prepare_data([first, second]))
     ase_distance = ase_ofp.OFPComparator(**parameters)._compare_structure(first.copy(), second.copy())
     np.testing.assert_allclose(gdpx_distance, ase_distance, atol=1e-15, rtol=1e-12)

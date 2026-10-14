@@ -1,4 +1,4 @@
-"""GDPy implementation of the ASE-GA 1.0.3 OFP comparator."""
+"""Species-resolved Oganov fingerprints for structural comparison."""
 
 from itertools import combinations_with_replacement
 
@@ -8,67 +8,69 @@ from ase.utils import pbc2pbc
 from scipy.spatial.distance import cdist
 from scipy.special import erf
 
+from .comparator import BaseComparator
 
-class OFPComparator:
-    def __init__(
-        self,
-        n_top=None,
-        dE=1.0,
-        cos_dist_max=5e-3,
-        rcut=20.0,
-        binwidth=0.05,
-        sigma=0.02,
-        nsigma=4,
-        pbc=True,
-        maxdims=None,
-        recalculate=False,
-    ):
-        self.n_top = n_top or 0
-        self.dE = dE
+
+class OganovFingerprintComparator(BaseComparator):
+    """Compare selected atomic environments using weighted cosine distance.
+
+    Prepared fingerprints are fresh, operation-owned data. Only geometric
+    similarity is considered; compose with an energy comparator when needed.
+    """
+
+    name = "oganov_fingerprint"
+
+    def __init__(self, group_expression=None, cos_dist_max=5e-3,
+                 rcut=20.0, binwidth=0.05, sigma=0.02, nsigma=4,
+                 pbc=True, maxdims=None, **kwargs):
+        if "n_top" in kwargs:
+            raise ValueError("n_top is removed; use group_expression to select comparison atoms.")
+        if "dE" in kwargs:
+            raise ValueError("dE is removed; use energetic_oganov_fingerprint with ene_diff_tol, or compose an energy comparator.")
+        super().__init__(**kwargs)
+        self.group_expression = group_expression
         self.cos_dist_max = cos_dist_max
         self.rcut = rcut
         self.binwidth = binwidth
         self.pbc = pbc2pbc(pbc)
-        self.maxdims = [None] * 3 if maxdims is None else maxdims
+        self.maxdims = [None] * 3 if maxdims is None else list(maxdims)
         self.sigma = sigma
         self.nsigma = nsigma
-        self.recalculate = recalculate
         self.dimensions = self.pbc.sum()
+        if not np.isfinite(cos_dist_max) or not 0 < cos_dist_max <= 1:
+            raise ValueError("cos_dist_max must be in (0, 1].")
+        for name, value in dict(rcut=rcut, binwidth=binwidth, sigma=sigma, nsigma=nsigma).items():
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite.")
+        if len(self.maxdims) != 3:
+            raise ValueError("maxdims must contain three dimensions.")
         if self.dimensions in (1, 2):
             for direction in range(3):
                 if not self.pbc[direction] and self.maxdims[direction] is not None:
                     if self.maxdims[direction] <= 0:
                         raise ValueError("Non-periodic maximum dimensions must be positive.")
 
-    def looks_like(self, first, second):
-        if len(first) != len(second):
-            raise Exception("The two configurations are not the same size.")
-        if first.calc is not None and second.calc is not None:
-            if abs(first.get_potential_energy() - second.get_potential_energy()) >= self.dE:
-                return False
-        return self._compare_structure(first, second) < self.cos_dist_max
+    def prepare_data(self, structures):
+        """Return fresh fingerprints of compatible, explicitly selected groups."""
+        return [self._take_fingerprints(group) for group in self._prepare_groups(structures)]
 
-    def _compare_structure(self, first, second):
-        if len(first) != len(second):
-            raise Exception("The two configurations are not the same size.")
-        first_top = first[-self.n_top :]
-        second_top = second[-self.n_top :]
-        if "fingerprints" in first.info and not self.recalculate:
-            first_fp, first_types = self._json_decode(*first.info["fingerprints"])
-        else:
-            first_fp, first_types = self._take_fingerprints(first_top)
-            first.info["fingerprints"] = self._json_encode(first_fp, first_types)
-        if "fingerprints" in second.info and not self.recalculate:
-            second_fp, second_types = self._json_decode(*second.info["fingerprints"])
-        else:
-            second_fp, second_types = self._take_fingerprints(second_top)
-            second.info["fingerprints"] = self._json_encode(second_fp, second_types)
-        if sorted(first_fp) != sorted(second_fp):
-            raise AssertionError("The structures contain different compounds.")
-        for key in first_types:
-            if not np.array_equal(first_types[key], second_types[key]):
-                raise AssertionError("The structures have different stoichiometry or ordering.")
-        return self._cosine_distance(first_fp, second_fp, first_types)
+    def fingerprint_distance(self, first, second):
+        """Return geometric distance; no energy gate or input cache is used."""
+        first_fp, first_types = first
+        second_fp, second_types = second
+        if (set(first_fp) != set(second_fp) or
+                {n: len(indices) for n, indices in first_types.items()} !=
+                {n: len(indices) for n, indices in second_types.items()}):
+            raise ValueError("Comparison groups must have identical compositions.")
+        if any(first_fp[key].shape != second_fp[key].shape for key in first_fp):
+            raise ValueError("Fingerprint shapes differ; use the same comparator settings.")
+        return float(self._cosine_distance(first_fp, second_fp, first_types))
+
+    def compare_fingerprints(self, first, second):
+        return self.fingerprint_distance(first, second) < self.cos_dist_max
+
+    def looks_like(self, first, second):
+        return self.compare_fingerprints(*self.prepare_data([first, second]))
 
     def _take_fingerprints(self, atoms, individual=False):
         positions = atoms.get_positions()
@@ -221,29 +223,3 @@ class OFPComparator:
                 )
             pmin, pmax, qmin, qmax = limits
         return [volume, pmin, pmax, qmin, qmax]
-
-    def _json_encode(self, fingerprints, type_indices):
-        encoded = {}
-        for key, value in fingerprints.items():
-            try:
-                new_key = "_".join(map(str, list(key)))
-            except TypeError:
-                new_key = str(key)
-            encoded[new_key] = (
-                {str(inner_key): inner_value for inner_key, inner_value in value.items()}
-                if isinstance(value, dict)
-                else value
-            )
-        return [encoded, {str(key): value for key, value in type_indices.items()}]
-
-    def _json_decode(self, fingerprints, type_indices):
-        decoded = {}
-        for key, value in fingerprints.items():
-            new_key = list(map(int, key.split("_")))
-            new_key = tuple(new_key) if len(new_key) > 1 else new_key[0]
-            decoded[new_key] = (
-                {int(inner_key): np.array(inner_value) for inner_key, inner_value in value.items()}
-                if isinstance(value, dict)
-                else np.array(value)
-            )
-        return [decoded, {int(key): value for key, value in type_indices.items()}]

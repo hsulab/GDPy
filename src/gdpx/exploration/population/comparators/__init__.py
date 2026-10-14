@@ -5,17 +5,17 @@ from collections.abc import Mapping
 
 from .basic import AtomsComparator, NNMatComparator
 from .interatomic_distance import InteratomicDistanceComparator
-from .ofp import OFPComparator
 
 COMPARATORS = {
     "atoms": AtomsComparator,
     "interatomic_distance": InteratomicDistanceComparator,
     "nnmat": NNMatComparator,
-    "ofp": OFPComparator,
 }
 
 
 def create_population_comparator(config, periodic=True, rng=None):
+    if isinstance(config, (list, tuple)):
+        return create_population_comparator({"method": "combined", "comparators": list(config)}, periodic, rng)
     if not isinstance(config, Mapping):
         if hasattr(config, "looks_like"):
             return config
@@ -26,6 +26,11 @@ def create_population_comparator(config, periodic=True, rng=None):
     if {"pbc", "mic", "rng"} & params.keys():
         raise ValueError("Population comparator periodicity and RNG are system-owned; use system.periodic.")
     method = params.pop("method", None)
+    if method == "combined":
+        children = params.get("comparators")
+        if not isinstance(children, (list, tuple)) or not children:
+            raise ValueError("combined requires a nonempty list of comparators.")
+        params["comparators"] = [create_population_comparator(child, periodic, rng) for child in children]
     if method not in COMPARATORS:
         from gdpx.analysis.comparators import REGISTER
         if method not in REGISTER:
@@ -33,7 +38,7 @@ def create_population_comparator(config, periodic=True, rng=None):
         cls = REGISTER[method]
     else:
         cls = COMPARATORS[method]
-    signature = inspect.signature(cls.__init__).parameters
+    signature = inspect.signature(cls).parameters
     for key, value in dict(pbc=periodic, mic=periodic, rng=rng).items():
         if key in signature:
             params[key] = value
