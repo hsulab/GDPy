@@ -496,6 +496,7 @@ class DriverBasedWorker(CatalogWorker):
 
     def _calculation_request(self, identifier, frames, batches, rng_states=()):
         return dict(worker=self.metadata.worker, frames=frames,
+                    layout=getattr(self, "input_layout", None),
                     provenance=self._input_provenance, retained=self._input_retained,
                     batches=[self._job_payload(identifier, batch, index) for index, batch in enumerate(batches)],
                     machine_prefix=self.scheduler.machine_prefix,

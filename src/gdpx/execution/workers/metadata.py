@@ -17,6 +17,7 @@ from ase.io.jsonio import decode, encode
 from gdpx.execution.fingerprint import (
     atomic_write_text,
     payload_digest,
+    normalise_value,
     read_structure_inputs,
     structure_digest,
     write_structure_inputs,
@@ -154,6 +155,19 @@ class WorkerMetadata:
                     definition = dict(version=1, batches=copy.deepcopy(request["batches"]),
                                       machine_prefix=request["machine_prefix"])
                     previous = data["workers"].get(name)
+                    layout = request.get("layout")
+                    if layout is not None:
+                        layout = normalise_value(layout)
+                        indices = layout["selected_indices"]
+                        shape = layout["shape"]
+                        if (len(indices) != len(request["frames"])
+                                or len({tuple(index) for index in indices}) != len(indices)
+                                or any(len(index) != len(shape) or any(
+                                    not isinstance(value, int) or not 0 <= value < size
+                                    for value, size in zip(index, shape)) for index in indices)):
+                            raise ValueError("Invalid input layout: selected indices must map each frame once.")
+                        if previous is not None and "layout" in previous and previous["layout"] != layout:
+                            raise ValueError("Calculation set conflict: layout changed. Use a new working directory.")
                     if previous is not None:
                         saved = self.calculation_set(data, name)
                         if request["reuse_saved_seeds"] and len(definition["batches"]) == len(saved["batches"]):
@@ -190,6 +204,8 @@ class WorkerMetadata:
                             uid = str(uuid.uuid4())
                             data["jobs"][uid] = dict(worker=name, input=payload, job_digest=payload_digest(payload),
                                                      machine_prefix=definition["machine_prefix"])
+                    if layout is not None:
+                        data["workers"][name]["layout"] = layout
                     resolved[name] = definition["batches"]
                 if plan is not None:
                     if "plan" in data and data["plan"] != plan:

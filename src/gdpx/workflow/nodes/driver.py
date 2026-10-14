@@ -25,6 +25,7 @@ from gdpx.workflow.session.operation import Operation
 from gdpx.workflow.session.variable import Variable
 from gdpx.utils.profiler import CustomTimer
 from gdpx.execution.workers.drive import DriverBasedWorker
+from gdpx.execution.workers.metadata import WorkerMetadata
 
 
 def _logical_trajectories(worker, trajectories):
@@ -172,6 +173,18 @@ def get_shape_data(shape_dir: pathlib.Path):
     return inp_shape, inp_markers
 
 
+def get_input_layout(directory: pathlib.Path):
+    """Read frozen output layout, falling back to pre-manifest shape files."""
+    metadata = WorkerMetadata(directory)
+    if metadata.inputs.path.exists():
+        record = metadata.inputs.read()["workers"].get(metadata.worker, {})
+        layout = record.get("layout")
+        if layout is not None:
+            return layout["shape"], layout["selected_indices"], layout
+    shape, markers = get_shape_data(directory / "_shape")
+    return shape, markers, None
+
+
 def _is_single_point_driver(driver) -> bool:
     """Return whether a driver produces one result for each input structure."""
     task = getattr(driver.setting, "task", None)
@@ -191,6 +204,7 @@ def convert_results_to_structures(
     reduce_single_worker: bool = True,
     merge_workers: bool = False,
     workers=None,
+    input_layout=None,
     print_func=print,
     debug_func=print,
 ):
@@ -260,6 +274,13 @@ def convert_results_to_structures(
             )
         elif converted_structures.ndim == 2:
             converted_structures = AtomsNDArray(converted_structures, dims=("structure", "frame"))
+    if input_layout is not None and not merge_workers:
+        dims = tuple(input_layout["dims"])
+        coords = input_layout.get("coords", {})
+        if converted_structures.ndim == len(dims) + 1:
+            dims = ("worker",) + dims
+        if converted_structures.ndim == len(dims):
+            converted_structures = AtomsNDArray(converted_structures, dims=dims, coords=coords)
     print_func(f"extracted_results: {converted_structures}")
 
     return converted_structures
@@ -380,6 +401,8 @@ class compute(Operation):
 
         num_workers = len(workers)
 
+        input_layout = None
+
         # FIXME: It is better to move this part to driver...
         #       We only convert spc worker structures shape here...
         if num_workers == 1 and _is_single_point_driver(workers[0].driver):
@@ -399,21 +422,14 @@ class compute(Operation):
                 num_frames = len(frames)
                 inp_shape = (1, num_frames)
                 inp_markers = [(0, i) for i in range(num_frames)]
-            # self._print(inp_markers)
-            # Dump shape data
-            # NOTE: Since all workers use the same input structures,
-            #       we only need to dump once here
-            shape_dir = self.directory / "_shape"
-            shape_dir.mkdir(parents=True, exist_ok=True)
-            np.savetxt(
-                shape_dir / "shape.dat",
-                np.array(inp_shape, dtype=np.int32),
-                fmt="%8d",
-            )
-            np.savetxt(
-                shape_dir / "markers.dat",
-                np.array(inp_markers, dtype=np.int32),
-                fmt="%8d",
+            input_layout = dict(
+                version=1,
+                shape=list(inp_shape),
+                selected_indices=[list(index) for index in inp_markers],
+                dims=list(structures.dims) if isinstance(structures, AtomsNDArray)
+                     else ["structure", "frame"],
+                coords={name: values.tolist() for name, values in structures.coords.items()}
+                       if isinstance(structures, AtomsNDArray) else {},
             )
         else:
             if isinstance(structures, AtomsNDArray):
@@ -430,6 +446,7 @@ class compute(Operation):
         # - create workers
         for i, worker in enumerate(workers):
             worker.directory = self.directory / f"w{i}"
+            worker.input_layout = input_layout
             if self.batchsize is not None:
                 worker.batchsize = self.batchsize
             # if self.share_wdir and worker.scheduler.is_direct:
@@ -468,6 +485,7 @@ class compute(Operation):
             if self.extract_data:
                 self._print("--- extract results ---")
                 # TODO: check if computations are all valid before extract?
+                inp_shape, inp_markers, input_layout = get_input_layout(self.directory)
                 status, computed_structures = extract_results_from_workers(
                     self.directory / "extracted",
                     workers,
@@ -490,6 +508,7 @@ class compute(Operation):
                         reduce_single_worker=reduce_single_worker,
                         merge_workers=self.merge_workers,
                         workers=workers,
+                        input_layout=input_layout,
                         print_func=self._print,
                         debug_func=self._debug,
                     )
@@ -915,7 +934,7 @@ class extract(Operation):
         self.workers = workers  # for operations to access
 
         # - shape
-        inp_shape, inp_markers = get_shape_data(self.input_nodes[0].directory / "_shape")
+        inp_shape, inp_markers, input_layout = get_input_layout(self.input_nodes[0].directory)
 
         # - extract results
         if self.use_compact:
@@ -942,6 +961,7 @@ class extract(Operation):
                 reduce_single_worker=reduce_single_worker,
                 merge_workers=self.merge_workers,
                 workers=workers,
+                input_layout=input_layout,
                 print_func=self._print,
                 debug_func=self._debug,
             )
