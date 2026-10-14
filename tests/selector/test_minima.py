@@ -5,27 +5,25 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from gdpx.analysis.selectors import create_selector
 from gdpx.data.array import AtomsNDArray
-from gdpx.analysis.comparators.rmsd import permutation_rmsd
+from gdpx.analysis.comparators.displacement import DisplacementComparator
 
 
 def candidate(distance, energy, force=0.01, reverse=False):
     atoms = Atoms("CuPtO", positions=[[0, 0, 0], [distance, 0, 0], [0, 2, 0]], cell=[20] * 3)
     if reverse:
         atoms = atoms[[2, 1, 0]]
-        atoms.translate([3, 4, 5])
-        atoms.rotate(37, "z")
     atoms.calc = SinglePointCalculator(atoms, energy=energy, forces=np.full((3, 3), force))
     return atoms
 
 
-@pytest.mark.parametrize("method", ["oganov_fingerprint", "permutation_rmsd"])
+@pytest.mark.parametrize("method", ["oganov_fingerprint", "displacement"])
 def test_energy_rank_convergence_and_permutation(tmp_path, method):
     high = candidate(2, -1)
     different = candidate(4, -2)
     lowest = candidate(2, -3, reverse=True)
     unconverged = candidate(6, -4, force=0.04)  # vector norm > .05
     data = AtomsNDArray([[high, different], [lowest, unconverged]])
-    selector = create_selector(dict(method="minima", number=2, comparator=dict(method=method, **({"pbc": False} if method == "oganov_fingerprint" else {})), directory=tmp_path, random_seed=0))
+    selector = create_selector(dict(method="minima", number=2, comparator=dict(method=method, **({"pbc": False} if method == "oganov_fingerprint" else {"permutation_invariant": True})), directory=tmp_path, random_seed=0))
     result = selector.select(data)
     assert [a.get_potential_energy() for a in result] == [-2, -3]
     assert np.array_equal(np.argwhere(data.markers), [[0, 1], [1, 0]])
@@ -51,7 +49,7 @@ def test_invalid_parameters(parameters):
 
 
 def test_nonfinite_properties(tmp_path):
-    selector = create_selector(dict(method="minima", number=1, comparator=dict(method="permutation_rmsd"), directory=tmp_path, random_seed=0))
+    selector = create_selector(dict(method="minima", number=1, comparator=dict(method="displacement"), directory=tmp_path, random_seed=0))
     with pytest.raises(ValueError, match="finite energies and forces"):
         selector.select([candidate(2, np.nan)])
 
@@ -60,10 +58,11 @@ def test_rmsd_merges_small_distortions(tmp_path):
     original = candidate(2, -3)
     distorted = candidate(2.2, -2, reverse=True)
     different = candidate(4, -1)
-    assert permutation_rmsd(original, candidate(2, -3, reverse=True)) < 1e-10
-    assert permutation_rmsd(original, distorted) < 0.5
-    assert permutation_rmsd(original, different) > 0.5
-    selector = create_selector(dict(method="minima", number=2, comparator=dict(method="permutation_rmsd", rmsd_max=0.5), directory=tmp_path, random_seed=0))
+    comparator = DisplacementComparator(permutation_invariant=True, random_seed=0)
+    assert comparator.fingerprint_distance(*comparator.prepare_data([original, candidate(2, -3, reverse=True)])) < 1e-10
+    assert comparator.fingerprint_distance(*comparator.prepare_data([original, distorted])) < 0.5
+    assert comparator.fingerprint_distance(*comparator.prepare_data([original, different])) > 0.5
+    selector = create_selector(dict(method="minima", number=2, comparator=dict(method="displacement", rmsd_max=0.5, permutation_invariant=True), directory=tmp_path, random_seed=0))
     assert [a.get_potential_energy() for a in selector.select([original, distorted, different])] == [-3, -1]
 
 
@@ -78,7 +77,7 @@ def test_comparator_is_explicit_and_requires_preparation_interface():
         create_selector(dict(method="minima", random_seed=0))
     with pytest.raises(TypeError, match="prepare_data and compare_fingerprints"):
         create_selector(dict(method="minima", random_seed=0,
-                             comparator=dict(method="cartesian_coordinate", random_seed=0)))
+                             comparator=dict(method="single_point", random_seed=0)))
 
 
 def test_force_checks_still_include_support(tmp_path):
@@ -87,6 +86,6 @@ def test_force_checks_still_include_support(tmp_path):
     forces[0, 0] = 0.1
     atoms.calc = SinglePointCalculator(atoms, energy=-1, forces=forces)
     selector = create_selector(dict(method="minima", number=1, directory=tmp_path, random_seed=0,
-                                   comparator=dict(method="permutation_rmsd", group_expression="`id 2:4`")))
+                                   comparator=dict(method="displacement", group_expression="`id 2:4`")))
     with pytest.raises(ValueError, match="0 force-converged"):
         selector.select([atoms])

@@ -6,18 +6,19 @@ from gdpx.structures.groups import evaluate_group_expression
 
 
 class BaseComparator(BaseComponent):
-    def _prepare_groups(self, structures):
-        """Copy and canonicalize selected groups, checking their compositions."""
+    def _prepare_groups(self, structures, canonicalize=True):
+        """Copy selected groups, optionally sorting species, and check compositions."""
         groups = []
         for atoms in structures:
             indices = sorted(evaluate_group_expression(atoms, self.group_expression))
             if not indices:
                 raise ValueError("group_expression selected an empty comparison group.")
             group = atoms[indices]
-            group = group[np.argsort(group.numbers, kind="stable")]
+            if canonicalize:
+                group = group[np.argsort(group.numbers, kind="stable")]
             if not np.all(np.isfinite(group.positions)):
                 raise ValueError("Comparison positions must be finite.")
-            if groups and not np.array_equal(groups[0].numbers, group.numbers):
+            if groups and not np.array_equal(np.sort(groups[0].numbers), np.sort(group.numbers)):
                 raise ValueError("Comparison groups must have identical compositions.")
             groups.append(group)
         return groups

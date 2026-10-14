@@ -25,7 +25,7 @@ class MinimaSelector(BaseSelector):
         if obsolete:
             raise ValueError(
                 f"Removed minima parameters: {sorted(obsolete)}. Use comparator with "
-                "method and group_expression; use rmsd_max for permutation_rmsd."
+                "method and group_expression; use rmsd_max for displacement."
             )
         super().__init__(*args, **kwargs)
         if self.group_by is not None:

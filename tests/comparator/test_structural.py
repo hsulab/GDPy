@@ -7,7 +7,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from gdpx.analysis.comparators import create_comparator
 from gdpx.analysis.comparators.oganov_fingerprint import OganovFingerprintComparator
-from gdpx.analysis.comparators.rmsd import PermutationRMSDComparator
+from gdpx.analysis.comparators.displacement import DisplacementComparator
 from gdpx.exploration.population.comparators import create_population_comparator
 
 
@@ -28,7 +28,7 @@ def test_oganov_numerical_regression(pbc, expected):
 
 
 @pytest.mark.parametrize("method,cls", [("oganov_fingerprint", OganovFingerprintComparator),
-                                        ("permutation_rmsd", PermutationRMSDComparator)])
+                                        ("displacement", DisplacementComparator)])
 def test_factory_and_instance_identity(method, cls):
     parameters = dict(method=method, random_seed=0)
     saved = copy.deepcopy(parameters)
@@ -48,7 +48,7 @@ def test_population_uses_analysis_registration(periodic):
         create_population_comparator(dict(method="oganov_fingerprint", pbc=False))
 
 
-@pytest.mark.parametrize("method", ["oganov_fingerprint", "permutation_rmsd"])
+@pytest.mark.parametrize("method", ["oganov_fingerprint", "displacement"])
 @pytest.mark.parametrize("expression", ["`id 2:5`", "`symbol Cu Ni`", "`tag 1`"])
 def test_group_selection_and_input_ownership(method, expression):
     first = Atoms("Mg", positions=[[8, 0, 0]], cell=[12] * 3, tags=[0]) + cluster()
@@ -75,7 +75,7 @@ def test_oganov_subset_matches_extracted_cluster():
     assert full.fingerprint_distance(grouped.prepare_data([atoms])[0], full.prepare_data([atoms[1:]])[0]) < 1e-12
 
 
-@pytest.mark.parametrize("method", ["oganov_fingerprint", "permutation_rmsd"])
+@pytest.mark.parametrize("method", ["oganov_fingerprint", "displacement"])
 def test_invalid_groups_and_obsolete_parameter(method):
     with pytest.raises(ValueError, match="group_expression"):
         create_comparator(dict(method=method, n_top=4, random_seed=0))
@@ -103,12 +103,10 @@ def test_oganov_ignores_energy_and_rejects_embedded_energy_gate():
         OganovFingerprintComparator(dE=1)
 
 
-def test_rmsd_rotation_translation_and_permutation():
+def test_displacement_permutation_invariance():
     first = cluster()
     second = first[[3, 1, 0, 2]]
-    second.rotate(47, "z")
-    second.translate([4, 5, 6])
-    comparator = PermutationRMSDComparator(random_seed=0)
+    comparator = DisplacementComparator(permutation_invariant=True, random_seed=0)
     assert comparator.fingerprint_distance(*comparator.prepare_data([first, second])) < 1e-10
 
 

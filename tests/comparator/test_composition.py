@@ -74,7 +74,7 @@ def test_preset_returns_combined_comparator_with_flat_parameters():
 
 
 def test_factory_accepts_a_list_and_rmsd_combination():
-    configuration = [dict(method="energy", ene_diff_tol=1), dict(method="permutation_rmsd")]
+    configuration = [dict(method="energy", ene_diff_tol=1), dict(method="displacement")]
     comparator = create_comparator(configuration)
     assert type(comparator) is CombinedComparator
     assert comparator(candidate(0), candidate(0.2))
