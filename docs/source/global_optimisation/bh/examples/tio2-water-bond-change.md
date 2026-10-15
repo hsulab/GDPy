@@ -57,14 +57,17 @@ gdp --runtime examples/global_optimisation/runtimes/xreac_tioh.yaml \
 ```
 
 The search starts two chains with molecular and dissociated seeds and attempts
-four hops per chain, mixing oxygen-pivot rotations and bond changes equally.
+four hops per chain, assigning rotations half the operator weight and splitting the other half
+equally between breaking and formation.
 The rotation operator selects `H2O` and `HO` (Hill notation for hydroxyl).
-The bond-change operator selects `particles: [H2O, HO, H]`, `bond: [O, H]`,
-`cutoffs: [0.8, 3.5]` and `covalent_ratio: [0.8, 1.2]`. At least one endpoint
-must belong to a selected fragment; its partner can be another fragment or the
-substrate. Current distance and connectivity determine whether breaking or
-formation is feasible. Proposed operations and actual final connectivity are
-recorded separately in `candidates.db`.
+`bond_break` and `bond_form` both select `particles: [H]`, moving exactly one
+hydrogen atom per proposal. Breaking leaves the oxygen-containing component
+stationary. Formation requires an isolated H and restricts stationary acceptors
+with ``acceptor_group: "`symbol O`"``. Both use `bond: [O, H]` and the default
+`covalent_ratio: [0.8, 1.2]`. Their respective search windows are `[0.8, 1.2]`
+and `[1.2, 3.5]` Å. Formation can be skipped when relaxation has recombined all
+detached H atoms. Proposed operations and actual relaxed connectivity remain
+separate records in `candidates.db`.
 
 Tags are reconciled after all relaxations. OH and molecular water have their
 own positive tags; surface H retains an independent positive tag. Substrate
