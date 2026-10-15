@@ -12,7 +12,7 @@ similar; extinction rules exclude candidates that are no longer eligible.
 Both algorithms use `method: global_optimisation` with `system` and `strategy`
 sections; there is no `recipe` wrapper. `system` describes initialization and
 the retained candidate pool, while `strategy.method` selects
-`genetic_algorithm` or `basin_hopping`. `strategy.objective`,
+`genetic_algorithm`, `basin_hopping`, or `simulated_annealing`. `strategy.objective`,
 `strategy.convergence`, and `strategy.use_archive` are shared search settings.
 `random_seed`, calculation `runtime`, and exploration `scheduler` remain
 separate top-level settings.

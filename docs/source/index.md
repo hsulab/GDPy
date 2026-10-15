@@ -138,6 +138,7 @@ operators <explorations/operators/index>
 overview <global_optimisation/index>
 global_optimisation/genetic-algorithm
 global_optimisation/basin_hopping
+simulated annealing <global_optimisation/simulated-annealing>
 global_optimisation/population
 global_optimisation/output
 ```

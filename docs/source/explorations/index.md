@@ -44,8 +44,9 @@ Global-optimisation inputs use `system` and `strategy` sections. The system
 owns population construction; the strategy selects GA or BH and owns its
 operators, generation policies, objective, convergence, and archive behavior.
 Runtime and optional scheduler configuration remain separate execution concerns.
-MC uses the same `method`/`system`/`strategy` layout; simulated annealing retains
-its `recipe` wrapper.
+MC uses the same `method`/`system`/`strategy` layout. Population-based MD
+annealing uses `strategy.method: simulated_annealing` under global optimisation;
+the low-level cooling runner retains its `recipe` wrapper.
 
 ```yaml
 method: global_optimisation
@@ -78,6 +79,10 @@ can be grouped by restraint center for committee-uncertainty selection in an
 active-learning workflow.
 
 ## global optimisation
+
+Use {doc}`MD simulated annealing <../global_optimisation/simulated-annealing>`
+to evolve a population through parallel cooling cycles, endpoint minimisation,
+and selection of diverse low-energy structures.
 
 Start with the {doc}`global optimisation overview <../global_optimisation/index>`
 for the shared configuration and a runnable demo using either a separate
