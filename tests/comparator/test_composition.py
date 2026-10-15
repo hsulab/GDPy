@@ -124,7 +124,7 @@ def test_population_injects_periodicity_recursively(periodic, method):
 
 def test_selector_keeps_energy_criterion_in_prepared_comparison(tmp_path):
     comparator = dict(method="energetic_oganov_fingerprint", ene_diff_tol=1, pbc=False)
-    selector = create_selector(dict(method="minima", number=2, comparator=comparator, directory=tmp_path, random_seed=0))
+    selector = create_selector(dict(method="compare", number=2, rank_by="energy", comparator=comparator, directory=tmp_path, random_seed=0))
     selected = selector.select([candidate(-3), candidate(-2.8), candidate(-1)])
     assert [atoms.get_potential_energy() for atoms in selected] == [-3, -1]
 

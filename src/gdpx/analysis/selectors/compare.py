@@ -1,4 +1,3 @@
-import copy
 import io
 
 import matplotlib.pyplot as plt
@@ -12,131 +11,107 @@ try:
 except:
     USE_REPORTLAB = 0
 
-from gdpx.analysis.comparators import REGISTER as COMPARATOR_REGISTER
+from gdpx.analysis.comparators import create_comparator
 from gdpx.data.array import AtomsNDArray
 
 from .selector import BaseSelector
+from .similarity import group_structures_by_similarity, validate_similarity_comparator
 
 
 class CompareSelector(BaseSelector):
     name: str = "compare"
 
-    print_period: int = 50
-
-    def __init__(self, comparator: dict, write_report: bool = False, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        comparator=None,
+        number=None,
+        fmax=None,
+        rank_by=None,
+        write_report: bool = False,
+        *args,
+        **kwargs,
+    ) -> None:
         """Initialise the selector.
 
         Args:
             comparator: The comparator configuration.
+            number: Maximum number of distinct structures to retain.
+            fmax: Maximum atomic force-vector norm for eligible structures.
+            rank_by: Candidate ranking; ``energy`` or ``None``.
             write_report: Whether to write a report. Defaults to False.
 
         """
+        obsolete = {"n_top", "ofp", "rmsd"} & kwargs.keys()
+        if obsolete:
+            raise ValueError(
+                f"Removed compare parameters: {sorted(obsolete)}. Use comparator "
+                "with method and group_expression; use rmsd_max for displacement."
+            )
         super().__init__(*args, **kwargs)
 
         if self.group_by is not None:
-            raise Exception("Grouping is not supported in comparison.")
+            raise ValueError("Grouping is not supported in comparison.")
+        if number is not None and (
+            isinstance(number, bool) or not isinstance(number, int) or number <= 0
+        ):
+            raise ValueError("number must be a positive integer or null.")
+        if fmax is not None and (not np.isfinite(fmax) or fmax <= 0):
+            raise ValueError("fmax must be positive and finite or null.")
+        if rank_by not in (None, "energy"):
+            raise ValueError("rank_by must be energy or null.")
+        if comparator is None:
+            raise ValueError("Comparison requires an explicit comparator configuration.")
 
-        comparator_config = copy.deepcopy(comparator)
-        comparator_name = comparator_config.pop("name", "unknown")
-        if comparator_name not in COMPARATOR_REGISTER:
-            raise Exception(f"Unknown comparator: {comparator_name}")
-
-        self.comparator = COMPARATOR_REGISTER[comparator_name](**comparator_config)
-
+        self.comparator = create_comparator(comparator)
+        validate_similarity_comparator(self.comparator)
+        self.number = number
+        self.fmax = fmax
+        self.rank_by = rank_by
         self.write_report = write_report
-
-        if self.group_by is not None:
-            raise Exception("Group_by is not supported in compare.")
-
-        return
 
     def _mark_structures(self, data: AtomsNDArray) -> None:
         """"""
         structures = data.get_marked_structures()
+        candidate_indices = []
+        energies = {}
+        for index, atoms in enumerate(structures):
+            if self.rank_by == "energy":
+                energy = atoms.get_potential_energy()
+                if not np.isfinite(energy):
+                    raise ValueError("Energy-ranked comparison requires finite energies.")
+                energies[index] = energy
+            if self.fmax is not None:
+                forces = atoms.get_forces(apply_constraint=True)
+                if not np.all(np.isfinite(forces)):
+                    raise ValueError("Force-filtered comparison requires finite forces.")
+                if np.max(np.linalg.norm(forces, axis=1)) > self.fmax:
+                    continue
+            candidate_indices.append(index)
 
-        # Start from the first structure and compare structures by a given comparator
-        if not hasattr(self.comparator, "prepare_data"):
-            # Compare structures directly
-            selected_indices = [0]
-            for i, a1 in enumerate(structures[1:]):
-                # Assume structures are sorted by energy,
-                # close structures may have a high possibility to be similar,
-                # so we compare reversely.
-                for j in selected_indices[::-1]:
-                    self._print(f"compare: {i + 1} and {j}")
-                    a2 = structures[j]
-                    if self.comparator(a1, a2):
-                        break
-                else:
-                    selected_indices.append(i + 1)
-                    self._print(f"--->>> current indices: {selected_indices}")
-        else:
-            # Compare structure based on fingerprint
-            assert hasattr(self.comparator, "compare_fingerprints")
-            fingerprints = self.comparator.prepare_data(structures)
-            num_fingerprints = len(fingerprints)
+        if self.rank_by == "energy":
+            candidate_indices.sort(key=lambda index: (energies[index], index))
+        candidates = [structures[index] for index in candidate_indices]
 
-            selected_indices, unique_groups = [], {}
-            for i, fp in enumerate(fingerprints):
-                if i % self.print_period == 0:
-                    self._print(f"processing [{i:>4d}/{num_fingerprints:>4d}] structures")
-                for j in selected_indices[::-1]:  # j -> unique_group_index
-                    # --- average ---
-                    # # TODO: The ditribution maybe too wide?
-                    # fp_avg = np.average(
-                    #     [fingerprints[x] for x in unique_groups[j]], axis=0
-                    # )
-                    # if self.comparator(fp, fp_avg):
-                    #     unique_groups[j].append(i)
-                    #     break
-                    if self.comparator.compare_fingerprints(fp, fingerprints[unique_groups[j][0]]):
-                        unique_groups[j].append(i)
-                        break
-                else:
-                    selected_indices.append(i)
-                    unique_groups[i] = [i]
+        selected_indices, unique_groups = group_structures_by_similarity(
+            candidates, self.comparator, max_groups=self.number
+        )
 
-            # merge groups with similar average fingerprint
-            # unique_fingerprints = {}
-            # for k, v in unique_groups.items():
-            #     unique_fingerprints[k] = np.average(
-            #         [fingerprints[x] for x in v], axis=0
-            #     )
-            #
-            # selected_group_indices, merged_groups = [], {}
-            # for i, fp in unique_fingerprints.items():
-            #     for j in selected_group_indices:
-            #         # TODO: The ditribution maybe too wide?
-            #         fp_avg = np.average(
-            #             [unique_fingerprints[x] for x in merged_groups[j]], axis=0
-            #         )
-            #         if self.comparator(fp, fp_avg):
-            #             merged_groups[j].append(i)
-            #             break
-            #     else:
-            #         selected_group_indices.append(i)
-            #         merged_groups[i] = [i]
+        if self.number is not None and len(selected_indices) < self.number:
+            raise ValueError(
+                f"Requested {self.number} distinct structures, found only "
+                f"{len(selected_indices)} among {len(candidates)} eligible candidates."
+            )
 
-            # sort structures in unique_group
-            # new_selected_indices, new_unique_groups = [], {}
-            # for k, v in merged_groups.items():
-            #     curr_indices = sorted(
-            #         list(itertools.chain(*[unique_groups[x] for x in v]))
-            #     )
-            #     # print(curr_indices)
-            #     # print(unique_fingerprints[k])
-            #     new_unique_groups[curr_indices[0]] = curr_indices
-            #     new_selected_indices.append(curr_indices[0])
-            # selected_indices = new_selected_indices
-            # unique_groups = new_unique_groups
-
-            if USE_REPORTLAB and self.write_report:
-                self.report(structures, unique_groups)
+        if self.write_report:
+            if USE_REPORTLAB:
+                self.report(candidates, unique_groups)
             else:
                 self._print("Please install `reportlab` to report comparison.")
 
         curr_markers = np.argwhere(data.markers)
-        selected_markers = np.array([curr_markers[i] for i in selected_indices])
+        selected_markers = np.array(
+            [curr_markers[candidate_indices[i]] for i in selected_indices]
+        )
         data.markers = selected_markers
 
         return
