@@ -26,7 +26,7 @@ def water():
 
 
 def operators(**settings):
-    params = dict(method="bond_change", particles=["H2O", "HO", "H"], bond=["O", "H"])
+    params = dict(method="bond_break", particles=["H"], bond=["O", "H"])
     params.update(settings)
     ops, _ = parse_operators([params])
     for op in ops:
@@ -131,7 +131,7 @@ def test_pending_resume_matches_positions_tags_history_and_rng(tmp_path):
 
 def test_pending_resume_accepts_equivalent_normalized_inputs(tmp_path):
     assert run(tmp_path, Worker(pending=True)).status is EvaluationStatus.PENDING
-    equivalent = operators(particles=["H", "OH", "H2O"], bond="H-O")
+    equivalent = operators(particles=["H"], bond="H-O")
     assert run(tmp_path, Worker(), ops=equivalent).status is EvaluationStatus.FINISHED
 
 
@@ -149,13 +149,13 @@ def test_resume_rejects_checkpoint_without_geometry_version(tmp_path):
 
 @pytest.mark.parametrize("settings", [
     dict(covalent_ratio=[0.8, 1.3]), dict(cutoffs=[0.8, 2.5]),
-    dict(particles=["H2O"]), dict(bond="O-O"),
+    dict(particles=["O"]), dict(bond="O-O"),
 ])
 def test_resume_rejects_changed_or_removed_bond_policy(tmp_path, settings):
     run(tmp_path, Worker(pending=True))
     with pytest.raises(ValueError, match="Incompatible bond_change"):
         run(tmp_path, Worker(), ops=operators(**settings))
-    move = parse_operators([dict(method="move", particles=["H2O"], skip_distance_check=True)])[0]
+    move = parse_operators([dict(method="move", particles=["H"], skip_distance_check=True)])[0]
     with pytest.raises(ValueError, match="Incompatible bond_change"):
         run(tmp_path, Worker(), ops=move)
 
@@ -189,3 +189,30 @@ def test_interruption_with_split_and_merged_tags_replays_exactly(tmp_path, monke
     np.testing.assert_array_equal(actual.endpoints[0].positions, expected.endpoints[0].positions)
     np.testing.assert_array_equal(actual.endpoints[0].get_tags(), expected.endpoints[0].get_tags())
     assert rng.bit_generator.state == baseline_rng.bit_generator.state
+
+
+def test_form_history_and_acceptor_group_checkpoint_recovery(tmp_path):
+    start = water()
+    start.positions[2] = [7.5, 5, 5]
+
+    def execute(group, pending=False):
+        ops = operators(method="bond_form", particles=["H"], acceptor_group=group)
+        frame = start.copy()
+        frame.calc = SinglePointCalculator(frame, energy=0., forces=np.zeros((len(frame), 3)))
+        return run_hopping_rounds([frame], Worker(pending=pending), ops, [1.], 1,
+                                  np.random.default_rng(9), tmp_path)
+
+    assert execute("`index 1`", pending=True).status is EvaluationStatus.PENDING
+    with pytest.raises(ValueError, match="Incompatible bond_change"):
+        execute("`index 0`")
+    result = execute("`index 1`")
+    assert result.status is EvaluationStatus.FINISHED
+    np.testing.assert_array_equal(result.endpoints[0].get_tags(), [0, 1, 1, 1])
+    event = list(ase.db.connect(tmp_path / "history.db").select())[-1].data["bond_change"]
+    assert event["operation"] == "form" and event["pair"] == [1, 2]
+
+
+def test_changing_operator_kind_requires_a_fresh_checkpoint(tmp_path):
+    assert run(tmp_path, Worker(pending=True)).status is EvaluationStatus.PENDING
+    with pytest.raises(ValueError, match="Incompatible bond_change"):
+        run(tmp_path, Worker(), ops=operators(method="bond_form", particles=["H"]))

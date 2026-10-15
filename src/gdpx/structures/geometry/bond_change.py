@@ -1,20 +1,21 @@
-"""Bond changes using fragment species, an element pair and distance bounds."""
+"""Single-atom bond changes with element pairs and distance bounds."""
 
 from numbers import Real
 
 import numpy as np
-from ase.formula import Formula
 from ase.geometry import find_mic
 
-from .fragments import FragmentPolicy, component, element_pair
+from gdpx.structures.groups import evaluate_group_expression
+
+from .fragments import FragmentPolicy, element_pair
 from .spatial import check_atomic_distances, get_bond_distance_dict
 
 
-BOND_CHANGE_VERSION = 2
+BOND_CHANGE_VERSION = 4
 OBSOLETE_BOND_ARGUMENTS = frozenset({
     "preset", "pairs", "mode", "min_cutoff", "max_cutoff", "form_distance",
     "break_distance", "max_pair_distance", "break_angle", "bond_ratio",
-    "bond_cutoffs", "break_fragments", "form_fragments",
+    "bond_cutoffs", "break_fragments", "form_fragments", "moving_particles", "departing_fragments",
 })
 
 
@@ -22,7 +23,7 @@ def reject_obsolete_arguments(arguments):
     obsolete = OBSOLETE_BOND_ARGUMENTS.intersection(arguments)
     if obsolete:
         raise TypeError(f"Obsolete bond_change arguments: {', '.join(sorted(obsolete))}. "
-                        "Use particles, bond, cutoffs and covalent_ratio; start a fresh BH run.")
+                        "Use bond_break or bond_form with particles, bond, cutoffs and covalent_ratio; start a fresh BH run.")
 
 
 def _bounds(values, name):
@@ -32,19 +33,13 @@ def _bounds(values, name):
     return [float(v) for v in values]
 
 
-def bond_change_settings(*, particles, bond, cutoffs=(0.0, 3.5), covalent_ratio=(0.8, 1.2)):
+def _bond_settings(*, particles, bond, cutoffs=(0.0, 3.5), covalent_ratio=(0.8, 1.2)):
     """Validate and normalize the public bond-change arguments for serialization."""
     if (not isinstance(particles, (list, tuple)) or not particles
             or any(not isinstance(p, str) or not p for p in particles)):
-        raise ValueError("particles must be a nonempty list of molecular formulas.")
-    species = []
-    for value in particles:
-        formula = Formula(value)
-        if not formula.count() or any(count <= 0 for count in formula.count().values()):
-            raise ValueError("particles must contain nonempty molecular formulas.")
-        for symbol in formula.count():
-            element_pair((symbol, symbol))
-        species.append(formula.format("hill"))
+        raise ValueError("particles must be a nonempty list of element symbols (single atoms).")
+    for symbol in particles:
+        element_pair((symbol, symbol))
     bond = list(element_pair(bond.split("-") if isinstance(bond, str) else bond))
     cutoffs = _bounds(cutoffs, "cutoffs")
     if not 0 <= cutoffs[0] < cutoffs[1]:
@@ -52,8 +47,24 @@ def bond_change_settings(*, particles, bond, cutoffs=(0.0, 3.5), covalent_ratio=
     covalent_ratio = _bounds(covalent_ratio, "covalent_ratio")
     if not 0 < covalent_ratio[0] < 1 < covalent_ratio[1]:
         raise ValueError("covalent_ratio must satisfy 0 < lower < 1 < upper.")
-    return dict(particles=sorted(set(species)), bond=bond, cutoffs=cutoffs,
-                covalent_ratio=covalent_ratio)
+    settings = dict(particles=sorted(set(particles)), bond=bond, cutoffs=cutoffs,
+                    covalent_ratio=covalent_ratio)
+    return settings
+
+
+def bond_break_settings(*, particles, bond, cutoffs=(0.0, 3.5), covalent_ratio=(0.8, 1.2)):
+    return _bond_settings(particles=particles, bond=bond, cutoffs=cutoffs, covalent_ratio=covalent_ratio)
+
+
+def bond_form_settings(*, particles, bond, cutoffs=(0.0, 3.5),
+                       covalent_ratio=(0.8, 1.2), acceptor_group=None):
+    settings = _bond_settings(particles=particles, bond=bond, cutoffs=cutoffs,
+                              covalent_ratio=covalent_ratio)
+    if acceptor_group is not None:
+        if not isinstance(acceptor_group, str) or not acceptor_group.strip():
+            raise ValueError("acceptor_group must be a nonempty atom-group expression or None.")
+        settings["acceptor_group"] = acceptor_group.strip()
+    return settings
 
 
 def retag_fragments(atoms, policy, preferred=None, before_move=None):
@@ -66,18 +77,26 @@ def retag_fragments(atoms, policy, preferred=None, before_move=None):
         atoms.arrays["tags"][changed] = tags[changed]
 
 
-def find_bond_change_candidates(atoms, *, particles, bond, cutoffs=(0.0, 3.5),
-                                covalent_ratio=(0.8, 1.2), eligible_tags=None):
-    """Find bridge breaks and intercomponent joins inside an absolute window.
+def _find_bond_candidates(atoms, operation, *, particles, bond, cutoffs=(0.0, 3.5),
+                          covalent_ratio=(0.8, 1.2), eligible_tags=None, acceptor_group=None):
+    """Find terminal-atom breaks or isolated-atom joins inside the search window.
 
-    Tags must describe current fragments. At least one endpoint must belong to
-    a selected positive-tag species in ``eligible_tags`` (all tags by default).
-    Its partner may lie outside the region or in the substrate. Ratios classify
-    the selected pair; fixed components, cycles and intracomponent joins remain
-    excluded. Both cutoff boundaries and the bonded upper bound are inclusive.
+    Only selected positive-tag atoms in the region can move. A stationary
+    partner may lie outside that region. Fixed atoms and substrate atoms never
+    move. Tags must already reflect the current connectivity.
     """
-    settings = bond_change_settings(particles=particles, bond=bond, cutoffs=cutoffs,
-                                    covalent_ratio=covalent_ratio)
+    settings = _bond_settings(particles=particles, bond=bond, cutoffs=cutoffs,
+                              covalent_ratio=covalent_ratio)
+    if operation == "break":
+        settings = bond_break_settings(**settings)
+    else:
+        settings = bond_form_settings(**settings, acceptor_group=acceptor_group)
+    try:
+        acceptors = set(evaluate_group_expression(atoms, acceptor_group)) if operation == "form" else set()
+    except Exception as exc:
+        raise ValueError(f"Invalid acceptor_group expression: {acceptor_group!r}") from exc
+    if any(index < 0 or index >= len(atoms) for index in acceptors):
+        raise ValueError("acceptor_group contains atom indices outside the structure.")
     bond = tuple(settings["bond"])
     policy = FragmentPolicy(bond_ratio=settings["covalent_ratio"][1])
     graph, _ = policy.graph(atoms, include_substrate=True)
@@ -88,15 +107,9 @@ def find_bond_change_candidates(atoms, *, particles, bond, cutoffs=(0.0, 3.5),
             raise ValueError("bond_change requires constraints exposing fixed atom indices.")
         fixed.update(constraint.get_indices().tolist())
     region_tags = set(np.unique(tags)) if eligible_tags is None else set(eligible_tags)
-    selected = {int(tag) for tag in np.unique(tags) if tag > 0 and tag in region_tags
-                and atoms[np.flatnonzero(tags == tag)].get_chemical_formula() in settings["particles"]}
-    groups = {}
-    for i in range(len(atoms)):
-        if i not in groups:
-            group = component(graph, i)
-            for index in group:
-                groups[index] = group
-    found = {"break": [], "form": []}
+    selected = {i for i, (tag, symbol) in enumerate(zip(tags, symbols))
+                if tag > 0 and tag in region_tags and symbol in settings["particles"]}
+    found = []
     if not selected:
         return found
     distances = atoms.get_all_distances(mic=True)
@@ -107,49 +120,74 @@ def find_bond_change_candidates(atoms, *, particles, bond, cutoffs=(0.0, 3.5),
         for j in range(i+1, len(atoms)):
             if tuple(sorted((symbols[i], symbols[j]))) != bond:
                 continue
-            if tags[i] not in selected and tags[j] not in selected:
+            if i not in selected and j not in selected:
                 continue
             distance = distances[i, j]
             if not minimum <= distance <= maximum or distance < lower:
                 continue
-            if distance <= upper:
-                left = component(graph, i, frozenset((i, j)))
-                if j in left:
-                    continue
-                right = component(graph, j, frozenset((i, j)))
-                operation = "break"
-            else:
-                if j in groups[i]:
-                    continue
-                left, right, operation = groups[i], groups[j], "form"
+            bonded = distance <= upper
+            if bonded != (operation == "break"):
+                continue
+            # A degree-one atom becomes isolated when its only bond is cut;
+            # a degree-zero atom can form a bond without carrying any neighbors.
             orientations = []
-            if not right.intersection(fixed):
-                orientations.append((i, j, sorted(right)))
-            if not left.intersection(fixed):
-                orientations.append((j, i, sorted(left)))
+            for stationary, moving in ((i, j), (j, i)):
+                if moving not in selected or moving in fixed:
+                    continue
+                if operation == "break":
+                    movable = graph[moving] == {stationary}
+                else:
+                    movable = not graph[moving] and stationary in acceptors
+                if movable:
+                    orientations.append((stationary, moving, [moving]))
             if orientations:
-                found[operation].append(orientations)
+                found.append(orientations)
     return found
 
 
-def change_bond(atoms, rng, *, particles=None, bond=None, cutoffs=(0.0, 3.5),
-                covalent_ratio=(0.8, 1.2), eligible_tags=None, bond_distances=None,
-                allow_isolated=True, skip_distance_check=False,
-                max_random_attempts=1000, before_move=None, **obsolete):
-    """Change one bond in place; return ``(event, diagnostic)``.
+def find_bond_break_candidates(atoms, *, eligible_tags=None, **settings):
+    """Enumerate bridge bonds that can release one selected atom."""
+    return _find_bond_candidates(atoms, "break", eligible_tags=eligible_tags,
+                                 **bond_break_settings(**settings))
 
-    Search within ``cutoffs`` in angstrom. Relative to the covalent-radius sum,
-    the lower ratio rejects overlaps and the upper ratio defines connectivity.
-    Form at the radius sum; break at 1.25 times the upper bonding threshold.
-    Failure or exceptions restore coordinates and tags. Successful edits remain
-    in place, without modifying calculator, constraints, metadata or atom order.
-    ``before_move`` can record touched rows for a caller-owned transaction.
+
+def find_bond_form_candidates(atoms, *, eligible_tags=None, **settings):
+    """Enumerate joins from isolated selected atoms to stationary acceptors."""
+    return _find_bond_candidates(atoms, "form", eligible_tags=eligible_tags,
+                                 **bond_form_settings(**settings))
+
+
+def break_bond(atoms, rng, *, particles=None, bond=None, cutoffs=(0.0, 3.5),
+               covalent_ratio=(0.8, 1.2), **kwargs):
+    """Break a bridge bond by moving one atom of a selected element.
+
+    Only a terminal atom that becomes isolated after the cut can move. The
+    rest of the structure stays stationary, regardless of fragment formulas.
     """
-    reject_obsolete_arguments(obsolete)
-    if obsolete:
-        raise TypeError(f"Unknown bond_change arguments: {', '.join(sorted(obsolete))}")
-    settings = bond_change_settings(particles=particles, bond=bond, cutoffs=cutoffs,
-                                    covalent_ratio=covalent_ratio)
+    reject_obsolete_arguments(kwargs)
+    settings = bond_break_settings(particles=particles, bond=bond, cutoffs=cutoffs,
+                                   covalent_ratio=covalent_ratio)
+    return _change_bond(atoms, rng, "break", settings, **kwargs)
+
+
+def form_bond(atoms, rng, *, particles=None, bond=None, cutoffs=(0.0, 3.5),
+              covalent_ratio=(0.8, 1.2), acceptor_group=None, **kwargs):
+    """Move one isolated selected atom onto an atom in ``acceptor_group``.
+
+    Groups use the standard atom-group expression syntax. None permits all
+    stationary endpoints; an empty selection permits no joins. Selected atoms
+    already bonded to another atom cannot move during formation.
+    """
+    reject_obsolete_arguments(kwargs)
+    settings = bond_form_settings(particles=particles, bond=bond, cutoffs=cutoffs,
+                                  covalent_ratio=covalent_ratio, acceptor_group=acceptor_group)
+    return _change_bond(atoms, rng, "form", settings, **kwargs)
+
+
+def _change_bond(atoms, rng, operation, settings, *, eligible_tags=None, bond_distances=None,
+                 allow_isolated=True, skip_distance_check=False,
+                 max_random_attempts=1000, before_move=None):
+    """Apply geometry only; restore coordinates and tags on failure or error."""
     if (isinstance(max_random_attempts, bool) or not isinstance(max_random_attempts, (int, np.integer))
             or max_random_attempts < 1):
         raise ValueError("max_random_attempts must be a positive integer.")
@@ -170,15 +208,14 @@ def change_bond(atoms, rng, *, particles=None, bond=None, cutoffs=(0.0, 3.5),
 
     try:
         retag_fragments(atoms, policy, before_move=record)
-        candidates = find_bond_change_candidates(atoms, eligible_tags=eligible_tags, **settings)
-        modes = [mode for mode, choices in candidates.items() if choices]
-        if not modes:
+        candidates = _find_bond_candidates(atoms, operation, eligible_tags=eligible_tags, **settings)
+        if not candidates:
             result = None, "BondChange_Skipped"
         else:
             distances = get_bond_distance_dict(sorted(set(atoms.numbers)), ratio=1.0)
             distances.update(bond_distances or {})
             threshold = policy.cutoff(settings["bond"])
-            result = _move_bond_fragment(atoms, rng, candidates, modes, policy,
+            result = _move_bond_atom(atoms, rng, candidates, operation, policy,
                 form_distance=threshold/covalent_ratio[1], break_distance=1.25*threshold,
                 covalent_ratio=covalent_ratio, bond_distances=distances,
                 allow_isolated=allow_isolated, skip_distance_check=skip_distance_check,
@@ -192,13 +229,12 @@ def change_bond(atoms, rng, *, particles=None, bond=None, cutoffs=(0.0, 3.5),
     return result
 
 
-def _move_bond_fragment(atoms, rng, candidates, modes, policy, *, form_distance,
+def _move_bond_atom(atoms, rng, candidates, operation, policy, *, form_distance,
                         break_distance, covalent_ratio, bond_distances,
                         allow_isolated, skip_distance_check, max_random_attempts, before_move):
-    mode = modes[int(rng.choice(len(modes)))]
-    choices = candidates[mode][int(rng.choice(len(candidates[mode])))]
+    choices = candidates[int(rng.choice(len(candidates)))]
     stationary, moving, indices = choices[int(rng.choice(len(choices)))]
-    original = atoms.positions[indices].copy()
+    original = atoms.positions[moving].copy()
     old_tags = atoms.get_tags().copy()
     if before_move is not None:
         before_move(indices)
@@ -206,10 +242,9 @@ def _move_bond_fragment(atoms, rng, candidates, modes, policy, *, form_distance,
     if not length > 0:
         return None, "BondChange_Failed"
     direction = direction / length
-    relative, _ = find_mic(original-atoms.positions[moving], atoms.cell, atoms.pbc)
     distances = bond_distances
     for _ in range(max_random_attempts):
-        if mode == "break":
+        if operation == "break":
             tangent = rng.normal(size=3)
             tangent -= np.dot(tangent, direction)*direction
             norm = np.linalg.norm(tangent)
@@ -218,37 +253,27 @@ def _move_bond_fragment(atoms, rng, candidates, modes, policy, *, form_distance,
             angle = np.deg2rad(rng.uniform(-10.0, 10.0))
             trial_direction = direction*np.cos(angle) + tangent/norm*np.sin(angle)
             target = atoms.positions[stationary] + break_distance*trial_direction
-            atoms.positions[indices] = original + target-atoms.positions[moving]
+            atoms.positions[moving] = target
         else:
-            axis = rng.normal(size=3)
-            norm = np.linalg.norm(axis)
-            if not norm > 0:
-                continue
-            axis /= norm
-            angle = rng.uniform(-np.pi, np.pi)
-            rotated = (relative*np.cos(angle) + np.cross(axis, relative)*np.sin(angle)
-                       + np.outer(relative@axis, axis)*(1-np.cos(angle)))
             trial_direction = rng.normal(size=3)
             norm = np.linalg.norm(trial_direction)
             if not norm > 0:
                 continue
-            target = atoms.positions[stationary] + form_distance*trial_direction/norm
-            atoms.positions[indices] = original + rotated-relative + target-atoms.positions[moving]
+            atoms.positions[moving] = atoms.positions[stationary] + form_distance*trial_direction/norm
         bond_length = atoms.get_distance(stationary, moving, mic=True)
         cutoff = policy.cutoff((atoms[stationary].symbol, atoms[moving].symbol))
-        correct_bond = bond_length > cutoff if mode == "break" else bond_length < cutoff
-        target_distance = break_distance if mode == "break" else form_distance
+        correct_bond = bond_length > cutoff if operation == "break" else bond_length < cutoff
+        target_distance = break_distance if operation == "break" else form_distance
         correct_bond = correct_bond and np.isclose(bond_length, target_distance, rtol=1e-10, atol=1e-10)
         if correct_bond and (skip_distance_check or check_atomic_distances(
             atoms, atomic_indices=indices, covalent_ratio=covalent_ratio,
             bond_distance_dict=distances, allow_isolated=allow_isolated,
-            excluded_pairs=[(i, j) for i in indices for j in indices if i != j],
         )):
             retag_fragments(atoms, policy, preferred=(stationary, int(old_tags[stationary])), before_move=before_move)
             changed = np.flatnonzero(old_tags != atoms.get_tags())
-            event = dict(operation=mode, pair=[int(stationary), int(moving)], moved_indices=indices,
+            event = dict(operation=operation, pair=[int(stationary), int(moving)], moved_indices=indices,
                          tag_indices=changed.tolist(), tags_before=old_tags[changed].tolist(),
                          tags_after=atoms.get_tags()[changed].tolist(), bond_distance=float(bond_length))
-            return event, f"BondChange_{mode}_{stationary}_{moving}"
-        atoms.positions[indices] = original
+            return event, f"BondChange_{operation}_{stationary}_{moving}"
+        atoms.positions[moving] = original
     return None, "BondChange_Failed"

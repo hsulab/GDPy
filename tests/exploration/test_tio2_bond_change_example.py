@@ -60,7 +60,7 @@ def test_form_operator_recombines_oh_and_free_h_on_tio2(waters):
     report = DEMO["adsorption_report"](atoms)
     assert report["free_hydrogens"] == report["hydroxyls"] == 1
     original = atoms.positions.copy()
-    op = parse_operators([dict(method="bond_change", particles=["HO"], bond=["O", "H"],
+    op = parse_operators([dict(method="bond_form", particles=["H"], bond=["O", "H"],
                                cutoffs=[1.2, 3.5])])[0][0]
     op._print = op._debug = lambda *args: None
     prepare_operators([op], sorted(set(atoms.numbers)))

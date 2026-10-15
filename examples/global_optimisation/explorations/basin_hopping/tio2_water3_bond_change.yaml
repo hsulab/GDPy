@@ -34,10 +34,18 @@ strategy:
       covalent_ratio: [0.7, 2.0]
       allow_isolated: true
       probability: 0.5
-    - method: bond_change
-      particles: [H2O, HO, H]
+    - method: bond_break
+      particles: [H]
       bond: [O, H]
-      cutoffs: [0.8, 3.5]
+      cutoffs: [0.8, 1.2]
       covalent_ratio: [0.8, 1.2]
       temperature: 500.0
-      probability: 0.5
+      probability: 0.25
+    - method: bond_form
+      particles: [H]
+      bond: [O, H]
+      acceptor_group: "`symbol O`"
+      cutoffs: [1.2, 3.5]
+      covalent_ratio: [0.8, 1.2]
+      temperature: 500.0
+      probability: 0.25

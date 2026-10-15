@@ -1,4 +1,4 @@
-"""Build and relax molecular/dissociated TiO2 water seeds with bond_change."""
+"""Build and relax molecular/dissociated TiO2 water seeds with bond_break/bond_form."""
 
 import argparse
 import json
@@ -8,7 +8,7 @@ import numpy as np
 from ase.io import read, write
 from ase.optimize import BFGS
 
-from gdpx.structures.geometry.bond_change import change_bond
+from gdpx.structures.geometry.bond_change import break_bond, form_bond
 from gdpx.structures.geometry.fragments import FragmentPolicy
 from gdpx.utils.atoms_tags import get_tags_per_species
 
@@ -64,16 +64,17 @@ def build_seeds(waters=2):
     detached = None
     for seed in range(100):
         candidate = trial.copy()
-        event, _ = change_bond(candidate, np.random.default_rng(seed), particles=["H2O"], bond="O-H",
+        event, _ = break_bond(candidate, np.random.default_rng(seed), particles=["H"], bond="O-H",
                                cutoffs=[0.8, 1.1])
         if event is not None and event["pair"] == [oxygen, hydrogen]:
             detached, break_event = candidate, event
             break
     if detached is None:
-        raise RuntimeError("Could not detach H using bond_change.")
+        raise RuntimeError("Could not detach H using bond_break.")
     for seed in range(100):
         candidate = detached.copy()
-        event, _ = change_bond(candidate, np.random.default_rng(seed), particles=["H"], bond="O-H",
+        event, _ = form_bond(candidate, np.random.default_rng(seed), particles=["H"],
+                             acceptor_group=f"`index {acceptor}`", bond="O-H",
                                cutoffs=[1.2, 4.0])
         if event is None:
             continue
@@ -84,7 +85,7 @@ def build_seeds(waters=2):
             candidate.info["initial_state"] = "dissociated"
             POLICY.reconcile(candidate)
             return [molecular, candidate]
-    raise RuntimeError("Could not attach detached H to surface O using bond_change.")
+    raise RuntimeError("Could not attach detached H to surface O using bond_form.")
 
 
 def main():

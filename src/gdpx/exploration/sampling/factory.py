@@ -6,7 +6,8 @@ from .moves import (
     AdsorbateExchangeOperator,
     BiasedVolumeExchangeOperator,
     BounceOperator,
-    BondChangeOperator,
+    BondBreakOperator,
+    BondFormOperator,
     CavityExchangeOperator,
     ExchangeOperator,
     MoveOperator,
@@ -46,8 +47,12 @@ def parse_operators(op_params: list[dict]):
             op = RattleOperator(**param)
         elif name == "rotate":
             op = RotateOperator(**param)
+        elif name == "bond_break":
+            op = BondBreakOperator(**param)
+        elif name == "bond_form":
+            op = BondFormOperator(**param)
         elif name == "bond_change":
-            op = BondChangeOperator(**param)
+            raise ValueError("bond_change has been replaced by bond_break and bond_form; start a fresh BH run.")
         elif name == "bounce":
             op = BounceOperator(**param)
         elif name == "swap":

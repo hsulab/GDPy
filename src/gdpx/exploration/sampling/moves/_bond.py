@@ -3,25 +3,20 @@
 import copy
 
 from gdpx.structures.geometry.bond_change import (
-    BOND_CHANGE_VERSION, bond_change_settings, change_bond,
-    reject_obsolete_arguments, retag_fragments,
+    BOND_CHANGE_VERSION, retag_fragments,
 )
 from gdpx.structures.geometry.fragments import FragmentPolicy
 
 from .operator import BaseMCOperator
 
 
-class BondChangeOperator(BaseMCOperator):
-    """Select fragment species and classify one element pair by distance."""
+class BondOperator(BaseMCOperator):
+    """Shared MC transaction and region integration for the two bond moves."""
 
-    name = "bond_change"
     geometry_version = BOND_CHANGE_VERSION
 
-    def __init__(self, particles=None, bond=None, cutoffs=(0.0, 3.5),
-                 covalent_ratio=(0.8, 1.2), **kwargs):
-        reject_obsolete_arguments(kwargs)
-        self.settings = bond_change_settings(particles=particles, bond=bond, cutoffs=cutoffs,
-                                            covalent_ratio=covalent_ratio)
+    def __init__(self, settings, **kwargs):
+        self.settings = settings
         self.particles = list(self.settings["particles"])
         self.fragment_policy = FragmentPolicy(bond_ratio=self.settings["covalent_ratio"][1])
         kwargs.setdefault("allow_isolated", True)
@@ -32,7 +27,7 @@ class BondChangeOperator(BaseMCOperator):
         super()._propose(atoms, rng)
         distances = dict(getattr(self, "bond_distance_dict", {}))
         distances.update(getattr(self, "custom_pair_distance_dict", None) or {})
-        event, self._extra_info = change_bond(atoms, rng,
+        event, self._extra_info = self.geometry_function(atoms, rng,
             eligible_tags={tag for values in self._curr_tags_dict.values() for tag in values},
             bond_distances=distances, allow_isolated=self.allow_isolated,
             skip_distance_check=self.skip_distance_check, max_random_attempts=self.MAX_RANDOM_ATTEMPTS,
