@@ -1,0 +1,53 @@
+method: global_optimisation
+random_seed: 7
+system:
+  periodic: true
+  preserve_fragments: false
+  retained_size: 2
+  initial:
+    total_size: 2
+    builder_allocations:
+      - builder: random
+        size: 2
+  generation:
+    total_size: 4
+  builders:
+    random:
+      method: read_stru
+      fname: examples/global_optimisation/assets/cu8_seeds.xyz
+strategy:
+  method: simulated_annealing
+  annealing:
+    start_temperature: 1200.0
+    final_temperature: 300.0
+    schedule: linear
+  convergence:
+    generation: 3
+  minimisation:
+    stop:
+      steps: 1000
+      fmax: 0.05
+runtime:
+  potential:
+    provider: emt
+  executor:
+    provider: ase
+    method: md
+    parameters:
+      setup:
+        ensemble: nvt
+        timestep: 1.0
+        velocities:
+          initialize: if_missing
+          remove_rotation: false
+        regulator:
+          name: berendsen
+          targets:
+            temperature: 1200.0
+          parameters:
+            Tdamp: 100.0
+      stop:
+        steps: 100
+      output:
+        trajectory:
+          period: 10

@@ -19,9 +19,10 @@ def validate_strategy(strategy, method=None):
     allowed = {
         "genetic_algorithm": {"operators", "reproduction", "mutation", "completion", "substrate"},
         "basin_hopping": {"operators", "steps_per_chain", "selection"},
+        "simulated_annealing": {"annealing", "minimisation"},
     }
     if not isinstance(selected, str) or selected not in allowed:
-        raise ValueError("strategy.method must be genetic_algorithm or basin_hopping.")
+        raise ValueError("strategy.method must be genetic_algorithm, basin_hopping, or simulated_annealing.")
     if method is not None and selected != method:
         raise ValueError(f"Expected strategy.method: {method}, got {selected!r}.")
     if "num_mcmoves" in strategy:
@@ -92,6 +93,9 @@ def create_global_optimisation(
         population=system, strategy=strategy, objective=shared.get("objective"),
         random_seed=random_seed, use_archive=shared.get("use_archive", True),
     )
+    if strategy["method"] == "simulated_annealing":
+        from ..simulated_annealing.population import PopulationAnnealing
+        return PopulationAnnealing(convergence=convergence, **common)
     if strategy["method"] == "genetic_algorithm":
         from ..genetic_algorithm.engine import GeneticAlgorithmBroadcaster
 
