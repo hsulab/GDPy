@@ -9,5 +9,5 @@ Choose a selector to filter or sample structures. See
 
 property
 descriptor
-minima
+compare
 ```

@@ -1,13 +1,16 @@
-# Distinct minima
+# Structure comparison
 
-`minima` visits force-converged candidates in ascending total energy and
-retains a candidate when its configured comparator considers it dissimilar
-to every previously retained structure. The comparator is explicit:
+`compare` retains a candidate when its configured comparator considers it
+dissimilar to every previously retained structure. By default it visits every
+candidate in input order. Set `fmax` to filter force-converged candidates,
+`rank_by: energy` to visit them in ascending total energy, and `number` to stop
+after a fixed number of distinct structures. The comparator is explicit:
 
 ```yaml
-method: minima
+method: compare
 number: 8
 fmax: 0.05
+rank_by: energy
 random_seed: 0
 comparator:
   method: displacement
@@ -53,9 +56,10 @@ An alternative comparator measures weighted cosine distance between
 species-resolved radial environments:
 
 ```yaml
-method: minima
+method: compare
 number: 8
 fmax: 0.05
+rank_by: energy
 comparator:
   method: oganov_fingerprint
   group_expression: "`id 257:296`"
@@ -83,8 +87,8 @@ changing fingerprints stored in input metadata. `oganov_fingerprint` and
 `displacement` compare geometry alone. The
 independent `energy` comparator uses total potential energies. Use `combined` or
 the `energetic_oganov_fingerprint` preset to require both energy and structural
-similarity. Prepared comparisons preserve every composed criterion, so minima
-selection treats geometrically similar candidates as distinct when their
+similarity. Prepared comparisons preserve every composed criterion, so
+comparison treats geometrically similar candidates as distinct when their
 energy difference meets or exceeds the configured energy threshold.
 
 ## Convergence and outputs
@@ -92,16 +96,22 @@ energy difference meets or exceeds the configured energy threshold.
 The maximum atomic force **vector norm**, after applying constraints, must be
 at most `fmax`. Energies and force checks include the complete structure even
 when the comparator selects a group. This is a relaxation convergence check;
-no Hessian calculation is performed. Minima comparators must implement
+no Hessian calculation is performed. Comparison comparators must implement
 `prepare_data` and `compare_fingerprints`.
 
-The selector requires stored finite energies and forces and raises an error
-if fewer than `number` distinct converged candidates are available. Output
-retains input order even though selection uses energy order. Use a fresh output
-directory when changing inputs or selection parameters because existing
-selection caches are reused.
+When configured, energy ranking and force filtering require stored finite
+values. The selector raises an error if fewer than `number` distinct eligible
+candidates are available. Output retains input order even when comparison uses
+energy order. Use a fresh output directory when changing inputs or selection
+parameters because existing selection caches are reused.
 
 ## Migration
+
+The former `minima` selector is folded into `compare`. Replace
+`method: minima` with `method: compare` and add `rank_by: energy`; `number`,
+`fmax`, and `comparator` retain their meanings. Omit `rank_by`, `fmax`, or
+`number` independently for input-order comparison, no force filter, or no
+limit. Comparator configurations use `method`, not the former `name` field.
 
 Replace selector-level `n_top`, `ofp`, and `rmsd` with an explicit `comparator`
 mapping. Use `group_expression` in place of `n_top`, and `rmsd_max` in place of
