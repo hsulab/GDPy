@@ -104,13 +104,20 @@ generation. Increase the step count for slower cooling.
 - `results/pop.png`: candidate objective versus generation, with parent–child
   links, the best evaluated objective so far, and the final retained population
   highlighted. Generation 0 contains the minimised initial structures.
-- `gen0/minimisation/`: initial evaluations.
-- `genN/cooling/slices/s000/`: the MD cooling trajectory batch.
-- `genN/minimisation/`: final endpoint minimisations.
+- `gen0/min/`: initial evaluations.
+- `genN/sim/slices/s000/`: the MD cooling trajectory batch.
+- `genN/min/`: final endpoint minimisations.
+- `genN/inputs.xyz`: an extended XYZ snapshot of the generation's starting
+  structures, not its MD trajectory. Generation 0 stores builder outputs; later
+  generations store selected parent structures, with old momenta removed so that
+  each annealing attempt starts with fresh velocities.
 
 Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
+Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
+The directory names `sim` and `min` replace the earlier `cooling` and
+`minimisation` names; existing directories are not automatically renamed.
 Changes to the configuration require a fresh directory.
 Rerunning a completed search regenerates the final results from the database
 without repeating simulations. Existing `population.xyz` files from older runs
