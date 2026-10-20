@@ -8,13 +8,13 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 300.0
     setup:
       timestep: 1.0
-      ensemble: nvt
       regulator:
         name: langevin
-        targets:
-          temperature: 300.0
     output:
       trajectory:
         period: 100

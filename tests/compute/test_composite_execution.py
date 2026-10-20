@@ -112,12 +112,13 @@ def test_native_migration_default_and_single_point_override():
 
 def test_composite_broadcast_and_child_schedulers():
     config = sampling_config("hybrid_monte_carlo")
-    config["executor"]["broadcast"] = {"setup.1.parameters.setup.ensemble.temperature": [300, 600]}
+    config["executor"]["broadcast"] = {"ensemble.temperature": [300, 600]}
     config["scheduler"] = {"provider": "slurm"}
     config["executor"]["parameters"]["setup"][0]["scheduler"] = {"provider": "pbs"}
     variants = expand_runtime_configs(config)
     runtimes = [resolve_runtime(item) for item in variants]
     assert [r.executor.children[1].executor.operators[0].temperature for r in runtimes] == [300, 600]
+    assert [r.executor.children[0].executor.setting.temp for r in runtimes] == [300, 600]
     for runtime in runtimes:
         assert runtime.scheduler.name == "slurm"
         assert runtime.executor.children[0].scheduler.name == "pbs"
@@ -128,8 +129,8 @@ def test_composite_broadcast_and_child_schedulers():
 @pytest.mark.parametrize("change", [
     lambda p: p.update(steps=3),
     lambda p: p["setup"].update(steps=3),
-    lambda p: p["setup"].pop("ensemble"),
-    lambda p: p["setup"]["ensemble"].update(method="bad"),
+    lambda p: p.pop("ensemble"),
+    lambda p: p["ensemble"].update(method="bad"),
     lambda p: p["setup"]["operators"][0].update(temperature=1),
     lambda p: p["setup"]["operators"][0].update(skip_distance_check=False),
     lambda p: p["setup"].update(executor=None),

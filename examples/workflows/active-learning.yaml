@@ -72,16 +72,16 @@ resources:
       provider: lammps
       method: md
       parameters:
+        ensemble:
+          method: nvt
+          temperature: 300
         setup:
-          ensemble: nvt
           timestep: 1.0
           constraint: '`zbot 48`'
           velocities:
             initialize: always
           regulator:
             name: nose_hoover_chain
-            targets:
-              temperature: 300
         output:
           trajectory:
             period: 1000
@@ -90,7 +90,7 @@ resources:
         stop:
           steps: 1000000
       broadcast:
-        setup.regulator.targets.temperature: [300, 400, 500, 600]
+        ensemble.temperature: [300, 400, 500, 600]
 
   scheduler_1h_gpu:
     __type__: scheduler

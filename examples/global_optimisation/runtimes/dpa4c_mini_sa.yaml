@@ -7,8 +7,10 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 600.0
     setup:
-      ensemble: nvt
       timestep: 0.5
       constraint: '`zbot 4`'
       velocities:
@@ -16,8 +18,6 @@ executor:
         remove_rotation: false
       regulator:
         name: langevin
-        targets:
-          temperature: 600.0
         parameters:
           friction: 0.01
     stop:

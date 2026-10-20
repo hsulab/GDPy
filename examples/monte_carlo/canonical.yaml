@@ -4,11 +4,11 @@ executor:
   provider: native
   method: monte_carlo
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 1200.0
     random_seed: 1112
     setup:
-      ensemble:
-        method: canonical
-        temperature: 1200.0
       operators:
       - method: move
         particles:

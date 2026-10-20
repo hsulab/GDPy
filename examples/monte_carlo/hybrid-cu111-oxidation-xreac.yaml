@@ -7,6 +7,11 @@ executor:
   provider: native
   method: hybrid_monte_carlo
   parameters:
+    ensemble:
+      method: uvt
+      temperature: 600.0
+      chemical_potentials:
+        O: -2.0
     random_seed: 2033
     setup:
     - provider: ase
@@ -14,7 +19,6 @@ executor:
       parameters:
         random_seed: 2026
         setup:
-          ensemble: nvt
           timestep: 0.25
           constraint: '`zbot 4`'
           velocities:
@@ -22,8 +26,6 @@ executor:
             remove_rotation: false
           regulator:
             name: langevin
-            targets:
-              temperature: 600.0
             parameters:
               friction: 0.01
         output:
@@ -35,11 +37,6 @@ executor:
       method: monte_carlo
       parameters:
         setup:
-          ensemble:
-            method: grand_canonical
-            temperature: 600.0
-            chemical_potentials:
-              O: -2.0
           operators:
           - method: exchange
             particles:

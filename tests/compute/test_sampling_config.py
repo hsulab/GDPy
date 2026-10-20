@@ -12,14 +12,16 @@ from gdpx.providers.configuration import expand_runtime_configs
 
 def sampling_config(method="monte_carlo"):
     mc = {"provider": "native", "method": "monte_carlo", "parameters": {
-        "setup": {"ensemble": {"method": "canonical", "temperature": 900.0},
-                  "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.1}]},
+        "ensemble": {"method": "nvt", "temperature": 900.0},
+        "setup": {"operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.1}]},
         "stop": {"steps": 2}}}
     executor = copy.deepcopy(mc)
     if method == "hybrid_monte_carlo":
+        ensemble = mc["parameters"].pop("ensemble")
         executor = {"provider": "native", "method": method, "parameters": {
+            "ensemble": ensemble,
             "setup": [{"provider": "ase", "method": "md", "parameters": {
-                "random_seed": 17, "setup": {"ensemble": "nve"}, "stop": {"steps": 2}}}, mc],
+                "random_seed": 17, "setup": {}, "stop": {"steps": 2}}}, mc],
             "stop": {"steps": 2}}}
     executor["parameters"]["random_seed"] = 7
     return {"potential": {"provider": "emt"}, "executor": executor}
@@ -94,10 +96,11 @@ def test_invalid_hybrid_cycle(setup):
         resolve_runtime(config)
 
 
-def test_ensemble_resolution_custom_and_missing_chemical_potentials():
+def test_ensemble_resolution_and_missing_chemical_potentials():
     config = sampling_config()
     setup = config["executor"]["parameters"]["setup"]
-    setup["ensemble"] = {"method": "semi_grand_canonical", "temperature": 600,
+    params = config["executor"]["parameters"]
+    params["ensemble"] = {"method": "suvt", "temperature": 600,
                          "chemical_potentials": {"Cu": 0.1, "Ni": 0.4}}
     setup["operators"] = [{"method": "swap_type", "particles": ["Cu", "Ni"]}]
     original = copy.deepcopy(config)
@@ -105,21 +108,14 @@ def test_ensemble_resolution_custom_and_missing_chemical_potentials():
     assert op.temperature == 600 and op.chempots == [0.1, 0.4]
     assert op.skip_distance_check
     assert config == original
-    del setup["ensemble"]["chemical_potentials"]["Ni"]
+    del params["ensemble"]["chemical_potentials"]["Ni"]
     with pytest.raises(ValueError, match="Missing chemical potentials"):
-        resolve_runtime(config)
-    setup["ensemble"] = {"method": "custom"}
-    setup["operators"][0].update(temperature=700, chempots=[0.1, 0.4])
-    op = resolve_runtime(config).executor.operators[0]
-    assert op.temperature == 700 and not op.skip_distance_check
-    setup["ensemble"]["temperature"] = 700
-    with pytest.raises(ValueError, match="custom ensemble accepts only method"):
         resolve_runtime(config)
 
 
 def test_broadcast_keeps_sampling_variants_separate():
     config = sampling_config()
-    config["executor"]["broadcast"] = {"setup.ensemble.temperature": [300, 600]}
+    config["executor"]["broadcast"] = {"ensemble.temperature": [300, 600]}
     workers = create_workers(expand_runtime_configs(config))
     assert len(workers) == 2
     assert [w.driver.operators[0].temperature for w in workers] == [300, 600]
@@ -127,3 +123,51 @@ def test_broadcast_keeps_sampling_variants_separate():
     config["dispatch"] = {"share_workdir": True}
     with pytest.raises(ValueError, match="share_workdir"):
         create_workers(expand_runtime_configs(config))
+
+
+@pytest.mark.parametrize("method", ["nvt", "uvt", "suvt"])
+def test_hmc_inherits_one_ensemble_and_roundtrips(method):
+    config = sampling_config("hybrid_monte_carlo")
+    ensemble = config["executor"]["parameters"]["ensemble"]
+    ensemble["method"] = method
+    if method != "nvt":
+        ensemble["chemical_potentials"] = {"Cu": -0.2, "Ni": 0.1}
+        mc_parameters(config)["setup"]["operators"] = [{"method": "swap_type", "particles": ["Cu", "Ni"]}]
+    original = copy.deepcopy(config)
+    runtime = resolve_runtime(config)
+    md, mc = runtime.executor.children
+    assert md.executor.setting.ensemble == "nvt"
+    assert md.executor.setting.temp == ensemble["temperature"]
+    assert mc.executor.operators[0].temperature == ensemble["temperature"]
+    if method != "nvt":
+        assert mc.executor.operators[0].chempots == [-0.2, 0.1]
+        assert "chemical_potentials" not in md.config.executor.parameters["ensemble"]
+    saved = runtime.executor.as_dict()
+    assert saved["executor"]["parameters"]["ensemble"] == ensemble
+    assert all("ensemble" not in child["parameters"] for child in saved["executor"]["parameters"]["setup"])
+    assert resolve_runtime(saved).executor.as_dict() == saved
+    assert config == original
+
+
+@pytest.mark.parametrize("index", [0, 1])
+def test_hmc_rejects_child_ensemble(index):
+    config = sampling_config("hybrid_monte_carlo")
+    config["executor"]["parameters"]["setup"][index]["parameters"]["ensemble"] = {"method": "nvt", "temperature": 700}
+    with pytest.raises(ValueError, match="only on the parent"):
+        resolve_runtime(config)
+
+
+@pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
+@pytest.mark.parametrize("ensemble", [{"method": "nve"}, {"method": "npt", "temperature": 300, "pressure": 1}])
+def test_sampling_rejects_unsupported_ensembles(method, ensemble):
+    config = sampling_config(method)
+    config["executor"]["parameters"]["ensemble"] = ensemble
+    with pytest.raises(ValueError, match="does not support"):
+        resolve_runtime(config)
+
+
+def test_hmc_rejects_child_temperature_ramp():
+    config = sampling_config("hybrid_monte_carlo")
+    config["executor"]["parameters"]["setup"][0]["parameters"]["setup"]["tend"] = 200
+    with pytest.raises(ValueError, match="ramps"):
+        resolve_runtime(config)

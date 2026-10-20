@@ -8,8 +8,10 @@ executor:
   method: md
   parameters:
     random_seed: 7
+    ensemble:
+      method: nvt
+      temperature: 300.0
     setup:
-      ensemble: nvt
       timestep: 0.25
       constraint: "`zbot 4`"
       velocities:
@@ -17,8 +19,6 @@ executor:
         seed: 7
       regulator:
         name: berendsen
-        targets:
-          temperature: 300.0
         parameters:
           Tdamp: 100.0
     output:

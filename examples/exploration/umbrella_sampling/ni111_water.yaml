@@ -10,13 +10,13 @@ runtime:
     provider: ase
     method: md
     parameters:
+      ensemble:
+        method: nvt
+        temperature: 300.0
       setup:
-        ensemble: nvt
         timestep: 0.25
         regulator:
           name: berendsen
-          targets:
-            temperature: 300.0
           parameters:
             Tdamp: 100.0
       output:

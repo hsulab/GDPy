@@ -57,13 +57,12 @@ def test_structured_md_executor_parameters_are_resolved_and_preserved():
             "method": "md",
             "parameters": {
                 "random_seed": 19,
+                "ensemble": {"method": "nvt", "temperature": 300},
                 "setup": {
-                    "ensemble": "nvt",
                     "timestep": 1.0,
                     "velocities": {"initialize": "always", "seed": 23},
                     "regulator": {
                         "name": "berendsen",
-                        "targets": {"temperature": 300},
                         "parameters": {"Tdamp": 100.0},
                     },
                 },
@@ -96,15 +95,14 @@ def test_structured_executor_parameters_reject_mixed_and_inconsistent_md():
 
     invalid = copy.deepcopy(base)
     invalid["executor"]["parameters"] = {
+        "ensemble": {"method": "nvt", "pressure": 1.0},
         "setup": {
-            "ensemble": "nvt",
             "regulator": {
                 "name": "berendsen",
-                "targets": {"pressure": 1.0},
             },
         }
     }
-    with pytest.raises(ProviderConfigurationError, match="NVT.*temperature"):
+    with pytest.raises(ProviderConfigurationError, match="nvt.*temperature"):
         RuntimeConfig.from_mapping(invalid)
 
 

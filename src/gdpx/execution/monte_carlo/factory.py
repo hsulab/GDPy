@@ -7,6 +7,7 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.runtime import Runtime
 from gdpx.providers.configuration import child_executor, resolve_executor_parameters
 from gdpx.providers.specs import thaw
+from gdpx.providers.ensemble import inherit_ensemble
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
 from .hybrid_monte_carlo import HybridMonteCarlo
 
@@ -27,9 +28,9 @@ def resolve_sampling_runtime(config, resolver):
     if config.dispatch.share_workdir:
         raise ValueError("Native executors do not support dispatch.share_workdir.")
     raw = thaw(config.executor.parameters)
-    unknown = raw.keys() - {"setup", "output", "stop", "random_seed"}
+    unknown = raw.keys() - {"setup", "output", "stop", "random_seed", "ensemble"}
     if unknown:
-        raise ValueError("Native parameters require setup/output/stop; unsupported: " + ", ".join(sorted(unknown)))
+        raise ValueError("Native parameters accept ensemble/setup/output/stop/random_seed; unsupported: " + ", ".join(sorted(unknown)))
     convergence = resolve_monte_carlo_convergence(raw.get("stop", {}), method)
     parameters = resolve_executor_parameters(raw, method)
     cadence = {"dump_period": parameters.get("dump_period", 1),
@@ -42,11 +43,11 @@ def resolve_sampling_runtime(config, resolver):
             raise ValueError(f"output.{label} must be a positive integer.")
     if method == "monte_carlo":
         setup = raw.get("setup", {})
-        allowed = {"ensemble", "operators", "ignore_atoms_tags", "executor"}
+        allowed = {"operators", "ignore_atoms_tags", "executor"}
         if not isinstance(setup, Mapping) or setup.keys() - allowed:
-            raise ValueError("Unsupported MC setup; use ensemble, operators, ignore_atoms_tags, and optional executor.")
+            raise ValueError("Unsupported MC setup; use operators, ignore_atoms_tags, and optional executor.")
         operators, _ = resolve_monte_carlo_system(
-            {k: v for k, v in setup.items() if k in {"ensemble", "ignore_atoms_tags"}},
+            {"ensemble": parameters["ensemble"], "ignore_atoms_tags": setup.get("ignore_atoms_tags", True)},
             setup.get("operators"), method)
         evaluator = child_executor(setup.get("executor", {}), default_spc=True)
         if evaluator["method"] != "spc" or evaluator["provider"] == "native":
@@ -61,7 +62,7 @@ def resolve_sampling_runtime(config, resolver):
         executor.register_worker(create_worker(child))
         executor.runtime_config = config.to_dict()
     else:
-        definitions = raw["setup"]
+        definitions = [inherit_ensemble(item, parameters["ensemble"]) for item in raw["setup"]]
         methods = [item["method"] for item in definitions]
         if set(methods) != {"md", "monte_carlo"}:
             raise ValueError("HMC setup requires MD and conventional Monte Carlo children only.")

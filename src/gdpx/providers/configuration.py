@@ -8,11 +8,12 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, Optional, Tuple
 
 from .errors import ProviderConfigurationError
+from .ensemble import resolve_ensemble, inherit_ensemble
 from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 
 SCHEMA_VERSION = 4
 EXECUTOR_PARAMETER_SECTIONS = frozenset({"setup", "output", "stop"})
-EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
+EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed", "ensemble"})
 
 
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
@@ -22,11 +23,13 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
         setup = data.pop("setup", None)
         if not isinstance(setup, list) or not setup:
             raise ProviderConfigurationError(f"{method} requires a nonempty parameters.setup list; migrate old cycle inputs.")
+        ensemble = resolve_ensemble(data.pop("ensemble", None), method)
         resolved = resolve_executor_parameters({**data, "setup": {}}, None)
+        resolved["ensemble"] = ensemble
         resolved["setup"] = setup
         return resolved
     sections = EXECUTOR_PARAMETER_SECTIONS.intersection(data)
-    if not sections:
+    if not sections and not isinstance(data.get("ensemble"), Mapping) and method != "monte_carlo":
         return data
     extra = set(data) - EXECUTOR_PARAMETER_SECTIONS - EXECUTOR_PARAMETER_GLOBALS
     if extra:
@@ -51,7 +54,20 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
             )
         resolved.update(copy.deepcopy(dict(values)))
 
-    merge({name: data[name] for name in EXECUTOR_PARAMETER_GLOBALS if name in data}, "parameters")
+    ensemble = data.get("ensemble")
+    if "ensemble" in data:
+        ensemble = resolve_ensemble(ensemble, method)
+        if method == "md":
+            merge({"ensemble": ensemble["method"]}, "ensemble")
+            merge({internal: ensemble[public] for public, internal in
+                   (("temperature", "temp"), ("pressure", "press")) if public in ensemble}, "ensemble")
+        else:
+            merge({"ensemble": ensemble}, "ensemble")
+    elif method == "monte_carlo":
+        raise ProviderConfigurationError("monte_carlo requires parameters.ensemble.")
+    merge({"random_seed": data["random_seed"]} if "random_seed" in data else {}, "parameters")
+    if "ensemble" in setup:
+        raise ProviderConfigurationError("Move setup.ensemble to parameters.ensemble using a mapping.")
 
     velocities = setup.pop("velocities", None)
     regulator = setup.pop("regulator", None)
@@ -93,28 +109,17 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
         choice = copy.deepcopy(dict(choice))
         name = choice.pop("name", None)
         parameters_ = choice.pop("parameters", {})
-        targets = choice.pop("targets", {}) if label == "regulator" else {}
+        if label == "regulator" and "targets" in choice:
+            raise ProviderConfigurationError("Move regulator.targets to parameters.ensemble.")
         if not isinstance(name, str) or not name:
             raise ProviderConfigurationError(f"Executor setup.{label}.name must be a nonempty string.")
-        if not isinstance(parameters_, Mapping) or not isinstance(targets, Mapping):
-            raise ProviderConfigurationError(f"Executor setup.{label} parameters and targets must be mappings.")
+        if not isinstance(parameters_, Mapping):
+            raise ProviderConfigurationError(f"Executor setup.{label}.parameters must be a mapping.")
         if choice:
             raise ProviderConfigurationError(
                 f"Unknown executor {label} fields: {', '.join(sorted(choice))}."
             )
         merge({"controller": {"name": name, "params": copy.deepcopy(dict(parameters_))}}, f"setup.{label}")
-        if label == "regulator":
-            unknown_targets = set(targets) - {"temperature", "pressure"}
-            if unknown_targets:
-                raise ProviderConfigurationError(
-                    f"Unknown regulator targets: {', '.join(sorted(unknown_targets))}."
-                )
-            translated_targets = {}
-            if "temperature" in targets:
-                translated_targets["temp"] = targets["temperature"]
-            if "pressure" in targets:
-                translated_targets["press"] = targets["pressure"]
-            merge(translated_targets, "setup.regulator.targets")
 
     unknown_output = set(output) - {"trajectory", "checkpoint"}
     if unknown_output:
@@ -138,14 +143,14 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
     if method == "md":
         ensemble = resolved.get("ensemble", "nve")
         has_regulator = regulator is not None
-        has_temperature = "temp" in resolved and has_regulator
-        has_pressure = "press" in resolved and has_regulator
+        has_temperature = "temp" in resolved
+        has_pressure = "press" in resolved
         if ensemble == "nve" and has_regulator:
             raise ProviderConfigurationError("NVE executor setup must not define a regulator.")
         if ensemble == "nvt" and (not has_temperature or has_pressure):
-            raise ProviderConfigurationError("NVT executor setup requires only a temperature regulator target.")
+            raise ProviderConfigurationError("NVT requires only ensemble.temperature.")
         if ensemble == "npt" and (not has_temperature or not has_pressure):
-            raise ProviderConfigurationError("NPT executor setup requires temperature and pressure regulator targets.")
+            raise ProviderConfigurationError("NPT requires ensemble.temperature and ensemble.pressure.")
     return resolved
 
 
@@ -530,7 +535,13 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         if provider == "native" and method in {"monte_carlo", "hybrid_monte_carlo"}:
             setup = parameters.get("setup", {})
             if isinstance(setup, list):
-                parameters["setup"] = [child_executor(item) for item in setup]
+                ensemble = resolve_ensemble(parameters.get("ensemble"), method)
+                children = []
+                for item in setup:
+                    normalized = child_executor(inherit_ensemble(item, ensemble))
+                    normalized["parameters"].pop("ensemble")
+                    children.append(normalized)
+                parameters["setup"] = children
             elif isinstance(setup, Mapping):
                 if "evaluator" in setup:
                     raise ProviderConfigurationError("Remove setup.evaluator; MC defaults to ASE spc. Use optional setup.executor for overrides.")

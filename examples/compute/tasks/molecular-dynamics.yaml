@@ -4,17 +4,17 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 300
     random_seed: 7
     setup:
-      ensemble: nvt
       timestep: 1.0
       velocities:
         initialize: if_missing
         seed: 7
       regulator:
         name: berendsen
-        targets:
-          temperature: 300
         parameters:
           Tdamp: 100.0
     output:

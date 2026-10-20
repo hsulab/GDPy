@@ -105,7 +105,7 @@ class CompositeExecutor(SingleStructureExecutor):
         self.directory.mkdir(parents=True, exist_ok=True)
         if self.name == "hybrid_monte_carlo":
             from gdpx.execution.monte_carlo.output import report_hybrid_intro
-            report_hybrid_intro(thaw(self.runtime_config["executor"]["parameters"]["setup"]),
+            report_hybrid_intro([child.config.executor.to_dict() for child in self.children],
                                 self.convergence["steps"], self.random_seed, self.TRAJ_NAME)
         path = self.directory / self.TRAJ_NAME
         if (self.directory / "current.json").exists():

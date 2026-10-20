@@ -24,13 +24,13 @@ resources:
       provider: ase
       method: md
       parameters:
+        ensemble:
+          method: nvt
+          temperature: 300.0
         setup:
-          ensemble: nvt
           timestep: 0.5
           regulator:
             name: langevin
-            targets:
-              temperature: 300.0
         output:
           trajectory:
             period: 5

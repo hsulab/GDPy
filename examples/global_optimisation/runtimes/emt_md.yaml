@@ -4,16 +4,16 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 1200.0
     setup:
-      ensemble: nvt
       timestep: 1.0
       velocities:
         initialize: if_missing
         remove_rotation: false
       regulator:
         name: berendsen
-        targets:
-          temperature: 1200.0
         parameters:
           Tdamp: 100.0
     stop:

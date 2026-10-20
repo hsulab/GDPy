@@ -4,6 +4,12 @@ executor:
   provider: native
   method: hybrid_monte_carlo
   parameters:
+    ensemble:
+      method: suvt
+      temperature: 1200.0
+      chemical_potentials:
+        Cu: 0.0
+        Ni: 0.0
     random_seed: 1112
     setup:
     - provider: ase
@@ -11,15 +17,12 @@ executor:
       parameters:
         random_seed: 7
         setup:
-          ensemble: nvt
           timestep: 1.0
           velocities:
             seed: 7
             remove_rotation: false
           regulator:
             name: langevin
-            targets:
-              temperature: 1200.0
             parameters:
               friction: 0.01
         output:
@@ -31,12 +34,6 @@ executor:
       method: monte_carlo
       parameters:
         setup:
-          ensemble:
-            method: semi_grand_canonical
-            temperature: 1200.0
-            chemical_potentials:
-              Cu: 0.0
-              Ni: 0.0
           operators:
           - method: swap_type
             particles:

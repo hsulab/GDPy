@@ -8,6 +8,7 @@ from ase import Atoms, data
 from ase.io import read, write
 
 from gdpx.core.output import quiet_logging
+from gdpx.providers.ensemble import resolve_ensemble
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
@@ -45,86 +46,55 @@ def resolve_monte_carlo_system(setup, operators, method_name="monte_carlo"):
     if not isinstance(operators, list) or not operators:
         raise ValueError(f"{method_name} requires a nonempty setup.operators list.")
 
-    ensemble = setup.get("ensemble")
-    if not isinstance(ensemble, Mapping):
-        raise ValueError("monte_carlo requires setup.ensemble.")
-    unknown = ensemble.keys() - {"method", "temperature", "chemical_potentials"}
-    if unknown:
-        raise ValueError(f"Unsupported ensemble settings: {', '.join(sorted(unknown))}.")
-    ensemble_method = ensemble.get("method")
-    allowed_ensembles = {"canonical", "semi_grand_canonical", "grand_canonical", "custom"}
-    if ensemble_method not in allowed_ensembles:
-        raise ValueError(
-            "setup.ensemble.method must be canonical, semi_grand_canonical, "
-            "grand_canonical, or custom."
-        )
+    ensemble = resolve_ensemble(setup.get("ensemble"), "monte_carlo")
+    ensemble_method = ensemble["method"]
     resolved_operators = copy.deepcopy(operators)
     for operator in resolved_operators:
         if not isinstance(operator, Mapping):
             raise TypeError("Every setup operator must be a mapping.")
 
-    if ensemble_method == "custom":
-        if ensemble.keys() - {"method"}:
-            raise ValueError(
-                "The custom ensemble accepts only method; configure temperature and "
-                "chemical potentials on each operator."
-            )
-    else:
-        temperature = ensemble.get("temperature")
-        if not isinstance(temperature, (int, float)) or not np.isfinite(temperature) or temperature <= 0:
-            raise ValueError("setup.ensemble.temperature must be finite and positive.")
-        chemical_potentials = ensemble.get("chemical_potentials", {})
-        if not isinstance(chemical_potentials, Mapping) or any(
-            not isinstance(name, str) or not isinstance(value, (int, float)) or not np.isfinite(value)
-            for name, value in chemical_potentials.items()
-        ):
-            raise ValueError("setup.ensemble.chemical_potentials must map particle names to finite values.")
-        if ensemble_method == "canonical" and chemical_potentials:
-            raise ValueError("The canonical ensemble does not accept chemical_potentials.")
-        if ensemble_method != "canonical" and not chemical_potentials:
-            raise ValueError(f"The {ensemble_method} ensemble requires chemical_potentials.")
+    temperature = ensemble["temperature"]
+    chemical_potentials = ensemble.get("chemical_potentials", {})
 
-        for operator in resolved_operators:
-            if "temperature" in operator or "chempots" in operator:
-                raise ValueError(
-                    "Move operator temperature and chempots to setup.ensemble, or use "
-                    "setup.ensemble.method: custom for per-operator values."
-                )
-            if operator.get("skip_distance_check", True) is not True:
-                raise ValueError(
-                    "Preset ensembles require skip_distance_check: true because "
-                    "distance-filtered proposals break detailed balance; use the "
-                    "custom ensemble for structure-search proposals."
-                )
-            operator["skip_distance_check"] = True
-            operator["temperature"] = float(temperature)
-            name = operator.get("method", "move")
-            particles = operator.get("particles", [])
-            if name == "swap_type":
-                if ensemble_method not in {"semi_grand_canonical", "grand_canonical"}:
-                    raise ValueError("swap_type requires a semi_grand_canonical or grand_canonical ensemble.")
-                missing = [particle for particle in particles if particle not in chemical_potentials]
-                if missing:
-                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-                operator["chempots"] = [chemical_potentials[particle] for particle in particles]
-            elif name in _EXCHANGE_OPERATORS:
-                if ensemble_method != "grand_canonical":
-                    raise ValueError(f"{name} requires a grand_canonical ensemble.")
-                missing = [particle for particle in particles if particle not in chemical_potentials]
-                if missing:
-                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-                operator["chempots"] = [chemical_potentials[particle] for particle in particles]
-            elif name == "react":
-                if ensemble_method != "grand_canonical":
-                    raise ValueError("react requires a grand_canonical ensemble.")
-                reaction = operator.get("reaction", {})
-                reaction_particles = reaction.get("particles", [])
-                missing = [particle for particle in reaction_particles if particle not in chemical_potentials]
-                if missing:
-                    raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
-                if "chempot_0" in reaction:
-                    raise ValueError("Move reaction.chempot_0 to setup.ensemble.chemical_potentials.")
-                reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
+    for operator in resolved_operators:
+        if "temperature" in operator or "chempots" in operator:
+            raise ValueError(
+                "Move operator temperature and chempots to parameters.ensemble."
+            )
+        if operator.get("skip_distance_check", True) is not True:
+            raise ValueError(
+                "MC ensembles require skip_distance_check: true because "
+                "distance-filtered proposals break detailed balance; use basin hopping for structure search."
+            )
+        operator["skip_distance_check"] = True
+        operator["temperature"] = float(temperature)
+        name = operator.get("method", "move")
+        particles = operator.get("particles", [])
+        if name == "swap_type":
+            if ensemble_method not in {"suvt", "uvt"}:
+                raise ValueError("swap_type requires a suvt or uvt ensemble.")
+            missing = [particle for particle in particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+        elif name in _EXCHANGE_OPERATORS:
+            if ensemble_method != "uvt":
+                raise ValueError(f"{name} requires a uvt ensemble.")
+            missing = [particle for particle in particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            operator["chempots"] = [chemical_potentials[particle] for particle in particles]
+        elif name == "react":
+            if ensemble_method != "uvt":
+                raise ValueError("react requires a uvt ensemble.")
+            reaction = operator.get("reaction", {})
+            reaction_particles = reaction.get("particles", [])
+            missing = [particle for particle in reaction_particles if particle not in chemical_potentials]
+            if missing:
+                raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
+            if "chempot_0" in reaction:
+                raise ValueError("Move reaction.chempot_0 to parameters.ensemble.chemical_potentials.")
+            reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
 
     return resolved_operators, copy.deepcopy(dict(ensemble))
 

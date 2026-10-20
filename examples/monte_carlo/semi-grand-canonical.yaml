@@ -4,14 +4,14 @@ executor:
   provider: native
   method: monte_carlo
   parameters:
+    ensemble:
+      method: suvt
+      temperature: 1200.0
+      chemical_potentials:
+        Cu: 0.0
+        Ni: 0.0
     random_seed: 1112
     setup:
-      ensemble:
-        method: semi_grand_canonical
-        temperature: 1200.0
-        chemical_potentials:
-          Cu: 0.0
-          Ni: 0.0
       operators:
       - method: move
         particles:
