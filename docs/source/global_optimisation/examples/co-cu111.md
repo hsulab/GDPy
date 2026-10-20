@@ -28,7 +28,7 @@ duplicate filtering, selection uses replacement.
 
 The separate runtime uses the DeepMD ASE backend and an ASE Langevin thermostat:
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/dpa4c_mini_md.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/dpa4c_mini_sa.yaml
 :language: yaml
 ```
 
@@ -43,7 +43,7 @@ Run from the example folder indicated below:
 ```shell
 # Working directory: examples/global_optimisation/explorations/simulated_annealing
 gdp -d run-co-cu111-sa \
-  --runtime ../../runtimes/dpa4c_mini_md.yaml \
+  --runtime ../../runtimes/dpa4c_mini_sa.yaml \
   explore ./co_cu111.yaml
 ```
 

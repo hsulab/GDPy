@@ -141,7 +141,7 @@ The demonstration does not establish the global minimum of Cu₈.
 
 The calculation runtime is supplied separately:
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_md.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_sa.yaml
 :language: yaml
 ```
 
@@ -150,7 +150,7 @@ Run from the example folder indicated below:
 ```shell
 # Working directory: examples/global_optimisation/explorations/simulated_annealing
 gdp -d run-sa \
-  --runtime ../../runtimes/emt_md.yaml \
+  --runtime ../../runtimes/emt_sa.yaml \
   explore ./cu8.yaml
 ```
 

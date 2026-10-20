@@ -37,44 +37,34 @@ system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
 ## Configuration and parallel execution
 
 Use `method: global_optimisation` and `strategy.method: simulated_annealing`.
-The `system` configuration is shared with GA and BH.
+The `system` configuration is shared with GA and BH. The strategy owns only
+population concerns: `convergence.generation`, `objective`, and `use_archive`.
+Generation 0 performs initial minimisation; each subsequent generation runs one
+cooling/minimisation pass per selected candidate.
 
-- `strategy.annealing.start_temperature`: starting temperature in kelvin.
-- `strategy.annealing.final_temperature`: final temperature in kelvin, no higher
-  than the starting temperature. Both temperatures must be finite and positive.
-- `strategy.annealing.schedule`: `linear` (the default and currently supported schedule).
-- `strategy.convergence.generation`: final generation number; 0 performs only
-  initial minimisation, and the default 1 performs one cooling generation.
-- `strategy.minimisation`: executor parameters for endpoint minimisation,
-  including positive `stop.steps` and `stop.fmax`.
-- `strategy.objective`: shared energy or formation-energy ranking.
-- `strategy.use_archive`: archive completed minimisation calculations.
+Supply a `native/simulated_annealing` compute runtime. Its `parameters.setup`
+is an ordered list containing an MD executor and a minimisation executor.
+Both inherit the outer potential. Each may specify an independent `scheduler`,
+defaulting to direct execution. The outer runtime scheduler schedules candidate
+annealing tasks; the exploration scheduler schedules the population loop.
 
-The top-level runtime supplies MD dynamics (`executor.method: md`), the
-potential, and the scheduler. SA does not restrict the executor provider or
-thermostat; the executor validates its own settings. Use thermostatted NVT or
-NPT dynamics and an executor that honours the start/end temperature targets
-(`temp` and `tend`) for a linear ramp. Accepting an MD runtime does not guarantee
-that its backend implements temperature ramps. The Cu8 example uses ASE.
-The runtime step count applies to the whole
-cooling trajectory in each generation. Minimisation reuses the same
-potential, scheduler, and dispatch settings, replacing only executor parameters
-and method. This version requires an unmodified potential.
+The MD child defines the starting temperature through
+`setup.regulator.targets.temperature` and the final temperature through
+`setup.tend`. Temperatures must be finite and positive, with final no higher
+than start. Its `stop.steps` counts integration steps for the full linear ramp.
+The native SA executor currently validates ASE Berendsen and Langevin ramps;
+unsupported providers/controllers fail during preparation. The minimisation
+child requires positive `stop.steps` and `stop.fmax`. SA currently requires an
+unmodified potential.
 
-Use the runtime scheduler's batch and concurrency settings to execute independent
-candidates in parallel. All candidates finish cooling and endpoint minimisation
-before the next generation begins. With a direct scheduler's default settings, the batch may
-execute serially. The exploration scheduler independently controls where the
-population loop runs.
+Population SA requires the parent `stop.steps` to equal one. A standalone
+compute run defaults to one pass and can repeat passes by increasing this count.
+See the {doc}`single-structure annealing task <../computations/tasks/simulated-annealing>`.
 
-Every cycle starts with fresh velocities and persisted independent random seeds.
-The runtime's velocity seed is overridden for those starts. Each generation
-repeats the same start-to-final ramp; temperatures do not continue cooling across
-generations. The thermostat target varies linearly with MD step, while the actual
-kinetic temperature fluctuates and responds to the thermostat. The strategy
-overrides the runtime temperature target; do not also specify a runtime end temperature.
-For the Cu₈ example, 100 steps at 1 fs give a 100 fs quench from 1200 K to 300 K per
-generation. Increase the step count for slower cooling.
+Population cycles start with fresh velocities and persisted independent random
+seeds. The MD velocity seed is overridden for those starts. Each generation
+repeats the same start-to-final ramp. All candidate passes finish before the
+next generation begins; scheduler and dispatch settings determine parallelism.
 
 ## Results and restart
 
@@ -88,8 +78,8 @@ generation. Increase the step count for slower cooling.
   links, the best evaluated objective so far, and the final retained population
   highlighted. Generation 0 contains the minimised initial structures.
 - `gen0/min/`: initial evaluations.
-- `genN/sim/slices/s000/`: the MD cooling trajectory batch.
-- `genN/min/`: final endpoint minimisations.
+- `genN/sim/`: the batch of composite annealing tasks, with per-candidate
+  MD and minimisation children under `candN/calculations/`.
 - `genN/inputs.xyz`: an extended XYZ snapshot of the generation's starting
   structures, not its MD trajectory. Generation 0 stores builder outputs; later
   generations store selected parent structures, with old momenta removed so that
@@ -99,8 +89,7 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
-The directory names `sim` and `min` replace the earlier `cooling` and
-`minimisation` names; existing directories are not automatically renamed.
+Old population SA inputs and checkpoints require a fresh directory.
 Changes to the configuration require a fresh directory.
 Rerunning a completed search regenerates the final results from the database
 without repeating simulations. Existing `population.xyz` files from older runs

@@ -4,13 +4,16 @@
 
 Conventional Monte Carlo (MC) proposes structural changes and accepts or rejects them using
 single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
-with `executor.provider: gdpx` and `executor.method: monte_carlo`.
+with `executor.provider: native` and `executor.method: monte_carlo`.
 Each input structure starts an independent chain. Settings below are relative to
 `executor.parameters`: `setup` contains the ensemble, operators, and evaluator;
 `output` controls output cadence; `stop` controls the step budget and early stopping.
-`setup.evaluator.executor` selects a single-point executor and inherits the outer
-potential and modifiers. Its optional scheduler is independent of the outer
-compute scheduler and defaults to direct execution.
+MC defaults to an ASE single-point evaluator using the outer potential and
+modifiers. Optional `setup.executor` accepts `provider`, `method`, `parameters`,
+and `scheduler` to customize evaluation. Provider defaults to `ase` and method
+to `spc`; other methods are rejected. The evaluator scheduler defaults to
+direct execution independently of the outer scheduler. Incompatible potential
+backends fail during preparation.
 The {doc}`examples <mc/examples/index>` use ASE EMT, so no model download or
 external simulation executable is needed.
 
@@ -74,7 +77,7 @@ The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands
 for canonical, semi-grand-canonical, and grand-canonical MC with single-point energies.
 The {doc}`hybrid MC examples <hmc/examples/index>` combine short EMT molecular
 dynamics segments with displacement or identity-change MC blocks. Their guide
-covers cycle configuration, the three runtime roles, cycle-level output,
+covers cycle configuration, the child executor settings, cycle-level output,
 and restart behaviour.
 
 ```{toctree}

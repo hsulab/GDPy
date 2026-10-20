@@ -17,9 +17,9 @@ not a Hamiltonian Monte Carlo sampler. The {ref}`MC sampling limitations
 
 See the {ref}`MC operator reference <sampling-operators>` for available moves and
 their configuration, particle selection, and acceptance rules.
-Hybrid MC uses the same preset and custom `setup.ensemble` configuration as
-standard MC. The ensemble controls the MC acceptance rules; the MD runtime has
-its own thermodynamic settings.
+The conventional MC child owns its preset or custom `setup.ensemble`.
+The MD child has its own thermostat settings. Both inherit the same outer
+potential and modifiers.
 
 ## Examples
 
@@ -52,80 +52,56 @@ hmc/examples/index
 
 ## Configure the cycle
 
-Run `gdp compute INPUT --runtime hybrid.yaml` with `executor.provider: gdpx`
+Run `gdp compute INPUT --runtime hybrid.yaml` with `executor.provider: native`
 and `executor.method: hybrid_monte_carlo`. Each input starts an independent chain.
-The following paths are relative to `executor.parameters`.
 
-| Setting | Role |
-| --- | --- |
-| `setup.ensemble` | MC thermodynamic settings |
-| `setup.operators` | MC proposal distribution |
-| `setup.evaluator.executor` | Single-point initialization using the outer potential and modifiers |
-| A `molecular_dynamics` stage runtime | Runs one MD segment |
-| A `monte_carlo` stage runtime | Evaluates that stage's proposed structures |
+`executor.parameters.setup` is an ordered **list of executor definitions**.
+Each child has `provider`, `method`, `parameters`, and an optional `scheduler`.
+Include at least one MD child and one `native/monte_carlo` child. Repeated stages
+are supported. Potential, modifiers, complete runtimes, and dispatch settings
+cannot be overridden in children.
 
-The initial evaluator defaults to direct execution; `setup.evaluator.scheduler`
-can schedule its calculations independently. Each stage retains its own full
-runtime, including potential, modifiers, and scheduler. Keep stage potentials
-and energy references consistent.
+- MD owns its integration settings. Its `parameters.stop.steps` counts MD steps.
+- Conventional MC owns its ensemble, operators, evaluator, and proposal count.
+  Its `parameters.stop.steps` counts MC proposals. Evaluation defaults to ASE
+  single-point calculation; use its optional `setup.executor` to override it.
+- The parent `parameters.stop.steps` counts full passes through the setup list.
+  Parent early stopping is checked after a complete cycle. An early-stopped
+  child completes its invocation and passes its endpoint to the next child.
 
-`setup.cycle` lists explicit stages in execution order:
+MD endpoints are accepted directly. Structures, cell, constraints, and momenta
+pass between children. The MD thermostat temperature should agree with the MC
+ensemble temperature for equilibrium use. Each child scheduler defaults to
+`direct`; the parent scheduler controls orchestration. The potential backend
+is resolved once and must support all children.
 
-- `method: molecular_dynamics` runs its inline `runtime` once and takes the
-  final structure forward. Its executor method must be `md`.
-- `method: monte_carlo` performs the stage's `steps` proposals using
-  `setup.operators` and its inline single-point runtime. Its executor method
-  must be `spc`.
-
-Each MC block selects operators using their normalized `probability` weights.
-`stop.steps` counts complete passes through the cycle. An optional
-`stop.earlystop` applies the shared MC early-stop criteria. Each
-MC stage has its own proposal count, so repeated MC stages may use different lengths.
-Repeating a stage executes it again in a separate calculation directory.
-`output.checkpoint.period` controls checkpoints in completed-cycle units.
-
-The MD runtime's `executor.parameters.stop.steps` counts integration steps;
-`setup.timestep` is in fs. `setup.regulator.targets.temperature` is in kelvin
-and should agree with the MC ensemble temperature. Langevin `friction` is in
-fs⁻¹. `setup.velocities.seed` controls velocity initialization and the MD
-`random_seed` controls its random generator. The sampling executor's
-`random_seed` controls proposals and acceptance. Existing nonzero velocities are reused by default. These seeds
-make the demos reproducible but do not establish statistical convergence.
-
-Preset ensembles automatically disable MC geometry filtering to preserve
-detailed balance. The `custom` ensemble may enable it for structure search.
-The examples use one proposal attempt. An invalid hybrid MC proposal consumes
-its place in the MC block and keeps the current state.
+The parent's `random_seed`, child seeds, cycle, and child index determine
+reproducible invocation seeds. Repeated children use separate random streams
+and working directories. Existing nonzero momenta carry into subsequent MD
+segments unless the MD child explicitly requests fresh velocities.
 
 ## Outputs and restart
 
-Each chain uses its own `candN` directory. For a five-cycle run with
-`output.trajectory.period: 1`:
+For a five-cycle run with `output.trajectory.period: 1`, each `candN` contains:
 
-- `mc.xyz` contains **six frames**: the initial state and one state after each
-  full MD/MC cycle. Intermediate MD frames and individual MC decisions are not
-  separate frames in this file.
-- `mcmoves.log` contains **25 MC decision rows** plus its header. For these
-  single-block cycles, the step column labels MC attempts 0–24, not cycles.
-  MD segments do not add decision rows.
-- `mc_attempts.xyz` contains the initial structure only in the current hybrid
-  implementation; use the per-proposal calculations to inspect MC trials.
-- `calculations/step.0000/` stores the initial evaluation.
-- `calculations/step.0001/procedure.0000/` stores the first MD segment.
-- `calculations/step.0001/procedure.0001/proposal.0000/` stores the first MC
-  evaluation. The remaining cycle and proposal indices follow the same pattern.
+- `mc.xyz`: six frames, the initial state and five complete-cycle endpoints.
+- `calculations/step.0000/`: initial single-point evaluation using the first
+  MC child's evaluator.
+- `calculations/step.0001/procedure.0000/`: the first MD invocation.
+- `calculations/step.0001/procedure.0001/cand0/`: the first MC invocation,
+  including its own `mc.xyz`, `mc_attempts.xyz`, and `opstat.txt` decision log.
+  Its `calculations/step.NNNN/` directories hold individual energy evaluations.
 
-The MD runtime's `output.trajectory.period: 5` saves frames within MD calculations. Hybrid
-MC retains all stage directories. `output.checkpoint.period: 1` requests a
-checkpoint after every full cycle. A pending stage also forces a checkpoint
-when its cycle is committed.
+For the example, each MC invocation records five decisions in `opstat.txt`.
+There is no parent-level `mcmoves.log`. Child output settings control child
+trajectories independently of the parent's cycle trajectory.
 
-Resume by rerunning the same command with the same output directory and inputs.
-A pending calculation retains its cycle, stage, and MC proposal index,
-so completed work is not redrawn. Completed cycles resume from their checkpoint.
-Use a new output directory when changing the cycle, runtimes, or operators.
-Old exploration inputs and checkpoints are not accepted. Move the initial
-structure to the compute inputs, use `executor.parameters.setup/output/stop`,
-and start a new compute directory. The initial and final states are always
-written even with sparse trajectory output. Compute collects chain endpoints
-into `results/end_frames.xyz`.
+Composite checkpoints commit child boundaries even between requested checkpoint
+periods, so pending calculations resume without replaying completed children.
+`output.checkpoint.keep` bounds retained snapshots. Initial and final states
+are always included, including with sparse trajectory output. Collected chain
+endpoints appear in `results/end_frames.xyz`.
+
+Resume with the same command, directory, and inputs. Changed inputs or old
+`gdpx`/`setup.cycle` runs require a new directory. Move the MC ensemble and
+operators into the conventional MC child and list children directly in `setup`.

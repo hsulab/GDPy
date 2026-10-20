@@ -214,7 +214,7 @@ read that saved batch. Restarting without an explicit seed reuses the saved
 random choices. The entire calculation set is checked, including unsubmitted
 batches and workdir names. Use a new run directory for changed inputs or settings.
 
-Runtime configuration remains schema version 3. Older driver metadata lacks the
+Runtime configuration uses schema version 4. Older driver metadata lacks the
 frozen calculation-set contract and is rejected even when it uses SHA-256.
 Old MD5 records also cannot be migrated reliably because their XYZ snapshots may have
 lost constraints or coordinate precision.
@@ -222,15 +222,18 @@ lost constraints or coordinate precision.
 ## Monte Carlo now uses compute
 
 MC and hybrid MC are no longer exploration methods. Invoke
-`gdp compute INPUT --runtime mc.yaml` with `executor.provider: gdpx` and
+`gdp compute INPUT --runtime mc.yaml` with `executor.provider: native` and
 `executor.method: monte_carlo` or `hybrid_monte_carlo`. Each input starts one
 independent chain. There is no compatibility adapter for old inputs or runs.
 
 - Move `system.builder` to compute's positional structure/builder inputs.
 - Move `system.ensemble`, `system.ignore_atoms_tags`, and `strategy.operators`
-  to `executor.parameters.setup`. Put hybrid `strategy.cycle` there too.
-- Move the old initialization runtime's potential and modifiers to the outer
-  runtime. Move its executor and optional scheduler into `setup.evaluator`.
+  to `executor.parameters.setup`. For HMC, these settings belong to its conventional MC child.
+- Define potential and modifiers once on the outer runtime. MC uses ASE `spc`
+  by default; optional `setup.executor` customizes evaluation.
+- For HMC, make `setup` an ordered list of MD and `native/monte_carlo`
+  executor definitions. Move ensemble, operators, and proposal limits into
+  the MC child. Remove `setup.cycle`, nested runtimes, and `setup.evaluator`.
 - Move `strategy.convergence` to `executor.parameters.stop`; move output and
   checkpoint periods to `executor.parameters.output.trajectory.period` and
   `output.checkpoint.period`.
@@ -242,3 +245,16 @@ independent chain. There is no compatibility adapter for old inputs or runs.
 Shared Python sampling primitives now live in `gdpx.sampling`; sampling
 executors and transaction/checkpoint helpers live in `gdpx.execution`.
 Umbrella sampling remains under explore for a separate migration.
+
+## Native composite tasks
+
+The executor provider `gdpx` was renamed to `native` without an alias. Ordinary
+MC no longer requires an evaluator block. HMC and SA accept executor lists
+directly under `parameters.setup`; descendants inherit the outer potential and
+modifiers. Child `scheduler` settings remain independent and default to direct.
+
+Population SA now takes a `native/simulated_annealing` runtime containing MD and
+minimisation children. Move `strategy.annealing` into the MD child's regulator
+starting temperature and `setup.tend`; move `strategy.minimisation` into the
+minimisation child. Keep population and generation settings in the exploration
+file. Old composite inputs and checkpoints require a fresh run directory.

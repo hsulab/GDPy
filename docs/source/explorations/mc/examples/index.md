@@ -27,13 +27,12 @@ gdp -d run-mc-semi-grand-canonical compute examples/monte_carlo/assets/cu16ni16.
 gdp -d run-mc-grand-canonical compute examples/monte_carlo/assets/aucu8.xyz --runtime examples/monte_carlo/grand-canonical.yaml
 ```
 
-All three include an EMT potential and an ASE single-point evaluator under
-`executor.parameters.setup.evaluator`. The evaluator requires `method: spc`;
-relaxation and dynamics are rejected for ordinary MC. For population-based
-optimisation, see {doc}`../../../global_optimisation/basin_hopping`.
+All three define one EMT potential and use the default ASE single-point
+MC evaluator. Optional `executor.parameters.setup.executor` customizes its
+provider, parameters, or scheduler; its method must remain `spc`.
 
 The {doc}`hybrid examples <../../hmc/examples/index>` alternate MD segments with MC proposals
-and include their own initialization, MD, and MC runtimes.
+and list MD and conventional MC executors directly in `parameters.setup`.
 
 ## Choose an example
 

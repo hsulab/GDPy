@@ -5,8 +5,7 @@
 This example applies HMC to the same three-layer Cu(111)-p(2×2) oxidation
 system as the {doc}`MC example <../../mc/examples/cu111-oxidation-xreac>`. One
 cycle runs 40 NVT MD steps followed by three grand-canonical atomic-O
-exchanges. The four Cu atoms in the bottom layer are fixed in the initial,
-MD, and MC runtimes.
+exchanges. The four Cu atoms in the bottom layer are fixed in the initial structure and both child executors.
 
 ```{literalinclude} ../../../../../examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
 :language: yaml
@@ -19,7 +18,7 @@ repository root:
 ```shell
 gdp -d run-hmc-cu111-oxidation \
     compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
-cat run-hmc-cu111-oxidation/cand0/mcmoves.log
+cat run-hmc-cu111-oxidation/cand0/calculations/step.0001/procedure.0001/cand0/opstat.txt
 ```
 
 With `executor.parameters.random_seed: 2033`, the first insertion is accepted and the cycle changes

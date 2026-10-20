@@ -37,7 +37,7 @@ Compute runtime:
 :caption: examples/monte_carlo/canonical.yaml
 ```
 
-The nested evaluator uses ASE single-point energies.
+MC uses ASE single-point energies by default; no evaluator block is needed.
 
 Run from the repository root:
 

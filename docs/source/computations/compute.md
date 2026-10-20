@@ -91,7 +91,7 @@ See {doc}`tasks/index` for task examples and {doc}`schedulers` for queue jobs.
 
 ## Monte Carlo sampling
 
-Use `executor.provider: gdpx` with `method: monte_carlo` or
+Use `executor.provider: native` with `method: monte_carlo` or
 `method: hybrid_monte_carlo` to sample each supplied structure independently.
 See the {ref}`Monte Carlo guide <monte-carlo>` and
 {ref}`hybrid MC guide <hybrid-monte-carlo>` for complete runtimes. Sampling uses

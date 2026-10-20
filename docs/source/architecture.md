@@ -73,10 +73,15 @@ This keeps host location independent of queue semantics and permits every
 combination.
 
 Monte Carlo and hybrid MC are calculator-independent single-structure executors
-under `gdpx.execution.monte_carlo`, registered by the `gdpx` provider. They
-compose existing evaluation and dynamics runtimes and participate in compute's
+under `gdpx.execution.monte_carlo`, registered by the `native` provider. They
+inherit one fixed potential and compose ordinary child executors and participate in compute's
 persisted lifecycle. `SingleStructureExecutor` defines the worker-facing
 contract shared with `BaseDriver`; pending sampling work returns `RunState.PENDING`.
 Each compute input owns a separate chain. Proposal transactions, accepted-state
 serialization, and checkpoint utilities reside in execution and are shared by
 sampling and structure-search algorithms.
+
+Native HMC and simulated annealing use list-based `parameters.setup`; ordinary
+MD, minimisation, and MC retain mapping-based setup. `gdpx.execution.composite`
+owns ordered child execution, invocation seeds, and durable stage boundaries.
+Population SA reuses the native annealing executor for each selected candidate.
