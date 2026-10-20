@@ -67,8 +67,13 @@ The `system` configuration is shared with GA and BH.
 - `strategy.objective`: shared energy or formation-energy ranking.
 - `strategy.use_archive`: archive completed minimisation calculations.
 
-The top-level runtime supplies ASE NVT dynamics with a Berendsen or Langevin
-thermostat, the potential, and the scheduler. Its step count applies to the whole
+The top-level runtime supplies MD dynamics (`executor.method: md`), the
+potential, and the scheduler. SA does not restrict the executor provider or
+thermostat; the executor validates its own settings. Use thermostatted NVT or
+NPT dynamics and an executor that honours the start/end temperature targets
+(`temp` and `tend`) for a linear ramp. Accepting an MD runtime does not guarantee
+that its backend implements temperature ramps. The Cu8 example uses ASE.
+The runtime step count applies to the whole
 cooling trajectory in each generation. Minimisation reuses the same
 potential, scheduler, and dispatch settings, replacing only executor parameters
 and method. This version requires an unmodified potential.
