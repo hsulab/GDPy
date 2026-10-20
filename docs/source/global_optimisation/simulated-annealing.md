@@ -34,10 +34,18 @@ the best structures. This initial version uses supplied builders for generation
 :language: yaml
 ```
 
+The calculation runtime is supplied separately:
+
+```{literalinclude} ../../../examples/global_optimisation/explorations/simulated_annealing/runtime.yaml
+:language: yaml
+```
+
 Run from the repository root:
 
 ```shell
-gdp -d run-sa explore examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
+gdp -d run-sa \
+  --runtime examples/global_optimisation/explorations/simulated_annealing/runtime.yaml \
+  explore examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
 ```
 
 The example minimises two initial structures and runs three generations of four
