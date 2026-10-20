@@ -52,12 +52,13 @@ Pair the recipe with the shared EMT relaxation runtime:
 :language: yaml
 ```
 
-From the repository root:
+Use the working directory indicated with each command:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 OMP_NUM_THREADS=1 gdp -d run-cu6-nix \
-  --runtime examples/global_optimisation/runtimes/emt.yaml \
-  explore examples/global_optimisation/explorations/basin_hopping/cu6_nix.yaml
+  --runtime ../../runtimes/emt.yaml \
+  explore ./cu6_nix.yaml
 ```
 
 This is one exploration, so its outputs are directly under `run-cu6-nix/`.

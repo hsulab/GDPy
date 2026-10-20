@@ -10,7 +10,7 @@ before the search selects chain starts.
 
 ## Input
 
-Run from the repository root so the seed-file path resolves correctly.
+Run from `examples/global_optimisation/explorations/basin_hopping/` so the seed-file path resolves correctly.
 The exploration input is
 `examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml`:
 
@@ -51,9 +51,10 @@ initial, retained, and generation sizes.
 Use the existing relaxation runtime:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 gdp -d ./run-cu8-seeded-bh-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu8_seeded.yaml
 ```
 
 No model download is needed. The runtime relaxes every initial structure,

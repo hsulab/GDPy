@@ -64,12 +64,13 @@ strategy:
   # Full system, operators, and convergence settings.
 ```
 
-Run the complete supplied Cu–Ni example from the repository root:
+Run the complete supplied Cu–Ni example from its method folder:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
-  --runtime examples/global_optimisation/runtimes/emt.yaml \
-  explore examples/global_optimisation/explorations/basin_hopping/cu_ni_compositions.yaml
+  --runtime ../../runtimes/emt.yaml \
+  explore ./cu_ni_compositions.yaml
 ```
 
 This runs two short EMT searches sequentially, using seed 7 for both. Cu₆Ni₂

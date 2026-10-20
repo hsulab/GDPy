@@ -77,6 +77,10 @@ See {doc}`../trainers/mace` for training.
 
 ### MACE-OMAT-0 Small runtime
 
+For these global optimisation examples, store model files in `models/` under
+the repository root and run from the exploration's method folder. The supplied
+runtime paths use `../../../../models/` relative to that working directory.
+
 Supply your own checkpoint at `./models/mace-omat-0-small.model`, or update
 `potential.parameters.model` in this reusable local-relaxation runtime:
 

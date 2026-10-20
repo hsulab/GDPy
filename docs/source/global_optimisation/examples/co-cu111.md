@@ -28,22 +28,23 @@ duplicate filtering, selection uses replacement.
 
 The separate runtime uses the DeepMD ASE backend and an ASE Langevin thermostat:
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/co_cu111_runtime.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/dpa4c_mini_md.yaml
 :language: yaml
 ```
 
-Supply a DPA4C foundation model at `models/dpa4c-foundation.pt2`, or edit the
+Supply a DPA4C foundation model at `models/dpa4c-foundation.pt2` under the repository root, or edit the
 runtime model path. The model must cover Cu, C, and O and be exported for the
 execution device. No weights are bundled or downloaded. See
 {ref}`DPA4C setup <potential-deepmd>` for export and installation guidance.
 Element coverage alone does not establish accuracy for CO adsorption.
 
-Run from the repository root:
+Run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/simulated_annealing
 gdp -d run-co-cu111-sa \
-  --runtime examples/global_optimisation/explorations/simulated_annealing/co_cu111_runtime.yaml \
-  explore examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml
+  --runtime ../../runtimes/dpa4c_mini_md.yaml \
+  explore ./co_cu111.yaml
 ```
 
 CO starts intact but is flexible during MD and minimisation. Fragment tags

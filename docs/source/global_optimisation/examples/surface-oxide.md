@@ -51,12 +51,13 @@ example requires a potential that describes both Cu and O; see the
 
 ## Run
 
-After installing MatterSim, run from the repository root:
+After installing MatterSim, run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cu4o4-cu111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
+    --runtime ../../runtimes/mattersim.yaml explore \
+    ./cu4o4_cu111.yaml
 ```
 
 The search is stored under `run-cu4o4-cu111`. When it completes,

@@ -72,12 +72,13 @@ MatterSim is required because the search contains both Cu and O; see the
 
 ## Run
 
-After installing MatterSim, run from the repository root:
+After installing MatterSim, run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cuxoy-cu111 \
-    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
+    --runtime ../../runtimes/mattersim.yaml explore \
+    ./cuxoy_cu111.yaml
 ```
 
 The search is stored under `run-cuxoy-cu111`. When it completes,

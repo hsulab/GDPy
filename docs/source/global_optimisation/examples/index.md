@@ -11,7 +11,14 @@ and short searches keep these demonstrations easy to inspect; increase search
 and calculation budgets for production work.
 
 Exploration inputs live under `examples/global_optimisation/explorations/`,
-grouped by method. Each guide provides runtime settings and run commands.
+grouped by method. Run each exploration from the folder containing its YAML
+file, for example `examples/global_optimisation/explorations/basin_hopping/`.
+Structure paths resolve through `../../assets/`; shared runtime files are at
+`../../runtimes/`. Model paths in the supplied runtimes point to the repository's
+`models/` directory via `../../../../models/`. These paths are relative to the
+working directory, not to the runtime file. Each guide provides runtime settings
+and run commands. Output directories are created relative to that same working
+directory.
 Select a runtime with
 `gdp --runtime <runtime.yaml> explore <exploration.yaml>`, placing `--runtime`
 before `explore`. Use a new output directory when changing the runtime or search

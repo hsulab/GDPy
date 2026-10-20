@@ -42,12 +42,13 @@ The complete example is available at
 
 ### Run
 
-From the repository root, run:
+Run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cu8-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu8.yaml
 ```
 
 The search is stored under `run-cu8-emt`. When it completes,
@@ -91,12 +92,13 @@ discoveries do not replace chain states: MC acceptance determines each next stat
 
 ### Run
 
-From the repository root:
+Use the working directory indicated with each command:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 gdp -d ./run-cu8-bh-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/basin_hopping/cu8.yaml
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu8.yaml
 ```
 
 Results are written under `run-cu8-bh-emt`:
@@ -139,16 +141,17 @@ The demonstration does not establish the global minimum of Cu₈.
 
 The calculation runtime is supplied separately:
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/runtime.yaml
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_md.yaml
 :language: yaml
 ```
 
-Run from the repository root:
+Run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/simulated_annealing
 gdp -d run-sa \
-  --runtime examples/global_optimisation/explorations/simulated_annealing/runtime.yaml \
-  explore examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
+  --runtime ../../runtimes/emt_md.yaml \
+  explore ./cu8.yaml
 ```
 
 The example minimises two initial structures and runs three generations of four

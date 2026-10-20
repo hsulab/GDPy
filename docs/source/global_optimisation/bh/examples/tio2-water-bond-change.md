@@ -29,6 +29,8 @@ connectivity overrides of 1.25 Å. Regeneration now follows the radius-based
 rules and need not reproduce those coordinates or energies. The archived files
 remain valid inputs and are reconciled under the current policy at search start.
 
+Run this seed-generation script from the repository root:
+
 ```shell
 python examples/global_optimisation/tio2_water_bond_change.py \
   --output tmp/tio2-water-bond-change --steps 500 --fmax 0.02
@@ -51,9 +53,10 @@ Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
 Use the existing xreac runtime:
 
 ```shell
-gdp --runtime examples/global_optimisation/runtimes/xreac_tioh.yaml \
+# Working directory: examples/global_optimisation/explorations/basin_hopping
+gdp --runtime ../../runtimes/xreac_tioh.yaml \
   -d tmp/tio2-water-bond-change-bh \
-  explore examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml
+  explore ./tio2_water2_bond_change.yaml
 ```
 
 The search starts two chains with molecular and dissociated seeds and attempts

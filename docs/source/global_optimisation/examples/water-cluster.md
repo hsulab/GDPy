@@ -33,12 +33,13 @@ because the model evaluates and relaxes all atoms.
 ## Run
 
 After installing `gdpx[reax]` as described in the {ref}`potential-reax`
-guide, run from the repository root:
+guide, run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-water4-reax \
-    --runtime ./examples/global_optimisation/runtimes/xreac.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
+    --runtime ../../runtimes/xreac.yaml explore \
+    ./water4.yaml
 ```
 
 The search is stored under `run-water4-reax`. The small

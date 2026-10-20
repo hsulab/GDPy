@@ -46,15 +46,15 @@ without terminating the current chain.
 ## Run and verify
 
 Install MatterSim following {ref}`potential-mattersim`. The example uses the
-1M checkpoint and was verified on CPU; its first use may download the model. From the repository
-root, run:
+1M checkpoint and was verified on CPU; its first use may download the model. From the example folder indicated below, run:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos \
-    --runtime ./examples/global_optimisation/runtimes/mattersim.yaml explore \
-    ./examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
+    --runtime ../../runtimes/mattersim.yaml explore \
+    ./cu4o4_thanos.yaml
 
-python ./examples/global_optimisation/verify_cu4o4_bh_thanos.py \
+python ../../verify_cu4o4_bh_thanos.py \
     ./run-cu4o4-bh-thanos
 ```
 

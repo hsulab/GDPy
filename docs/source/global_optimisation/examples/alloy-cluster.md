@@ -38,12 +38,13 @@ generation.
 
 ## Run
 
-From the repository root, run:
+Run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cu7ni6-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu7ni6.yaml
 ```
 
 The search is stored under `run-cu7ni6-emt`, with its restart state

@@ -23,12 +23,13 @@ Pair this exploration with the EMT runtime:
 
 ## Run
 
-From the repository root:
+Use the working directory indicated with each command:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
-  --runtime examples/global_optimisation/runtimes/emt.yaml \
-  explore examples/global_optimisation/explorations/basin_hopping/cu_ni_compositions.yaml
+  --runtime ../../runtimes/emt.yaml \
+  explore ./cu_ni_compositions.yaml
 ```
 
 The searches execute sequentially in one process with independent calculation

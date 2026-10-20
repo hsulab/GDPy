@@ -78,11 +78,12 @@ independently movable.
 :language: yaml
 ```
 
-Run from the repository root with your runtime:
+Run from the GA example folder with your local `runtime.yaml`:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cu4-alumina111-ga --runtime ./runtime.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml
+    ./cu4_alumina111.yaml
 ```
 
 `results/all_candidates.xyz` contains relaxed structures ordered by GA score;
@@ -100,11 +101,12 @@ with eight attempted moves each. Hopping proposals select only Cu atoms. The
 :language: yaml
 ```
 
-Use the same local-relaxation runtime:
+Copy the same local-relaxation `runtime.yaml` into the BH example folder:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 gdp -d ./run-cu4-alumina111-bh --runtime ./runtime.yaml explore \
-    ./examples/global_optimisation/explorations/basin_hopping/cu4_alumina111.yaml
+    ./cu4_alumina111.yaml
 ```
 
 Inspect `candidates.db` for relaxed structures and acceptance metadata,
@@ -119,7 +121,7 @@ checkpoint. Upstream does not release a smaller standard checkpoint or report
 a speed comparison between Prophet models, so no fastest-model ranking is
 available. Download `prophet-oame-mbd.pt` from
 [Kairos Materials' model repository](https://huggingface.co/kairosmaterial/prophet)
-to `./models/prophet-oame-mbd.pt`, and install GDPy's `prophet` extra as described
+to `models/prophet-oame-mbd.pt` under the repository root, and install GDPy's `prophet` extra as described
 in {doc}`../../potentials/prophet`.
 
 This runtime fixes the bottom 60 substrate atoms and uses the same short
@@ -130,9 +132,10 @@ relaxation budget as the example above:
 ```
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
 mamba run -n gdp3 gdp -d ./run-cu4-alumina111-bh-prophet \
-    --runtime ./examples/global_optimisation/runtimes/prophet_oame_mbd.yaml explore \
-    ./examples/global_optimisation/explorations/basin_hopping/cu4_alumina111.yaml
+    --runtime ../../runtimes/prophet_oame_mbd.yaml explore \
+    ./cu4_alumina111.yaml
 ```
 
 For accelerated inference on an NVIDIA GPU, install Prophet's optional CUDA

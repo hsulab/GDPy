@@ -19,7 +19,7 @@ alignment avoids an undefined collinear torsion derivative.
 
 ## Compare the two starting motifs
 
-From the repository root:
+Run these seed-comparison scripts from the repository root:
 
 ```shell
 python examples/global_optimisation/tio2_water_rotation.py \
@@ -68,9 +68,10 @@ The same adsorption and hydrogen-bond diagnostics cover all water pairs.
 ```
 
 ```shell
-gdp --runtime examples/global_optimisation/runtimes/xreac_tioh.yaml \
+# Working directory: examples/global_optimisation/explorations/basin_hopping
+gdp --runtime ../../runtimes/xreac_tioh.yaml \
   -d tmp/tio2-water-rotation-bh \
-  explore examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml
+  explore ./tio2_water2.yaml
 ```
 
 Replace the exploration input with `tio2_water3.yaml` and use a new output

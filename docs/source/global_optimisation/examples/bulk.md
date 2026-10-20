@@ -32,12 +32,13 @@ treats the atoms as independently movable particles.
 
 ## Run
 
-From the repository root, run:
+Run from the example folder indicated below:
 
 ```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
 gdp -d ./run-cu4-bulk-emt \
-    --runtime ./examples/global_optimisation/runtimes/emt.yaml explore \
-    ./examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu4_bulk.yaml
 ```
 
 The search is stored under `run-cu4-bulk-emt`. When it completes,
