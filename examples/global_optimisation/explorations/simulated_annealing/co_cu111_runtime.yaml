@@ -1,0 +1,28 @@
+potential:
+  provider: deepmd
+  backend: ase
+  parameters:
+    # Supply a device-compatible DPA4C foundation model covering Cu, C, and O.
+    model: ./models/dpa4c-foundation.pt2
+executor:
+  provider: ase
+  method: md
+  parameters:
+    setup:
+      ensemble: nvt
+      timestep: 0.5
+      constraint: '`zbot 4`'
+      velocities:
+        initialize: if_missing
+        remove_rotation: false
+      regulator:
+        name: langevin
+        targets:
+          temperature: 600.0
+        parameters:
+          friction: 0.01
+    stop:
+      steps: 1000
+    output:
+      trajectory:
+        period: 10
