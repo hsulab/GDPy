@@ -7,9 +7,8 @@ atoms away when the displacement brings them too close.
 
 ## Configuration
 
-Place this fragment under `strategy.operators`. Preset MC and hybrid MC set
-temperature under `system.ensemble`; custom MC/HMC and basin hopping add it to
-the operator:
+Place this fragment under `strategy.operators` and set `temperature` on the
+operator for basin-hopping acceptance:
 
 ```yaml
 - method: bounce

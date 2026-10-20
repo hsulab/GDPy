@@ -3,7 +3,7 @@
 # Bond breaking and formation
 
 Use {doc}`bond_break` to separate one atom and {doc}`bond_form` to attach an
-isolated atom to a stationary acceptor. They are separate MC operators with
+isolated atom to a stationary acceptor. They are separate search operators with
 independent selection probabilities. Neither falls back to the other operation.
 They preserve composition and atom order and target basin-hopping searches;
 these biased moves do not implement equilibrium reaction proposal corrections.
@@ -51,7 +51,7 @@ Form at `R`; break at `1.25 * upper_ratio * R`. For default O–H settings these
 are 0.97 and 1.455 Å. Target distances need not lie in the search window.
 Collision checks use the lower ratio for minimum separations to other atoms.
 Detached fragments are allowed by default; `allow_isolated: false` enables the
-usual neighbor requirement. Shared MC controls remain available.
+usual neighbor requirement. Shared operator controls remain available.
 
 ## Motion, constraints and tags
 

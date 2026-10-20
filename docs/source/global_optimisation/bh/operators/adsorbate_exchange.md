@@ -7,9 +7,8 @@ existing tagged adsorbate.
 
 ## Configuration
 
-Place this fragment under `strategy.operators`. Preset MC and hybrid MC read
-temperature and chemical potentials from `system.ensemble`; custom MC/HMC and
-basin hopping add them to the operator:
+Place this fragment under `strategy.operators`. Set `temperature` and
+`chempots` on the operator for basin-hopping acceptance:
 
 ```yaml
 - method: adsorbate_exchange
@@ -26,7 +25,7 @@ basin hopping add them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One supported adsorbate species | Required |
-| `chempots` | Chemical potential for custom MC/HMC and BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
+| `chempots` | Chemical potential for BH acceptance | Required |
 | `anchors` | Surface-site settings, or a one-entry list of settings | Required |
 | `use_ads` | Use an adsorbate representation with binding information; must remain enabled | `true` |
 | `anchors.group` | Group expression selecting surface atoms | Supply explicitly |
@@ -49,8 +48,9 @@ places an adsorbate using its binding information. Distance checks and retries
 apply unless skipped. A lack of suitable sites or failed placement produces an
 invalid proposal. `max_order: 2` includes atop, bridge, and hollow sites.
 
-When adsorbates are present, insertion/removal is selected as for
-{doc}`exchange`. Removal deletes an eligible tagged adsorbate. `region` determines
+When adsorbates are present, insertion and removal have equal selection
+probabilities; with none present, insertion is forced. Removal deletes a
+uniformly selected eligible tagged adsorbate. `region` determines
 eligible particles and the volume for acceptance; the anchor group separately
 determines the surface graph used for insertion.
 

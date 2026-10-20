@@ -33,9 +33,17 @@ weights, regions, particle tags, and distance checks.
 
 ## Proposal and acceptance
 
-Selection, insertion attempts, particle tags, and removal follow
-{doc}`exchange`. The difference is the volume used for acceptance: the operator
-calls `region.get_empty_volume(atoms)` for the current structure.
+When eligible particles are present, insertion and removal are selected with
+equal probability. With none present, insertion is forced. Removal selects one
+eligible tagged particle uniformly. Insertion draws a position from the region
+and assigns a new tag; when ordinary distance checks are enabled, it retries
+up to `max_random_attempts`. Failed placement gives an invalid proposal.
+
+The acceptance volume is `region.get_empty_volume(atoms)` for the current
+structure. Acceptance also includes the energy difference, chemical potential,
+particle count, and thermal wavelength. The chemical-potential offset is `-mu`
+for insertion and `+mu` for removal. At the zero-particle boundary, the rule
+accounts for forced insertion and the half-probability reverse deletion branch.
 
 The shared region implementation subtracts the sum of covalent-radius sphere
 volumes from the region volume for particles whose centers lie inside it. This
@@ -50,3 +58,11 @@ For explicit trial-point screening, see {doc}`cavity_exchange`.
 Acceptance otherwise includes the same energy, chemical-potential, particle-count,
 and temperature factors as ordinary exchange. Initial builder composition ranges
 do not limit subsequent insertions or removals.
+
+## Equilibrium-sampling limitation
+
+Replacing the geometric volume with an estimated empty volume does not by
+itself correct the proposal probability: insertion still uses the ordinary
+region generator. Do not assume detailed balance from this acceptance-volume
+substitution. Quantitative MC use requires a consistent derivation and
+validation of the forward and reverse proposal factors for the chosen region.

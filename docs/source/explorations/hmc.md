@@ -15,7 +15,7 @@ total Hamiltonian change, so this implementation is a mixed MD/MC workflow,
 not a Hamiltonian Monte Carlo sampler. The {ref}`MC sampling limitations
 <monte-carlo>` also apply to its MC operators.
 
-See the shared {ref}`sampling-operators` reference for available moves and
+See the {ref}`MC operator reference <sampling-operators>` for available moves and
 their configuration, particle selection, and acceptance rules.
 Hybrid MC uses the same preset and custom `system.ensemble` configuration as
 standard MC. The ensemble controls the MC acceptance rules; the MD runtime has

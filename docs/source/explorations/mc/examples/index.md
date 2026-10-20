@@ -7,6 +7,13 @@ with EMT, plus a short Cu(111) oxidation run with xreac. Read the
 {ref}`Monte Carlo guide <monte-carlo>` for proposal settings, sampling
 limitations, output files, and restart behaviour.
 
+The existing grand-canonical inputs use the shared parser's plain `exchange`
+method; these inputs remain available as legacy examples, but this method is
+not part of the user-facing operator catalogue.
+For the curated MC operator list and detailed-balance requirements, see
+{ref}`sampling-operators`. The documentation catalogue does not change parser support
+or the acceptance rule used by these inputs.
+
 ## Run the EMT examples
 
 The complete inputs and initial structures are in `examples/monte_carlo/`.

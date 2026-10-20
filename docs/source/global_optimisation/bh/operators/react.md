@@ -7,9 +7,8 @@ stoichiometric reaction, allowing both forward and reverse proposals.
 
 ## Configuration
 
-Place this fragment under `strategy.operators`. Preset MC and hybrid MC read
-temperature and standard chemical potentials from `system.ensemble`; custom
-MC/HMC and basin hopping add them to the operator:
+Place this fragment under `strategy.operators`. Set `temperature` and
+`reaction.chempot_0` on the operator for basin-hopping acceptance:
 
 ```yaml
 - method: react
@@ -28,10 +27,10 @@ MC/HMC and basin hopping add them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `reaction.particles` | Ordered species participating in the reaction | Required |
-| `reaction.chempot_0` | Standard chemical potentials for custom MC/HMC and BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
+| `reaction.chempot_0` | Standard chemical potentials for BH acceptance | Required |
 | `reaction.coefficients` | Signed integer coefficients: negative for reactants, positive for products | Required |
 | `region` | Particle selection and acceptance-volume region | Required |
-| `temperature` | Acceptance temperature for custom MC/HMC and BH; preset MC/HMC uses the ensemble | Required outside preset MC/HMC |
+| `temperature` | Acceptance temperature for BH | Required |
 | `pressure` | Operator pressure setting in bar | 1.0 |
 | `use_bias` | Use estimated empty volume instead of geometric volume | `true` |
 
@@ -60,6 +59,6 @@ placement center and fail the geometric checks.
 Acceptance includes energy, standard chemical-potential changes, stoichiometric
 particle-count factors, temperature, and volume. With `use_bias: true`, the
 volume is the region's estimated empty volume, as described for
-{doc}`biased_volume_exchange`; the example uses geometric volume instead.
+{doc}`../../../explorations/operators/biased_volume_exchange`; the example uses geometric volume instead.
 The current reaction acceptance calculation uses a fixed standard-pressure
 factor, so changing `pressure` does not tune a reservoir pressure in that rule.

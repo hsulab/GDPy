@@ -1,4 +1,4 @@
-# basin hopping (bh)
+# Basin hopping (BH)
 
 Examples keep search recipes in
 `examples/global_optimisation/explorations/basin_hopping/` and reusable
@@ -12,7 +12,9 @@ and select another suitable runtime in a new output directory.
 evaluates candidates using execution workers, and ranks them using the search
 objective. It inherits `PopulationBasedExploration`, independently of MC.
 
-Basin hopping reuses the {ref}`sampling-operators` documented under Boltzmann Sampling. Configure those same moves in `strategy.operators`. With a minimization
+Basin hopping provides its own {ref}`operator guide <bh-operators>`, including
+search proposals and links to reusable MC moves. Configure them in
+`strategy.operators`. With a minimization
 runtime, BH relaxes valid trials before the chain's acceptance decision.
 
 Find runnable recipes in the central {doc}`examples catalogue <examples/index>`.
@@ -22,7 +24,7 @@ configuration. The recipe uses these settings:
 
 - `system`: `retained_size`, named `builders`, `initial` allocations,
   `generation.total_size`, comparator, and extinction settings.
-- `strategy.operators`: weighted moves; see {ref}`sampling-operators` for configuration and {ref}`bh-operator-logs` for move logs.
+- `strategy.operators`: weighted moves; see {ref}`bh-operators` for configuration and {ref}`bh-operator-logs` for move logs.
 - `strategy.steps_per_chain`: attempted proposals per chain per generation; a non-negative integer.
   Rejected and invalid proposals count; the starting structure does not. The
   progress header labels this value `steps/chain`.
@@ -69,7 +71,7 @@ sampling policy, and resume with the same configuration for reproducibility.
 
 ## Acceptance and population ranking
 
-Operators use the shared {ref}`sampling-operators` reference. The population's
+Operators use the shared {ref}`bh-operators` reference. The population's
 ranking objective is separate from the chain acceptance rule. Keep exchange
 `chempots` and objective `chemical_potentials` consistent when using
 formation-energy ranking. BH owns population selection and search objectives;
@@ -249,3 +251,10 @@ candidates. Dark-blue arrows show parentage. Purple dashed arrows point from a
 terminated trial to the selected restart candidate; these are selection links,
 not parentage. Only committed hopping rounds are included, using metadata
 without loading atomic structures.
+
+```{toctree}
+:hidden:
+:maxdepth: 2
+
+bh/operators/index
+```

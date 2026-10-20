@@ -56,3 +56,12 @@ Without `cavity_distance`, screening uses the covalent-distance ratios and
 requires a nearby atom. The example specifies only a minimum distance, allowing
 isolated insertion sites. This operator uses its own screening rather than the
 ordinary exchange retry loop.
+
+## Equilibrium-sampling limitation
+
+The cavity-count factor alone does not establish detailed balance for every
+branch. In particular, the zero-cavity fallback submits an unscreened insertion;
+its reverse removal must be accounted for consistently. Validate the complete
+insertion/removal rule before using this implementation for quantitative
+equilibrium sampling. Disabling ordinary distance checks does not disable this
+operator's cavity screening or resolve that requirement.

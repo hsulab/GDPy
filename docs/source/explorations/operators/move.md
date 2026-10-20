@@ -2,8 +2,7 @@
 
 # `move`
 
-Translate one randomly selected particle. This is a simple starting point for
-a fixed-composition cluster search.
+Translate one randomly selected particle while preserving composition.
 
 ## Configuration
 
@@ -43,4 +42,5 @@ Composition is unchanged. After runtime evaluation, acceptance uses the energy
 change and `temperature`. Increase `max_disp` to explore farther from the current
 structure; smaller values make more local proposals.
 
-See {ref}`bh-cu8-example` for a complete EMT run.
+See the {doc}`canonical MC example <../mc/examples/canonical>` for a complete
+EMT run. BH can reuse this operator before relaxation.

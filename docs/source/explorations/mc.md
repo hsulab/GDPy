@@ -10,27 +10,41 @@ external simulation executable is needed.
 
 | Ensemble | Fixed quantities | What changes | Operators |
 | --- | --- | --- | --- |
-| Canonical (NVT) | Species counts, volume, temperature | Positions | `move`, `rattle`; `swap` for alloys |
+| Canonical (NVT) | Species counts, volume, temperature | Positions | `move`, `rotate`; `swap` for alloys |
 | Semi-grand-canonical | Total atom count, volume, temperature, chemical-potential differences | Species identities and optionally positions | `swap_type`, optionally `move` |
-| Grand-canonical (μVT) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `exchange`, optionally `move` |
-| Custom | Defined by each operator | Depends on configured operators | Any compatible mixture |
+| Grand-canonical (μVT) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `biased_volume_exchange`, `cavity_exchange`; optionally `move` |
+| Custom | Defined by each operator | Depends on configured operators | Mixture of the MC operators below |
 
 `swap` exchanges the positions of unlike particles
 and preserves composition; `swap_type` changes one atom's element and therefore
 changes composition. The latter currently supports individual atoms only.
 
-`swap_type` includes the reverse/forward proposal-count ratio required by its
-species-first selection. `exchange` includes the insertion/deletion branch
-ratio when no exchangeable particles remain. Biased operators and repeated
-geometry attempts need separate detailed-balance analysis before use for
-quantitative equilibrium sampling.
+The {ref}`MC operator reference <sampling-operators>` covers `move`, `rotate`,
+`swap`, `swap_type`, `biased_volume_exchange`, and `cavity_exchange`.
+Additional structure-search proposals are documented under
+{ref}`basin-hopping operators <bh-operators>`. MC and BH share implementations,
+but accepting the same configuration does not make their sampling equivalent.
 
-See the shared {ref}`sampling-operators` reference for available moves and
-their configuration, particle selection, and acceptance rules.
+## Detailed balance
+
+Equilibrium MC requires detailed balance for the target ensemble. The proposal
+must allow the reverse transition, and acceptance must account for any
+asymmetry in proposal probabilities. `swap_type` includes the reverse/forward
+proposal-count ratio for its species-first selection. Disable ordinary geometry
+filtering, use a single proposal attempt, and retain rejected and invalid steps
+in the sampled trajectory. Use single-point energies without relaxation.
+
+The two biased exchange operators remain documented here with explicit
+limitations: `biased_volume_exchange` substitutes an estimated empty volume
+while drawing positions from the ordinary region generator; `cavity_exchange`
+uses cavity-count factors and falls back to an unscreened point when no cavity
+qualifies. These implementations need separate detailed-balance validation
+before quantitative equilibrium use. Preset ensemble checks alone do not
+establish that validation.
 
 Use `system.ensemble.method: custom` when operators need different temperatures
-or chemical potentials. In custom mode, put `temperature`, `chempots`, and
-`reaction.chempot_0` directly on the relevant operators. GDPy then skips the
+or chemical potentials. In custom mode, put `temperature` and `chempots`
+directly on the relevant operators. GDPy then skips the
 cross-operator ensemble checks and does not inject thermodynamic settings. The
 resulting mixture is user-defined and may not sample one thermodynamic ensemble.
 
@@ -89,26 +103,6 @@ state.
 MC assigns distinct atomic tags by default. If `system.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated
 as one particle. `swap_type` requires single-atom particles.
-
-### Collective rattle moves
-
-For collective displacements, replace a `move` entry with:
-
-```yaml
-- method: rattle
-  particles: [Cu]
-  rattle_strength: 0.1
-  rattle_prop: 0.4
-  probability: 1.0
-  max_random_attempts: 1
-```
-
-Each eligible particle is selected independently with `rattle_prop`. Each
-Cartesian displacement component is uniform between `-rattle_strength` and
-`+rattle_strength` Å, rather than Gaussian. Tagged molecules translate rigidly.
-Empty or invalid proposals exhaust the attempt limit and retain the current
-state. MC and BH share these moves and acceptance rules, but BH does not
-inherit from MC.
 
 ## Inspect the results
 

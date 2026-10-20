@@ -14,7 +14,8 @@ the operator:
 - method: swap
   particles: [Cu, Ni]
   swap_mode: atomic
-  check_used_pairs: true
+  check_used_pairs: false
+  max_random_attempts: 1
 ```
 
 ## Settings
@@ -49,3 +50,8 @@ an invalid proposal.
 Acceptance uses energy and temperature; no chemical potentials are needed
 because the composition is unchanged. To change elemental counts, use
 {doc}`swap_type`.
+
+For equilibrium MC, use atomic particles with `swap_mode: atomic` and disabled
+distance checks. The `cop_z` placement rule and molecular reorientation need
+separate reverse-proposal analysis; energy-only acceptance does not establish
+detailed balance for those settings.

@@ -13,8 +13,9 @@ Run a complete exploration configuration with:
 gdp -d results explore exploration.yaml
 ```
 
-See the method guides below for complete input examples and the shared
-{ref}`sampling-operators` reference for MC, hybrid MC, and basin-hopping moves.
+See the method guides below for complete input examples, the
+{ref}`MC operator reference <sampling-operators>` for equilibrium-sampling
+requirements, and {ref}`basin-hopping operators <bh-operators>` for structure search.
 
 ```yaml
 potential:

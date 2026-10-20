@@ -2,7 +2,7 @@
 
 # Water dissociation and recombination on TiO₂
 
-Use {doc}`../../../explorations/operators/bond_change` to search molecular and
+Use {doc}`../operators/bond_change` to search molecular and
 dissociated water adsorption with xreac's Monti2012 Ti/O/H parameters. The
 two-water example has 198 atoms: 192 anatase (101) slab atoms and two neighboring
 waters. The bottom 48 atoms are fixed. The three-water variant has 201 atoms
