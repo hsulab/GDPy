@@ -92,7 +92,7 @@ class PopulationAnnealing(PopulationBasedExploration):
     def _cooling(self, generation, frames, seed):
         cooling = SimulatedAnnealing(
             {"method": "direct", "frames": frames}, annealing=self.strategy_config["annealing"],
-            directory=self.directory / f"gen{generation}" / "cooling", random_seed=seed)
+            directory=self.directory / f"gen{generation}" / "sim", random_seed=seed)
         runtime = self.worker.as_dict()
         params = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
         params["velocity_seed"] = None
@@ -119,7 +119,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                                            input_rng=self.random_streams.snapshot())
                 self._save(state)
             plan = state["plans"][key]
-            inputs = root / "inputs.traj"
+            inputs = root / "inputs.xyz"
             if not inputs.exists():
                 self.random_streams.restore(plan["input_rng"])
                 frames = ([database.get_one_candidate_by_confid(p) for p in plan["parents"]]
@@ -132,8 +132,8 @@ class PopulationAnnealing(PopulationBasedExploration):
                 # Persist the post-builder stream before publishing input structures.
                 plan["after_input_rng"] = self.random_streams.snapshot()
                 self._save(state)
-                write(root / "inputs.tmp.traj", frames)
-                os.replace(root / "inputs.tmp.traj", inputs)
+                write(root / "inputs.tmp.xyz", frames, format="extxyz")
+                os.replace(root / "inputs.tmp.xyz", inputs)
             self.random_streams.restore(plan["after_input_rng"])
             frames = read(inputs, ":")
             if generation:
@@ -142,7 +142,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                 if not cooling.read_convergence():
                     return
                 frames = read(cooling.directory / "final.xyz", ":")
-            worker = create_worker(self._minimum_runtime(), directory=root / "minimisation")
+            worker = create_worker(self._minimum_runtime(), directory=root / "min")
             worker.run(frames, rng_states=[plan["seed"]] * len(frames))
             worker.inspect(resubmit=True)
             if worker.get_number_of_running_jobs():
@@ -191,8 +191,8 @@ class PopulationAnnealing(PopulationBasedExploration):
         for key, plan in state["plans"].items():
             generation = int(key)
             root = self.directory / f"gen{generation}"
-            if generation and (root / "inputs.traj").exists():
-                workers.extend(self._cooling(generation, read(root / "inputs.traj", ":"), plan["seed"]).get_workers())
-            if (root / "minimisation").exists():
-                workers.append(create_worker(self._minimum_runtime(), directory=root / "minimisation"))
+            if generation and (root / "inputs.xyz").exists():
+                workers.extend(self._cooling(generation, read(root / "inputs.xyz", ":"), plan["seed"]).get_workers())
+            if (root / "min").exists():
+                workers.append(create_worker(self._minimum_runtime(), directory=root / "min"))
         return workers

@@ -152,8 +152,12 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     assert (results / "pop.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert len(resumed.get_workers()) == 5
     for generation in (1, 2):
-        assert (tmp_path / f"gen{generation}" / "minimisation").is_dir()
-        cooling = resumed._cooling(generation, read(tmp_path / f"gen{generation}" / "inputs.traj", ":"),
+        assert (tmp_path / f"gen{generation}" / "min").is_dir()
+        assert (tmp_path / f"gen{generation}" / "sim").is_dir()
+        assert not (tmp_path / f"gen{generation}" / "minimisation").exists()
+        assert not (tmp_path / f"gen{generation}" / "cooling").exists()
+        assert not (tmp_path / f"gen{generation}" / "inputs.traj").exists()
+        cooling = resumed._cooling(generation, read(tmp_path / f"gen{generation}" / "inputs.xyz", ":"),
                                   state["plans"][str(generation)]["seed"])
         from gdpx.providers.configuration import resolve_executor_parameters
         params = resolve_executor_parameters(cooling.get_workers()[0].as_dict()["executor"]["parameters"], "md")
