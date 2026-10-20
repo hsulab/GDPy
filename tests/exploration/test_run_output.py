@@ -218,8 +218,7 @@ def test_cli_framing_and_random_state(tmp_path, monkeypatch, output, debug, inva
         args.append('--debug')
     monkeypatch.setattr(sys, 'argv', args + ['explore', str(source), '--spawn', '0'])
     if invalid:
-        with pytest.raises(Exception):
-            main.main()
+        assert main.main() == 1
     else:
         main.main()
     text = output.getvalue()
@@ -228,6 +227,8 @@ def test_cli_framing_and_random_state(tmp_path, monkeypatch, output, debug, inva
     assert config.LOGO_LINES[0] not in text
     assert text.count('GLOBAL RANDOM SEED : 12345') == (2 if debug else 0)
     assert ('bit_generator' in text) == debug
+    assert ('Traceback (most recent call last)' in text) == (debug and invalid)
+    assert ('rerun with --debug' in text) == (invalid and not debug)
 
 
 def test_other_commands_keep_boilerplate(tmp_path, monkeypatch, output):
@@ -241,3 +242,27 @@ def test_other_commands_keep_boilerplate(tmp_path, monkeypatch, output):
     assert text.count('GLOBAL RANDOM SEED : 12') == 2
     assert text.count('bit_generator') == 2
     assert '─ exploration ' not in text
+
+
+@pytest.mark.parametrize('debug', [False, True])
+def test_cli_sa_runtime_error(tmp_path, monkeypatch, output, debug):
+    from pathlib import Path
+    from gdpx import main
+
+    source = Path(__file__).resolve().parents[2] / (
+        'examples/global_optimisation/explorations/simulated_annealing/cu8.yaml'
+    )
+    runtime = tmp_path / 'runtime.yaml'
+    runtime.write_text('potential:\n  provider: emt\nexecutor:\n  provider: ase\n  method: min\n')
+    args = ['gdp', '-d', str(tmp_path), '--log', '', '--runtime', str(runtime)]
+    if debug:
+        args.append('--debug')
+    monkeypatch.setattr(sys, 'argv', args + ['explore', str(source)])
+    monkeypatch.setattr(config, 'GRNG', config.GRNG)
+    assert main.main() == 1
+    text = output.getvalue()
+    assert_pair(text, 'failed')
+    assert "provider='ase', method='min'" in text
+    assert "executor.method='md'" in text
+    assert 'annealing/runtime.yaml' in text
+    assert ('Traceback (most recent call last)' in text) == debug

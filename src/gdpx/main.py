@@ -24,6 +24,12 @@ def main():
         config.logger.info(error.summary)
         config.logger.debug(str(error))
         return 1
+    except Exception as error:
+        config.logger.error(f"{type(error).__name__}: {error}")
+        if not config.logger.isEnabledFor(logging.DEBUG):
+            config.logger.error("Rerun with --debug before the subcommand for a traceback.")
+        config.logger.debug("Command failed", exc_info=True)
+        return 1
 
 
 def _main():
@@ -268,6 +274,10 @@ def _main():
                 params = parse_input_file(args.CONFIG)
                 runtime = parse_input_file(args.runtime) if args.runtime else None
                 run_exploration(params, args.wait, args.directory, runtime, spawn=args.spawn)
+        except Exception:
+            # The exploration report already contains the user-facing error.
+            config.logger.debug("Exploration failed", exc_info=True)
+            return 1
         finally:
             config._debug(f"GLOBAL RANDOM SEED : {random_seed}")
             for line in dictionary_to_string(config.GRNG.bit_generator.state).split("\n"):

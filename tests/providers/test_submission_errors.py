@@ -79,12 +79,16 @@ def test_cli_reports_rejection_without_traceback(monkeypatch, tmp_path, subcomma
     assert 'Traceback' not in messages[0]
 
 
-def test_cli_does_not_hide_unrelated_errors(monkeypatch):
+@pytest.mark.parametrize('debug', [False, True])
+def test_cli_reports_unrelated_errors(monkeypatch, caplog, debug):
     import gdpx.main as cli
+    import logging
 
     def broken():
         raise ValueError('bad configuration')
 
     monkeypatch.setattr(cli, '_main', broken)
-    with pytest.raises(ValueError, match='bad configuration'):
-        cli.main()
+    with caplog.at_level(logging.DEBUG if debug else logging.INFO, logger=cli.config.logger.name):
+        assert cli.main() == 1
+    assert 'ValueError: bad configuration' in caplog.text
+    assert ('Traceback (most recent call last)' in caplog.text) == debug

@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
+import logging
 import time
 
 from gdpx import config
@@ -46,7 +47,9 @@ class ExplorationReporter:
             box.line(f'explorations: {self.total - self.pending} complete | {self.pending} pending')
         if error is not None:
             detail = ' '.join(str(error).split())
-            box.line(f'error: {type(error).__name__}: {detail[:300]}')
+            box.line(f'error: {type(error).__name__}: {detail}')
+            if not isinstance(error, KeyboardInterrupt) and not config.logger.isEnabledFor(logging.DEBUG):
+                box.line('diagnostics: rerun with --debug before the subcommand for a traceback.')
         box.line(f'elapsed this invocation: {time.monotonic() - self.started:.1f} s')
         box.line(f'output directory: {self.directory}')
         box.border('bottom')
