@@ -51,25 +51,17 @@ def report_setup(operators, probabilities, steps, seed):
                      f"proposal attempts: {operator.MAX_RANDOM_ATTEMPTS}")
 
 
-def report_hybrid_intro(cycle, cycles, seed, trajectory, move_log):
-    """Summarize the hybrid cycle and its primary outputs."""
+def report_hybrid_intro(children, cycles, seed, trajectory):
+    """Summarize the composite's child tasks and output ownership."""
+    from gdpx.providers.configuration import resolve_executor_parameters
     with hmc_box("intro") as box:
         box.line(f"cycle budget: {cycles} | random seed: {seed}")
-        for index, stage in enumerate(cycle):
-            method = stage["method"]
-            executor = stage["runtime"]["executor"]
-            if method == "molecular_dynamics":
-                parameters = executor.get("parameters", {})
-                detail = f"{parameters.get('steps', '?')} MD steps"
-                if "temp" in parameters:
-                    detail += f" at {parameters['temp']:g} K"
-            else:
-                detail = f"{stage['steps']} MC proposals"
-            box.line(
-                f"stage {index}: {method} | {detail} | "
-                f"{executor.get('provider', '?')}/{executor['method']}"
-            )
-        box.line(f"outputs: trajectory {trajectory} | MC moves {move_log}")
+        for index, child in enumerate(children):
+            method = child["method"]
+            params = resolve_executor_parameters(child.get("parameters", {}), method)
+            detail = f"{params.get('steps', 1)} {'MD steps' if method == 'md' else 'MC proposals'}"
+            box.line(f"stage {index}: {child['provider']}/{method} | {detail}")
+        box.line(f"outputs: trajectory {trajectory} | MC moves in child opstat.txt files")
 
 
 def report_status(status, detail):

@@ -360,12 +360,14 @@ class BaseDriver(SingleStructureExecutor):
         return
 
     def _preprocess_constraints(self, atoms: Atoms, run_params: dict) -> None:
-        """Remove existing constraints on atoms and add FixAtoms.
+        """Preserve input constraints unless an explicit expression overrides them.
 
         If have cons in kwargs overwrite current cons stored in atoms.
 
         """
         cons_expr = run_params.pop("constraint", None)
+        if cons_expr is None:
+            return
         atoms.set_constraint(constraint=None)
         _, frozen_indices = evaluate_constraint_expression(atoms, cons_expr)
         if frozen_indices:

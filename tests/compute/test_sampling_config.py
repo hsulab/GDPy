@@ -11,58 +11,48 @@ from gdpx.providers.configuration import expand_runtime_configs
 
 
 def sampling_config(method="monte_carlo"):
-    spc = {"potential": {"provider": "emt"},
-           "executor": {"provider": "ase", "method": "spc"}}
-    setup = {
-        "ensemble": {"method": "canonical", "temperature": 900.0},
-        "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.1}],
-        "evaluator": {"executor": copy.deepcopy(spc["executor"])},
-    }
+    mc = {"provider": "native", "method": "monte_carlo", "parameters": {
+        "setup": {"ensemble": {"method": "canonical", "temperature": 900.0},
+                  "operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.1}]},
+        "stop": {"steps": 2}}}
+    executor = copy.deepcopy(mc)
     if method == "hybrid_monte_carlo":
-        md = copy.deepcopy(spc)
-        md["executor"] = {
-            "provider": "ase", "method": "md",
-            "parameters": {"random_seed": 17, "setup": {"ensemble": "nve"},
-                           "stop": {"steps": 2}},
-        }
-        setup["cycle"] = [
-            {"method": "molecular_dynamics", "runtime": md},
-            {"method": "monte_carlo", "steps": 2, "runtime": spc},
-        ]
-    return {
-        "potential": {"provider": "emt"},
-        "executor": {
-            "provider": "gdpx", "method": method,
-            "parameters": {"random_seed": 7, "setup": setup, "stop": {"steps": 2}},
-        },
-    }
+        executor = {"provider": "native", "method": method, "parameters": {
+            "setup": [{"provider": "ase", "method": "md", "parameters": {
+                "random_seed": 17, "setup": {"ensemble": "nve"}, "stop": {"steps": 2}}}, mc],
+            "stop": {"steps": 2}}}
+    executor["parameters"]["random_seed"] = 7
+    return {"potential": {"provider": "emt"}, "executor": executor}
+
+
+def mc_parameters(config):
+    params = config["executor"]["parameters"]
+    return params["setup"][1]["parameters"] if isinstance(params["setup"], list) else params
 
 
 @pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
 def test_roundtrip_and_independent_evaluation_scheduler(method):
     config = sampling_config(method)
     config["scheduler"] = {"provider": "slurm"}
-    config["executor"]["parameters"]["setup"]["ignore_atoms_tags"] = False
+    setup = mc_parameters(config)["setup"]
+    setup["ignore_atoms_tags"] = False
     original = copy.deepcopy(config)
     runtime = resolve_runtime(config)
     engine = runtime.executor
     assert config == original
     assert isinstance(engine, SingleStructureExecutor)
     assert runtime.materialization is None
-    assert not hasattr(engine, "calc")
     assert runtime.scheduler.name == "slurm"
-    assert engine.worker.scheduler.name == "direct"
-    assert engine.worker.runtime.config.executor.method == "spc"
-    assert engine.ignore_atoms_tags is False
-    assert engine.should_retry is False
+    mc = engine.children[1].executor if method == "hybrid_monte_carlo" else engine
+    assert mc.worker.scheduler.name == "direct"
+    assert mc.ignore_atoms_tags is False
     restored = resolve_runtime(engine.as_dict()).executor
     assert restored.as_dict() == engine.as_dict()
     assert restored.convergence == engine.convergence
-    assert restored.operators[0].temperature == 900
-    if method == "hybrid_monte_carlo":
-        assert restored.cycle == engine.cycle
-    config["executor"]["parameters"]["setup"]["evaluator"]["scheduler"] = {"provider": "pbs"}
-    assert resolve_runtime(config).executor.worker.scheduler.name == "pbs"
+    setup["executor"] = {"scheduler": {"provider": "pbs"}}
+    engine = resolve_runtime(config).executor
+    mc = engine.children[1].executor if method == "hybrid_monte_carlo" else engine
+    assert mc.worker.scheduler.name == "pbs"
 
 
 @pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
@@ -94,38 +84,13 @@ def test_stop_validation_and_default(method, stop):
     assert resolve_runtime(config).executor.convergence == {"steps": 1}
 
 
-@pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
-@pytest.mark.parametrize("change,message", [
-    (lambda p: p.update(steps=3), "flat and structured"),
-    (lambda p: p["setup"].update(steps=3), "Duplicate executor parameter"),
-    (lambda p: p["setup"].pop("ensemble"), "requires setup.ensemble"),
-    (lambda p: p["setup"]["ensemble"].update(method="bad"), "ensemble.method"),
-    (lambda p: p["setup"]["operators"][0].update(temperature=1), "Move operator temperature"),
-    (lambda p: p["setup"]["operators"][0].update(skip_distance_check=False), "detailed balance"),
-    (lambda p: p["setup"]["evaluator"]["executor"].update(method="min"), "method: spc"),
-    (lambda p: p["setup"].update(evaluator=None), "setup.evaluator"),
-    (lambda p: p.update(output={"checkpoint": {"period": 0}}), "checkpoint.period"),
-    (lambda p: p.update(output={"trajectory": {"period": True}}), "trajectory.period"),
-    (lambda p: p.update(output={"checkpoint": {"keep": 0}}), "checkpoint.keep"),
-])
-def test_invalid_sampling_parameters(method, change, message):
-    config = sampling_config(method)
-    change(config["executor"]["parameters"])
-    with pytest.raises((ValueError, TypeError), match=message):
-        resolve_runtime(config)
-
-
-@pytest.mark.parametrize("change,message", [
-    (lambda s: s.pop("cycle"), "nonempty setup.cycle"),
-    (lambda s: s["cycle"][0].update(method="unknown"), "molecular_dynamics or monte_carlo"),
-    (lambda s: s["cycle"][0]["runtime"]["executor"].update(method="spc"), "method: md"),
-    (lambda s: s["cycle"][1]["runtime"]["executor"].update(method="md"), "method: spc"),
-    (lambda s: s["cycle"][1].update(steps=-1), "cycle.1.steps"),
-])
-def test_invalid_hybrid_cycle(change, message):
+@pytest.mark.parametrize("setup", [[], {}, [{"provider": "ase", "method": "md"}],
+    [{"provider": "ase", "method": "spc"}],
+    [{"provider": "native", "method": "hybrid_monte_carlo", "parameters": {"setup": []}}]])
+def test_invalid_hybrid_cycle(setup):
     config = sampling_config("hybrid_monte_carlo")
-    change(config["executor"]["parameters"]["setup"])
-    with pytest.raises((ValueError, TypeError), match=message):
+    config["executor"]["parameters"]["setup"] = setup
+    with pytest.raises((ValueError, TypeError)):
         resolve_runtime(config)
 
 

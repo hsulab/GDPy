@@ -1,22 +1,20 @@
 """Population search using independent MD cooling trajectories and quenched endpoints."""
-import copy
 import json
 import os
-import math
+
+import numpy as np
 
 from ase.io import read, write
 from ase.io.jsonio import encode
 
 from gdpx.execution.factory import create_worker
 from gdpx.execution.fingerprint import payload_digest
-from gdpx.providers.configuration import resolve_executor_parameters
 from ..population.exploration import PopulationBasedExploration
 from ..basin_hopping.engine import canonical_candidates_from_worker_results
 from ..basin_hopping.selection import HoppingStartSelector
 from ..persist.database import GlobalOptimisationDatabase
 from gdpx.execution.checkpoint import write_json
 from ..objective import normalise_objective
-from .simulated_annealing import SimulatedAnnealing
 
 
 class PopulationAnnealing(PopulationBasedExploration):
@@ -26,22 +24,13 @@ class PopulationAnnealing(PopulationBasedExploration):
 
     def __init__(self, population, strategy, convergence=None, objective=None,
                  use_archive=False, **kwargs):
-        # The cooling runner validates temperatures without constructing a worker.
-        SimulatedAnnealing(None, annealing=strategy.get("annealing"), random_seed=0)
         convergence = dict(convergence or {"generation": 1})
         generation = convergence.get("generation")
         if (set(convergence) != {"generation"} or isinstance(generation, bool)
                 or not isinstance(generation, int) or generation < 0):
             raise ValueError("SA convergence requires a nonnegative integer generation.")
-        minimisation = strategy.get("minimisation")
-        if not isinstance(minimisation, dict):
-            raise ValueError("SA requires strategy.minimisation executor parameters.")
-        params = resolve_executor_parameters(minimisation, "min")
-        fmax = params.get("fmax")
-        if (isinstance(params.get("steps"), bool) or not isinstance(params.get("steps"), int)
-                or params["steps"] <= 0 or isinstance(fmax, bool)
-                or not isinstance(fmax, (int, float)) or not math.isfinite(fmax) or fmax <= 0):
-            raise ValueError("SA minimisation requires positive steps and fmax.")
+        if {"annealing", "minimisation"}.intersection(strategy):
+            raise ValueError("Move annealing/minimisation to the native SA runtime setup list.")
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -52,17 +41,21 @@ class PopulationAnnealing(PopulationBasedExploration):
         self.selector = HoppingStartSelector(self.random_streams.get("population"))
 
     def register_worker(self, worker, *args, **kwargs):
-        # Reuse the cooling runner's provider/runtime validation.
-        validator = SimulatedAnnealing(None, annealing=self.strategy_config["annealing"], random_seed=0)
-        validator.register_worker(worker)
+        if isinstance(worker, list) and len(worker) != 1:
+            raise ValueError("Population SA requires exactly one runtime.")
+        candidate = worker[0] if isinstance(worker, list) and len(worker) == 1 else worker
+        if len(candidate._drivers) != 1:
+            raise ValueError("Population SA requires exactly one runtime.")
+        config = candidate.runtime.config
+        if (config.executor.provider, config.executor.method) != ("native", "simulated_annealing"):
+            raise ValueError("Population SA requires a native simulated_annealing runtime.")
+        if candidate.driver.convergence["steps"] != 1:
+            raise ValueError("Population SA requires exactly one cooling/minimisation pass per generation.")
         super().register_worker(worker, *args, **kwargs)
-        create_worker(self._minimum_runtime())
 
     def _minimum_runtime(self):
-        runtime = self.worker.as_dict()
-        runtime["executor"]["method"] = "min"
-        runtime["executor"]["parameters"] = copy.deepcopy(self.strategy_config["minimisation"])
-        runtime["dispatch"]["worker"] = "batch"
+        runtime = self.worker.driver.children[1].config.to_dict()
+        runtime["dispatch"] = self.worker.runtime.config.dispatch.to_dict()
         return runtime
 
     def as_dict(self):
@@ -90,15 +83,14 @@ class PopulationAnnealing(PopulationBasedExploration):
         write_json(self.directory / "population.json", state)
 
     def _cooling(self, generation, frames, seed):
-        cooling = SimulatedAnnealing(
-            {"method": "direct", "frames": frames}, annealing=self.strategy_config["annealing"],
-            directory=self.directory / f"gen{generation}" / "sim", random_seed=seed)
         runtime = self.worker.as_dict()
-        params = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-        params["velocity_seed"] = None
-        runtime["executor"]["parameters"] = params
-        cooling.register_worker(create_worker(runtime))
-        return cooling
+        md = runtime["executor"]["parameters"]["setup"][0]["parameters"]
+        if {"setup", "output", "stop"}.intersection(md):
+            velocities = md.setdefault("setup", {}).setdefault("velocities", {})
+            velocities.update(seed=None, initialize="always")
+        else:
+            md.update(velocity_seed=None, ignore_atoms_velocities=True)
+        return create_worker(runtime, directory=self.directory / f"gen{generation}" / "sim")
 
     def run(self):
         state = self._checkpoint()
@@ -136,14 +128,10 @@ class PopulationAnnealing(PopulationBasedExploration):
                 os.replace(root / "inputs.tmp.xyz", inputs)
             self.random_streams.restore(plan["after_input_rng"])
             frames = read(inputs, ":")
-            if generation:
-                cooling = self._cooling(generation, frames, plan["seed"])
-                cooling.run()
-                if not cooling.read_convergence():
-                    return
-                frames = read(cooling.directory / "final.xyz", ":")
-            worker = create_worker(self._minimum_runtime(), directory=root / "min")
-            worker.run(frames, rng_states=[plan["seed"]] * len(frames))
+            worker = (self._cooling(generation, frames, plan["seed"]) if generation
+                      else create_worker(self._minimum_runtime(), directory=root / "min"))
+            seeds = np.random.default_rng(plan["seed"]).integers(0, 2**31 - 1, len(frames)).tolist()
+            worker.run(frames, rng_states=seeds)
             worker.inspect(resubmit=True)
             if worker.get_number_of_running_jobs():
                 return
@@ -192,7 +180,7 @@ class PopulationAnnealing(PopulationBasedExploration):
             generation = int(key)
             root = self.directory / f"gen{generation}"
             if generation and (root / "inputs.xyz").exists():
-                workers.extend(self._cooling(generation, read(root / "inputs.xyz", ":"), plan["seed"]).get_workers())
+                workers.append(self._cooling(generation, read(root / "inputs.xyz", ":"), plan["seed"]))
             if (root / "min").exists():
                 workers.append(create_worker(self._minimum_runtime(), directory=root / "min"))
         return workers

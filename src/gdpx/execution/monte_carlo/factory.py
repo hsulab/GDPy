@@ -1,98 +1,123 @@
-"""Resolve sampling configuration without materializing an outer calculator."""
-
+"""Bind native tasks and their children to one fixed potential surface."""
 import copy
+import math
 from collections.abc import Mapping
 from dataclasses import replace
 
 from gdpx.execution.factory import create_worker
 from gdpx.execution.runtime import Runtime
-from gdpx.providers.configuration import RuntimeConfig, resolve_executor_parameters
+from gdpx.execution.composite import CompositeExecutor
+from gdpx.providers.configuration import child_executor, resolve_executor_parameters
 from gdpx.providers.specs import thaw
-
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
-from .hybrid_monte_carlo import HybridMonteCarlo, validate_cycle
+from .hybrid_monte_carlo import HybridMonteCarlo
+
+
+def resolve_child(config, definition, resolver):
+    definition = copy.deepcopy(definition)
+    scheduler = definition.pop("scheduler", None)
+    child = dict(potential=config.potential.to_dict(),
+                 modifiers=[item.to_dict() for item in config.modifiers],
+                 executor=definition, dispatch={"worker": "batch"})
+    if scheduler is not None:
+        child["scheduler"] = scheduler
+    return resolver.resolve(child)
+
+
+def validate_annealing(children):
+    md = resolve_executor_parameters(children[0].config.executor.parameters, "md")
+    start, end = md.get("temp"), md.get("tend")
+    if (md.get("ensemble") not in {"nvt", "npt"} or
+            any(isinstance(t, bool) or not isinstance(t, (float, int)) or not math.isfinite(t) or t <= 0
+                for t in (start, end)) or end > start):
+        raise ValueError("SA requires thermostatted MD with positive starting temperature and setup.tend <= start.")
+    if not isinstance(md.get("steps"), int) or isinstance(md["steps"], bool) or md["steps"] <= 0:
+        raise ValueError("SA MD stop.steps must be positive.")
+    # Current supported temperature-ramp execution contract.
+    provider = children[0].config.executor.provider
+    controller = md.get("controller", {}).get("name")
+    if provider != "ase" or controller not in {"berendsen", "langevin"}:
+        raise ValueError("SA currently supports verified ASE berendsen/langevin temperature ramps.")
+    params = resolve_executor_parameters(children[1].config.executor.parameters, "min")
+    if (isinstance(params.get("steps"), bool) or not isinstance(params.get("steps"), int)
+            or params["steps"] <= 0 or isinstance(params.get("fmax"), bool)
+            or not isinstance(params.get("fmax"), (int, float))
+            or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
+        raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
 
 
 def resolve_sampling_runtime(config, resolver):
     method = config.executor.method
     if config.dispatch.share_workdir:
-        raise ValueError("Sampling executors do not support dispatch.share_workdir.")
+        raise ValueError("Native executors do not support dispatch.share_workdir.")
     raw = thaw(config.executor.parameters)
     unknown = raw.keys() - {"setup", "output", "stop", "random_seed"}
     if unknown:
-        raise ValueError("Sampling parameters require setup/output/stop; unsupported: "
-                         + ", ".join(sorted(unknown)))
-    for section in ("setup", "output", "stop"):
-        if not isinstance(raw.get(section, {}), Mapping):
-            raise TypeError(f"executor.parameters.{section} must be a mapping.")
-    setup = raw.get("setup", {})
-    allowed = {"ensemble", "operators", "ignore_atoms_tags", "evaluator"}
-    if method == "hybrid_monte_carlo":
-        allowed.add("cycle")
-    if setup.keys() - allowed:
-        raise ValueError("Unsupported sampling setup: " + ", ".join(sorted(setup.keys() - allowed)))
-    operators, _ = resolve_monte_carlo_system(
-        {key: value for key, value in setup.items() if key in {"ensemble", "ignore_atoms_tags"}},
-        setup.get("operators"), method,
-    )
+        raise ValueError("Native parameters require setup/output/stop; unsupported: " + ", ".join(sorted(unknown)))
     convergence = resolve_monte_carlo_convergence(raw.get("stop", {}), method)
     parameters = resolve_executor_parameters(raw, method)
-    dump_period = parameters.get("dump_period", 1)
-    ckpt_period = parameters.get("ckpt_period", 100)
-    for name, value in (("output.trajectory.period", dump_period),
-                        ("output.checkpoint.period", ckpt_period)):
+    cadence = {"dump_period": parameters.get("dump_period", 1),
+               "ckpt_period": parameters.get("ckpt_period", 100),
+               "ckpt_keep": parameters.get("ckpt_number", 2)}
+    for key, label in (("dump_period", "trajectory.period"), ("ckpt_period", "checkpoint.period"),
+                       ("ckpt_keep", "checkpoint.keep")):
+        value = cadence[key]
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-            raise ValueError(f"{name} must be a positive integer.")
-    ckpt_keep = parameters.get("ckpt_number", 2)
-    if not isinstance(ckpt_keep, int) or isinstance(ckpt_keep, bool) or ckpt_keep <= 0:
-        raise ValueError("output.checkpoint.keep must be a positive integer.")
-    evaluator = setup.get("evaluator")
-    if not isinstance(evaluator, Mapping) or evaluator.keys() - {"executor", "scheduler"}:
-        raise ValueError("setup.evaluator requires executor and optional scheduler.")
-    if not isinstance(evaluator.get("executor"), Mapping) or evaluator["executor"].get("method") != "spc":
-        raise ValueError(f"{method} requires setup.evaluator.executor.method: spc.")
-    child = {
-        "potential": config.potential.to_dict(),
-        "modifiers": [modifier.to_dict() for modifier in config.modifiers],
-        "executor": copy.deepcopy(evaluator["executor"]),
-        "dispatch": {"worker": "single"},
-    }
-    if "scheduler" in evaluator:
-        child["scheduler"] = copy.deepcopy(evaluator["scheduler"])
-    child_runtime = resolver.resolve(child)
-    kwargs = {}
-    stage_runtimes = []
-    cls = MonteCarlo
-    if method == "hybrid_monte_carlo":
-        cls = HybridMonteCarlo
-        cycle = validate_cycle(setup.get("cycle"))
-        for stage in cycle:
-            stage_runtime = RuntimeConfig.from_mapping(stage["runtime"])
-            if stage_runtime.dispatch.share_workdir:
-                raise ValueError("Hybrid stages require separate working directories.")
-            # Resolve stage capabilities now so preparation fails before launching work.
-            resolved_stage = resolver.resolve(stage_runtime)
-            stage_runtimes.append(resolved_stage)
-            stage["runtime"] = resolved_stage.config.to_dict()
-        kwargs["cycle"] = cycle
-        raw["setup"]["cycle"] = cycle
-    executor = cls(
-        operators=operators, convergence=convergence,
-        random_seed=raw.get("random_seed"), dump_period=dump_period,
-        ckpt_period=ckpt_period, ignore_atoms_tags=setup.get("ignore_atoms_tags", True),
-        should_retry=False, restart=False, **kwargs,
-    )
-    executor.register_worker(create_worker(child_runtime))
-    executor.ckpt_keep = ckpt_keep
-    executor._cycle_runtimes = stage_runtimes
-    raw["setup"]["evaluator"]["executor"] = child_runtime.config.executor.to_dict()
-    # Persist backend choices while retaining the public sampling configuration.
-    config = replace(config, potential=child_runtime.config.potential,
-                     modifiers=child_runtime.config.modifiers,
-                     executor=replace(config.executor, parameters=raw))
-    executor.runtime_config = config.to_dict()
-    return Runtime(
-        potential=config.potential_spec(), materialization=None, executor=executor,
-        modifiers=config.modifier_specs(), config=config,
-        scheduler=resolver.resolve_scheduler(config),
-    )
+            raise ValueError(f"output.{label} must be a positive integer.")
+    if method == "monte_carlo":
+        setup = raw.get("setup", {})
+        allowed = {"ensemble", "operators", "ignore_atoms_tags", "executor"}
+        if not isinstance(setup, Mapping) or setup.keys() - allowed:
+            raise ValueError("Unsupported MC setup; use ensemble, operators, ignore_atoms_tags, and optional executor.")
+        operators, _ = resolve_monte_carlo_system(
+            {k: v for k, v in setup.items() if k in {"ensemble", "ignore_atoms_tags"}},
+            setup.get("operators"), method)
+        evaluator = child_executor(setup.get("executor", {}), default_spc=True)
+        if evaluator["method"] != "spc" or evaluator["provider"] == "native":
+            raise ValueError("MC setup.executor requires method: spc.")
+        child = resolve_child(config, evaluator, resolver)
+        config = replace(config, potential=child.config.potential, modifiers=child.config.modifiers)
+        executor = MonteCarlo(operators=operators, convergence=convergence,
+                              random_seed=raw.get("random_seed"), dump_period=cadence["dump_period"],
+                              ckpt_period=cadence["ckpt_period"],
+                              ignore_atoms_tags=setup.get("ignore_atoms_tags", True), should_retry=False)
+        executor.ckpt_keep = cadence["ckpt_keep"]
+        executor.register_worker(create_worker(child))
+        executor.runtime_config = config.to_dict()
+    else:
+        definitions = raw["setup"]
+        methods = [item["method"] for item in definitions]
+        if method == "hybrid_monte_carlo":
+            if set(methods) != {"md", "monte_carlo"}:
+                raise ValueError("HMC setup requires MD and conventional Monte Carlo children only.")
+            for item in definitions:
+                if item["method"] == "monte_carlo" and item["provider"] != "native":
+                    raise ValueError("HMC Monte Carlo children require provider: native.")
+            first = next(i for i, item in enumerate(definitions) if item["method"] == "monte_carlo")
+        else:
+            if methods != ["md", "min"]:
+                raise ValueError("SA setup requires exactly MD then min.")
+            if config.modifiers:
+                raise ValueError("SA currently requires an unmodified potential.")
+            first = 0
+        children = [None] * len(definitions)
+        children[first] = resolve_child(config, definitions[first], resolver)
+        config = replace(config, potential=children[first].config.potential,
+                         modifiers=children[first].config.modifiers)
+        for i, definition in enumerate(definitions):
+            if i != first:
+                children[i] = resolve_child(config, definition, resolver)
+        if method == "hybrid_monte_carlo":
+            initializer = children[first].executor.worker.runtime
+            cls = HybridMonteCarlo
+        else:
+            validate_annealing(children)
+            initial = {"provider": definitions[0]["provider"], "method": "spc"}
+            if "scheduler" in definitions[0]:
+                initial["scheduler"] = definitions[0]["scheduler"]
+            initializer = resolve_child(config, initial, resolver)
+            cls = CompositeExecutor
+        executor = cls(config, children, initializer, convergence, **cadence)
+    return Runtime(potential=config.potential_spec(), materialization=None, executor=executor,
+                   modifiers=config.modifier_specs(), config=config,
+                   scheduler=resolver.resolve_scheduler(config))

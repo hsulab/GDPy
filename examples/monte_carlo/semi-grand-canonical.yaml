@@ -1,8 +1,7 @@
-# gdp compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/semi-grand-canonical.yaml
 potential:
   provider: emt
 executor:
-  provider: gdpx
+  provider: native
   method: monte_carlo
   parameters:
     random_seed: 1112
@@ -27,11 +26,6 @@ executor:
         - Ni
         probability: 0.5
         max_random_attempts: 1
-      evaluator:
-        executor:
-          provider: ase
-          method: spc
-          parameters: {}
     output:
       trajectory:
         period: 1

@@ -7,8 +7,8 @@ system:
   initial:
     total_size: 2
     builder_allocations:
-      - builder: random
-        size: 2
+    - builder: random
+      size: 2
   generation:
     total_size: 4
   builders:
@@ -17,13 +17,5 @@ system:
       fname: ../../assets/cu8_seeds.xyz
 strategy:
   method: simulated_annealing
-  annealing:
-    start_temperature: 1200.0
-    final_temperature: 300.0
-    schedule: linear
   convergence:
     generation: 3
-  minimisation:
-    stop:
-      steps: 1000
-      fmax: 0.05

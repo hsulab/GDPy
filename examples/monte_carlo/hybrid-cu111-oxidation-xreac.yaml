@@ -1,82 +1,74 @@
-# gdp compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
-potential: &id001
+potential:
   provider: reax
   backend: xreac
   parameters:
     model: bundled:ffield.reax.CuOHCl.2010
 executor:
-  provider: gdpx
+  provider: native
   method: hybrid_monte_carlo
   parameters:
     random_seed: 2033
     setup:
-      ensemble:
-        method: grand_canonical
-        temperature: 600.0
-        chemical_potentials:
-          O: -2.0
-      operators:
-      - method: exchange
-        particles:
-        - O
-        region:
-          method: lattice
-          origin:
-          - 0.0
-          - 0.0
-          - 6.7
-          cell:
-          - - 5.11238203
-            - 0.0
-            - 0.0
-          - - 0.0
-            - 4.42745271
-            - 0.0
-          - - 0.0
-            - 0.0
-            - 4.5
-        max_random_attempts: 1
-      evaluator:
-        executor: &id002
-          provider: ase
-          method: spc
-          parameters:
-            setup:
-              constraint: '`zbot 4`'
-      cycle:
-      - method: molecular_dynamics
-        runtime:
-          potential: *id001
+    - provider: ase
+      method: md
+      parameters:
+        random_seed: 2026
+        setup:
+          ensemble: nvt
+          timestep: 0.25
+          constraint: '`zbot 4`'
+          velocities:
+            seed: 2026
+            remove_rotation: false
+          regulator:
+            name: langevin
+            targets:
+              temperature: 600.0
+            parameters:
+              friction: 0.01
+        output:
+          trajectory:
+            period: 5
+        stop:
+          steps: 40
+    - provider: native
+      method: monte_carlo
+      parameters:
+        setup:
+          ensemble:
+            method: grand_canonical
+            temperature: 600.0
+            chemical_potentials:
+              O: -2.0
+          operators:
+          - method: exchange
+            particles:
+            - O
+            region:
+              method: lattice
+              origin:
+              - 0.0
+              - 0.0
+              - 6.7
+              cell:
+              - - 5.11238203
+                - 0.0
+                - 0.0
+              - - 0.0
+                - 4.42745271
+                - 0.0
+              - - 0.0
+                - 0.0
+                - 4.5
+            max_random_attempts: 1
           executor:
             provider: ase
-            method: md
+            method: spc
             parameters:
-              random_seed: 2026
               setup:
-                ensemble: nvt
-                timestep: 0.25
                 constraint: '`zbot 4`'
-                velocities:
-                  seed: 2026
-                  remove_rotation: false
-                regulator:
-                  name: langevin
-                  targets:
-                    temperature: 600.0
-                  parameters:
-                    friction: 0.01
-              output:
-                trajectory:
-                  period: 5
-              stop:
-                steps: 40
-      - method: monte_carlo
-        steps: 3
-        runtime:
-          potential: *id001
-          executor: *id002
-          dispatch:
-            worker: single
+        stop:
+          steps: 3
     output:
       trajectory:
         period: 1

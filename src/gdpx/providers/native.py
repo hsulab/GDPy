@@ -7,7 +7,7 @@ from .provider import Provider
 
 
 @dataclass(frozen=True)
-class SamplingExecutorFactory:
+class NativeExecutorFactory:
     method: str
 
     def resolve_composite(self, config, resolver):
@@ -16,13 +16,13 @@ class SamplingExecutorFactory:
         return resolve_sampling_runtime(config, resolver)
 
 
-SAMPLING_PROVIDER = Provider(
-    name="gdpx",
+NATIVE_PROVIDER = Provider(
+    name="native",
     version="1",
     capabilities={
         CapabilityKind.EXECUTOR: {
-            name: SamplingExecutorFactory(name)
-            for name in ("monte_carlo", "hybrid_monte_carlo")
+            name: NativeExecutorFactory(name)
+            for name in ("monte_carlo", "hybrid_monte_carlo", "simulated_annealing")
         },
     },
 )

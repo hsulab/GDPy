@@ -1,11 +1,10 @@
-# gdp compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/cu111-oxidation-xreac.yaml
 potential:
   provider: reax
   backend: xreac
   parameters:
     model: bundled:ffield.reax.CuOHCl.2010
 executor:
-  provider: gdpx
+  provider: native
   method: monte_carlo
   parameters:
     random_seed: 2033
@@ -36,13 +35,12 @@ executor:
             - 0.0
             - 4.5
         max_random_attempts: 1
-      evaluator:
-        executor:
-          provider: ase
-          method: spc
-          parameters:
-            setup:
-              constraint: '`zbot 4`'
+      executor:
+        provider: ase
+        method: spc
+        parameters:
+          setup:
+            constraint: '`zbot 4`'
     output:
       trajectory:
         period: 1

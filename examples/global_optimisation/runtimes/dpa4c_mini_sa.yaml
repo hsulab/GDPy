@@ -1,0 +1,42 @@
+potential:
+  provider: deepmd
+  backend: ase
+  parameters:
+    model: ../../../../models/dpa4c-foundation.pt2
+executor:
+  provider: native
+  method: simulated_annealing
+  parameters:
+    setup:
+    - provider: ase
+      method: md
+      parameters:
+        setup:
+          ensemble: nvt
+          timestep: 0.5
+          constraint: '`zbot 4`'
+          velocities:
+            initialize: if_missing
+            remove_rotation: false
+          regulator:
+            name: langevin
+            targets:
+              temperature: 600.0
+            parameters:
+              friction: 0.01
+          tend: 100.0
+        stop:
+          steps: 1000
+        output:
+          trajectory:
+            period: 10
+    - provider: ase
+      method: min
+      parameters:
+        setup:
+          constraint: '`zbot 4`'
+        stop:
+          steps: 1000
+          fmax: 0.05
+    stop:
+      steps: 1

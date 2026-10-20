@@ -18,6 +18,13 @@ EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
     """Translate structured public executor parameters for existing providers."""
     data = copy.deepcopy(thaw(parameters))
+    if method in {"hybrid_monte_carlo", "simulated_annealing"}:
+        setup = data.pop("setup", None)
+        if not isinstance(setup, list) or not setup:
+            raise ProviderConfigurationError(f"{method} requires a nonempty parameters.setup list; migrate old cycle inputs.")
+        resolved = resolve_executor_parameters({**data, "setup": {}}, None)
+        resolved["setup"] = setup
+        return resolved
     sections = EXECUTOR_PARAMETER_SECTIONS.intersection(data)
     if not sections:
         return data
@@ -515,25 +522,38 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     if require_method and not method:
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
     if label == "executor":
+        if provider == "gdpx":
+            raise ProviderConfigurationError("Executor provider gdpx was renamed to native; migrate the input and start a new run.")
         resolve_executor_parameters(parameters, method)
-        if provider == "gdpx" and method in {"monte_carlo", "hybrid_monte_carlo"}:
+        if provider == "native" and method in {"monte_carlo", "hybrid_monte_carlo", "simulated_annealing"}:
             setup = parameters.get("setup", {})
-            if isinstance(setup, Mapping):
-                evaluator = setup.get("evaluator")
-                if isinstance(evaluator, Mapping) and isinstance(evaluator.get("executor"), Mapping):
-                    evaluator["executor"] = _component(
-                        evaluator["executor"], "executor", require_method=True
-                    ).to_dict()
-                cycle = setup.get("cycle")
-                if isinstance(cycle, list):
-                    for stage in cycle:
-                        if isinstance(stage, Mapping) and isinstance(stage.get("runtime"), Mapping):
-                            stage["runtime"] = RuntimeConfig.from_mapping(stage["runtime"]).to_dict()
+            if isinstance(setup, list):
+                parameters["setup"] = [child_executor(item) for item in setup]
+            elif isinstance(setup, Mapping):
+                if "evaluator" in setup:
+                    raise ProviderConfigurationError("Remove setup.evaluator; MC defaults to ASE spc. Use optional setup.executor for overrides.")
+                if "executor" in setup:
+                    setup["executor"] = child_executor(setup["executor"], default_spc=True)
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
     if label == "modifier":
         return ModifierConfig(str(provider or ""), method, parameters, backend)
     return ComponentConfig(str(provider or ""), method, parameters)
+
+
+def child_executor(value, *, default_spc=False):
+    """Normalize a child definition without allowing a second energy surface."""
+    if not isinstance(value, Mapping):
+        raise ProviderConfigurationError("Child executor must be a mapping.")
+    data = copy.deepcopy(dict(value))
+    scheduler = data.pop("scheduler", None)
+    if default_spc:
+        data.setdefault("provider", "ase")
+        data.setdefault("method", "spc")
+    result = _component(data, "executor", require_method=True).to_dict()
+    if scheduler is not None:
+        result["scheduler"] = scheduler_component(scheduler).to_dict()
+    return result
 
 
 def scheduler_component(value: Any) -> SchedulerConfig:

@@ -14,33 +14,33 @@ system:
         CO: 1
       region:
         method: lattice
-        # Sample the CO centre of mass 1.5–3.5 Å above the top Cu layer.
-        origin: [0.0, 0.0, 7.67424245]
+        origin:
+        - 0.0
+        - 0.0
+        - 7.67424245
         cell:
-          - [5.1123820279787395, 0.0, 0.0]
-          - [0.0, 4.427452710080594, 0.0]
-          - [0.0, 0.0, 2.0]
-      covalent_ratio: [0.8, 2.0]
+        - - 5.1123820279787395
+          - 0.0
+          - 0.0
+        - - 0.0
+          - 4.427452710080594
+          - 0.0
+        - - 0.0
+          - 0.0
+          - 2.0
+      covalent_ratio:
+      - 0.8
+      - 2.0
   initial:
     total_size: 4
     builder_allocations:
-      - builder: random
-        size: 4
+    - builder: random
+      size: 4
   generation:
     total_size: 4
 strategy:
   method: simulated_annealing
   objective:
     target: energy
-  annealing:
-    start_temperature: 600.0
-    final_temperature: 100.0
-    schedule: linear
   convergence:
     generation: 3
-  minimisation:
-    setup:
-      constraint: '`zbot 4`'
-    stop:
-      steps: 1000
-      fmax: 0.05

@@ -19,7 +19,7 @@ def validate_strategy(strategy, method=None):
     allowed = {
         "genetic_algorithm": {"operators", "reproduction", "mutation", "completion", "substrate"},
         "basin_hopping": {"operators", "steps_per_chain", "selection"},
-        "simulated_annealing": {"annealing", "minimisation"},
+        "simulated_annealing": set(),
     }
     if not isinstance(selected, str) or selected not in allowed:
         raise ValueError("strategy.method must be genetic_algorithm, basin_hopping, or simulated_annealing.")
@@ -27,6 +27,8 @@ def validate_strategy(strategy, method=None):
         raise ValueError(f"Expected strategy.method: {method}, got {selected!r}.")
     if "num_mcmoves" in strategy:
         raise ValueError("strategy.num_mcmoves was renamed to strategy.steps_per_chain.")
+    if selected == "simulated_annealing" and {"annealing", "minimisation"}.intersection(strategy):
+        raise ValueError("Move SA annealing/minimisation settings to a native simulated_annealing runtime setup list; start a new run.")
     unknown = strategy.keys() - allowed[selected] - {"method"}
     if unknown:
         raise ValueError(

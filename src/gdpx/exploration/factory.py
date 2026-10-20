@@ -66,7 +66,7 @@ def create_exploration(config):
     if method in {"monte_carlo", "hybrid_monte_carlo"}:
         raise ValueError(
             f"{method} moved to gdp compute INPUT --runtime RUNTIME.yaml; "
-            "use executor.provider: gdpx and executor.parameters.setup/output/stop. "
+            "use executor.provider: native and executor.parameters.setup/output/stop. "
             "Start a new compute working directory."
         )
     broadcast = parameters.pop('broadcast', None)

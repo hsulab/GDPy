@@ -79,32 +79,20 @@ def test_mc_box_ascii_fallback(caplog, monkeypatch):
 
 def test_hybrid_intro_reports_cycle_and_outputs(caplog):
     cycle = [
-        {
-            "method": "molecular_dynamics",
-            "runtime": {"executor": {
-                "provider": "ase", "method": "md",
-                "parameters": {"steps": 20, "temp": 1200.0},
-            }},
-        },
-        {
-            "method": "monte_carlo",
-            "steps": 5,
-            "runtime": {"executor": {
-                "provider": "ase", "method": "spc", "parameters": {},
-            }},
-        },
+        {"provider": "ase", "method": "md", "parameters": {"steps": 20, "temp": 1200}},
+        {"provider": "native", "method": "monte_carlo", "parameters": {"stop": {"steps": 5}}},
     ]
     config.logger.addHandler(caplog.handler)
     try:
-        report_hybrid_intro(cycle, 10, 1112, "mc.xyz", "mcmoves.log")
+        report_hybrid_intro(cycle, 10, 1112, "mc.xyz")
     finally:
         config.logger.removeHandler(caplog.handler)
     text = caplog.text
     assert "hybrid monte carlo | intro" in text
     assert "cycle budget: 10 | random seed: 1112" in text
-    assert "stage 0: molecular_dynamics | 20 MD steps at 1200 K | ase/md" in text
-    assert "stage 1: monte_carlo | 5 MC proposals | ase/spc" in text
-    assert "outputs: trajectory mc.xyz | MC moves mcmoves.log" in text
+    assert "stage 0: ase/md | 20 MD steps" in text
+    assert "stage 1: native/monte_carlo | 5 MC proposals" in text
+    assert "outputs: trajectory mc.xyz | MC moves in child opstat.txt files" in text
 
 
 def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
@@ -116,7 +104,7 @@ def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
         with mc_box("visible") as box:
             box.line("concise progress")
 
-    engine._run_with_worker = run_with_worker
+    engine._run = run_with_worker
     engine.read_convergence = lambda: True
     original_level = config.logger.level
     config.logger.setLevel(logging.INFO)

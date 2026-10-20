@@ -1,8 +1,7 @@
-# gdp compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/canonical.yaml
 potential:
   provider: emt
 executor:
-  provider: gdpx
+  provider: native
   method: monte_carlo
   parameters:
     random_seed: 1112
@@ -16,11 +15,6 @@ executor:
         - Cu
         max_disp: 0.1
         max_random_attempts: 1
-      evaluator:
-        executor:
-          provider: ase
-          method: spc
-          parameters: {}
     output:
       trajectory:
         period: 1

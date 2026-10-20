@@ -1,60 +1,47 @@
-# gdp compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/hybrid-canonical.yaml
-potential: &id001
+potential:
   provider: emt
 executor:
-  provider: gdpx
+  provider: native
   method: hybrid_monte_carlo
   parameters:
     random_seed: 1112
     setup:
-      ensemble:
-        method: canonical
-        temperature: 1200.0
-      operators:
-      - method: move
-        particles:
-        - Cu
-        max_disp: 0.1
-        max_random_attempts: 1
-      evaluator:
-        executor: &id002
-          provider: ase
-          method: spc
-          parameters: {}
-      cycle:
-      - method: molecular_dynamics
-        runtime:
-          potential:
-            provider: emt
-          executor:
-            provider: ase
-            method: md
+    - provider: ase
+      method: md
+      parameters:
+        random_seed: 7
+        setup:
+          ensemble: nvt
+          timestep: 1.0
+          velocities:
+            seed: 7
+            remove_rotation: false
+          regulator:
+            name: langevin
+            targets:
+              temperature: 1200.0
             parameters:
-              random_seed: 7
-              setup:
-                ensemble: nvt
-                timestep: 1.0
-                velocities:
-                  seed: 7
-                  remove_rotation: false
-                regulator:
-                  name: langevin
-                  targets:
-                    temperature: 1200.0
-                  parameters:
-                    friction: 0.01
-              output:
-                trajectory:
-                  period: 5
-              stop:
-                steps: 20
-      - method: monte_carlo
-        steps: 5
-        runtime:
-          potential: *id001
-          executor: *id002
-          dispatch:
-            worker: single
+              friction: 0.01
+        output:
+          trajectory:
+            period: 5
+        stop:
+          steps: 20
+    - provider: native
+      method: monte_carlo
+      parameters:
+        setup:
+          ensemble:
+            method: canonical
+            temperature: 1200.0
+          operators:
+          - method: move
+            particles:
+            - Cu
+            max_disp: 0.1
+            max_random_attempts: 1
+        stop:
+          steps: 5
     output:
       trajectory:
         period: 1

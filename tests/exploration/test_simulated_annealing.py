@@ -39,11 +39,14 @@ def test_md_runtime_validation_is_provider_independent(monkeypatch, provider, en
 
 @pytest.mark.parametrize("fmax", [None, True, 0., -1., float("nan"), float("inf")])
 def test_population_requires_valid_minimisation(fmax):
-    from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
-    with pytest.raises(ValueError, match="positive steps and fmax"):
-        PopulationAnnealing(None, dict(method="simulated_annealing",
-                                       annealing=dict(start_temperature=600., final_temperature=300.),
-                                       minimisation=dict(stop=dict(steps=10, fmax=fmax))))
+    from gdpx.execution import resolve_runtime
+    from pathlib import Path
+    import yaml
+    config = yaml.safe_load((Path(__file__).resolve().parents[2] /
+                            "examples/global_optimisation/runtimes/emt_sa.yaml").read_text())
+    config["executor"]["parameters"]["setup"][1]["parameters"]["stop"]["fmax"] = fmax
+    with pytest.raises(ValueError, match="positive stop.steps and stop.fmax"):
+        resolve_runtime(config)
 
 
 def engine(path):
@@ -102,12 +105,13 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     monkeypatch.chdir(Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/simulated_annealing")
     config = yaml.safe_load(Path("cu8.yaml").read_text())
     assert "runtime" not in config
-    runtime = yaml.safe_load(Path("../../runtimes/emt_md.yaml").read_text())
-    runtime["executor"]["parameters"]["stop"]["steps"] = 1
-    runtime["executor"]["parameters"]["output"]["trajectory"]["period"] = 1
-    config["strategy"]["annealing"] = dict(start_temperature=600., final_temperature=300.)
+    runtime = yaml.safe_load(Path("../../runtimes/emt_sa.yaml").read_text())
+    md = runtime["executor"]["parameters"]["setup"][0]["parameters"]
+    md["stop"]["steps"] = 1
+    md["output"]["trajectory"]["period"] = 1
+    md["setup"]["regulator"]["targets"]["temperature"] = 600.
+    runtime["executor"]["parameters"]["setup"][1]["parameters"]["stop"] = dict(steps=100, fmax=.1)
     config["strategy"]["convergence"]["generation"] = 2
-    config["strategy"]["minimisation"]["stop"] = dict(steps=100, fmax=.1)
     config["system"]["generation"]["total_size"] = 2
     def construct():
         obj = create_exploration(copy.deepcopy(config))
@@ -150,9 +154,13 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     assert not (results / "population.xyz").exists()
     assert len(read(results / "all_candidates.xyz", ":")) == 6
     assert (results / "pop.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-    assert len(resumed.get_workers()) == 5
+    assert len(resumed.get_workers()) == 3
+    for worker in resumed.get_workers()[1:]:
+        definition = worker.metadata.calculation_set(worker.metadata.inputs.read(), ".")
+        seeds = [seed for batch in definition["batches"] for seed in batch["random_seeds"]]
+        assert len(seeds) == len(set(seeds)) == 2
     for generation in (1, 2):
-        assert (tmp_path / f"gen{generation}" / "min").is_dir()
+        assert not (tmp_path / f"gen{generation}" / "min").exists()
         assert (tmp_path / f"gen{generation}" / "sim").is_dir()
         assert not (tmp_path / f"gen{generation}" / "minimisation").exists()
         assert not (tmp_path / f"gen{generation}" / "cooling").exists()
@@ -160,14 +168,14 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
         cooling = resumed._cooling(generation, read(tmp_path / f"gen{generation}" / "inputs.xyz", ":"),
                                   state["plans"][str(generation)]["seed"])
         from gdpx.providers.configuration import resolve_executor_parameters
-        params = resolve_executor_parameters(cooling.get_workers()[0].as_dict()["executor"]["parameters"], "md")
+        params = resolve_executor_parameters(cooling.driver.children[0].config.executor.parameters, "md")
         assert params["temp"] == 600.
         assert params["tend"] == 300.
     (results / "pop.png").unlink()
     resumed.run()
     assert (results / "pop.png").is_file()
     assert len(list(db.connection.select(relaxed=1))) == 6
-    config["strategy"]["annealing"]["start_temperature"] = 500.
+    md["setup"]["regulator"]["targets"]["temperature"] = 500.
     with pytest.raises(ValueError, match="configuration changed"):
         construct().run()
 

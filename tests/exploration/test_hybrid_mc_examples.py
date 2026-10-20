@@ -18,8 +18,8 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
     params = yaml.safe_load((EXAMPLES / f"hybrid-{name}.yaml").read_text())
     settings = params["executor"]["parameters"]
     settings["stop"]["steps"] = 2
-    settings["setup"]["cycle"][1]["steps"] = 2
-    md = settings["setup"]["cycle"][0]["runtime"]["executor"]["parameters"]
+    settings["setup"][1]["parameters"]["stop"]["steps"] = 2
+    md = settings["setup"][0]["parameters"]
     md["stop"]["steps"] = 2
     md["output"]["trajectory"]["period"] = 1
     source = "cu32" if name == "canonical" else "cu16ni16"
@@ -35,13 +35,12 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
         assert all(a.get_chemical_formula() == "Cu32" for a in frames)
     else:
         assert all(set(a.symbols) <= {"Cu", "Ni"} for a in frames)
-    assert len((chain / "mcmoves.log").read_text().splitlines()) == 5
-    assert not (chain / "opstat.txt").exists()
-    assert len(read(chain / "mc_attempts.xyz", ":")) == 1
     for cycle in (1, 2):
         path = chain / "calculations" / f"step.{cycle:04d}"
         assert (path / "procedure.0000" / "_meta" / "inputs.json").is_file()
-        assert len(list((path / "procedure.0001").glob("proposal.*/_meta/inputs.json"))) == 2
+        child = path / "procedure.0001" / "cand0"
+        assert len((child / "opstat.txt").read_text().splitlines()) == 3
+        assert len(read(child / "mc.xyz", ":")) == 3
     before = (chain / "mc.xyz").read_bytes()
     run_computation(inputs, params, directory=tmp_path)
     assert (chain / "mc.xyz").read_bytes() == before

@@ -370,12 +370,6 @@ def _strip_inferred_backends(candidate, configured):
     for actual, expected in components:
         if "backend" not in expected:
             actual.pop("backend", None)
-    executor = configured["executor"]
-    if (executor["provider"], executor["method"]) == ("gdpx", "hybrid_monte_carlo"):
-        actual_cycle = candidate["executor"]["parameters"].get("setup", {}).get("cycle", [])
-        expected_cycle = executor["parameters"].get("setup", {}).get("cycle", [])
-        for actual, expected in zip(actual_cycle, expected_cycle):
-            _strip_inferred_backends(actual["runtime"], expected["runtime"])
 
 
 def _restore(plan: ComputePlan):
