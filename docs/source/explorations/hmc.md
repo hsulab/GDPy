@@ -23,8 +23,25 @@ its own thermodynamic settings.
 
 ## Examples
 
-The {doc}`examples <hmc/examples/index>` demonstrate canonical displacement,
-semi-grand-canonical identity changes, and Cu(111) oxidation with xreac.
+This complete canonical input alternates 20 NVT MD steps and five Cu displacement
+proposals per cycle, for five cycles at 1200 K. It uses ASE EMT and the Cu32
+structure in `examples/monte_carlo/assets/cu32.xyz`.
+
+```{literalinclude} ../../../examples/monte_carlo/hybrid-canonical.yaml
+:language: yaml
+:caption: examples/monte_carlo/hybrid-canonical.yaml
+```
+
+Run from the repository root:
+
+```shell
+gdp -d run-mc-hybrid-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/hybrid-canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical/cand0
+```
+
+The example pages explain {doc}`canonical displacement <hmc/examples/canonical>`,
+{doc}`semi-grand-canonical identity changes <hmc/examples/semi-grand-canonical>`,
+and {doc}`Cu(111) oxidation with xreac <hmc/examples/cu111-oxidation-xreac>`.
 
 ```{toctree}
 :maxdepth: 2
