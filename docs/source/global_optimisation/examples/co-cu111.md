@@ -18,8 +18,9 @@ between periodic slab images. The original shared substrate is unchanged.
 Four starting structures are built by inserting an intact CO molecule with
 random orientation and centre of mass 1.5–3.5 Å above the top Cu layer.
 The search retains up to four distinct minima and performs three generations
-of four quenches. Each quench starts with fresh velocities and cools from 600
-to 100 K over 1,000 steps at 0.5 fs (0.5 ps). If fewer than four parents survive
+of four trajectories. Generations 1–3 cool from 600, 450, and 300 K respectively to 100 K.
+Each trajectory starts with fresh velocities and runs 1,000 MD steps at
+0.5 fs (0.5 ps), followed by minimisation. If fewer than four parents survive
 duplicate filtering, selection uses replacement.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml

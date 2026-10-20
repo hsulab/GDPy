@@ -249,12 +249,15 @@ Umbrella sampling remains under explore for a separate migration.
 ## Native composite tasks
 
 The executor provider `gdpx` was renamed to `native` without an alias. Ordinary
-MC no longer requires an evaluator block. HMC and SA accept executor lists
+MC no longer requires an evaluator block. HMC accepts executor lists
 directly under `parameters.setup`; descendants inherit the outer potential and
 modifiers. Child `scheduler` settings remain independent and default to direct.
 
-Population SA now takes a `native/simulated_annealing` runtime containing MD and
-minimisation children. Move `strategy.annealing` into the MD child's regulator
-starting temperature and `setup.tend`; move `strategy.minimisation` into the
-minimisation child. Keep population and generation settings in the exploration
-file. Old composite inputs and checkpoints require a fresh run directory.
+Population SA remains under `gdp explore`. Supply an ordinary MD runtime and
+put its per-generation `[start, end]` cooling ranges in `strategy.temperatures`. Put the full
+minimisation executor definition in `strategy.minimisation`; it inherits the
+runtime potential. Generation 0 is initial minimisation, and cooling range entry
+N-1 applies to generation N. Each pair must satisfy `start > end > 0`. Omit MD
+`tend`; the exploration supplies both endpoints for linear cooling within each
+generation. The experimental `native/simulated_annealing` executor was removed.
+Its inputs and checkpoints require migration and a fresh run directory.

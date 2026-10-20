@@ -155,4 +155,6 @@ gdp -d run-sa \
 ```
 
 The example minimises two initial structures and runs three generations of four
-annealing trajectories. It retains at most two distinct minima after each cycle.
+MD trajectories cooling from 1200 to 300 K, 900 to 200 K, and 600 to 100 K
+respectively. Each trajectory is
+followed by minimisation. It retains at most two distinct minima after each generation.

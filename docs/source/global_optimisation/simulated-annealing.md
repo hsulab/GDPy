@@ -2,9 +2,9 @@
 
 # simulated annealing (sa)
 
-Population-based MD annealing combines parallel cooling trajectories with
-selection of diverse low-energy minima. A single cooling trajectory can be run
-with `gdp compute`; this exploration manages the population and repeated cycles.
+Simulated annealing is a population exploration run with `gdp explore`.
+It combines MD cooling over a user-selected temperature range for each generation with
+minimisation and selection of diverse low-energy structures.
 
 ## Search cycle
 
@@ -18,13 +18,14 @@ For each subsequent generation:
    using fitness weights. Selection is without replacement when enough parents
    exist, and with replacement otherwise.
 2. Start independent MD trajectories with fresh velocities. Run all candidates
-   as a batch, cooling each from the start to the final temperature.
+   as a batch, cooling linearly from start to end in
+   `strategy.temperatures[generation - 1]`.
 3. Minimise each final structure with the same potential.
 4. Store every endpoint minimum, refresh the retained population from all
    generations, and repeat.
 
 The retained population has at most `system.retained_size` distinct candidates.
-Older minima remain eligible, so an unsuccessful cooling cycle does not discard
+Older minima remain eligible, so an unsuccessful generation does not discard
 the best structures. This initial version uses supplied builders for generation
 0 only; later generations restart from selected minima.
 
@@ -37,34 +38,55 @@ system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
 ## Configuration and parallel execution
 
 Use `method: global_optimisation` and `strategy.method: simulated_annealing`.
-The `system` configuration is shared with GA and BH. The strategy owns only
-population concerns: `convergence.generation`, `objective`, and `use_archive`.
-Generation 0 performs initial minimisation; each subsequent generation runs one
-cooling/minimisation pass per selected candidate.
+The `system` configuration is shared with GA and BH.
 
-Supply a `native/simulated_annealing` compute runtime. Its `parameters.setup`
-is an ordered list containing an MD executor and a minimisation executor.
-Both inherit the outer potential. Each may specify an independent `scheduler`,
-defaulting to direct execution. The outer runtime scheduler schedules candidate
-annealing tasks; the exploration scheduler schedules the population loop.
+```yaml
+strategy:
+  method: simulated_annealing
+  temperatures:
+    - [1200, 300]
+    - [900, 200]
+    - [600, 100]
+  minimisation:
+    provider: ase
+    method: min
+    parameters:
+      stop:
+        steps: 1000
+        fmax: 0.05
+  convergence:
+    generation: 3
+```
 
-The MD child defines the starting temperature through
-`setup.regulator.targets.temperature` and the final temperature through
-`setup.tend`. Temperatures must be finite and positive, with final no higher
-than start. Its `stop.steps` counts integration steps for the full linear ramp.
-The native SA executor currently validates ASE Berendsen and Langevin ramps;
-unsupported providers/controllers fail during preparation. The minimisation
-child requires positive `stop.steps` and `stop.fmax`. SA currently requires an
-unmodified potential.
+Generation 0 builds and minimises initial structures without MD. Generations
+1, 2, and 3 cool from 1200 to 300 K, 900 to 200 K, and 600 to 100 K,
+respectively, followed by minimisation. Each entry is a `[start, end]` pair
+with finite temperatures satisfying `start > end > 0`. The list must contain
+exactly one cooling range per MD generation; the generation limit defaults to
+the list length. An empty list with generation 0 performs only initial
+minimisation. Ranges may repeat or start hotter than the previous generation;
+each generation is an independent annealing attempt from selected minima.
 
-Population SA requires the parent `stop.steps` to equal one. A standalone
-compute run defaults to one pass and can repeat passes by increasing this count.
-See the {doc}`single-structure annealing task <../computations/tasks/simulated-annealing>`.
+The separate runtime supplies one potential, an ordinary `md` executor, its
+scheduler, and dispatch settings. The exploration sets both temperature endpoints
+for each generation without modifying the source runtime. Use thermostatted
+NVT or NPT dynamics with a driver and thermostat that support temperature ramps.
+Omit runtime `tend`: the exploration supplies it from each pair. The MD
+`stop.steps` controls the number of integration steps over which cooling occurs.
 
-Population cycles start with fresh velocities and persisted independent random
-seeds. The MD velocity seed is overridden for those starts. Each generation
-repeats the same start-to-final ramp. All candidate passes finish before the
-next generation begins; scheduler and dispatch settings determine parallelism.
+`strategy.minimisation` defines a complete minimisation executor with its own
+provider and parameters, plus an optional scheduler (direct by default).
+It inherits the MD runtime's fixed potential and dispatch settings. Potential
+and modifier overrides are forbidden. Positive minimisation `stop.steps` and
+`stop.fmax` are required. SA retains the existing restriction against modifiers.
+There is no `native/simulated_annealing` compute executor.
+
+The exploration owns `convergence.generation`, `objective`, `use_archive`, and
+the temperature schedule. The exploration scheduler controls the population
+loop, while the MD and minimisation schedulers control their respective jobs.
+Every generation starts with fresh velocities and persisted independent seeds
+for each candidate. All candidates finish MD and minimisation before selection
+for the next generation.
 
 ## Results and restart
 
@@ -78,8 +100,8 @@ next generation begins; scheduler and dispatch settings determine parallelism.
   links, the best evaluated objective so far, and the final retained population
   highlighted. Generation 0 contains the minimised initial structures.
 - `gen0/min/`: initial evaluations.
-- `genN/sim/`: the batch of composite annealing tasks, with per-candidate
-  MD and minimisation children under `candN/calculations/`.
+- `genN/sim/`: MD cooling trajectories over generation N’s temperature range.
+- `genN/min/`: endpoint minimisations on the same potential.
 - `genN/inputs.xyz`: an extended XYZ snapshot of the generation's starting
   structures, not its MD trajectory. Generation 0 stores builder outputs; later
   generations store selected parent structures, with old momenta removed so that

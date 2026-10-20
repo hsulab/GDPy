@@ -81,7 +81,8 @@ Each compute input owns a separate chain. Proposal transactions, accepted-state
 serialization, and checkpoint utilities reside in execution and are shared by
 sampling and structure-search algorithms.
 
-Native HMC and simulated annealing use list-based `parameters.setup`; ordinary
-MD, minimisation, and MC retain mapping-based setup. `gdpx.execution.composite`
-owns ordered child execution, invocation seeds, and durable stage boundaries.
-Population SA reuses the native annealing executor for each selected candidate.
+Native HMC uses list-based `parameters.setup`; ordinary MD, minimisation, and
+MC retain mapping-based setup. `gdpx.execution.composite` owns HMC child
+execution, invocation seeds, and durable stage boundaries. Simulated annealing
+remains an exploration: it assigns cooling ranges by generation and runs separate
+MD and minimisation executors on the shared potential.

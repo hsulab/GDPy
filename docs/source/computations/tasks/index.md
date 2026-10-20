@@ -22,7 +22,6 @@ single-point
 relaxation
 cell-relaxation
 molecular-dynamics
-simulated-annealing
 transition-states
 vibrations
 ```
