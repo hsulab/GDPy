@@ -13,6 +13,30 @@ def test_invalid_schedule(temperatures):
         SimulatedAnnealing(None, temperatures)
 
 
+@pytest.mark.parametrize("provider", ["ase", "lammps", "vasp", "cp2k", "custom"])
+@pytest.mark.parametrize("ensemble", ["nvt", "npt"])
+def test_md_runtime_validation_is_provider_independent(monkeypatch, provider, ensemble):
+    from types import SimpleNamespace
+    from gdpx.exploration.exploration import BaseExploration
+
+    # Isolate the exploration contract from optional backend installations.
+    monkeypatch.setattr(BaseExploration, "register_worker",
+                        lambda self, worker, *args, **kwargs: setattr(self, "worker", worker))
+    worker = SimpleNamespace(
+        runtime=SimpleNamespace(config=SimpleNamespace(
+            executor=SimpleNamespace(provider=provider, method="md", parameters=dict(
+                ensemble=ensemble, steps=10, controller=dict(name="nose_hoover"))),
+            modifiers=[])),
+        _drivers=[object()], _share_wdir=False)
+    annealing = SimulatedAnnealing(None, annealing=dict(
+        start_temperature=600., final_temperature=300.))
+    annealing.register_worker(worker)
+    assert annealing.worker is worker
+    worker.runtime.config.executor.method = "min"
+    with pytest.raises(ValueError, match="requires executor.method='md'"):
+        annealing.register_worker(worker)
+
+
 @pytest.mark.parametrize("fmax", [None, True, 0., -1., float("nan"), float("inf")])
 def test_population_requires_valid_minimisation(fmax):
     from gdpx.exploration.simulated_annealing.population import PopulationAnnealing

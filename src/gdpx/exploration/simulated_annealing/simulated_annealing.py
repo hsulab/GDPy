@@ -47,20 +47,21 @@ class SimulatedAnnealing(BaseExploration):
             raise ValueError("SA requires exactly one runtime.")
         super().register_worker(worker, *args, **kwargs)
         config = self.worker.runtime.config
-        # Initial support is deliberately limited to the tested MD provider.
-        if config.executor.provider != "ase" or config.executor.method != "md":
-            raise ValueError("SA requires an ASE MD runtime.")
+        if config.executor.method != "md":
+            raise ValueError(
+                f"SA requires executor.method='md'; "
+                f"received provider={config.executor.provider!r}, method={config.executor.method!r}. "
+                "Select a thermostatted MD runtime with --runtime "
+                "(for Cu8: examples/global_optimisation/explorations/simulated_annealing/runtime.yaml)."
+            )
         params = resolve_executor_parameters(config.executor.parameters, "md")
-        if params.get("ensemble") != "nvt":
-            raise ValueError("SA requires thermostatted NVT dynamics.")
+        if params.get("ensemble") not in ("nvt", "npt"):
+            raise ValueError("SA requires thermostatted NVT or NPT dynamics.")
         steps = params.get("steps")
         if isinstance(steps, bool) or not isinstance(steps, int) or steps <= 0:
             raise ValueError("MD steps must be a positive integer.")
         if params.get("tend") is not None:
             raise ValueError("Remove tend; the exploration defines the annealing schedule.")
-        controller = params.get("controller") or {}
-        if self.annealing is not None and controller.get("name", "berendsen") not in ("berendsen", "langevin"):
-            raise ValueError("Linear annealing requires the Berendsen or Langevin thermostat.")
         if config.modifiers:
             raise ValueError("SA currently requires an unmodified potential.")
         if len(self.worker._drivers) != 1 or self.worker._share_wdir:
