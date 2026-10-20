@@ -9,6 +9,8 @@ and hybrid Monte Carlo. The selected
 {doc}`operators <operators/index>` determine which quantities can change.
 {doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
 See {doc}`ensembles` for thermodynamic settings and inheritance.
+{doc}`Biased Monte Carlo <biased-mc>` instead minimises proposals and permits
+geometry filters for independent searches over relaxed structures.
 
 ```{toctree}
 :maxdepth: 3
@@ -17,6 +19,7 @@ See {doc}`ensembles` for thermodynamic settings and inheritance.
 
 ensembles <ensembles>
 conventional monte carlo <mc>
+biased monte carlo <biased-mc>
 hybrid monte carlo <hmc>
 sampling operators <operators/index>
 ```

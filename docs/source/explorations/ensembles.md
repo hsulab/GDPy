@@ -83,3 +83,12 @@ temperature/pressure ramps. MD retains its own timestep and regulator algorithm;
 MC retains its own operators and proposal count. The potential is shared.
 A parent broadcast at `ensemble.temperature` changes MD and MC together.
 See the {doc}`complete HMC input <hmc>`.
+
+## Biased Monte Carlo
+
+{doc}`Biased Monte Carlo <biased-mc>` also accepts `nvt`, `uvt`, and `suvt`
+with the same thermodynamic fields and operator restrictions. It uses minimised
+endpoint energies for acceptance and permits geometry filters. These settings
+define biased search acceptance, not equilibrium sampling of the original
+potential. Conventional MC and HMC still reject enabled distance checks; HMC
+does not accept biased-MC children.

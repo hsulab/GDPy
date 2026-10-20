@@ -70,7 +70,8 @@ parameters:
 MC supports `nvt`, `uvt`, and `suvt`. `nve` and `npt` are MD options;
 MC has no microcanonical acceptance or volume-change implementation.
 The old `custom` input is removed; use basin hopping for structure-search
-proposals with per-operator settings.
+proposals with per-operator settings. For independent compute chains with
+mandatory minimisation and geometry filters, use {doc}`biased-mc`.
 
 See {doc}`ensembles` for the ensemble fields, units, and HMC inheritance.
 
@@ -97,8 +98,8 @@ normalised automatically. Preset ensembles define temperature and chemical
 potentials once under `parameters.ensemble`. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
-Canonical, semi-grand-canonical, and grand-canonical ensembles automatically
-disable proposal distance checks. They reject `skip_distance_check: false`
+Conventional MC automatically disables proposal distance checks for all three
+supported ensembles. It rejects `skip_distance_check: false`
 because geometry filtering changes the proposal distribution and breaks
 detailed balance. The energy evaluation decides whether each trial is
 accepted.

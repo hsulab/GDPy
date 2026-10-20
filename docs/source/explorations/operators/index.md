@@ -17,8 +17,10 @@ this documentation split describes their intended use, not a parser restriction.
 MC and hybrid MC configure proposals under `executor.parameters.setup.operators`;
 basin hopping retains `strategy.operators`. HMC places the ensemble on the parent and operators in the MC child.
 Paths below are relative to `executor`. Preset MC and hybrid MC ensembles define temperature and
-chemical potentials under `parameters.ensemble`. Basin hopping keeps those acceptance settings on each operator. For example,
-this MC fragment displaces a copper atom:
+chemical potentials under `parameters.ensemble`. Basin hopping keeps those acceptance settings on each operator.
+{doc}`Biased MC <../biased-mc>` uses the same ensemble fields as conventional MC,
+but permits the existing geometry filters and minimises valid proposals.
+This MC fragment displaces a copper atom:
 
 ```yaml
 setup:
@@ -76,7 +78,7 @@ cavity_exchange
 | `region` | Region used to select particles and, for exchange, place insertions | Automatic region |
 | `covalent_ratio` | Lower/upper distance-check factors relative to covalent radii | `[0.8, 2.0]` |
 | `allow_isolated` | Permit isolated particles in proposal distance checks | `false` |
-| `skip_distance_check` | Skip proposal distance checks where supported; forced `true` by preset MC ensembles | `false` (BH) |
+| `skip_distance_check` | Skip proposal distance checks where supported; forced `true` by preset MC ensembles | `false` (biased MC/BH) |
 | `max_random_attempts` | Maximum proposal attempts where supported | 1000 |
 
 `particles` contains chemical symbols or supported molecular formulas. Atoms
