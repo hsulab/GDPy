@@ -145,7 +145,11 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     assert len(state["plans"]["1"]["parents"]) == 2
     assert set(state["plans"]["2"]["parents"]) <= set(state["plans"]["1"]["retained"])
     assert len(resumed.population.candidates) <= 2
-    assert len(read(tmp_path / "population.xyz", ":")) == len(resumed.population.candidates)
+    results = tmp_path / "results"
+    assert not (tmp_path / "population.xyz").exists()
+    assert not (results / "population.xyz").exists()
+    assert len(read(results / "all_candidates.xyz", ":")) == 6
+    assert (results / "pop.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert len(resumed.get_workers()) == 5
     for generation in (1, 2):
         assert (tmp_path / f"gen{generation}" / "minimisation").is_dir()
@@ -155,7 +159,9 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
         params = resolve_executor_parameters(cooling.get_workers()[0].as_dict()["executor"]["parameters"], "md")
         assert params["temp"] == 600.
         assert params["tend"] == 300.
+    (results / "pop.png").unlink()
     resumed.run()
+    assert (results / "pop.png").is_file()
     assert len(list(db.connection.select(relaxed=1))) == 6
     config["strategy"]["annealing"]["start_temperature"] = 500.
     with pytest.raises(ValueError, match="configuration changed"):
@@ -172,6 +178,32 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
 def test_invalid_ramp(annealing):
     with pytest.raises(ValueError):
         SimulatedAnnealing(None, annealing=annealing)
+
+
+def test_evolution_uses_objective_and_parent_links(tmp_path, monkeypatch):
+    import matplotlib.pyplot as plt
+    from gdpx.exploration.simulated_annealing.results import write_results
+
+    candidates = []
+    for identifier, generation, target, parents in [
+        (0, 0, -2., []), (1, 1, -3., [0]), (2, 2, -1., [0]),
+    ]:
+        atoms = Atoms("Cu")
+        atoms.info.update(confid=identifier, key_value_pairs=dict(generation=generation, target=target),
+                          data=dict(parents=parents))
+        candidates.append(atoms)
+    fig, ax = plt.subplots()
+    monkeypatch.setattr(plt, "subplots", lambda **kwargs: (fig, ax))
+    write_results(tmp_path, candidates, [candidates[1]], "formation_energy")
+    assert not (tmp_path / "population.xyz").exists()
+    assert len(read(tmp_path / "all_candidates.xyz", ":")) == 3
+    assert ax.get_ylabel() == "Formation energy [eV]"
+    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[0, -2], [1, -3], [2, -1]])
+    np.testing.assert_allclose(ax.collections[1].get_offsets(), [[1, -3]])
+    np.testing.assert_allclose(ax.lines[0].get_xydata(), [[0, -2], [1, -3]])
+    np.testing.assert_allclose(ax.lines[1].get_xydata(), [[0, -2], [2, -1]])
+    np.testing.assert_allclose(ax.lines[2].get_ydata(), [-2, -3, -3])
+    assert not plt.fignum_exists(fig.number)
 
 
 @pytest.mark.parametrize("thermostat", ["berendsen", "langevin", "default"])

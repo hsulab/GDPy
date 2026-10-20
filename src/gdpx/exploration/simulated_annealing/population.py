@@ -165,8 +165,21 @@ class PopulationAnnealing(PopulationBasedExploration):
             self._save(state)
             self._print(f"SA generation {generation}: evaluated {len(frames)}, retained {len(plan['retained'])}")
         self.population.refresh(database)
-        if self.population.candidates:
-            write(self.directory / "population.xyz", list(self.population.candidates))
+        self.report(database)
+
+    def report(self, database=None):
+        """Rebuild final artefacts from persisted evaluations, without running MD."""
+        from .results import write_results
+
+        if database is None:
+            database = GlobalOptimisationDatabase(self.directory / "candidates.db")
+        self.population.refresh(database)
+        write_results(
+            self.directory / "results",
+            database.get_all_relaxed_candidates(use_extinct=False),
+            list(self.population.candidates),
+            self.objective["target"],
+        )
 
     def read_convergence(self):
         path = self.directory / "population.json"
