@@ -12,17 +12,17 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 300
     random_seed: 7
     setup:
-      ensemble: nvt
       timestep: 1.0
       velocities:
         initialize: if_missing
         seed: 7
       regulator:
         name: berendsen
-        targets:
-          temperature: 300
         parameters:
           Tdamp: 100.0
     output:
@@ -38,7 +38,7 @@ From the repository root:
 gdp -d md-demo -r examples/compute/tasks/molecular-dynamics.yaml compute examples/compute/tasks/md.xyz
 ```
 
-The regulator temperature is in K; `timestep` and `Tdamp` are in fs. This
+The ensemble temperature is in K; `timestep` and `Tdamp` are in fs. This
 example runs 100 fs and saves every ten steps. `velocities.seed` controls
 velocity initialization; the parameters-level `random_seed` controls the
 executor’s random generator. `initialize: if_missing` retains existing nonzero
@@ -55,13 +55,13 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: nvt
+      temperature: 300
     setup:
-      ensemble: nvt
       timestep: 1.0
       regulator:
         name: berendsen
-        targets:
-          temperature: 300
         parameters: {}
     output:
       trajectory:
@@ -69,7 +69,7 @@ executor:
     stop:
       steps: 100
   broadcast:
-    setup.regulator.targets.temperature: [300, 600, 900]
+    ensemble.temperature: [300, 600, 900]
 ```
 
 This creates three workers in `w0`, `w1`, and `w2`. Lists that are not named
@@ -81,7 +81,7 @@ This is a short execution demo, not an equilibrated production trajectory.
 
 ## Other ensembles
 
-For NVE, set `setup.ensemble: nve`, omit the regulator, and put the initial
+For NVE, set `parameters.ensemble.method: nve`, omit the regulator, and put the initial
 temperature under `setup.velocities`; gdpx uses velocity Verlet.
 
 The registered ASE NPT configuration has this shape:
@@ -91,17 +91,17 @@ executor:
   provider: ase
   method: md
   parameters:
+    ensemble:
+      method: npt
+      temperature: 300
+      pressure: 1.0
     setup:
-      ensemble: npt
       timestep: 1.0
       velocities:
         initialize: if_missing
         seed: 7
       regulator:
         name: berendsen
-        targets:
-          temperature: 300
-          pressure: 1.0
         parameters:
           Tdamp: 100.0
           Pdamp: 1000.0

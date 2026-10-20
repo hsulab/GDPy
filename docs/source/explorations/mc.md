@@ -6,7 +6,8 @@ Conventional Monte Carlo (MC) proposes structural changes and accepts or rejects
 single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
 with `executor.provider: native` and `executor.method: monte_carlo`.
 Each input structure starts an independent chain. Settings below are relative to
-`executor.parameters`: `setup` contains the ensemble, operators, and evaluator;
+`executor.parameters`: `ensemble` defines the thermodynamic settings;
+`setup` contains operators and the optional evaluator;
 `output` controls output cadence; `stop` controls the step budget and early stopping.
 MC defaults to an ASE single-point evaluator using the outer potential and
 modifiers. Optional `setup.executor` accepts `provider`, `method`, `parameters`,
@@ -19,10 +20,9 @@ external simulation executable is needed.
 
 | Ensemble | Fixed quantities | What changes | Operators |
 | --- | --- | --- | --- |
-| Canonical (NVT) | Species counts, volume, temperature | Positions | `move`, `rotate`; `swap` for alloys |
-| Semi-grand-canonical | Total atom count, volume, temperature, chemical-potential differences | Species identities and optionally positions | `swap_type`, optionally `move` |
-| Grand-canonical (μVT) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `biased_volume_exchange`, `cavity_exchange`; optionally `move` |
-| Custom | Defined by each operator | Depends on configured operators | Mixture of the MC operators below |
+| `nvt` (canonical) | Species counts, volume, temperature | Positions | `move`, `rotate`; `swap` for alloys |
+| `suvt` (semi-grand canonical) | Total atom count, volume, temperature, chemical-potential differences | Species identities and optionally positions | `swap_type`, optionally `move` |
+| `uvt` (grand canonical) | Volume, temperature, reservoir chemical potential | Particle count and optionally positions | `biased_volume_exchange`, `cavity_exchange`; optionally `move` |
 
 `swap` exchanges the positions of unlike particles
 and preserves composition; `swap_type` changes one atom's element and therefore
@@ -51,25 +51,26 @@ qualifies. These implementations need separate detailed-balance validation
 before quantitative equilibrium use. Preset ensemble checks alone do not
 establish that validation.
 
-Use `setup.ensemble.method: custom` when operators need different temperatures
-or chemical potentials. In custom mode, put `temperature` and `chempots`
-directly on the relevant operators. GDPy then skips the
-cross-operator ensemble checks and does not inject thermodynamic settings. The
-resulting mixture is user-defined and may not sample one thermodynamic ensemble.
+Define thermodynamic settings once under `parameters.ensemble`:
 
 ```yaml
-setup:
+parameters:
   ensemble:
-    method: custom
-  operators:
-    - method: move
-      particles: [Cu, Ni]
-      temperature: 600.0
-    - method: swap_type
-      particles: [Cu, Ni]
-      temperature: 1200.0
-      chempots: [0.0, 0.2]
+    method: suvt
+    temperature: 600.0
+    chemical_potentials:
+      Cu: 0.0
+      Ni: 0.2
+  setup:
+    operators:
+      - method: swap_type
+        particles: [Cu, Ni]
 ```
+
+MC supports `nvt`, `uvt`, and `suvt`. `nve` and `npt` are MD options;
+MC has no microcanonical acceptance or volume-change implementation.
+The old `custom` input is removed; use basin hopping for structure-search
+proposals with per-operator settings.
 
 ## Examples
 
@@ -91,8 +92,7 @@ mc/examples/index
 
 `probability` is a relative operator-selection weight; the weights are
 normalised automatically. Preset ensembles define temperature and chemical
-potentials once under `setup.ensemble`; custom ensembles define them on each
-operator. Use consistent regions when combining moves and exchange; see
+potentials once under `parameters.ensemble`. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
 Canonical, semi-grand-canonical, and grand-canonical ensembles automatically
@@ -101,12 +101,8 @@ because geometry filtering changes the proposal distribution and breaks
 detailed balance. The energy evaluation decides whether each trial is
 accepted.
 
-The `custom` ensemble permits distance checks for structure search. There,
-`covalent_ratio` sets lower and upper multipliers of covalent bond distances,
-and `skip_distance_check` defaults to `false`. These filtered proposals do not
-represent equilibrium sampling. `max_random_attempts: 1` avoids retrying until
-a valid move is found. Failed proposals count as steps and retain the current
-state.
+`max_random_attempts: 1` avoids retrying until a valid move is found.
+Failed proposals count as steps and retain the current state.
 
 MC assigns distinct atomic tags by default. If `setup.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated

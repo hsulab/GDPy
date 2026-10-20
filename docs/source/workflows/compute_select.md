@@ -28,16 +28,16 @@ resources:
       provider: ase
       method: md
       parameters:
+        ensemble:
+          method: nvt
+          temperature: 300
         setup:
-          ensemble: nvt
           regulator:
             name: berendsen
-            targets:
-              temperature: 300
         stop:
           steps: 1000
       broadcast:
-        setup.regulator.targets.temperature: [300, 600, 900]
+        ensemble.temperature: [300, 600, 900]
 ```
 
 A compute step using a runtime built from `md` receives three independent

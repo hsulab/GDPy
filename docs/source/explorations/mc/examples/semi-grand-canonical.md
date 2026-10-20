@@ -8,7 +8,7 @@ $N=32$ stays fixed while the Cu/Ni counts fluctuate.
 :language: yaml
 ```
 
-`setup.ensemble.chemical_potentials` maps each species to eV per atom. For an
+`parameters.ensemble.chemical_potentials` maps each species to eV per atom. For an
 A → B change the implemented rule uses
 $\Delta E - (\mu_B-\mu_A)$ in place of $\Delta E$ in the Metropolis
 exponent, together with the reverse/forward proposal-count ratio. Increasing

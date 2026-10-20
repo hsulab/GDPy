@@ -4,8 +4,8 @@
 
 Boltzmann sampling generates configurations with the probability prescribed
 by a thermodynamic ensemble. GDPy provides canonical, semi-grand-canonical,
-and grand-canonical presets, plus a custom mode with per-operator thermodynamic
-settings through conventional and hybrid Monte Carlo. The selected
+and grand-canonical ensembles (`nvt`, `suvt`, and `uvt`) through conventional
+and hybrid Monte Carlo. The selected
 {doc}`operators <operators/index>` determine which quantities can change.
 {doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
 

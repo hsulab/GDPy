@@ -15,10 +15,9 @@ this documentation split describes their intended use, not a parser restriction.
 ## Configuration
 
 MC and hybrid MC configure proposals under `executor.parameters.setup.operators`;
-basin hopping retains `strategy.operators`. Paths below are relative to
-`executor.parameters`. Preset MC and hybrid MC ensembles define temperature and
-chemical potentials under `setup.ensemble`. Custom MC, custom hybrid MC, and
-basin hopping keep those acceptance settings on each operator. For example,
+basin hopping retains `strategy.operators`. HMC places the ensemble on the parent and operators in the MC child.
+Paths below are relative to `executor`. Preset MC and hybrid MC ensembles define temperature and
+chemical potentials under `parameters.ensemble`. Basin hopping keeps those acceptance settings on each operator. For example,
 this MC fragment displaces a copper atom:
 
 ```yaml
@@ -73,11 +72,11 @@ cavity_exchange
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `temperature` | Acceptance temperature for custom MC/HMC and BH; preset MC/HMC uses `setup.ensemble.temperature` | 300.0 |
+| `temperature` | Acceptance temperature for BH; preset MC/HMC uses `parameters.ensemble.temperature` | 300.0 |
 | `region` | Region used to select particles and, for exchange, place insertions | Automatic region |
 | `covalent_ratio` | Lower/upper distance-check factors relative to covalent radii | `[0.8, 2.0]` |
 | `allow_isolated` | Permit isolated particles in proposal distance checks | `false` |
-| `skip_distance_check` | Skip proposal distance checks where supported; forced `true` by preset MC ensembles | `false` (`custom`) |
+| `skip_distance_check` | Skip proposal distance checks where supported; forced `true` by preset MC ensembles | `false` (BH) |
 | `max_random_attempts` | Maximum proposal attempts where supported | 1000 |
 
 `particles` contains chemical symbols or supported molecular formulas. Atoms

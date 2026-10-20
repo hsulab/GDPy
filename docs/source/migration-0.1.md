@@ -227,12 +227,13 @@ MC and hybrid MC are no longer exploration methods. Invoke
 independent chain. There is no compatibility adapter for old inputs or runs.
 
 - Move `system.builder` to compute's positional structure/builder inputs.
-- Move `system.ensemble`, `system.ignore_atoms_tags`, and `strategy.operators`
-  to `executor.parameters.setup`. For HMC, these settings belong to its conventional MC child.
+- Move `system.ensemble` to `executor.parameters.ensemble`. For HMC, declare it
+  on the parent only. Move `system.ignore_atoms_tags` and `strategy.operators`
+  to `executor.parameters.setup` (the conventional MC child for HMC).
 - Define potential and modifiers once on the outer runtime. MC uses ASE `spc`
   by default; optional `setup.executor` customizes evaluation.
 - For HMC, make `setup` an ordered list of MD and `native/monte_carlo`
-  executor definitions. Move ensemble, operators, and proposal limits into
+  executor definitions. Move operators and proposal limits into
   the MC child. Remove `setup.cycle`, nested runtimes, and `setup.evaluator`.
 - Move `strategy.convergence` to `executor.parameters.stop`; move output and
   checkpoint periods to `executor.parameters.output.trajectory.period` and
@@ -261,3 +262,20 @@ N-1 applies to generation N. Each pair must satisfy `start > end > 0`. Omit MD
 `tend`; the exploration supplies both endpoints for linear cooling within each
 generation. The experimental `native/simulated_annealing` executor was removed.
 Its inputs and checkpoints require migration and a fresh run directory.
+
+
+## Unified MD and Monte Carlo ensembles
+
+MD, MC, and HMC now share a `parameters.ensemble` mapping. Move MD's
+`setup.ensemble` into its `method` field and `setup.regulator.targets` into
+`temperature` and `pressure` alongside `method`. The regulator keeps only
+`name` and algorithm `parameters`. Move MC's `setup.ensemble` to
+`parameters.ensemble` and rename `canonical` to `nvt`, `grand_canonical` to
+`uvt`, and `semi_grand_canonical` to `suvt`. The `custom` ensemble is removed;
+use basin hopping for structure search with per-operator acceptance settings.
+
+For HMC, declare the ensemble only on the parent and remove ensemble declarations
+and regulator targets from children. MD inherits `nvt` for `uvt`/`suvt` parent
+ensembles, with the shared temperature. Children cannot override the ensemble
+or add temperature/pressure ramps. Change temperature broadcast paths to
+`ensemble.temperature`. Use a new run directory for migrated inputs.

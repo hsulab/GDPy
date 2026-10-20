@@ -9,8 +9,8 @@ cavity count in exchange acceptance.
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC read
-temperature and chemical potentials from `setup.ensemble`; custom MC/HMC and
-basin hopping add them to the operator:
+temperature and chemical potentials from `parameters.ensemble`;
+basin hopping adds them to the operator:
 
 ```yaml
 - method: cavity_exchange
@@ -28,7 +28,7 @@ basin hopping add them to the operator:
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `particles` | One species per operator | Required |
-| `chempots` | Chemical potential for custom MC/HMC and BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
+| `chempots` | Chemical potential for BH; preset MC/HMC uses the ensemble mapping | Required outside preset MC/HMC |
 | `use_ads` | Build the particle with the adsorbate representation | `false` |
 | `num_trials` | Number of trial points; supply a positive integer | Required |
 | `cavity_distance` | Absolute `[minimum, maximum]` distances in Å; `null` maximum disables the isolation check | Uses `covalent_ratio` |

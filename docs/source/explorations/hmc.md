@@ -17,9 +17,12 @@ not a Hamiltonian Monte Carlo sampler. The {ref}`MC sampling limitations
 
 See the {ref}`MC operator reference <sampling-operators>` for available moves and
 their configuration, particle selection, and acceptance rules.
-The conventional MC child owns its preset or custom `setup.ensemble`.
-The MD child has its own thermostat settings. Both inherit the same outer
-potential and modifiers.
+Declare `parameters.ensemble` once on the HMC parent. Children inherit it,
+along with the outer potential and modifiers. HMC supports `nvt`, `uvt`, and
+`suvt`. For `uvt` and `suvt`, MD runs NVT at the inherited temperature and
+current composition; MC handles particle exchange or species changes. Child
+ensemble declarations, regulator targets, and temperature/pressure ramps are
+rejected. Thermostat algorithms and numerical settings remain in MD's regulator.
 
 ## Examples
 
@@ -62,7 +65,7 @@ are supported. Potential, modifiers, complete runtimes, and dispatch settings
 cannot be overridden in children.
 
 - MD owns its integration settings. Its `parameters.stop.steps` counts MD steps.
-- Conventional MC owns its ensemble, operators, evaluator, and proposal count.
+- Conventional MC owns its operators, evaluator, and proposal count.
   Its `parameters.stop.steps` counts MC proposals. Evaluation defaults to ASE
   single-point calculation; use its optional `setup.executor` to override it.
 - The parent `parameters.stop.steps` counts full passes through the setup list.
@@ -70,8 +73,8 @@ cannot be overridden in children.
   child completes its invocation and passes its endpoint to the next child.
 
 MD endpoints are accepted directly. Structures, cell, constraints, and momenta
-pass between children. The MD thermostat temperature should agree with the MC
-ensemble temperature for equilibrium use. Each child scheduler defaults to
+pass between children. MD and MC use the same inherited
+ensemble temperature. Each child scheduler defaults to
 `direct`; the parent scheduler controls orchestration. The potential backend
 is resolved once and must support all children.
 
@@ -103,5 +106,5 @@ are always included, including with sparse trajectory output. Collected chain
 endpoints appear in `results/end_frames.xyz`.
 
 Resume with the same command, directory, and inputs. Changed inputs or old
-`gdpx`/`setup.cycle` runs require a new directory. Move the MC ensemble and
-operators into the conventional MC child and list children directly in `setup`.
+`gdpx`/`setup.cycle` runs require a new directory. Move the ensemble to parent `parameters.ensemble`, keep operators in the
+conventional MC child, and list children directly in `setup`.
