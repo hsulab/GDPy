@@ -7,8 +7,9 @@ acceptance factor.
 
 ## Configuration
 
-Place this fragment under `strategy.operators`. Preset MC and hybrid MC read
-temperature and chemical potentials from `system.ensemble`; custom MC/HMC and
+Place this fragment under `executor.parameters.setup.operators` for MC/HMC
+or `strategy.operators` for basin hopping. Preset MC and hybrid MC read
+temperature and chemical potentials from `setup.ensemble`; custom MC/HMC and
 basin hopping add them to the operator:
 
 ```yaml

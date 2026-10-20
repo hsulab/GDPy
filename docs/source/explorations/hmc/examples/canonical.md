@@ -11,8 +11,8 @@ remain fixed throughout.
 From the repository root:
 
 ```shell
-gdp -d run-mc-hybrid-canonical explore examples/monte_carlo/hybrid-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical
+gdp -d run-mc-hybrid-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/hybrid-canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical/cand0
 ```
 
 See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle

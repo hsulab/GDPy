@@ -6,8 +6,9 @@ Translate one randomly selected particle while preserving composition.
 
 ## Configuration
 
-Place this fragment under `strategy.operators`. Preset MC and hybrid MC set
-temperature under `system.ensemble`; custom MC/HMC and basin hopping add it to
+Place this fragment under `executor.parameters.setup.operators` for MC/HMC
+or `strategy.operators` for basin hopping. Preset MC and hybrid MC set
+temperature under `setup.ensemble`; custom MC/HMC and basin hopping add it to
 the operator:
 
 ```yaml

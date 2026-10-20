@@ -18,11 +18,11 @@ repository root:
 
 ```shell
 gdp -d run-hmc-cu111-oxidation \
-    explore examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
-cat run-hmc-cu111-oxidation/mcmoves.log
+    compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
+cat run-hmc-cu111-oxidation/cand0/mcmoves.log
 ```
 
-With `random_seed: 2026`, the first insertion is accepted and the cycle changes
+With `executor.parameters.random_seed: 2033`, the first insertion is accepted and the cycle changes
 Cu12 to Cu12O. During validation, the fixed layer remained stationary while the
 mobile Cu layers moved, and a cold command-line run completed in about 20
 seconds.

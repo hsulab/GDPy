@@ -1,10 +1,16 @@
 (monte-carlo)=
 
-# Monte Carlo (MC)
+# Conventional Monte Carlo
 
-Monte Carlo proposes structural changes and accepts or rejects them using
-single-point energies from a runtime. Configure the initial structure and
-thermodynamic ensemble under `system`, and run settings and proposals under `strategy`.
+Conventional Monte Carlo (MC) proposes structural changes and accepts or rejects them using
+single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
+with `executor.provider: gdpx` and `executor.method: monte_carlo`.
+Each input structure starts an independent chain. Settings below are relative to
+`executor.parameters`: `setup` contains the ensemble, operators, and evaluator;
+`output` controls output cadence; `stop` controls the step budget and early stopping.
+`setup.evaluator.executor` selects a single-point executor and inherits the outer
+potential and modifiers. Its optional scheduler is independent of the outer
+compute scheduler and defaults to direct execution.
 The {doc}`examples <mc/examples/index>` use ASE EMT, so no model download or
 external simulation executable is needed.
 
@@ -42,17 +48,16 @@ qualifies. These implementations need separate detailed-balance validation
 before quantitative equilibrium use. Preset ensemble checks alone do not
 establish that validation.
 
-Use `system.ensemble.method: custom` when operators need different temperatures
+Use `setup.ensemble.method: custom` when operators need different temperatures
 or chemical potentials. In custom mode, put `temperature` and `chempots`
 directly on the relevant operators. GDPy then skips the
 cross-operator ensemble checks and does not inject thermodynamic settings. The
 resulting mixture is user-defined and may not sample one thermodynamic ensemble.
 
 ```yaml
-system:
+setup:
   ensemble:
     method: custom
-strategy:
   operators:
     - method: move
       particles: [Cu, Ni]
@@ -83,7 +88,7 @@ mc/examples/index
 
 `probability` is a relative operator-selection weight; the weights are
 normalised automatically. Preset ensembles define temperature and chemical
-potentials once under `system.ensemble`; custom ensembles define them on each
+potentials once under `setup.ensemble`; custom ensembles define them on each
 operator. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
@@ -100,7 +105,7 @@ represent equilibrium sampling. `max_random_attempts: 1` avoids retrying until
 a valid move is found. Failed proposals count as steps and retain the current
 state.
 
-MC assigns distinct atomic tags by default. If `system.ignore_atoms_tags: false`,
+MC assigns distinct atomic tags by default. If `setup.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated
 as one particle. `swap_type` requires single-atom particles.
 
@@ -113,10 +118,11 @@ trial energies, current energy, and atom count. Waiting evaluations and invalid
 proposals are labelled separately. Use `gdp --debug ...` for detailed proposal diagnostics.
 Restart messages identify the checkpoint or pending step being resumed.
 
-Each output directory contains:
+Each chain directory (`cand0`, `cand1`, … under the compute directory) contains:
 
 - `mc.xyz`: the initial state followed by the current state after each completed
-  MC step, including repeated states on rejection. Keep these repetitions when
+  retained MC step, including repeated states on rejection. The initial and final
+  states are always retained. With the default output period of one, keep repetitions when
   computing averages.
 - `mc_attempts.xyz`: proposed structures sent for evaluation, including rejected
   trials; this is not the accepted-state trajectory.
@@ -124,18 +130,20 @@ Each output directory contains:
   previous/trial energies.
 - `calculations/step.NNNN/`: retained runtime calculations.
 
-`strategy.convergence.steps: 100` is the attempted-step budget. An optional
-`strategy.convergence.earlystop` uses the existing early-stop criteria. The
-examples retain all calculation steps with `strategy.dump_period: 1`;
-increasing it prunes intermediate calculation directories, **not** frames in
-`mc.xyz`. `strategy.ckpt_period` controls checkpoint frequency independently.
+`stop.steps: 100` is the attempted-step budget. An optional
+`stop.earlystop` uses the existing early-stop criteria. The
+examples retain every step with `output.trajectory.period: 1`; increasing it
+thins `mc.xyz` and prunes intermediate ordinary-MC calculation directories.
+`output.checkpoint.period` controls checkpoint frequency independently. Completion
+is determined from saved progress, not the number of trajectory frames.
+Compute also collects each chain’s final structure into `results/end_frames.xyz`.
 
 Inspect energy and composition from the repository root:
 
 ```shell
-python examples/monte_carlo/inspect_run.py run-mc-canonical
-python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical
-python examples/monte_carlo/inspect_run.py run-mc-grand-canonical
+python examples/monte_carlo/inspect_run.py run-mc-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-grand-canonical/cand0
 ```
 
 Canonical frames should all contain Cu32; semi-grand-canonical frames should all
@@ -151,13 +159,15 @@ JSON metadata and uncompressed NumPy `.npz` arrays, without pickle. Arrays,
 constraints, cached results, operator configuration, and random state are
 preserved without copying the entire structure before serialization.
 
-`strategy.ckpt_period` controls ordinary checkpoint frequency. Only the latest and
-previous committed checkpoints are retained; a damaged latest snapshot falls
+`output.checkpoint.period` controls ordinary checkpoint frequency. `output.checkpoint.keep` defaults to two, retaining the latest and
+previous committed checkpoints; a damaged latest snapshot falls
 back to the previous one. A queued move also retains its pending state until
 its resolution is committed, forcing a checkpoint even between ordinary
 checkpoint steps. Hybrid MC commits this state after its complete cycle.
-Older pickle checkpoints are not loaded; use a new output directory for those
-runs.
+Old `gdp explore` configurations and run directories are not supported. Move
+structures to compute inputs, migrate settings to `executor.parameters`, and
+start a new compute directory. `gdp compute status`, `resubmit`, and `collect`
+use the normal compute lifecycle; status never submits child evaluations.
 
 ## Application
 

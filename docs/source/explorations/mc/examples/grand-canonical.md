@@ -32,7 +32,7 @@ mass and temperature. One `exchange` operator accepts exactly one particle
 type. At $N=0$, forced insertion adds a factor of $1/2$; the reverse removal
 from $N=1$ adds a factor of 2. These factors account for the unequal branch
 probabilities at the boundary. Increasing the Cu value in
-`system.ensemble.chemical_potentials` favours insertion.
+`setup.ensemble.chemical_potentials` favours insertion.
 Unlike the semi-grand case, the absolute chemical potential matters and must
 use the same energy reference as the potential. The value 2.0 eV is chosen
 for this EMT demonstration, not calibrated to an experimental reservoir or
@@ -40,12 +40,11 @@ pressure. Using a different potential requires reconsidering this value.
 
 ## Run
 
-From the repository root, use the shared {doc}`EMT single-point runtime <index>`:
+Run the complete sampling runtime from the repository root:
 
 ```shell
-gdp -d run-mc-grand-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/grand-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-grand-canonical
+gdp -d run-mc-grand-canonical compute examples/monte_carlo/assets/aucu8.xyz --runtime examples/monte_carlo/grand-canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-grand-canonical/cand0
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

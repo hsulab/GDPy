@@ -14,14 +14,15 @@ this documentation split describes their intended use, not a parser restriction.
 
 ## Configuration
 
-MC, hybrid MC, and basin hopping configure proposals under
-`strategy.operators`. Preset MC and hybrid MC ensembles define temperature and
-chemical potentials under `system.ensemble`. Custom MC, custom hybrid MC, and
+MC and hybrid MC configure proposals under `executor.parameters.setup.operators`;
+basin hopping retains `strategy.operators`. Paths below are relative to
+`executor.parameters`. Preset MC and hybrid MC ensembles define temperature and
+chemical potentials under `setup.ensemble`. Custom MC, custom hybrid MC, and
 basin hopping keep those acceptance settings on each operator. For example,
 this MC fragment displaces a copper atom:
 
 ```yaml
-strategy:
+setup:
   operators:
     - method: move
       particles: [Cu]
@@ -29,7 +30,7 @@ strategy:
 ```
 
 See {doc}`move` for proposal details and the {doc}`canonical MC example
-<../mc/examples/canonical>` for a complete recipe and runtime. Add more operator mappings to mix proposals.
+<../mc/examples/canonical>` for a complete runtime. Add more operator mappings to mix proposals.
 Each `probability` is a relative selection weight (default 1.0). Weights must
 be finite and nonnegative, with a positive total; they need not sum to one.
 `probability` controls **operator selection**, not trial acceptance. The former
@@ -72,7 +73,7 @@ cavity_exchange
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `temperature` | Acceptance temperature for custom MC/HMC and BH; preset MC/HMC uses `system.ensemble.temperature` | 300.0 |
+| `temperature` | Acceptance temperature for custom MC/HMC and BH; preset MC/HMC uses `setup.ensemble.temperature` | 300.0 |
 | `region` | Region used to select particles and, for exchange, place insertions | Automatic region |
 | `covalent_ratio` | Lower/upper distance-check factors relative to covalent radii | `[0.8, 2.0]` |
 | `allow_isolated` | Permit isolated particles in proposal distance checks | `false` |

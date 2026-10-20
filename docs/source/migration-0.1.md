@@ -16,7 +16,7 @@ Use the package that owns the concept:
 - selectors and validators: `gdpx.analysis`
 - biases and collective variables: `gdpx.modifiers`
 - loaders and arrays: `gdpx.data`
-- reusable Monte Carlo proposals and acceptance rules: `gdpx.exploration.sampling`
+- reusable Monte Carlo proposals and acceptance rules: `gdpx.sampling`
 
 ## Basin hopping and shared moves
 
@@ -39,11 +39,11 @@ from `strategy.steps` and `strategy.earlystop` to
 The Python entry point is `gdpx.exploration.basin_hopping.BasinHopping`.
 
 The former `BasinHopping(MonteCarlo)` alias has been deleted. Configurations
-using that alias must change to `method: monte_carlo`. Old concurrent-hopping
+using that alias must move to `gdp compute` with `executor.method: monte_carlo`. Old concurrent-hopping
 names and imports are not retained as compatibility aliases.
 
-Moves now live in `gdpx.exploration.sampling.moves`; use `parse_operators` from
-`gdpx.exploration.sampling`. Existing operator configuration keys are retained. Replace
+Moves now live in `gdpx.sampling.moves`; use `parse_operators` from
+`gdpx.sampling`. Existing operator configuration keys are retained. Replace
 calls to `run()`/`metropolis()` with `propose()` and the operator's separate
 `acceptance.accept()` rule. Proposals borrow their input in place: close each
 successful proposal with `commit()` or `rollback()`, or use its context manager.
@@ -218,3 +218,27 @@ Runtime configuration remains schema version 3. Older driver metadata lacks the
 frozen calculation-set contract and is rejected even when it uses SHA-256.
 Old MD5 records also cannot be migrated reliably because their XYZ snapshots may have
 lost constraints or coordinate precision.
+
+## Monte Carlo now uses compute
+
+MC and hybrid MC are no longer exploration methods. Invoke
+`gdp compute INPUT --runtime mc.yaml` with `executor.provider: gdpx` and
+`executor.method: monte_carlo` or `hybrid_monte_carlo`. Each input starts one
+independent chain. There is no compatibility adapter for old inputs or runs.
+
+- Move `system.builder` to compute's positional structure/builder inputs.
+- Move `system.ensemble`, `system.ignore_atoms_tags`, and `strategy.operators`
+  to `executor.parameters.setup`. Put hybrid `strategy.cycle` there too.
+- Move the old initialization runtime's potential and modifiers to the outer
+  runtime. Move its executor and optional scheduler into `setup.evaluator`.
+- Move `strategy.convergence` to `executor.parameters.stop`; move output and
+  checkpoint periods to `executor.parameters.output.trajectory.period` and
+  `output.checkpoint.period`.
+- Move `random_seed` to `executor.parameters.random_seed`, and use
+  `executor.broadcast` paths for parameter sweeps.
+- Start a new compute directory. Chain outputs are under `candN`, and collected
+  endpoints are under `results/end_frames.xyz`.
+
+Shared Python sampling primitives now live in `gdpx.sampling`; sampling
+executors and transaction/checkpoint helpers live in `gdpx.execution`.
+Umbrella sampling remains under explore for a separate migration.

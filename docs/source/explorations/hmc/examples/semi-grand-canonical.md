@@ -11,8 +11,8 @@ potential relative to Cu favours Ni; equal values do not fix the composition.
 
 ```shell
 gdp -d run-mc-hybrid-semi-grand-canonical \
-    explore examples/monte_carlo/hybrid-semi-grand-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-hybrid-semi-grand-canonical
+    compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/hybrid-semi-grand-canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-hybrid-semi-grand-canonical/cand0
 ```
 
 `swap_type` includes its reverse/forward proposal-count correction. This short

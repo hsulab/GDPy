@@ -88,3 +88,13 @@ broadcast, and the resolved runtimes are flattened in source order. Use
 {doc}`runtime-chain` in the workflow layer for sequential work.
 
 See {doc}`tasks/index` for task examples and {doc}`schedulers` for queue jobs.
+
+## Monte Carlo sampling
+
+Use `executor.provider: gdpx` with `method: monte_carlo` or
+`method: hybrid_monte_carlo` to sample each supplied structure independently.
+See the {ref}`Monte Carlo guide <monte-carlo>` and
+{ref}`hybrid MC guide <hybrid-monte-carlo>` for complete runtimes. Sampling uses
+the same prepare/submit/run/status/resubmit/collect lifecycle as other compute
+tasks. Each chain keeps its own state in `candN`; sharing working directories
+is unsupported. A pending child evaluation keeps its chain incomplete.

@@ -16,12 +16,12 @@ own the corresponding execution mechanisms. Exploration algorithms may
 request calculations from the execution service, but execution must never
 depend on exploration.
 
-`gdpx.exploration.sampling` contains shared sampling primitives. It owns reusable
+`gdpx.sampling` contains shared sampling primitives. It owns reusable
 Monte Carlo moves, acceptance rules, and geometry preparation; it imports no
-providers, execution, other exploration modules, or application layers.
+providers, execution, exploration modules, or application layers.
 Basin hopping lives independently in
-`gdpx.exploration.basin_hopping`. MC and hybrid MC currently remain exploration
-methods, sharing sampling primitives rather than serving as BH base classes.
+`gdpx.exploration.basin_hopping`. MC and hybrid MC are execution methods;
+all three reuse these sampling primitives.
 
 Moves borrow an exclusively owned `Atoms` object and edit it in place. A
 `MoveProposal` holds independent undo values only for changed or removed rows;
@@ -34,7 +34,7 @@ deletion can reallocate ASE arrays, so array views must not escape a transaction
 Workers capture trial inputs before the caller releases the borrow. Relaxed
 results belong to execution and replace the accepted structure only after
 acceptance. Pending jobs persist the accepted frame and decision metadata, not
-live operator references or undo logs. File I/O remains in exploration.
+live operator references or undo logs. Transaction and checkpoint I/O belongs to execution.
 
 Providers are stateless capability catalogs. Scientific configuration is held
 in immutable specifications; mutable state belongs to executors, runtimes, and
@@ -71,3 +71,12 @@ Scheduling has two provider boundaries: a scheduler chooses the direct or
 queued submission backend, and its transport chooses the current host or SSH.
 This keeps host location independent of queue semantics and permits every
 combination.
+
+Monte Carlo and hybrid MC are calculator-independent single-structure executors
+under `gdpx.execution.monte_carlo`, registered by the `gdpx` provider. They
+compose existing evaluation and dynamics runtimes and participate in compute's
+persisted lifecycle. `SingleStructureExecutor` defines the worker-facing
+contract shared with `BaseDriver`; pending sampling work returns `RunState.PENDING`.
+Each compute input owns a separate chain. Proposal transactions, accepted-state
+serialization, and checkpoint utilities reside in execution and are shared by
+sampling and structure-search algorithms.

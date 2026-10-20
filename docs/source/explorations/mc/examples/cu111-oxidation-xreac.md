@@ -4,7 +4,7 @@
 
 This short grand-canonical example attempts three atomic-O exchanges above a
 three-layer Cu(111)-p(2×2) slab. The four Cu atoms in the bottom layer are fixed
-in the input structure. With `random_seed: 2026`, the first insertion is
+in the input structure. With `executor.parameters.random_seed: 2033`, the first insertion is
 accepted and `mc.xyz` changes from Cu12 to Cu12O.
 
 ```{literalinclude} ../../../../../examples/monte_carlo/cu111-oxidation-xreac.yaml
@@ -17,8 +17,8 @@ repository root:
 
 ```shell
 gdp -d run-mc-cu111-oxidation \
-    explore examples/monte_carlo/cu111-oxidation-xreac.yaml
-cat run-mc-cu111-oxidation/opstat.txt
+    compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/cu111-oxidation-xreac.yaml
+cat run-mc-cu111-oxidation/cand0/opstat.txt
 ```
 
 The run performs the initial energy evaluation and three trial evaluations. A

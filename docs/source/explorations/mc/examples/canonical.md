@@ -10,18 +10,17 @@ $\Delta E = E_\mathrm{trial} - E_\mathrm{current}$.
 :language: yaml
 ```
 
-`system.ensemble.temperature` is in kelvin and `max_disp` is in Å. The small displacement
+`setup.ensemble.temperature` is in kelvin and `max_disp` is in Å. The small displacement
 keeps the demonstration near the initial lattice. No volume-changing move is
 used: setting an operator's `pressure` does not turn this into NPT sampling.
 
 ## Run
 
-From the repository root, use the shared {doc}`EMT single-point runtime <index>`:
+Run the complete sampling runtime from the repository root:
 
 ```shell
-gdp -d run-mc-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-canonical
+gdp -d run-mc-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-canonical/cand0
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

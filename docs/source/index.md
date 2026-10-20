@@ -85,6 +85,7 @@ demo and lifecycle <computations/compute>
 tasks <computations/tasks/index>
 runtime configurations <computations/runtime>
 machine resources <computations/schedulers>
+monte carlo <explorations/sampling>
 ```
 
 ```{toctree}
@@ -115,18 +116,6 @@ methods <selections/methods>
 :hidden:
 
 command: gdp explore <explorations/index>
-```
-
-```{toctree}
-:caption: 'Boltzmann Sampling:'
-:maxdepth: 4
-:titlesonly:
-:hidden:
-
-overview <explorations/sampling>
-monte carlo <explorations/mc>
-hybrid monte carlo <explorations/hmc>
-operators <explorations/operators/index>
 ```
 
 ```{toctree}

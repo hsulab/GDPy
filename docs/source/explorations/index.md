@@ -3,9 +3,10 @@
 # gdp explore
 
 Exploration proposes and selects candidate structures. Execution evaluates
-those candidates through a complete runtime. This keeps Monte Carlo, genetic
-algorithms, and other search policies independent of the potential and the
-software used to run it.
+those candidates through a complete runtime. Genetic algorithms, basin hopping,
+and other search policies remain independent of the evaluation backend.
+Monte Carlo and hybrid MC run through `gdp compute`; umbrella sampling remains
+here pending a separate migration.
 
 Run a complete exploration configuration with:
 
@@ -45,7 +46,7 @@ Global-optimisation inputs use `system` and `strategy` sections. The system
 owns population construction; the strategy selects GA or BH and owns its
 operators, generation policies, objective, convergence, and archive behavior.
 Runtime and optional scheduler configuration remain separate execution concerns.
-MC uses the same `method`/`system`/`strategy` layout. Population-based MD
+MC uses compute’s `executor.parameters.setup/output/stop` layout. Population-based MD
 annealing uses `strategy.method: simulated_annealing` under global optimisation;
 the low-level cooling runner retains its `recipe` wrapper.
 

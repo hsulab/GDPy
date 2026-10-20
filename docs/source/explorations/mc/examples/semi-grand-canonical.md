@@ -8,7 +8,7 @@ $N=32$ stays fixed while the Cu/Ni counts fluctuate.
 :language: yaml
 ```
 
-`system.ensemble.chemical_potentials` maps each species to eV per atom. For an
+`setup.ensemble.chemical_potentials` maps each species to eV per atom. For an
 A → B change the implemented rule uses
 $\Delta E - (\mu_B-\mu_A)$ in place of $\Delta E$ in the Metropolis
 exponent, together with the reverse/forward proposal-count ratio. Increasing
@@ -19,12 +19,11 @@ this does not impose equal concentrations.
 
 ## Run
 
-From the repository root, use the shared {doc}`EMT single-point runtime <index>`:
+Run the complete sampling runtime from the repository root:
 
 ```shell
-gdp -d run-mc-semi-grand-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/semi-grand-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical
+gdp -d run-mc-semi-grand-canonical compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/semi-grand-canonical.yaml
+python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical/cand0
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

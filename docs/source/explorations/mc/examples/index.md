@@ -20,26 +20,17 @@ The complete inputs and initial structures are in `examples/monte_carlo/`.
 Run from the **repository root**, since structure paths are relative to it:
 
 ```shell
-gdp -d run-mc-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/canonical.yaml
+gdp -d run-mc-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/canonical.yaml
 
-gdp -d run-mc-semi-grand-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/semi-grand-canonical.yaml
+gdp -d run-mc-semi-grand-canonical compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/semi-grand-canonical.yaml
 
-gdp -d run-mc-grand-canonical --runtime examples/monte_carlo/emt.yaml \
-    explore examples/monte_carlo/grand-canonical.yaml
+gdp -d run-mc-grand-canonical compute examples/monte_carlo/assets/aucu8.xyz --runtime examples/monte_carlo/grand-canonical.yaml
 ```
 
-All three use this sequential single-worker runtime:
-
-```{literalinclude} ../../../../../examples/monte_carlo/emt.yaml
-:language: yaml
-```
-
-`method: spc` evaluates the initial structure and every trial without relaxation
-or dynamics. Changing it to `min` samples relaxed trial structures and creates
-an optimisation workflow, rather than ordinary finite-temperature MC. For
-population-based optimisation, see {doc}`../../../global_optimisation/basin_hopping`.
+All three include an EMT potential and an ASE single-point evaluator under
+`executor.parameters.setup.evaluator`. The evaluator requires `method: spc`;
+relaxation and dynamics are rejected for ordinary MC. For population-based
+optimisation, see {doc}`../../../global_optimisation/basin_hopping`.
 
 The {doc}`hybrid examples <../../hmc/examples/index>` alternate MD segments with MC proposals
 and include their own initialization, MD, and MC runtimes.
