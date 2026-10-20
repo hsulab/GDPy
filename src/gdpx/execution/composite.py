@@ -30,7 +30,7 @@ class CompositeExecutor(SingleStructureExecutor):
         self.initializer = initializer
         self.convergence = convergence
         self.dump_period, self.ckpt_period, self.ckpt_keep = dump_period, ckpt_period, ckpt_keep
-        self.TRAJ_NAME = "mc.xyz" if self.name == "hybrid_monte_carlo" else "annealing.xyz"
+        self.TRAJ_NAME = "mc.xyz"
         self.signature = payload_digest(self.runtime_config)
 
     def reset(self):

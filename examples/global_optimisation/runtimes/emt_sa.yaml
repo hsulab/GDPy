@@ -1,36 +1,23 @@
 potential:
   provider: emt
 executor:
-  provider: native
-  method: simulated_annealing
+  provider: ase
+  method: md
   parameters:
     setup:
-    - provider: ase
-      method: md
-      parameters:
-        setup:
-          ensemble: nvt
-          timestep: 1.0
-          velocities:
-            initialize: if_missing
-            remove_rotation: false
-          regulator:
-            name: berendsen
-            targets:
-              temperature: 1200.0
-            parameters:
-              Tdamp: 100.0
-          tend: 300.0
-        stop:
-          steps: 100
-        output:
-          trajectory:
-            period: 10
-    - provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+      ensemble: nvt
+      timestep: 1.0
+      velocities:
+        initialize: if_missing
+        remove_rotation: false
+      regulator:
+        name: berendsen
+        targets:
+          temperature: 1200.0
+        parameters:
+          Tdamp: 100.0
     stop:
-      steps: 1
+      steps: 100
+    output:
+      trajectory:
+        period: 10

@@ -1,10 +1,8 @@
 """Composite boundaries, state handoff, and fixed-surface validation."""
 import copy
-from pathlib import Path
 
 import numpy as np
 import pytest
-import yaml
 from ase.constraints import FixAtoms
 from ase.io import read
 
@@ -15,21 +13,12 @@ from test_sampling_config import sampling_config
 from test_sampling_lifecycle import copper
 
 
-def annealing_config():
-    path = Path(__file__).resolve().parents[2] / "examples/global_optimisation/runtimes/emt_sa.yaml"
-    config = yaml.safe_load(path.read_text())
-    config["executor"]["parameters"]["random_seed"] = 123
-    setup = config["executor"]["parameters"]["setup"]
-    setup[0]["parameters"]["stop"]["steps"] = 2
-    setup[0]["parameters"]["output"]["trajectory"]["period"] = 1
-    setup[1]["parameters"]["stop"] = {"steps": 100, "fmax": .2}
-    return config
 
 
-@pytest.mark.parametrize("method", ["hybrid_monte_carlo", "simulated_annealing"])
+@pytest.mark.parametrize("method", ["hybrid_monte_carlo"])
 @pytest.mark.parametrize("boundary", ["child", "trajectory"])
 def test_interrupted_boundary_matches_uninterrupted(tmp_path, monkeypatch, method, boundary):
-    config = sampling_config(method) if method == "hybrid_monte_carlo" else annealing_config()
+    config = sampling_config(method)
     baseline = resolve_runtime(config).executor
     baseline.directory = tmp_path / "baseline"
     assert baseline.run(copper()) is RunState.FINISHED
@@ -155,23 +144,8 @@ def test_invalid_mc_settings(change):
         resolve_runtime(config)
 
 
-def test_annealing_compute_lifecycle(tmp_path):
-    from gdpx.execution.lifecycle import prepare_compute, collect_compute, inspect_compute
-    from gdpx.execution.lifecycle.service import orchestrate_compute
-    plan = prepare_compute(annealing_config(), [copper()], tmp_path)
-    assert orchestrate_compute(plan).state == "finished"
-    assert inspect_compute(plan).state == "finished"
-    assert len(read(tmp_path / "cand0/annealing.xyz", ":")) == 2
-    collect_compute(plan, archive=True)
-    assert collect_compute(plan).number_of_trajectories == 1
 
 
-@pytest.mark.parametrize("end", [None, True, 0, -10, float("nan"), 1300])
-def test_annealing_rejects_invalid_temperature_ramps(end):
-    config = annealing_config()
-    config["executor"]["parameters"]["setup"][0]["parameters"]["setup"]["tend"] = end
-    with pytest.raises((ValueError, TypeError)):
-        resolve_runtime(config)
 
 
 def test_incompatible_backend_fails_during_resolution():
@@ -212,40 +186,10 @@ def test_different_execution_providers_share_surface_and_modifiers():
     assert len(energy.materialization.calculator.mixer.calcs) == 2
 
 
-@pytest.mark.parametrize("stage", ["procedure.0000", "procedure.0001"])
-def test_annealing_waits_for_child_and_resumes(tmp_path, monkeypatch, stage):
-    from gdpx.execution.schedulers.direct import DirectScheduler
-    config = annealing_config()
-    expected = resolve_runtime(config).executor
-    expected.directory = tmp_path / "baseline"
-    expected.run(copper())
-    original_submit = DirectScheduler.submit
-    original_finished = DirectScheduler.is_finished
-    pending, seen = {}, set()
 
-    def submit(scheduler, func_to_execute=None):
-        key = str(scheduler.script)
-        if "deferred" in key and stage in key and key not in seen:
-            seen.add(key)
-            pending[key] = func_to_execute
-            return "waiting"
-        return original_submit(scheduler, func_to_execute)
 
-    monkeypatch.setattr(DirectScheduler, "submit", submit)
-    monkeypatch.setattr(DirectScheduler, "is_finished",
-                        lambda scheduler: str(scheduler.script) not in pending and original_finished(scheduler))
-    engine = resolve_runtime(config).executor
-    engine.directory = tmp_path / "deferred"
-    assert engine.run(copper()) is RunState.PENDING
-    assert not engine.read_convergence()
-    assert len(pending) == 1
-    callbacks = list(pending.values())
-    pending.clear()
-    for callback in callbacks:
-        callback()
-    resumed = resolve_runtime(config).executor
-    resumed.directory = engine.directory
-    assert resumed.run(copper()) is RunState.FINISHED
-    assert len(seen) == 1
-    np.testing.assert_array_equal(expected.read_trajectory()[-1].positions,
-                                  resumed.read_trajectory()[-1].positions)
+def test_sa_is_not_a_compute_executor():
+    config = sampling_config("hybrid_monte_carlo")
+    config["executor"]["method"] = "simulated_annealing"
+    with pytest.raises(ValueError, match="exploration, not an executor"):
+        resolve_runtime(config)

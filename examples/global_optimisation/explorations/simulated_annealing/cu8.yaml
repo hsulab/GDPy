@@ -19,3 +19,14 @@ strategy:
   method: simulated_annealing
   convergence:
     generation: 3
+  temperatures:
+  - [1200, 300]
+  - [900, 200]
+  - [600, 100]
+  minimisation:
+    provider: ase
+    method: min
+    parameters:
+      stop:
+        steps: 1000
+        fmax: 0.05

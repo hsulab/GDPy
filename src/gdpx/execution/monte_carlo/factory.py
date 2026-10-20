@@ -1,12 +1,10 @@
 """Bind native tasks and their children to one fixed potential surface."""
 import copy
-import math
 from collections.abc import Mapping
 from dataclasses import replace
 
 from gdpx.execution.factory import create_worker
 from gdpx.execution.runtime import Runtime
-from gdpx.execution.composite import CompositeExecutor
 from gdpx.providers.configuration import child_executor, resolve_executor_parameters
 from gdpx.providers.specs import thaw
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
@@ -22,28 +20,6 @@ def resolve_child(config, definition, resolver):
     if scheduler is not None:
         child["scheduler"] = scheduler
     return resolver.resolve(child)
-
-
-def validate_annealing(children):
-    md = resolve_executor_parameters(children[0].config.executor.parameters, "md")
-    start, end = md.get("temp"), md.get("tend")
-    if (md.get("ensemble") not in {"nvt", "npt"} or
-            any(isinstance(t, bool) or not isinstance(t, (float, int)) or not math.isfinite(t) or t <= 0
-                for t in (start, end)) or end > start):
-        raise ValueError("SA requires thermostatted MD with positive starting temperature and setup.tend <= start.")
-    if not isinstance(md.get("steps"), int) or isinstance(md["steps"], bool) or md["steps"] <= 0:
-        raise ValueError("SA MD stop.steps must be positive.")
-    # Current supported temperature-ramp execution contract.
-    provider = children[0].config.executor.provider
-    controller = md.get("controller", {}).get("name")
-    if provider != "ase" or controller not in {"berendsen", "langevin"}:
-        raise ValueError("SA currently supports verified ASE berendsen/langevin temperature ramps.")
-    params = resolve_executor_parameters(children[1].config.executor.parameters, "min")
-    if (isinstance(params.get("steps"), bool) or not isinstance(params.get("steps"), int)
-            or params["steps"] <= 0 or isinstance(params.get("fmax"), bool)
-            or not isinstance(params.get("fmax"), (int, float))
-            or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
-        raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
 
 
 def resolve_sampling_runtime(config, resolver):
@@ -87,19 +63,12 @@ def resolve_sampling_runtime(config, resolver):
     else:
         definitions = raw["setup"]
         methods = [item["method"] for item in definitions]
-        if method == "hybrid_monte_carlo":
-            if set(methods) != {"md", "monte_carlo"}:
-                raise ValueError("HMC setup requires MD and conventional Monte Carlo children only.")
-            for item in definitions:
-                if item["method"] == "monte_carlo" and item["provider"] != "native":
-                    raise ValueError("HMC Monte Carlo children require provider: native.")
-            first = next(i for i, item in enumerate(definitions) if item["method"] == "monte_carlo")
-        else:
-            if methods != ["md", "min"]:
-                raise ValueError("SA setup requires exactly MD then min.")
-            if config.modifiers:
-                raise ValueError("SA currently requires an unmodified potential.")
-            first = 0
+        if set(methods) != {"md", "monte_carlo"}:
+            raise ValueError("HMC setup requires MD and conventional Monte Carlo children only.")
+        for item in definitions:
+            if item["method"] == "monte_carlo" and item["provider"] != "native":
+                raise ValueError("HMC Monte Carlo children require provider: native.")
+        first = next(i for i, item in enumerate(definitions) if item["method"] == "monte_carlo")
         children = [None] * len(definitions)
         children[first] = resolve_child(config, definitions[first], resolver)
         config = replace(config, potential=children[first].config.potential,
@@ -107,17 +76,8 @@ def resolve_sampling_runtime(config, resolver):
         for i, definition in enumerate(definitions):
             if i != first:
                 children[i] = resolve_child(config, definition, resolver)
-        if method == "hybrid_monte_carlo":
-            initializer = children[first].executor.worker.runtime
-            cls = HybridMonteCarlo
-        else:
-            validate_annealing(children)
-            initial = {"provider": definitions[0]["provider"], "method": "spc"}
-            if "scheduler" in definitions[0]:
-                initial["scheduler"] = definitions[0]["scheduler"]
-            initializer = resolve_child(config, initial, resolver)
-            cls = CompositeExecutor
-        executor = cls(config, children, initializer, convergence, **cadence)
+        initializer = children[first].executor.worker.runtime
+        executor = HybridMonteCarlo(config, children, initializer, convergence, **cadence)
     return Runtime(potential=config.potential_spec(), materialization=None, executor=executor,
                    modifiers=config.modifier_specs(), config=config,
                    scheduler=resolver.resolve_scheduler(config))

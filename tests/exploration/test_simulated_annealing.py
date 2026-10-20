@@ -39,14 +39,11 @@ def test_md_runtime_validation_is_provider_independent(monkeypatch, provider, en
 
 @pytest.mark.parametrize("fmax", [None, True, 0., -1., float("nan"), float("inf")])
 def test_population_requires_valid_minimisation(fmax):
-    from gdpx.execution import resolve_runtime
-    from pathlib import Path
-    import yaml
-    config = yaml.safe_load((Path(__file__).resolve().parents[2] /
-                            "examples/global_optimisation/runtimes/emt_sa.yaml").read_text())
-    config["executor"]["parameters"]["setup"][1]["parameters"]["stop"]["fmax"] = fmax
+    from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
     with pytest.raises(ValueError, match="positive stop.steps and stop.fmax"):
-        resolve_runtime(config)
+        PopulationAnnealing(None, {"method": "simulated_annealing", "temperatures": [[600, 300]],
+            "minimisation": {"provider": "ase", "method": "min",
+                             "parameters": {"stop": {"steps": 10, "fmax": fmax}}}})
 
 
 def engine(path):
@@ -106,11 +103,12 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     config = yaml.safe_load(Path("cu8.yaml").read_text())
     assert "runtime" not in config
     runtime = yaml.safe_load(Path("../../runtimes/emt_sa.yaml").read_text())
-    md = runtime["executor"]["parameters"]["setup"][0]["parameters"]
+    md = runtime["executor"]["parameters"]
     md["stop"]["steps"] = 1
     md["output"]["trajectory"]["period"] = 1
     md["setup"]["regulator"]["targets"]["temperature"] = 600.
-    runtime["executor"]["parameters"]["setup"][1]["parameters"]["stop"] = dict(steps=100, fmax=.1)
+    config["strategy"]["minimisation"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
+    config["strategy"]["temperatures"] = [[600., 300.], [450., 200.]]
     config["strategy"]["convergence"]["generation"] = 2
     config["system"]["generation"]["total_size"] = 2
     def construct():
@@ -154,13 +152,13 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     assert not (results / "population.xyz").exists()
     assert len(read(results / "all_candidates.xyz", ":")) == 6
     assert (results / "pop.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-    assert len(resumed.get_workers()) == 3
+    assert len(resumed.get_workers()) == 5
     for worker in resumed.get_workers()[1:]:
         definition = worker.metadata.calculation_set(worker.metadata.inputs.read(), ".")
         seeds = [seed for batch in definition["batches"] for seed in batch["random_seeds"]]
         assert len(seeds) == len(set(seeds)) == 2
     for generation in (1, 2):
-        assert not (tmp_path / f"gen{generation}" / "min").exists()
+        assert (tmp_path / f"gen{generation}" / "min").is_dir()
         assert (tmp_path / f"gen{generation}" / "sim").is_dir()
         assert not (tmp_path / f"gen{generation}" / "minimisation").exists()
         assert not (tmp_path / f"gen{generation}" / "cooling").exists()
@@ -168,14 +166,13 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
         cooling = resumed._cooling(generation, read(tmp_path / f"gen{generation}" / "inputs.xyz", ":"),
                                   state["plans"][str(generation)]["seed"])
         from gdpx.providers.configuration import resolve_executor_parameters
-        params = resolve_executor_parameters(cooling.driver.children[0].config.executor.parameters, "md")
-        assert params["temp"] == 600.
-        assert params["tend"] == 300.
+        params = resolve_executor_parameters(cooling.runtime.config.executor.parameters, "md")
+        assert [params["temp"], params["tend"]] == [[600., 300.], [450., 200.]][generation - 1]
     (results / "pop.png").unlink()
     resumed.run()
     assert (results / "pop.png").is_file()
     assert len(list(db.connection.select(relaxed=1))) == 6
-    md["setup"]["regulator"]["targets"]["temperature"] = 500.
+    config["strategy"]["temperatures"][0] = [500., 300.]
     with pytest.raises(ValueError, match="configuration changed"):
         construct().run()
 
@@ -241,3 +238,134 @@ def test_linear_ramp_targets(tmp_path, monkeypatch, thermostat):
     np.testing.assert_allclose(targets, [600., 450., 300.] * 2)
     assert len(ramp.get_workers()) == 1
     assert all(a.info["annealing_temperature"] == 300. for a in read(tmp_path / "final.xyz", ":"))
+
+
+@pytest.mark.parametrize("temperatures,generations", [
+    (None, 1), ({}, 1), ([True], 1), ([0], 1), ([-1], 1),
+    ([float("nan")], 1), ([float("inf")], 1), ([600], 1), ([], 1),
+    ([[600, 300]], 2), ([[600]], 1), ([[600, 300, 100]], 1),
+    ([[300, 600]], 1), ([[300, 300]], 1), ([[600, 0]], 1),
+    ([[True, 100]], 1), ([[600, False]], 1), ([[600, -1]], 1),
+    ([[float("nan"), 100]], 1), ([[600, float("inf")]], 1),
+    ([[600, "300"]], 1),
+])
+def test_population_rejects_invalid_generation_temperatures(temperatures, generations):
+    from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
+    strategy = {"method": "simulated_annealing", "temperatures": temperatures,
+                "minimisation": {"provider": "ase", "method": "min",
+                                 "parameters": {"stop": {"steps": 100, "fmax": .1}}}}
+    with pytest.raises(ValueError, match="temperature"):
+        PopulationAnnealing(None, strategy, convergence={"generation": generations})
+
+
+def test_population_defaults_generation_count_and_preserves_surface(monkeypatch):
+    from pathlib import Path
+    import copy
+    import yaml
+    root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
+    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    recipe = yaml.safe_load(Path("cu8.yaml").read_text())
+    recipe["strategy"].pop("convergence")
+    recipe["strategy"]["temperatures"] = [[600, 300], [900, 200], [600, 300]]
+    runtime = yaml.safe_load((root / "runtimes/emt_sa.yaml").read_text())
+    original = copy.deepcopy(runtime)
+    engine = create_exploration(recipe)
+    engine.register_worker(create_worker(runtime))
+    assert engine.convergence == {"generation": 3}
+    for i, expected in enumerate(recipe["strategy"]["temperatures"], 1):
+        worker = engine._cooling(i, [], 0)
+        params = worker.runtime.config.executor.parameters
+        assert [params["temp"], params["tend"]] == expected
+        assert worker.runtime.config.potential == engine.worker.runtime.config.potential
+    minimum = engine._minimum_runtime()
+    assert minimum["potential"] == engine.worker.runtime.config.potential.to_dict()
+    assert minimum["executor"]["method"] == "min"
+    assert runtime == original
+    recipe["strategy"]["minimisation"]["potential"] = {"provider": "emt"}
+    with pytest.raises(ValueError, match="Unknown executor fields"):
+        create_exploration(recipe)
+
+
+@pytest.mark.parametrize("stage", ["sim", "min"])
+def test_population_pending_generation_resumes(tmp_path, monkeypatch, stage):
+    from pathlib import Path
+    import yaml
+    from gdpx.execution.schedulers.direct import DirectScheduler
+    from gdpx.exploration.persist.database import GlobalOptimisationDatabase
+    root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
+    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    recipe = yaml.safe_load(Path("cu8.yaml").read_text())
+    recipe["strategy"]["temperatures"] = [[450, 150]]
+    recipe["strategy"]["convergence"] = {"generation": 1}
+    recipe["strategy"]["minimisation"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
+    recipe["system"]["generation"]["total_size"] = 1
+    runtime = yaml.safe_load((root / "runtimes/emt_sa.yaml").read_text())
+    runtime["executor"]["parameters"]["stop"]["steps"] = 1
+    runtime["executor"]["parameters"]["output"]["trajectory"]["period"] = 1
+    submit, finished = DirectScheduler.submit, DirectScheduler.is_finished
+    pending, seen = {}, set()
+
+    def defer(scheduler, func_to_execute=None):
+        key = str(scheduler.script)
+        if f"gen1/{stage}/" in key and key not in seen:
+            seen.add(key)
+            pending[key] = func_to_execute
+            return "pending"
+        return submit(scheduler, func_to_execute)
+
+    monkeypatch.setattr(DirectScheduler, "submit", defer)
+    monkeypatch.setattr(DirectScheduler, "is_finished",
+                        lambda scheduler: str(scheduler.script) not in pending and finished(scheduler))
+    engine = create_exploration(recipe)
+    engine.directory = tmp_path
+    engine.register_worker(create_worker(runtime))
+    engine.run()
+    assert not engine.read_convergence()
+    assert len(pending) == 1
+    callbacks = list(pending.values())
+    pending.clear()
+    for callback in callbacks:
+        callback()
+    restored = create_exploration(recipe)
+    restored.directory = tmp_path
+    restored.register_worker(create_worker(runtime))
+    restored.run()
+    assert restored.read_convergence()
+    assert len(seen) == 1
+    database = GlobalOptimisationDatabase(tmp_path / "candidates.db")
+    assert len(list(database.connection.select(relaxed=1))) == 3
+
+
+@pytest.mark.parametrize("thermostat", ["berendsen", "langevin"])
+def test_population_cools_within_each_generation(tmp_path, monkeypatch, thermostat):
+    from pathlib import Path
+    import yaml
+    from ase import units
+    from gdpx.providers.ase import driver
+    from gdpx.providers.configuration import resolve_executor_parameters
+
+    root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
+    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    recipe = yaml.safe_load(Path("cu8.yaml").read_text())
+    recipe["strategy"]["temperatures"] = [[600, 300], [900, 100]]
+    recipe["strategy"]["convergence"] = {"generation": 2}
+    runtime = engine(tmp_path / "fixture").worker.as_dict()
+    params = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
+    params["controller"] = dict(name=thermostat)
+    runtime["executor"]["parameters"] = params
+    population = create_exploration(recipe)
+    population.directory = tmp_path / "population"
+    population.register_worker(create_worker(runtime))
+    targets = []
+    update = driver.update_target_temperature
+
+    def record(dyn, dtemp):
+        update(dyn, dtemp)
+        targets.append(dyn.temp / units.kB if thermostat == "langevin" else dyn.get_temperature())
+
+    monkeypatch.setattr(driver, "update_target_temperature", record)
+    for generation in (1, 2):
+        atoms = Atoms("Cu2", positions=[[0, 0, 0], [2.4, 0, 0]], cell=[8]*3, pbc=True)
+        worker = population._cooling(generation, [atoms], 17)
+        worker.run([atoms], rng_states=[17])
+    np.testing.assert_allclose(targets, [600, 450, 300, 900, 500, 100])

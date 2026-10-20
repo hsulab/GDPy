@@ -18,7 +18,7 @@ EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
     """Translate structured public executor parameters for existing providers."""
     data = copy.deepcopy(thaw(parameters))
-    if method in {"hybrid_monte_carlo", "simulated_annealing"}:
+    if method == "hybrid_monte_carlo":
         setup = data.pop("setup", None)
         if not isinstance(setup, list) or not setup:
             raise ProviderConfigurationError(f"{method} requires a nonempty parameters.setup list; migrate old cycle inputs.")
@@ -522,10 +522,12 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     if require_method and not method:
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
     if label == "executor":
+        if provider == "native" and method == "simulated_annealing":
+            raise ProviderConfigurationError("Simulated annealing is an exploration, not an executor. Use gdp explore with strategy.temperatures and an MD runtime.")
         if provider == "gdpx":
             raise ProviderConfigurationError("Executor provider gdpx was renamed to native; migrate the input and start a new run.")
         resolve_executor_parameters(parameters, method)
-        if provider == "native" and method in {"monte_carlo", "hybrid_monte_carlo", "simulated_annealing"}:
+        if provider == "native" and method in {"monte_carlo", "hybrid_monte_carlo"}:
             setup = parameters.get("setup", {})
             if isinstance(setup, list):
                 parameters["setup"] = [child_executor(item) for item in setup]
