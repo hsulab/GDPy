@@ -72,6 +72,8 @@ MC has no microcanonical acceptance or volume-change implementation.
 The old `custom` input is removed; use basin hopping for structure-search
 proposals with per-operator settings.
 
+See {doc}`ensembles` for the ensemble fields, units, and HMC inheritance.
+
 ## Examples
 
 The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands

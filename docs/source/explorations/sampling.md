@@ -8,12 +8,14 @@ and grand-canonical ensembles (`nvt`, `suvt`, and `uvt`) through conventional
 and hybrid Monte Carlo. The selected
 {doc}`operators <operators/index>` determine which quantities can change.
 {doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
+See {doc}`ensembles` for thermodynamic settings and inheritance.
 
 ```{toctree}
 :maxdepth: 3
 :titlesonly:
 :hidden:
 
+ensembles <ensembles>
 conventional monte carlo <mc>
 hybrid monte carlo <hmc>
 sampling operators <operators/index>

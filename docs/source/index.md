@@ -85,6 +85,7 @@ demo and lifecycle <computations/compute>
 tasks <computations/tasks/index>
 runtime configurations <computations/runtime>
 machine resources <computations/schedulers>
+molecular dynamics <computations/tasks/molecular-dynamics>
 monte carlo <explorations/sampling>
 ```
 

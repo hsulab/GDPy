@@ -12,7 +12,8 @@ gdp -d results -r runtime.yaml compute structures.xyz
 | Start here | What it covers |
 | --- | --- |
 | {doc}`compute` | A copper-dimer demo, preparation, submission, status, and collected results. |
-| {doc}`tasks/index` | Single points, relaxation, molecular dynamics, transition states, and vibrations. |
+| {doc}`tasks/index` | Single points, relaxation, transition states, and vibrations. |
+| {doc}`tasks/molecular-dynamics` | Molecular dynamics, ensembles, and thermostat settings. |
 | {doc}`../explorations/mc` and {doc}`../explorations/hmc` | Independent Monte Carlo sampling chains, proposals, and restart. |
 | {doc}`runtime` | Single runtimes, dispatch, parameter broadcasts, and runtime chains. |
 | {doc}`schedulers` | Local CPUs/GPUs, batch queues, SSH, and resource allocation. |

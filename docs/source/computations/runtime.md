@@ -62,32 +62,7 @@ accepted for compatibility, but they cannot be mixed with the structured form.
 
 ## Ensemble settings
 
-MD, conventional MC, and HMC use the same `executor.parameters.ensemble` mapping:
-
-```yaml
-ensemble:
-  method: nvt
-  temperature: 300
-```
-
-| Method | Required thermodynamic fields | Supported executors |
-| --- | --- | --- |
-| `nve` | None | MD |
-| `nvt` | `temperature` | MD, MC, HMC |
-| `npt` | `temperature`, `pressure` | MD |
-| `uvt` | `temperature`, `chemical_potentials` | MC, HMC |
-| `suvt` | `temperature`, `chemical_potentials` | MC, HMC |
-
-Temperature is in K, pressure in bar, and chemical potentials in eV per particle.
-Temperatures must be finite and positive; pressure and chemical potentials must
-be finite. `chemical_potentials` maps particle/species names to values. `suvt`
-preserves total particle count while allowing species changes.
-
-Keep thermostat/barostat algorithms in `setup.regulator`, with `name` and
-algorithm `parameters` only. For `nve`, initial velocity temperature may be set
-in `setup.velocities.temperature`; it is not a thermostat target.
-
-HMC declares the ensemble once on the parent. Its children inherit the applicable
-settings and cannot redeclare them. MD segments use NVT for `uvt` and `suvt`
-parents, while MC handles particle/species exchange. A broadcast at
-`ensemble.temperature` changes the target for every child together.
+MD, conventional MC, and HMC share an `executor.parameters.ensemble` mapping.
+See {doc}`MD ensembles <molecular-dynamics/ensembles>` for NVE, NVT, and NPT,
+and {doc}`Monte Carlo ensembles <../explorations/ensembles>` for NVT, UVT, SUVT,
+and HMC inheritance. Regulator algorithms remain under `setup.regulator`.

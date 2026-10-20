@@ -1,7 +1,7 @@
 # task examples
 
 These examples separate the calculation task from machine-resource settings.
-The first four use ASE’s bundled EMT calculator, so no model download or
+The first three use ASE’s bundled EMT calculator, so no model download or
 external simulator is needed. Run them in the environment where gdpx is installed.
 
 From the repository root, generate the input structures once:
@@ -21,7 +21,6 @@ directory for each demo. The YAML files are in `examples/compute/tasks/`.
 single-point
 relaxation
 cell-relaxation
-molecular-dynamics
 transition-states
 vibrations
 ```
