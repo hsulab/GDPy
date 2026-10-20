@@ -99,7 +99,11 @@ generation. Increase the step count for slower cooling.
   candidates; records include generation, parent IDs, and replica index.
 - `population.json`: generation plans, parent selection, retained IDs,
   configuration fingerprint, and random streams.
-- `population.xyz`: retained minima when the requested search completes.
+- `results/all_candidates.xyz`: all evaluated endpoint minima, including duplicates
+  and candidates not retained.
+- `results/pop.png`: candidate objective versus generation, with parent–child
+  links, the best evaluated objective so far, and the final retained population
+  highlighted. Generation 0 contains the minimised initial structures.
 - `gen0/minimisation/`: initial evaluations.
 - `genN/cooling/slices/s000/`: the MD cooling trajectory batch.
 - `genN/minimisation/`: final endpoint minimisations.
@@ -108,6 +112,9 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Changes to the configuration require a fresh directory.
+Rerunning a completed search regenerates the final results from the database
+without repeating simulations. Existing `population.xyz` files from older runs
+are left untouched; new runs do not export this file.
 `get_workers()` exposes cooling and minimisation workers for downstream analysis.
 
 The earlier `method: simulated_annealing` recipe remains available as a
