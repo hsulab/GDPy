@@ -52,6 +52,35 @@ class Exploration:
         return {}
 
 
+@pytest.mark.parametrize('embedded,external', [
+    ({'source': 'embedded'}, None),
+    (None, {'source': 'external'}),
+    ({'source': 'embedded'}, {'source': 'external'}),
+    ({'source': 'embedded'}, {}),
+])
+def test_runtime_extracted_before_construction(tmp_path, monkeypatch, output, embedded, external):
+    import copy
+
+    params = {'method': 'global_optimisation', 'scheduler': {}}
+    if embedded is not None:
+        params['runtime'] = embedded
+    original = copy.deepcopy(params)
+    exploration = Exploration()
+    registered = []
+    exploration.register_worker = registered.append
+
+    def construct(settings):
+        assert settings == {'method': 'global_optimisation'}
+        return exploration
+
+    monkeypatch.setattr(explore, 'create_exploration', construct)
+    monkeypatch.setattr(explore, 'create_worker', lambda settings: settings)
+    explore.run_exploration(params, runtime=external, directory=tmp_path)
+    assert registered == [external if external is not None else embedded]
+    assert params == original
+    assert exploration.runs == 1
+
+
 @pytest.mark.parametrize('spawn,complete,status', [(None, True, 'complete'), ('7', True, 'complete'),
                                                  ('7', False, 'waiting')])
 def test_direct_and_spawned_runs(tmp_path, monkeypatch, output, spawn, complete, status):

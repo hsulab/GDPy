@@ -37,15 +37,13 @@ def run_exploration(
 
     """
     directory = pathlib.Path(directory)
+    exp_params = exp_params.copy()
 
     with exploration_output(directory, input_path, random_seed) as report:
-        if runtime is not None:
-            runtime_params = runtime
-        else:
-            if "runtime" in exp_params:
-                runtime_params = exp_params.pop("runtime")
-            else:
-                raise RuntimeError("Exploration requires a runtime.")
+        embedded_runtime = exp_params.pop("runtime", None)
+        runtime_params = runtime if runtime is not None else embedded_runtime
+        if runtime_params is None:
+            raise RuntimeError("Exploration requires a runtime.")
 
         # Pop scheduler as exploration does not have it as an argument
         scheduler_params = exp_params.pop("scheduler", {})
