@@ -77,7 +77,8 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     from gdpx.exploration.persist.database import GlobalOptimisationDatabase
     monkeypatch.chdir(Path(__file__).resolve().parents[2])
     config = yaml.safe_load(Path("examples/global_optimisation/explorations/simulated_annealing/cu8.yaml").read_text())
-    runtime = config.pop("runtime")
+    assert "runtime" not in config
+    runtime = yaml.safe_load(Path("examples/global_optimisation/explorations/simulated_annealing/runtime.yaml").read_text())
     runtime["executor"]["parameters"]["stop"]["steps"] = 1
     runtime["executor"]["parameters"]["output"]["trajectory"]["period"] = 1
     config["strategy"]["annealing"] = dict(start_temperature=600., final_temperature=300.)
