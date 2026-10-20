@@ -52,7 +52,7 @@ class SimulatedAnnealing(BaseExploration):
                 f"SA requires executor.method='md'; "
                 f"received provider={config.executor.provider!r}, method={config.executor.method!r}. "
                 "Select a thermostatted MD runtime with --runtime "
-                "(for Cu8: examples/global_optimisation/explorations/simulated_annealing/runtime.yaml)."
+                "(for Cu8: examples/global_optimisation/runtimes/emt_md.yaml)."
             )
         params = resolve_executor_parameters(config.executor.parameters, "md")
         if params.get("ensemble") not in ("nvt", "npt"):

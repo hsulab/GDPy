@@ -14,7 +14,7 @@ system:
   builders:
     random:
       method: read_stru
-      fname: examples/global_optimisation/assets/cu8_seeds.xyz
+      fname: ../../assets/cu8_seeds.xyz
 strategy:
   method: simulated_annealing
   annealing:

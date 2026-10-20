@@ -7,7 +7,7 @@ system:
   builders:
     seeds:
       method: direct
-      frames: ./examples/global_optimisation/assets/tio2_water2_bond_seeds.xyz
+      frames: ../../assets/tio2_water2_bond_seeds.xyz
       indices: [0, 1]
   initial:
     total_size: 2

@@ -6,7 +6,7 @@ system:
   builders:
     random:
       method: random_structure_improved
-      substrates: ./examples/global_optimisation/assets/alpha_alumina111_ortho.xyz
+      substrates: ../../assets/alpha_alumina111_ortho.xyz
       composition:
         Cu: 4
       region:

@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # Supply a device-compatible DPA4C foundation model covering Cu, C, and O.
-    model: ./models/dpa4c-foundation.pt2
+    model: ../../../../models/dpa4c-foundation.pt2
 executor:
   provider: ase
   method: md

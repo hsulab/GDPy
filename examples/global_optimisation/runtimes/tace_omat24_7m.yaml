@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # User-provided TACE-OMat24-7M checkpoint; no automatic download.
-    model: ./models/tace-omat24-7m.pt
+    model: ../../../../models/tace-omat24-7m.pt
     precision: float32
     device: cpu
     fidelity_idx: 0

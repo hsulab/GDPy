@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # User-provided DPA4C-mini model exported for the execution device.
-    model: ./models/dpa4c-mini.pt2
+    model: ../../../../models/dpa4c-mini.pt2
 executor:
   provider: ase
   method: min

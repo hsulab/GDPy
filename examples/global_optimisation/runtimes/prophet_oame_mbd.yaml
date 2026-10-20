@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # Download the standard Prophet energy/force checkpoint before running.
-    model: ./models/prophet-oame-mbd.pt
+    model: ../../../../models/prophet-oame-mbd.pt
     device: cpu
     use_kernel: false
 executor:

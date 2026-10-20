@@ -99,10 +99,10 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     import yaml
     from pathlib import Path
     from gdpx.exploration.persist.database import GlobalOptimisationDatabase
-    monkeypatch.chdir(Path(__file__).resolve().parents[2])
-    config = yaml.safe_load(Path("examples/global_optimisation/explorations/simulated_annealing/cu8.yaml").read_text())
+    monkeypatch.chdir(Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/simulated_annealing")
+    config = yaml.safe_load(Path("cu8.yaml").read_text())
     assert "runtime" not in config
-    runtime = yaml.safe_load(Path("examples/global_optimisation/explorations/simulated_annealing/runtime.yaml").read_text())
+    runtime = yaml.safe_load(Path("../../runtimes/emt_md.yaml").read_text())
     runtime["executor"]["parameters"]["stop"]["steps"] = 1
     runtime["executor"]["parameters"]["output"]["trajectory"]["period"] = 1
     config["strategy"]["annealing"] = dict(start_temperature=600., final_temperature=300.)

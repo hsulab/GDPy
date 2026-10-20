@@ -19,13 +19,13 @@ EXAMPLES = ROOT / "examples/global_optimisation/explorations/simulated_annealing
 
 
 def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
-    monkeypatch.chdir(ROOT)
+    monkeypatch.chdir(EXAMPLES)
     config = yaml.safe_load((EXAMPLES / "co_cu111.yaml").read_text())
-    runtime = yaml.safe_load((EXAMPLES / "co_cu111_runtime.yaml").read_text())
+    runtime = yaml.safe_load((EXAMPLES / "../../runtimes/dpa4c_mini_md.yaml").read_text())
     assert "runtime" not in config
     assert runtime["potential"] == {
         "provider": "deepmd", "backend": "ase",
-        "parameters": {"model": "./models/dpa4c-foundation.pt2"},
+        "parameters": {"model": "../../../../models/dpa4c-foundation.pt2"},
     }
     engine = create_exploration(config)
     engine.directory = tmp_path
@@ -80,23 +80,24 @@ def test_co_cu111_documented_command(tmp_path, monkeypatch):
     from gdpx import main
     from gdpx.cli import explore
 
-    monkeypatch.chdir(ROOT)
+    monkeypatch.chdir(EXAMPLES)
     monkeypatch.setattr(main, "bootstrap_registries", lambda **kwargs: None)
     calls = []
     monkeypatch.setattr(explore, "run_exploration",
                         lambda params, wait, directory, runtime, **kwargs: calls.append((params, runtime)))
     monkeypatch.setattr(sys, "argv", [
         "gdp", "-d", str(tmp_path), "--log", "",
-        "--runtime", str(EXAMPLES / "co_cu111_runtime.yaml"),
-        "explore", str(EXAMPLES / "co_cu111.yaml"),
+        "--runtime", "../../runtimes/dpa4c_mini_md.yaml",
+        "explore", "co_cu111.yaml",
     ])
     assert main.main() is None
     assert len(calls) == 1
     assert calls[0][0]["strategy"]["method"] == "simulated_annealing"
     assert calls[0][1]["potential"]["provider"] == "deepmd"
-    guide = ROOT / "docs/source/global_optimisation/simulated-annealing.md"
+    guide = ROOT / "docs/source/global_optimisation/examples/co-cu111.md"
     text = guide.read_text()
-    for name in ("co_cu111.yaml", "co_cu111_runtime.yaml"):
-        relative = f"../../../examples/global_optimisation/explorations/simulated_annealing/{name}"
+    for source in ("explorations/simulated_annealing/co_cu111.yaml",
+                   "runtimes/dpa4c_mini_md.yaml"):
+        relative = f"../../../../examples/global_optimisation/{source}"
         assert f"{{literalinclude}} {relative}" in text
         assert (guide.parent / relative).is_file()

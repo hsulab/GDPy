@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # User-provided MACE-OMAT-0 Small checkpoint; no automatic download.
-    model: ./models/mace-omat-0-small.model
+    model: ../../../../models/mace-omat-0-small.model
     precision: float32
 executor:
   provider: ase

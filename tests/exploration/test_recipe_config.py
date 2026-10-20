@@ -64,7 +64,7 @@ def test_two_builder_co_example_has_compatible_fragment_order(tmp_path, monkeypa
     import yaml
     from gdpx.exploration.genetic_algorithm.core import RandomStreamRegistry
     root = Path(__file__).resolve().parents[2]
-    monkeypatch.chdir(root)
+    monkeypatch.chdir(root / 'examples/global_optimisation/explorations/genetic_algorithm')
     recipe = yaml.safe_load(
         (root / 'examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml').read_text(),
     )

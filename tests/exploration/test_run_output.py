@@ -252,6 +252,7 @@ def test_cli_sa_runtime_error(tmp_path, monkeypatch, output, debug):
     source = Path(__file__).resolve().parents[2] / (
         'examples/global_optimisation/explorations/simulated_annealing/cu8.yaml'
     )
+    monkeypatch.chdir(source.parent)
     runtime = tmp_path / 'runtime.yaml'
     runtime.write_text('potential:\n  provider: emt\nexecutor:\n  provider: ase\n  method: min\n')
     args = ['gdp', '-d', str(tmp_path), '--log', '', '--runtime', str(runtime)]
@@ -264,5 +265,5 @@ def test_cli_sa_runtime_error(tmp_path, monkeypatch, output, debug):
     assert_pair(text, 'failed')
     assert "provider='ase', method='min'" in text
     assert "executor.method='md'" in text
-    assert 'annealing/runtime.yaml' in text
+    assert 'runtimes/emt_md.yaml' in text
     assert ('Traceback (most recent call last)' in text) == debug
