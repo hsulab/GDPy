@@ -1,6 +1,6 @@
 # Ensembles
 
-Conventional MC and HMC define thermodynamic settings under
+Standard MC and HMC define thermodynamic settings under
 `executor.parameters.ensemble`, using the same mapping format as
 {doc}`MD <../computations/molecular-dynamics/ensembles>`.
 
@@ -90,5 +90,5 @@ See the {doc}`complete HMC input <hmc>`.
 with the same thermodynamic fields and operator restrictions. It uses minimised
 endpoint energies for acceptance and permits geometry filters. These settings
 define biased search acceptance, not equilibrium sampling of the original
-potential. Conventional MC and HMC still reject enabled distance checks; HMC
+potential. Standard MC and HMC still reject enabled distance checks; HMC
 does not accept biased-MC children.

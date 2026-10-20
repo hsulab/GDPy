@@ -4,7 +4,7 @@
 
 Boltzmann sampling generates configurations with the probability prescribed
 by a thermodynamic ensemble. GDPy provides canonical, semi-grand-canonical,
-and grand-canonical ensembles (`nvt`, `suvt`, and `uvt`) through conventional
+and grand-canonical ensembles (`nvt`, `suvt`, and `uvt`) through standard
 and hybrid Monte Carlo. The selected
 {doc}`operators <operators/index>` determine which quantities can change.
 {doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
@@ -18,7 +18,7 @@ geometry filters for independent searches over relaxed structures.
 :hidden:
 
 ensembles <ensembles>
-conventional monte carlo <mc>
+standard monte carlo <mc>
 biased monte carlo <biased-mc>
 hybrid monte carlo <hmc>
 sampling operators <operators/index>
@@ -52,4 +52,4 @@ gdp -d run-mc-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime e
 
 The sampled trajectory is written to `run-mc-canonical/cand0/mc.xyz`, including
 repeated states after rejection. This short demo illustrates the workflow;
-see the {doc}`conventional Monte Carlo guide <mc>` for sampling, output, and restart details.
+see the {doc}`standard Monte Carlo guide <mc>` for sampling, output, and restart details.

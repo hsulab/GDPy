@@ -9,7 +9,7 @@ of the original potential. Reaching a minimiser's step limit does not guarantee
 a local minimum.
 
 Unlike population {doc}`basin hopping <../global_optimisation/basin_hopping>`,
-this method has no population selection or generations. Conventional
+this method has no population selection or generations. Standard
 {doc}`Monte Carlo <mc>` requires single-point energies and rejects enabled
 geometry filters. Biased MC permits those filters and requires fixed-cell
 minimisation. It cannot be used as an {doc}`HMC <hmc>` child.

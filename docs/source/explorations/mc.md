@@ -1,8 +1,8 @@
 (monte-carlo)=
 
-# Conventional Monte Carlo
+# Standard Monte Carlo
 
-Conventional Monte Carlo (MC) proposes structural changes and accepts or rejects them using
+Standard Monte Carlo (MC) proposes structural changes and accepts or rejects them using
 single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
 with `executor.provider: native` and `executor.method: monte_carlo`.
 Each input structure starts an independent chain. Settings below are relative to
@@ -98,7 +98,7 @@ normalised automatically. Preset ensembles define temperature and chemical
 potentials once under `parameters.ensemble`. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
-Conventional MC automatically disables proposal distance checks for all three
+Standard MC automatically disables proposal distance checks for all three
 supported ensembles. It rejects `skip_distance_check: false`
 because geometry filtering changes the proposal distribution and breaks
 detailed balance. The energy evaluation decides whether each trial is

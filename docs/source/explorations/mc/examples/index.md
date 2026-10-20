@@ -32,7 +32,7 @@ MC evaluator. Optional `executor.parameters.setup.executor` customizes its
 provider, parameters, or scheduler; its method must remain `spc`.
 
 The {doc}`hybrid examples <../../hmc/examples/index>` alternate MD segments with MC proposals
-and list MD and conventional MC executors directly in `parameters.setup`.
+and list MD and standard MC executors directly in `parameters.setup`.
 
 ## Choose an example
 

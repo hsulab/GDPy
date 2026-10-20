@@ -18,7 +18,7 @@ MC and hybrid MC configure proposals under `executor.parameters.setup.operators`
 basin hopping retains `strategy.operators`. HMC places the ensemble on the parent and operators in the MC child.
 Paths below are relative to `executor`. Preset MC and hybrid MC ensembles define temperature and
 chemical potentials under `parameters.ensemble`. Basin hopping keeps those acceptance settings on each operator.
-{doc}`Biased MC <../biased-mc>` uses the same ensemble fields as conventional MC,
+{doc}`Biased MC <../biased-mc>` uses the same ensemble fields as standard MC,
 but permits the existing geometry filters and minimises valid proposals.
 This MC fragment displaces a copper atom:
 

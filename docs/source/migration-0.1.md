@@ -229,7 +229,7 @@ independent chain. There is no compatibility adapter for old inputs or runs.
 - Move `system.builder` to compute's positional structure/builder inputs.
 - Move `system.ensemble` to `executor.parameters.ensemble`. For HMC, declare it
   on the parent only. Move `system.ignore_atoms_tags` and `strategy.operators`
-  to `executor.parameters.setup` (the conventional MC child for HMC).
+  to `executor.parameters.setup` (the standard MC child for HMC).
 - Define potential and modifiers once on the outer runtime. MC uses ASE `spc`
   by default; optional `setup.executor` customizes evaluation.
 - For HMC, make `setup` an ordered list of MD and `native/monte_carlo`

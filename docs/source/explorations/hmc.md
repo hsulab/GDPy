@@ -65,7 +65,7 @@ are supported. Potential, modifiers, complete runtimes, and dispatch settings
 cannot be overridden in children.
 
 - MD owns its integration settings. Its `parameters.stop.steps` counts MD steps.
-- Conventional MC owns its operators, evaluator, and proposal count.
+- Standard MC owns its operators, evaluator, and proposal count.
   Its `parameters.stop.steps` counts MC proposals. Evaluation defaults to ASE
   single-point calculation; use its optional `setup.executor` to override it.
 - The parent `parameters.stop.steps` counts full passes through the setup list.
@@ -107,4 +107,4 @@ endpoints appear in `results/end_frames.xyz`.
 
 Resume with the same command, directory, and inputs. Changed inputs or old
 `gdpx`/`setup.cycle` runs require a new directory. Move the ensemble to parent `parameters.ensemble`, keep operators in the
-conventional MC child, and list children directly in `setup`.
+standard MC child, and list children directly in `setup`.
