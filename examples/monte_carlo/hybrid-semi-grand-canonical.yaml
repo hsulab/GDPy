@@ -1,60 +1,67 @@
-method: hybrid_monte_carlo
-random_seed: 1112
-# Initial evaluation and MC trials use the same EMT single-point runtime.
-runtime: &single_point
-  potential:
-    provider: emt
-  executor:
-    provider: ase
-    method: spc
-    parameters: {}
-  dispatch:
-    worker: single
-system:
-  builder:
-    method: read_stru
-    fname: examples/monte_carlo/assets/cu16ni16.xyz
-  ensemble:
-    method: semi_grand_canonical
-    temperature: 1200.0
-    chemical_potentials:
-      Cu: 0.0
-      Ni: 0.0
-strategy:
-  convergence:
-    steps: 5
-  ckpt_period: 1
-  operators:
-    - method: swap_type
-      particles: [Cu, Ni]
-      max_random_attempts: 1
-  cycle:
-    - method: molecular_dynamics
-      runtime:
-        potential:
-          provider: emt
-        executor:
+# gdp compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/hybrid-semi-grand-canonical.yaml
+potential: &id001
+  provider: emt
+executor:
+  provider: gdpx
+  method: hybrid_monte_carlo
+  parameters:
+    random_seed: 1112
+    setup:
+      ensemble:
+        method: semi_grand_canonical
+        temperature: 1200.0
+        chemical_potentials:
+          Cu: 0.0
+          Ni: 0.0
+      operators:
+      - method: swap_type
+        particles:
+        - Cu
+        - Ni
+        max_random_attempts: 1
+      evaluator:
+        executor: &id002
           provider: ase
-          method: md
-          parameters:
-            random_seed: 7
-            setup:
-              ensemble: nvt
-              timestep: 1.0
-              velocities:
-                seed: 7
-                remove_rotation: false
-              regulator:
-                name: langevin
-                targets:
-                  temperature: 1200.0
-                parameters:
-                  friction: 0.01
-            output:
-              trajectory:
-                period: 5
-            stop:
-              steps: 20
-    - method: monte_carlo
+          method: spc
+          parameters: {}
+      cycle:
+      - method: molecular_dynamics
+        runtime:
+          potential:
+            provider: emt
+          executor:
+            provider: ase
+            method: md
+            parameters:
+              random_seed: 7
+              setup:
+                ensemble: nvt
+                timestep: 1.0
+                velocities:
+                  seed: 7
+                  remove_rotation: false
+                regulator:
+                  name: langevin
+                  targets:
+                    temperature: 1200.0
+                  parameters:
+                    friction: 0.01
+              output:
+                trajectory:
+                  period: 5
+              stop:
+                steps: 20
+      - method: monte_carlo
+        steps: 5
+        runtime:
+          potential: *id001
+          executor: *id002
+          dispatch:
+            worker: single
+    output:
+      trajectory:
+        period: 1
+      checkpoint:
+        period: 1
+    stop:
       steps: 5
-      runtime: *single_point

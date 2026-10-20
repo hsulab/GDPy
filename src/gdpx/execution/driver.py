@@ -19,6 +19,7 @@ from gdpx.utils.archive import open_archive
 from gdpx.utils.strconv import integers_to_string
 
 from gdpx.execution.md import force_temperature
+from gdpx.execution.executor import SingleStructureExecutor
 
 # Key name for earlystopping in atoms.info.
 EARLYSTOP_KEY: str = "earlystop"
@@ -137,7 +138,7 @@ class DriverSetting:
         raise NotImplementedError(f"{self.__class__.__name__} has no function for run params.")
 
 
-class BaseDriver(BaseComponent):
+class BaseDriver(SingleStructureExecutor):
     #: Driver's name.
     name: str = "abstract"
 

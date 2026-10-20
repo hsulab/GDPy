@@ -7,8 +7,8 @@ from ase import Atoms
 from ase.constraints import FixAtoms, FixBondLengths
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gdpx.exploration.accepted_state import save_accepted_state, load_accepted_state
-from gdpx.exploration.checkpoint import save_data, load_data
+from gdpx.execution.accepted_state import save_accepted_state, load_accepted_state
+from gdpx.execution.checkpoint import save_data, load_data
 
 
 def test_structure_roundtrip_retains_arrays_constraints_and_results(tmp_path):

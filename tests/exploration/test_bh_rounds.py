@@ -10,7 +10,7 @@ from ase.io import read
 
 from gdpx.exploration.basin_hopping import chain
 from gdpx.exploration.generation import EvaluationStatus
-from gdpx.exploration.sampling import parse_operators
+from gdpx.sampling import parse_operators
 
 
 def atoms():
@@ -166,7 +166,7 @@ def test_result_ids_are_validated(tmp_path, mode):
 @pytest.mark.parametrize("steps", [0, 2])
 def test_invalid_and_zero_hops_skip_worker(tmp_path, monkeypatch, steps):
     op = operators()[0][0]
-    from gdpx.exploration.sampling.proposal import MoveProposal
+    from gdpx.sampling.proposal import MoveProposal
     def invalid(frame, rng):
         proposal = MoveProposal(frame)
         proposal.valid = False
@@ -186,7 +186,7 @@ def test_mixed_validity_and_submission_exception_roll_back(tmp_path, monkeypatch
     original = op.propose
     starts = [atoms(), atoms()]
     starts[0].info["skip"] = True
-    from gdpx.exploration.sampling.proposal import MoveProposal
+    from gdpx.sampling.proposal import MoveProposal
     def propose(frame, rng):
         if frame.info.get("skip"):
             proposal = MoveProposal(frame)
@@ -273,7 +273,7 @@ def test_bh_retention_and_recovery_from_damaged_latest_snapshot(tmp_path):
 
 @pytest.mark.parametrize('boundary', ['manifest', 'prune'])
 def test_bh_interrupted_publication_and_pruning(tmp_path, monkeypatch, boundary):
-    import gdpx.exploration.checkpoint as checkpoint
+    import gdpx.execution.checkpoint as checkpoint
     baseline_rng = np.random.default_rng(9)
     baseline = run(tmp_path / 'baseline/rounds', Worker(), rng=baseline_rng)
     path = tmp_path / 'restart/rounds'
@@ -377,7 +377,7 @@ def test_progress_does_not_report_pending_or_failed_commit(tmp_path, monkeypatch
 
 
 def test_move_logging_preserves_results_rng_and_resume(tmp_path, monkeypatch):
-    from gdpx.exploration.sampling.logging import MoveLog
+    from gdpx.sampling.logging import MoveLog
     rngs = [np.random.default_rng(9), np.random.default_rng(9)]
     ops, probs = operators()
     baseline = chain.run_hopping_rounds([atoms(), atoms()], Worker(), ops, probs, 1, rngs[0], tmp_path / 'baseline')
@@ -404,8 +404,8 @@ def test_move_logging_preserves_results_rng_and_resume(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('valid,energy,word', [(False, 0., 'invalid proposal'), (True, 1e6, 'rejected')])
 def test_move_log_invalid_and_rejected(tmp_path, monkeypatch, valid, energy, word):
-    from gdpx.exploration.sampling.logging import MoveLog
-    from gdpx.exploration.sampling.proposal import MoveProposal
+    from gdpx.sampling.logging import MoveLog
+    from gdpx.sampling.proposal import MoveProposal
     ops, probs = operators()
     if not valid:
         def invalid(frame, rng):

@@ -11,12 +11,11 @@ from gdpx.execution.factory import create_worker
 from gdpx.utils.parser import parse_input_file
 
 EXAMPLES = Path(__file__).resolve().parents[2] / 'examples/global_optimisation'
-MC_EXAMPLES = Path(__file__).resolve().parents[2] / 'examples/monte_carlo'
 
 
 @pytest.fixture
 def capture(monkeypatch):
-    for method in ('global_optimisation', 'monte_carlo', 'simulated_annealing'):
+    for method in ('global_optimisation', 'simulated_annealing'):
         monkeypatch.setitem(REGISTER._dict, method, lambda **kw: SimpleNamespace(params=kw))
 
 
@@ -34,19 +33,14 @@ def test_cartesian_order_paths_and_independent_overrides(capture):
     assert source == original
 
 
-@pytest.mark.parametrize('method', ['monte_carlo', 'simulated_annealing'])
+@pytest.mark.parametrize('method', ['simulated_annealing'])
 def test_optional_leaf_and_single_recipe_compatibility(capture, method):
-    if method == 'monte_carlo':
-        recipe = {'system': {'builder': None, 'ensemble': {}},
-                  'strategy': {'operators': [{'particles': ['Cu', 'Ni']}]}, 'random_seed': 1}
-    else:
-        recipe = {'recipe': {'operators': [{'particles': ['Cu', 'Ni']}], 'random_seed': 1}}
+    recipe = {'recipe': {'operators': [{'particles': ['Cu', 'Ni']}], 'random_seed': 1}}
     assert not isinstance(create_exploration(dict(method=method, **recipe)), list)
     result = create_exploration(dict(method=method, **recipe, broadcast={'optional': [42]}))
     assert len(result) == 1
     assert result[0].params['optional'] == 42
-    operators = (result[0].params['strategy']['operators'] if method == 'monte_carlo'
-                 else result[0].params['operators'])
+    operators = result[0].params['operators']
     assert operators[0]['particles'] == ['Cu', 'Ni']
 
 
@@ -56,10 +50,8 @@ def test_optional_leaf_and_single_recipe_compatibility(capture, method):
     {'operators..temperature': [300]}, {'operators': [[]], 'operators.0.temperature': [300]},
     {'operators.0.temperature': [300], 'operators': [[]]}])
 def test_invalid_broadcast_before_construction(monkeypatch, broadcast):
-    monkeypatch.setitem(REGISTER._dict, 'monte_carlo', lambda **kw: pytest.fail('constructed invalid sweep'))
-    config = dict(method='monte_carlo', random_seed=1,
-                  system={'builder': None, 'ensemble': {'temperature': 500}},
-                  strategy={'operators': [{}]}, broadcast=broadcast)
+    monkeypatch.setitem(REGISTER._dict, 'simulated_annealing', lambda **kw: pytest.fail('constructed invalid sweep'))
+    config = dict(method='simulated_annealing', recipe={'random_seed': 1, 'operators': [{}]}, broadcast=broadcast)
     with pytest.raises(ValueError):
         create_exploration(config)
 
@@ -103,11 +95,3 @@ def test_real_composition_example_serializes_resolved_recipes():
         assert not isinstance(restored, list)
         assert restored.random_seed == 7
     assert results[0].worker is not results[1].worker
-
-
-def test_monte_carlo_broadcast_uses_structured_paths():
-    source = parse_input_file(MC_EXAMPLES / 'canonical.yaml')
-    source['broadcast'] = {'system.ensemble.temperature': [600.0, 1200.0]}
-    results = create_exploration(source)
-    assert [engine.operators[0].temperature for engine in results] == [600.0, 1200.0]
-    assert [engine.system_config['ensemble']['temperature'] for engine in results] == [600.0, 1200.0]

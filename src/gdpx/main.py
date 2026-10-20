@@ -139,7 +139,7 @@ def _main():
     # --- compute interface
     parser_compute = subparsers.add_parser(
         "compute",
-        help="compute structures with basic methods (MD, MIN, and ...)",
+        help="evaluate or simulate structures (SPC, MIN, MD, MC, and ...)",
         description="Execute structures using a runtime configuration.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -147,6 +147,10 @@ def _main():
         "STRUCTURE",
         nargs="*",
         help="structure files, or a lifecycle action: prepare/submit/run/status/resubmit/collect",
+    )
+    parser_compute.add_argument(
+        "-r", "--runtime", default=argparse.SUPPRESS,
+        help="runtime configuration (json/yaml)",
     )
     parser_compute.add_argument(
         "-b",
@@ -173,7 +177,7 @@ def _main():
     # --- exploration interface
     parser_explore = subparsers.add_parser(
         "explore",
-        help="explore structures with advanced methods (GA, MC, and ...)",
+        help="search for candidate structures (GA, BH, and annealing)",
         description="Run a structural exploration method.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

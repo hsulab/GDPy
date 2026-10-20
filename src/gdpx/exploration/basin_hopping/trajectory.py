@@ -5,7 +5,7 @@ from pathlib import Path
 import ase.db
 from ase.io import write
 
-from ..checkpoint import load_data
+from gdpx.execution.checkpoint import load_data
 
 
 def export_trajectories(rounds_directory, output_directory, *, database=None):

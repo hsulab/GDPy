@@ -18,7 +18,7 @@ from joblib import Parallel, delayed
 
 from gdpx import config
 from gdpx.structures.builders.builder import StructureBuilder
-from gdpx.execution.driver import BaseDriver
+from gdpx.execution.executor import SingleStructureExecutor, RunState
 from gdpx.execution.output import get_reporter, worker_output
 from .registry import WORKER_REGISTRY
 from gdpx.execution.runtime import Runtime
@@ -72,7 +72,7 @@ def run_computation_in_commandline(
     structures: list[Atoms],
     computation_dirnames: list[str],
     rng_states,
-    drivers: Union[BaseDriver, list[BaseDriver]],
+    drivers: Union[SingleStructureExecutor, list[SingleStructureExecutor]],
     driver_indices: Optional[list[int]],
     directory: pathlib.Path,
     share_wdir: bool,
@@ -100,11 +100,11 @@ def run_computation_in_commandline(
         progress_func: Optional callback receiving workdir and success after each calculation.
         error_func: Optional line-by-line error sink; defaults to print_func.
     """
-    is_single_driver = isinstance(drivers, BaseDriver) or len(drivers) == 1
+    is_single_driver = isinstance(drivers, SingleStructureExecutor) or len(drivers) == 1
 
     # Collect all unique driver instances so we can set machine_prefix once
-    all_drivers: list[BaseDriver] = []
-    if isinstance(drivers, BaseDriver):
+    all_drivers: list[SingleStructureExecutor] = []
+    if isinstance(drivers, SingleStructureExecutor):
         all_drivers = [drivers]
     else:
         all_drivers = drivers
@@ -126,14 +126,14 @@ def run_computation_in_commandline(
             d.setting.machine_prefix = machine_prefix
 
     # Retrieve the right driver for a given index
-    def _get_driver(idx: int) -> BaseDriver:
+    def _get_driver(idx: int) -> SingleStructureExecutor:
         if is_single_driver:
             return all_drivers[0]
         return all_drivers[idx]
 
     failures: list[DriverFailure] = []
 
-    def _record_failure(gi: int, dirname: str, d_idx: int, driver: BaseDriver, error: Exception) -> None:
+    def _record_failure(gi: int, dirname: str, d_idx: int, driver: SingleStructureExecutor, error: Exception) -> None:
         traceback_text = "".join(traceback.format_exception(type(error), error, error.__traceback__))
         failure = DriverFailure(
             computation_index=gi,
@@ -168,8 +168,8 @@ def run_computation_in_commandline(
                             f"{curr_driver.directory.name} is running..."
                         )
                         curr_driver.reset()
-                        curr_driver.run(atoms, read_ckpt=True, extra_info=None)
-                        succeeded = True
+                        state = curr_driver.run(atoms, read_ckpt=True, extra_info=None)
+                        succeeded = None if state is RunState.PENDING else True
                     except Exception as error:
                         _record_failure(gi, dirname, d_idx, curr_driver, error)
                     finally:
@@ -271,7 +271,7 @@ class DriverBasedWorker(CatalogWorker):
             raise TypeError(f"Expected Runtime, got {type(runtime).__name__}.")
         self.runtime = runtime
         self.scheduler = runtime.scheduler
-        self._drivers: list[BaseDriver] = [runtime.executor]
+        self._drivers: list[SingleStructureExecutor] = [runtime.executor]
 
     def _job_reference(self, uid):
         return uid if self.compact_metadata else self.metadata_directory / f"job-{uid}.json"
@@ -310,11 +310,11 @@ class DriverBasedWorker(CatalogWorker):
     # ------------------------------------------------------------------
 
     @property
-    def driver(self) -> BaseDriver:
+    def driver(self) -> SingleStructureExecutor:
         return self._drivers[0]
 
     @property
-    def drivers(self) -> list[BaseDriver]:
+    def drivers(self) -> list[SingleStructureExecutor]:
         return self._drivers
 
     # ------------------------------------------------------------------

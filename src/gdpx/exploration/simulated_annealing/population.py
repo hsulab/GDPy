@@ -14,7 +14,7 @@ from ..population.exploration import PopulationBasedExploration
 from ..basin_hopping.engine import canonical_candidates_from_worker_results
 from ..basin_hopping.selection import HoppingStartSelector
 from ..persist.database import GlobalOptimisationDatabase
-from ..checkpoint import write_json
+from gdpx.execution.checkpoint import write_json
 from ..objective import normalise_objective
 from .simulated_annealing import SimulatedAnnealing
 

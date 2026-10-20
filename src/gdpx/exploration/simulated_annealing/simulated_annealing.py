@@ -9,7 +9,7 @@ from gdpx.execution.factory import create_worker
 from gdpx.execution.fingerprint import payload_digest
 from gdpx.providers.configuration import resolve_executor_parameters
 from gdpx.structures.builders.factory import canonicalise_builder
-from ..checkpoint import write_json
+from gdpx.execution.checkpoint import write_json
 from ..exploration import BaseExploration
 
 

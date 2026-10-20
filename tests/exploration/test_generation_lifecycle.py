@@ -13,7 +13,7 @@ from gdpx.exploration.persist.database import GlobalOptimisationDatabase
 from gdpx.exploration.factory import create_exploration
 from gdpx.execution.factory import create_worker
 from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
-from gdpx.exploration.sampling import parse_operators
+from gdpx.sampling import parse_operators
 
 
 def atom(index=0):
@@ -363,7 +363,7 @@ def test_every_minimum_is_available_to_next_population(tmp_path, accept_uphill):
 
 @pytest.mark.parametrize("invalid", [False, True])
 def test_bh_zero_result_generation_completes_and_reports(tmp_path, monkeypatch, invalid):
-    from gdpx.exploration.sampling.proposal import MoveProposal
+    from gdpx.sampling.proposal import MoveProposal
     config, runtime = bh_config(tmp_path, generations=2)
     if not invalid:
         config["strategy"]["steps_per_chain"] = 0

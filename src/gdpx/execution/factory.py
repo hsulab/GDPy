@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Callable
 
 from gdpx import config
-from gdpx.execution.driver import BaseDriver
+from gdpx.execution.executor import SingleStructureExecutor
 from gdpx.execution.reactor import BaseReactor
 from gdpx.execution.runtime import Runtime
 from gdpx.execution.workers.drive import DriverBasedWorker
@@ -49,7 +49,7 @@ def create_worker(
     share_workdir = dispatch.share_workdir
     retain_info = dispatch.retain_info
 
-    if isinstance(runtime.executor, BaseDriver):
+    if isinstance(runtime.executor, SingleStructureExecutor):
         if worker_kind == "single":
             worker = SingleWorker(runtime=runtime)
         elif worker_kind == "batch":

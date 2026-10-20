@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..checkpoint import load_data
+from gdpx.execution.checkpoint import load_data
 
 
 def collect_history(connection, directory):

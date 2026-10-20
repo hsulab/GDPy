@@ -12,7 +12,7 @@ from ase.constraints import FixAtoms
 from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
 from gdpx.exploration.basin_hopping.engine import canonical_candidates_from_worker_results
 from gdpx.exploration.generation import EvaluationStatus
-from gdpx.exploration.sampling import parse_operators
+from gdpx.sampling import parse_operators
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 

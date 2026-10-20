@@ -2,6 +2,7 @@
 
 
 def register_builtin_providers(manager) -> None:
+    from .sampling import SAMPLING_PROVIDER
     from .ase import ASE_PROVIDER
     from .emt import EMT_PROVIDER
     from .deepmd import DEEPMD_JAX_PROVIDER, DEEPMD_JAX_X_PROVIDER, DEEPMD_PROVIDER
@@ -35,6 +36,7 @@ def register_builtin_providers(manager) -> None:
     from .xtb import XTB_PROVIDER
 
     providers = (
+        SAMPLING_PROVIDER,
         ASE_PROVIDER, EMT_PROVIDER, DEEPMD_PROVIDER, DEEPMD_JAX_PROVIDER,
         DEEPMD_JAX_X_PROVIDER, LAMMPS_PROVIDER, VASP_PROVIDER, CP2K_PROVIDER,
         ABACUS_PROVIDER, LASP_PROVIDER, ESPRESSO_PROVIDER, BUILTIN_PROVIDER,

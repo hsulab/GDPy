@@ -6,9 +6,9 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
 
-from gdpx.exploration.sampling import parse_operators
-from gdpx.exploration.sampling.fragments import FragmentPolicy, fragment_policy_for
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.sampling import parse_operators
+from gdpx.sampling.fragments import FragmentPolicy, fragment_policy_for
+from gdpx.sampling.geometry import prepare_operators
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 

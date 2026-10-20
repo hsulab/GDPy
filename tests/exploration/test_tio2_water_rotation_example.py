@@ -9,7 +9,7 @@ import yaml
 from ase.io import read
 
 from gdpx.exploration.factory import create_exploration
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.sampling.geometry import prepare_operators
 from gdpx.structures.groups import evaluate_constraint_expression
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples/global_optimisation"

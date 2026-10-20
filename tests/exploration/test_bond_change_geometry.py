@@ -9,8 +9,8 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
 from ase.data import atomic_numbers, covalent_radii
 
-from gdpx.exploration.sampling import parse_operators
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.sampling import parse_operators
+from gdpx.sampling.geometry import prepare_operators
 from gdpx.structures.geometry.bond_change import (
     bond_break_settings, break_bond, form_bond,
     find_bond_break_candidates, find_bond_form_candidates,
@@ -162,7 +162,7 @@ def test_no_selected_particles_skips_and_restores_reconciliation(selection):
 
 
 def test_sampling_and_geometry_use_the_same_fragment_policy():
-    from gdpx.exploration.sampling.fragments import FragmentPolicy as SamplingPolicy
+    from gdpx.sampling.fragments import FragmentPolicy as SamplingPolicy
     assert SamplingPolicy is FragmentPolicy
 
 

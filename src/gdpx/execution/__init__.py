@@ -3,6 +3,7 @@
 from .executor import (
     DynamicsExecutor, EvaluationExecutor, Executor, LocalTransitionStateExecutor, OptimizationExecutor,
     PathTransitionStateExecutor, TransitionStateExecutor,
+    SingleStructureExecutor, RunState,
 )
 from .resolver import RuntimeResolver, resolve_runtime
 from .results import (
@@ -16,6 +17,7 @@ from .service import (
 
 __all__ = [
     "DynamicsExecutor",
+    "SingleStructureExecutor", "RunState",
     "EvaluationExecutor", "EvaluationResult",
     "ExecutionHandle", "ExecutionResult", "ExecutionService", "ExecutionStatus", "Executor",
     "ExecutionWorker", "WorkerExecutionService",

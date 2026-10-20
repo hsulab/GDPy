@@ -40,6 +40,9 @@ def run_exploration(
     exp_params = exp_params.copy()
 
     with exploration_output(directory, input_path, random_seed) as report:
+        if exp_params.get("method") in {"monte_carlo", "hybrid_monte_carlo"}:
+            # Report migration before looking for the old evaluation runtime.
+            create_exploration(exp_params)
         embedded_runtime = exp_params.pop("runtime", None)
         runtime_params = runtime if runtime is not None else embedded_runtime
         if runtime_params is None:

@@ -516,6 +516,19 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         raise ProviderConfigurationError(f"{label.capitalize()} method is required.")
     if label == "executor":
         resolve_executor_parameters(parameters, method)
+        if provider == "gdpx" and method in {"monte_carlo", "hybrid_monte_carlo"}:
+            setup = parameters.get("setup", {})
+            if isinstance(setup, Mapping):
+                evaluator = setup.get("evaluator")
+                if isinstance(evaluator, Mapping) and isinstance(evaluator.get("executor"), Mapping):
+                    evaluator["executor"] = _component(
+                        evaluator["executor"], "executor", require_method=True
+                    ).to_dict()
+                cycle = setup.get("cycle")
+                if isinstance(cycle, list):
+                    for stage in cycle:
+                        if isinstance(stage, Mapping) and isinstance(stage.get("runtime"), Mapping):
+                            stage["runtime"] = RuntimeConfig.from_mapping(stage["runtime"]).to_dict()
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
     if label == "modifier":

@@ -3,11 +3,12 @@ import logging
 from types import SimpleNamespace
 
 import pytest
+from ase import Atoms
 
 from gdpx import config
 from gdpx.core.output import Box
-from gdpx.exploration.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
-from gdpx.exploration.monte_carlo.output import mc_box, report_hybrid_intro, report_outcome
+from gdpx.execution.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
+from gdpx.execution.monte_carlo.output import mc_box, report_hybrid_intro, report_outcome
 
 
 @pytest.mark.parametrize("accepted,valid,decision,current", [
@@ -109,18 +110,19 @@ def test_hybrid_intro_reports_cycle_and_outputs(caplog):
 def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
     engine = object.__new__(HybridMonteCarlo)
 
-    def run_with_worker():
+    def run_with_worker(atoms):
         config.logger.info("particles in system: Cu 8")
         config.logger.info("succeed to insert after 2 attempts")
         with mc_box("visible") as box:
             box.line("concise progress")
 
     engine._run_with_worker = run_with_worker
+    engine.read_convergence = lambda: True
     original_level = config.logger.level
     config.logger.setLevel(logging.INFO)
     config.logger.addHandler(caplog.handler)
     try:
-        engine.run()
+        engine.run(Atoms("Cu"))
     finally:
         config.logger.removeHandler(caplog.handler)
         config.logger.setLevel(original_level)

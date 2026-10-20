@@ -103,7 +103,7 @@ class WorkerReporter:
             done = {str(name) for job in jobs if job.gdir in finished for name in job.wdir_names}
         selected = self.selected if self.selected is not None else names
         done &= selected
-        failed = {name for name, success in self.outcomes.items() if not success} & selected
+        failed = {name for name, success in self.outcomes.items() if success is False} & selected
         done |= {name for name, success in self.outcomes.items() if success} & selected
         done -= failed
         return len(done), len(selected - done - failed), len(failed)

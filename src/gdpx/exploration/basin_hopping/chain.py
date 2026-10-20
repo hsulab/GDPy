@@ -9,11 +9,11 @@ from dataclasses import dataclass
 import ase.db
 from ase import Atoms
 
-from ..sampling import select_operator
-from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
-from ..sampling.fragments import BOND_OPERATORS, fragment_policy_for
-from ..accepted_state import load_accepted_state, save_accepted_state, load_structure, save_structure
-from ..checkpoint import save_data, load_data, publish_snapshot, read_snapshot, prune_snapshots
+from gdpx.sampling import select_operator
+from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from gdpx.sampling.fragments import BOND_OPERATORS, fragment_policy_for
+from gdpx.execution.accepted_state import load_accepted_state, save_accepted_state, load_structure, save_structure
+from gdpx.execution.checkpoint import save_data, load_data, publish_snapshot, read_snapshot, prune_snapshots
 from ..generation import EvaluationStatus
 
 

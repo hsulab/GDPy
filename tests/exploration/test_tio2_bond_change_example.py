@@ -9,8 +9,8 @@ import yaml
 from ase.io import read
 
 from gdpx.exploration.factory import create_exploration
-from gdpx.exploration.sampling import parse_operators
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.sampling import parse_operators
+from gdpx.sampling.geometry import prepare_operators
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
 DEMO = runpy.run_path(str(EXAMPLES / "tio2_water_bond_change.py"))

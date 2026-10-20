@@ -20,15 +20,17 @@ class RuntimeResolver:
 
     def resolve(self, value: Union[RuntimeConfig, Mapping[str, Any]]) -> Runtime:
         config = value if isinstance(value, RuntimeConfig) else RuntimeConfig.from_mapping(value)
+        executor_factory = self.providers.require(
+            config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
+        )
+        if hasattr(executor_factory, "resolve_composite"):
+            return executor_factory.resolve_composite(config, self)
         potential_factory = self.providers.require(
             config.potential.provider,
             CapabilityKind.POTENTIAL,
             config.potential.method or "default",
         )
         potential = potential_factory.create(thaw(config.potential.parameters))
-        executor_factory = self.providers.require(
-            config.executor.provider, CapabilityKind.EXECUTOR, config.executor.method
-        )
         executor_parameters = resolve_executor_parameters(
             thaw(config.executor.parameters), config.executor.method
         )
@@ -71,6 +73,18 @@ class RuntimeResolver:
                 potential=potential,
                 materialization=materialization,
             )
+        return Runtime(
+            potential=config.potential_spec(),
+            materialization=materialization,
+            executor=executor,
+            modifiers=config.modifier_specs(),
+            config=config,
+            provider_potential=potential,
+            modifier_instances=modifier_instances if target is not None else (),
+            scheduler=self.resolve_scheduler(config),
+        )
+
+    def resolve_scheduler(self, config):
         scheduler_config = config.scheduler
         if scheduler_config is None:
             from gdpx.execution.schedulers.direct import DirectScheduler
@@ -96,16 +110,7 @@ class RuntimeResolver:
                 providers=self.providers,
                 scheduler=scheduler,
             )
-        return Runtime(
-            potential=config.potential_spec(),
-            materialization=materialization,
-            executor=executor,
-            modifiers=config.modifier_specs(),
-            config=config,
-            provider_potential=potential,
-            modifier_instances=modifier_instances if target is not None else (),
-            scheduler=scheduler,
-        )
+        return scheduler
 
     def _create_modifiers(self, config):
         instances = []

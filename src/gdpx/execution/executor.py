@@ -2,6 +2,41 @@
 
 import abc
 from typing import Any
+from dataclasses import dataclass
+from enum import Enum
+
+from gdpx.core.component import BaseComponent
+
+
+class RunState(Enum):
+    """An executor may yield while a child calculation is pending."""
+
+    PENDING = "pending"
+    FINISHED = "finished"
+
+
+@dataclass
+class ExecutionSettings:
+    machine_prefix: str = ""
+    task: str = ""
+
+
+class SingleStructureExecutor(BaseComponent):
+    """Calculator-independent contract consumed by computation workers."""
+
+    setting: ExecutionSettings
+
+    @abc.abstractmethod
+    def run(self, atoms, read_ckpt=True, **kwargs): ...
+
+    @abc.abstractmethod
+    def reset(self): ...
+
+    @abc.abstractmethod
+    def read_convergence(self): ...
+
+    @abc.abstractmethod
+    def read_trajectory(self, **kwargs): ...
 
 
 class Executor(abc.ABC):

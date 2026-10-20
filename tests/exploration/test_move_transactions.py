@@ -8,13 +8,13 @@ from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.constraints import FixAtoms
 
-from gdpx.exploration.sampling import MoveProposal, parse_operators
-from gdpx.exploration.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
+from gdpx.sampling import MoveProposal, parse_operators
+from gdpx.sampling.acceptance import AcceptanceRule, ExchangeAcceptance, ReactionAcceptance, SemiGrandAcceptance
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
-from gdpx.exploration.move_step import run_worker_move
+from gdpx.execution.move_step import run_worker_move
 from gdpx.exploration.basin_hopping.chain import run_hopping_rounds
-from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo, MCStepState
-from gdpx.exploration.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
+from gdpx.execution.monte_carlo.monte_carlo import MonteCarlo, MCStepState
+from gdpx.execution.monte_carlo.hybrid_monte_carlo import HybridMonteCarlo
 from gdpx.execution.workers.single import SingleWorker
 
 
@@ -124,7 +124,7 @@ def test_rollback_does_not_reattach_or_copy_calculator_state():
 
 
 def test_failed_proposal_and_exception_after_edit_restore(monkeypatch):
-    from gdpx.exploration.sampling.moves import MoveOperator
+    from gdpx.sampling.moves import MoveOperator
     atoms, op = structure(), operator(max_random_attempts=0)
     original = atoms.positions.copy()
     assert not op.propose(atoms, np.random.default_rng(0)).valid
@@ -296,7 +296,7 @@ def test_reaction_undo_and_configuration_roundtrip():
 
 
 def test_adsorbate_helper_exception_rolls_back_appended_atoms(monkeypatch):
-    from gdpx.exploration.sampling.moves.exchange import adsorb
+    from gdpx.sampling.moves.exchange import adsorb
 
     def fail(atoms, particle, **kwargs):
         atoms.extend(particle)
@@ -333,6 +333,7 @@ def mc_engine(directory, cls=MonteCarlo):
     engine.op_probs = [1.0]
     engine.energy_stored = 0.0
     engine.ckpt_period = 1
+    engine.dump_period = 1
     engine.should_retry = False
     engine.convergence = {"steps": 4}
     engine.worker = SingleTestWorker(-1)
@@ -372,7 +373,7 @@ def test_hybrid_pending_move_resumes_at_its_original_index(tmp_path, monkeypatch
     original = engine.atoms.positions.copy()
     assert engine._irun_metropolis(1, "mc", engine.worker, 2, moves_per_cycle=2) == MCStepState.UNFINISHED
     np.testing.assert_array_equal(engine.atoms.positions, original)
-    from gdpx.exploration.move_step import read_pending
+    from gdpx.execution.move_step import read_pending
     engine.atoms, pending = read_pending(engine.directory / "pending-hybrid", engine.rng)
     engine._resume_context = pending["context"]
     engine.worker.waiting = False
@@ -417,7 +418,7 @@ def test_hybrid_completed_checkpoint_restores_state_and_output(tmp_path):
 
 
 def test_pending_initial_publication_is_atomic(tmp_path, monkeypatch):
-    import gdpx.exploration.move_step as moves
+    import gdpx.execution.move_step as moves
     path = tmp_path / "pending-move-1"
     original = moves.save_data
     def interrupted(*args, **kwargs):
@@ -434,8 +435,8 @@ def test_pending_initial_publication_is_atomic(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("cls,name", [(MonteCarlo, "pending-move-1"), (HybridMonteCarlo, "pending-hybrid")])
 def test_committed_pending_cleanup_after_interruption(tmp_path, monkeypatch, cls, name):
-    import gdpx.exploration.monte_carlo.monte_carlo as module
-    from gdpx.exploration.move_step import _store_pending
+    import gdpx.execution.monte_carlo.monte_carlo as module
+    from gdpx.execution.move_step import _store_pending
     engine = mc_engine(tmp_path / "mc", cls)
     pending = engine.directory / name
     _store_pending(pending, engine.atoms, {"version": 2, "context": {"step": 1}})
@@ -555,7 +556,8 @@ def test_mc_portable_checkpoint_retention_and_fallback(tmp_path):
 
 def test_pending_mc_resolution_commits_off_period(tmp_path):
     engine = mc_engine(tmp_path / 'pending')
-    engine.ckpt_period = 100
+    engine.ckpt_period = 1
+    engine.dump_period = 100
     engine.worker.waiting = True
     assert engine._irun(1) == MCStepState.UNFINISHED
     engine.worker.waiting = False
@@ -698,7 +700,7 @@ def test_real_hybrid_repeated_procedures_have_distinct_folders(tmp_path):
 
 
 def test_hybrid_pending_dynamics_remembers_procedure(tmp_path, monkeypatch):
-    from gdpx.exploration.move_step import read_pending
+    from gdpx.execution.move_step import read_pending
 
     engine = real_mc_engine(tmp_path / "hybrid", HybridMonteCarlo)
     engine._procedure_index = 2

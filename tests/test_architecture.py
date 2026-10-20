@@ -15,9 +15,9 @@ ROOT = pathlib.Path(__file__).parents[1]
 
 
 def test_sampling_has_no_orchestration_dependencies():
-    package = "gdpx.exploration.sampling"
+    package = "gdpx.sampling"
     forbidden = ("gdpx.execution", "gdpx.exploration", "gdpx.workflow", "gdpx.cli", "gdpx.providers")
-    paths = list((ROOT / "src" / "gdpx" / "exploration" / "sampling").rglob("*.py"))
+    paths = list((ROOT / "src" / "gdpx" / "sampling").rglob("*.py"))
     assert paths
     for path in paths:
         parent = ".".join(path.parent.relative_to(ROOT / "src").parts)
@@ -39,8 +39,8 @@ def test_sampling_has_no_orchestration_dependencies():
 def test_sampling_import_does_not_load_exploration_engines():
     code = """
 import sys
-import gdpx.exploration.sampling
-for prefix in ('gdpx.exploration.monte_carlo', 'gdpx.exploration.basin_hopping',
+import gdpx.sampling
+for prefix in ('gdpx.execution.monte_carlo', 'gdpx.exploration.basin_hopping',
                'gdpx.exploration.genetic_algorithm', 'gdpx.execution', 'gdpx.providers',
                'gdpx.workflow', 'gdpx.cli'):
     assert not any(name == prefix or name.startswith(prefix + '.') for name in sys.modules), prefix

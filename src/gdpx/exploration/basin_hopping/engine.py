@@ -11,20 +11,20 @@ from ase.io import write
 from gdpx.execution.lifecycle.runtime import create_runtime_workers
 from .selection import HoppingStartSelector
 from .output import GenerationReporter, bh_logging, report_setup
-from ..sampling.logging import MoveLog
+from gdpx.sampling.logging import MoveLog
 from gdpx.execution.factory import create_worker
 from gdpx.execution.workers.worker import BaseWorker
 from gdpx.structures.geometry.spatial import get_bond_distance_dict
 from gdpx.utils.atoms_tags import get_tags_per_species
-from ..sampling.fragments import fragment_policy_for
+from gdpx.sampling.fragments import fragment_policy_for
 
 from ..population.exploration import PopulationBasedExploration, validate_strategy, reject_legacy_settings
 from ..objective import evaluate_candidate, is_default_objective, normalise_objective, reject_legacy_property
 from ..persist.database import CANDIDATES_DATABASE_FILENAME, GlobalOptimisationDatabase
-from ..sampling import parse_operators
+from gdpx.sampling import parse_operators
 from ..generation import GenerationInfo, GenerationState, EvaluationStatus, restore_generation_random_states
 from .chain import evaluate_batch, run_hopping_rounds, finalize_checkpoints
-from ..sampling.geometry import infer_unique_atomic_numbers, prepare_operators
+from gdpx.sampling.geometry import infer_unique_atomic_numbers, prepare_operators
 
 
 def extinct_candidate(atoms: Atoms, extinct_callbacks: list[Callable]) -> None:

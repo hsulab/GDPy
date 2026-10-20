@@ -23,8 +23,7 @@ from gdpx.exploration.basin_hopping.engine import (
     BasinHopping,
 )
 from gdpx.exploration.population.config import PopulationConfig
-from gdpx.exploration.monte_carlo.monte_carlo import MonteCarlo
-from gdpx.exploration.sampling import parse_operators
+from gdpx.sampling import parse_operators
 from gdpx.exploration.simulated_annealing.simulated_annealing import SimulatedAnnealing
 
 
@@ -137,7 +136,7 @@ def test_factory_unpacks_recipe_and_keeps_seed(monkeypatch):
                 "random_seed": 7,
                 "recipe": {"operators": [], "convergence": {}},
             },
-            "no longer uses a recipe wrapper",
+            "moved to gdp compute",
         ),
         ({"method": "simulated_annealing", "recipe": []}, "must be a mapping"),
     ],
@@ -618,248 +617,6 @@ def test_generation_uses_reproduction_then_mutation_then_completion(tmp_path, mo
     assert len(population._prepare_current_population(database, 1, builders, operators, reloaded)) == 4
 
 
-def test_monte_carlo_serialization_uses_structured_system_and_runtime():
-    engine = object.__new__(MonteCarlo)
-    engine.random_seed = 11
-    engine.builder = Serializable({"method": "builder"})
-    engine.worker = Serializable({"schema_version": 4})
-    engine.worker.runtime = SimpleNamespace(provider_potential=object())
-    engine.operators = [Serializable({"method": "move"})]
-    engine.convergence = {"steps": 5, "earlystop": {"energy_per_atom": -2.0}}
-    engine.dump_period = 2
-    engine.ckpt_period = 10
-    engine.ignore_atoms_tags = True
-    engine.should_retry = False
-    engine.restart = False
-    engine.system_config = {
-        "ensemble": {"method": "canonical", "temperature": 500.0},
-        "ignore_atoms_tags": True,
-    }
-    engine.strategy_config = {"operators": [{"method": "move", "particles": ["Cu"]}]}
-
-    config = engine.as_dict()
-
-    assert config["method"] == "monte_carlo"
-    assert config["random_seed"] == 11
-    assert config["system"]["builder"] == {"method": "builder"}
-    assert config["system"]["ensemble"] == {"method": "canonical", "temperature": 500.0}
-    assert config["strategy"] == {
-        "operators": [{"method": "move", "particles": ["Cu"]}],
-        "convergence": {"steps": 5, "earlystop": {"energy_per_atom": -2.0}},
-        "dump_period": 2,
-        "ckpt_period": 10,
-    }
-    assert "steps" not in config["strategy"]
-    assert "checkpoint" not in config
-    assert "output" not in config
-    assert config["runtime"] == {"schema_version": 4}
-
-
-@pytest.mark.parametrize("convergence", [None, {}])
-def test_monte_carlo_defaults_to_one_convergence_step(convergence):
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "custom"},
-        },
-        "strategy": {"operators": [
-            {"method": "move", "particles": ["H"], "temperature": 300.0},
-        ]},
-    }
-    if convergence is not None:
-        config["strategy"]["convergence"] = convergence
-
-    engine = create_exploration(config)
-
-    assert engine.convergence == {"steps": 1}
-
-
-@pytest.mark.parametrize(
-    "convergence, message",
-    [
-        (None, "strategy.convergence must be a mapping"),
-        ({"steps": True}, "strategy.convergence.steps"),
-        ({"steps": -1}, "strategy.convergence.steps"),
-        ({"steps": 1.5}, "strategy.convergence.steps"),
-        ({"unknown": 1}, "Unsupported monte_carlo strategy.convergence"),
-    ],
-)
-def test_monte_carlo_rejects_invalid_convergence(convergence, message):
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "custom"},
-        },
-        "strategy": {
-            "convergence": convergence,
-            "operators": [
-                {"method": "move", "particles": ["H"], "temperature": 300.0},
-            ],
-        },
-    }
-
-    with pytest.raises((TypeError, ValueError), match=message):
-        create_exploration(config)
-
-
-@pytest.mark.parametrize(
-    "setting, destination",
-    [
-        ({"steps": 2}, "strategy.convergence.steps"),
-        ({"earlystop": {}}, "strategy.convergence.earlystop"),
-    ],
-)
-def test_monte_carlo_rejects_flat_convergence_settings(setting, destination):
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "custom"},
-        },
-        "strategy": {
-            "operators": [
-                {"method": "move", "particles": ["H"], "temperature": 300.0},
-            ],
-            **setting,
-        },
-    }
-
-    with pytest.raises(ValueError, match=destination):
-        create_exploration(config)
-
-
-def test_monte_carlo_resolves_ensemble_thermodynamics_without_mutating_input():
-    config = {
-        "method": "monte_carlo",
-        "random_seed": 7,
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {
-                "method": "semi_grand_canonical",
-                "temperature": 900.0,
-                "chemical_potentials": {"H": 0.1, "He": 0.4},
-            },
-        },
-        "strategy": {
-            "convergence": {"steps": 2},
-            "operators": [
-                {"method": "swap_type", "particles": ["H", "He"]},
-            ],
-        },
-    }
-    original = copy.deepcopy(config)
-    engine = create_exploration(config)
-    assert engine.operators[0].temperature == 900.0
-    assert engine.operators[0].chempots == [0.1, 0.4]
-    assert engine.operators[0].skip_distance_check is True
-    assert engine.convergence == {"steps": 2}
-    assert config == original
-
-
-def test_monte_carlo_custom_ensemble_keeps_per_operator_thermodynamics():
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "custom"},
-        },
-        "strategy": {
-            "operators": [
-                {"method": "move", "particles": ["H"], "temperature": 300.0},
-                {
-                    "method": "swap_type",
-                    "particles": ["H", "He"],
-                    "temperature": 900.0,
-                    "chempots": [0.1, 0.4],
-                },
-            ],
-        },
-    }
-    original = copy.deepcopy(config)
-    engine = create_exploration(config)
-    assert [operator.temperature for operator in engine.operators] == [300.0, 900.0]
-    assert engine.operators[1].chempots == [0.1, 0.4]
-    assert all(operator.skip_distance_check is False for operator in engine.operators)
-    assert engine.system_config["ensemble"] == {"method": "custom"}
-    assert config == original
-
-
-def test_monte_carlo_preset_ensemble_rejects_distance_filtering():
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "canonical", "temperature": 300.0},
-        },
-        "strategy": {"operators": [{
-            "method": "move", "particles": ["H"], "skip_distance_check": False,
-        }]},
-    }
-    with pytest.raises(ValueError, match="distance-filtered proposals break detailed balance"):
-        create_exploration(config)
-
-
-@pytest.mark.parametrize(
-    "legacy, destination",
-    [
-        ({"convergence": {"steps": 2}}, "strategy.convergence"),
-        ({"output": {"dump_period": 2}}, "strategy.dump_period"),
-        ({"checkpoint": {"period": 2}}, "strategy.ckpt_period"),
-    ],
-)
-def test_monte_carlo_rejects_legacy_run_sections(legacy, destination):
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "canonical", "temperature": 900.0},
-        },
-        "strategy": {"operators": [{"method": "move", "particles": ["H"]}]},
-        **legacy,
-    }
-    with pytest.raises(ValueError, match=destination):
-        create_exploration(config)
-
-
-@pytest.mark.parametrize("change,message", [
-    (lambda c: c["system"].pop("ensemble"), "requires system.ensemble"),
-    (lambda c: c["system"]["ensemble"].update(method="unknown"), "ensemble.method"),
-    (lambda c: c["strategy"]["operators"][0].update(temperature=500), "Move operator temperature"),
-    (lambda c: c["system"]["ensemble"]["chemical_potentials"].pop("He"), "Missing chemical potentials"),
-])
-def test_monte_carlo_rejects_inconsistent_structured_config(change, message):
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {
-                "method": "semi_grand_canonical",
-                "temperature": 900.0,
-                "chemical_potentials": {"H": 0.1, "He": 0.4},
-            },
-        },
-        "strategy": {"operators": [{"method": "swap_type", "particles": ["H", "He"]}]},
-    }
-    change(config)
-    with pytest.raises((TypeError, ValueError), match=message):
-        create_exploration(config)
-
-
-def test_monte_carlo_custom_ensemble_rejects_global_thermodynamics():
-    config = {
-        "method": "monte_carlo",
-        "system": {
-            "builder": {"method": "read_stru", "fname": "unused.xyz"},
-            "ensemble": {"method": "custom", "temperature": 900.0},
-        },
-        "strategy": {"operators": [{"method": "move", "particles": ["H"]}]},
-    }
-    with pytest.raises(ValueError, match="custom ensemble accepts only method"):
-        create_exploration(config)
-
-
 def test_other_global_optimisers_serialize_the_recipe():
     worker = Serializable({"schema_version": 4})
 
@@ -886,6 +643,7 @@ def test_other_global_optimisers_serialize_the_recipe():
     annealing.worker = worker
     annealing.builder = Serializable({"method": "builder"})
     annealing.temperatures = [800.0, 400.0]
+    annealing.annealing = None
     annealing_config = annealing.as_dict()
 
     assert concurrent_config["random_seed"] == 13

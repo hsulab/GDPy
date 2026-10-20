@@ -5,8 +5,8 @@ import pytest
 from ase import Atoms
 from ase.constraints import FixAtoms
 
-from gdpx.exploration.sampling import parse_operators
-from gdpx.exploration.sampling.geometry import prepare_operators
+from gdpx.sampling import parse_operators
+from gdpx.sampling.geometry import prepare_operators
 from gdpx.structures.geometry.bond_change import break_bond, form_bond
 
 

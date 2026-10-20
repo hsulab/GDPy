@@ -363,6 +363,21 @@ def _write_batch_scripts(plan: ComputePlan, workers: list[DriverBasedWorker]) ->
             worker._irun(f"group-{index}", uid, worker_plan.structure_digest, frames, batch, submit=False)
 
 
+def _strip_inferred_backends(candidate, configured):
+    """Compare frozen runtimes without treating inferred backends as edits."""
+    components = [(candidate["potential"], configured["potential"])]
+    components.extend(zip(candidate.get("modifiers", []), configured.get("modifiers", [])))
+    for actual, expected in components:
+        if "backend" not in expected:
+            actual.pop("backend", None)
+    executor = configured["executor"]
+    if (executor["provider"], executor["method"]) == ("gdpx", "hybrid_monte_carlo"):
+        actual_cycle = candidate["executor"]["parameters"].get("setup", {}).get("cycle", [])
+        expected_cycle = executor["parameters"].get("setup", {}).get("cycle", [])
+        for actual, expected in zip(actual_cycle, expected_cycle):
+            _strip_inferred_backends(actual["runtime"], expected["runtime"])
+
+
 def _restore(plan: ComputePlan):
     if plan.schema_version != PLAN_SCHEMA_VERSION or _plan_digest(_plan_payload(plan)) != plan.plan_id:
         raise ComputeLifecycleError("Compute plan fingerprint mismatch; prepare a new run.")
@@ -387,13 +402,7 @@ def _restore(plan: ComputePlan):
     for expected in expected_configs:
         for index, saved in enumerate(unmatched):
             candidate = copy.deepcopy(saved)
-            components = [(candidate["potential"], expected["potential"])]
-            components.extend(zip(candidate.get("modifiers", []), expected.get("modifiers", [])))
-            for actual, configured in components:
-                # A frozen runtime records automatically selected backends even
-                # when the original plan left backend selection to the provider.
-                if "backend" not in configured:
-                    actual.pop("backend", None)
+            _strip_inferred_backends(candidate, expected)
             if payload_digest(candidate) == payload_digest(expected):
                 unmatched.pop(index)
                 break

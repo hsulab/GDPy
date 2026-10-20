@@ -2,7 +2,7 @@ import json
 from types import SimpleNamespace
 
 from gdpx.exploration.basin_hopping.history import collect_history, plot_history
-from gdpx.exploration.checkpoint import save_data
+from gdpx.execution.checkpoint import save_data
 
 
 class Row(dict):

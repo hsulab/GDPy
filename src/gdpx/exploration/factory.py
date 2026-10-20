@@ -63,39 +63,17 @@ def create_exploration(config):
         split_global_strategy(parameters.get("strategy"))
         if "system" not in parameters:
             raise ValueError("global_optimisation requires system settings.")
-    if method == "monte_carlo" and "recipe" in parameters:
+    if method in {"monte_carlo", "hybrid_monte_carlo"}:
         raise ValueError(
-            "monte_carlo no longer uses a recipe wrapper; move the builder and ensemble "
-            "under system and all sampling settings under strategy."
+            f"{method} moved to gdp compute INPUT --runtime RUNTIME.yaml; "
+            "use executor.provider: gdpx and executor.parameters.setup/output/stop. "
+            "Start a new compute working directory."
         )
-    if method == "monte_carlo":
-        moved = parameters.keys() & {"convergence", "output", "checkpoint"}
-        if moved:
-            destinations = {
-                "convergence": "strategy.convergence",
-                "output": "strategy.dump_period",
-                "checkpoint": "strategy.ckpt_period",
-            }
-            migration = ", ".join(f"{key} -> {destinations[key]}" for key in sorted(moved))
-            raise ValueError(f"Move monte_carlo settings under strategy: {migration}.")
-    if method == "hybrid_monte_carlo":
-        legacy = parameters.keys() & {
-            "builder", "operators", "procedure", "num_mcmoves", "extra_workers",
-            "convergence", "ckpt_period", "dump_period", "ignore_atoms_tags",
-            "should_retry", "restart", "recipe",
-        }
-        if legacy:
-            raise ValueError(
-                "hybrid_monte_carlo now requires system and strategy mappings; move builder "
-                "and ensemble under system, move operators and cycle settings under strategy, "
-                "and replace procedure/num_mcmoves/extra_workers with inline "
-                f"strategy.cycle stages (legacy keys: {', '.join(sorted(legacy))})."
-            )
     broadcast = parameters.pop('broadcast', None)
     if 'broadcast' in config:
-        if method not in RECIPE_METHODS | {"global_optimisation", "monte_carlo"}:
+        if method not in RECIPE_METHODS | {"global_optimisation"}:
             raise ValueError(
-                f"Broadcast is only supported for global_optimisation, monte_carlo, "
+                f"Broadcast is only supported for global_optimisation, "
                 f"and recipe-based explorations, not {method!r}."
             )
         if not isinstance(broadcast, Mapping) or not broadcast:
@@ -160,7 +138,7 @@ def _create_exploration(method, parameters):
     if parameters.get("builder") is not None:
         parameters["builder"] = canonicalise_builder(parameters["builder"])
         parameters["builder"].set_rng(seed=random_seed)
-    elif method in {"monte_carlo", "hybrid_monte_carlo", "umbrella_sampling"} and isinstance(
+    elif method in {"umbrella_sampling"} and isinstance(
         parameters.get("system"), Mapping
     ):
         system = parameters["system"]

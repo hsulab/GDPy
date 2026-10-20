@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 
 from gdpx import config
-from gdpx.exploration.sampling.logging import MoveLog
+from gdpx.sampling.logging import MoveLog
 from gdpx.exploration.basin_hopping.output import report_setup, bh_logging
 
 
