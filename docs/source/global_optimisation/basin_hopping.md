@@ -15,11 +15,7 @@ objective. It inherits `PopulationBasedExploration`, independently of MC.
 Basin hopping reuses the {ref}`sampling-operators` documented under Boltzmann Sampling. Configure those same moves in `strategy.operators`. With a minimization
 runtime, BH relaxes valid trials before the chain's acceptance decision.
 
-```{toctree}
-:maxdepth: 2
-
-bh/examples/index
-```
+Find runnable recipes in the central {doc}`examples catalogue <examples/index>`.
 
 See the shared {ref}`global-optimisation-population` reference for population
 configuration. The recipe uses these settings:
@@ -42,21 +38,8 @@ accept/reject decisions for `steps_per_chain` proposals. Omit
 `strategy.convergence.generation: 0` for initialization only; larger
 values add population reselection between search generations.
 
-This self-contained Cu₈ example generates four random structures using
-`random_structure_improved` and launches two chains of ten proposals. Its
-calculation runtime minimizes initial structures and every valid trial batch.
-It uses only {doc}`../explorations/operators/move` for a simple fixed-composition search.
-The {ref}`sampling-operators` reference links to a detailed page for each operator.
-
-```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
-:language: yaml
-```
-
-Pair this exploration with the following runtime (passed with `--runtime`):
-
-```{literalinclude} ../../../examples/global_optimisation/runtimes/emt.yaml
-:language: yaml
-```
+The {ref}`Cu₈ basin-hopping example <bh-cu8-example>` provides a complete
+exploration, EMT relaxation runtime, and run command.
 
 See {ref}`exploration-output-layout` for output directories and restart metadata.
 
@@ -227,7 +210,7 @@ segment changes; structures remain in `candidates.db`, including rejected minima
 BH does not write chain XYZ trajectories automatically. Use
 `gdpx.exploration.basin_hopping.export_trajectories(rounds_directory, output_directory)`
 to export them on demand from committed events and database structures; see the
-{doc}`bh/examples/cluster` example. An optional `database` argument specifies a
+{ref}`Cu₈ basin-hopping <bh-cu8-example>` example. An optional `database` argument specifies a
 relocated candidate database. After generation finalization, full round snapshots are removed; the
 event journal and `final.json` completion metadata remain.
 

@@ -136,6 +136,7 @@ operators <explorations/operators/index>
 :hidden:
 
 overview <global_optimisation/index>
+examples <global_optimisation/examples/index>
 global_optimisation/genetic-algorithm
 global_optimisation/basin_hopping
 simulated annealing <global_optimisation/simulated-annealing>

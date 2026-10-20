@@ -85,7 +85,7 @@ configuration shared by these examples.
 
 | Example | System | Focus |
 | --- | --- | --- |
-| [Cu<sub>8</sub>](global_optimisation/bh/examples/cluster.md) | cluster | Basic search and trajectory export |
+| {ref}`Cu₈ <bh-cu8-example>` | cluster | Basic search and trajectory export |
 | [Cu<sub>8</sub>](global_optimisation/bh/examples/seeded-cluster.md) | cluster | Random structures and seed-file frames |
 | [Cu<sub>6</sub>Ni<sub>2</sub> and Cu<sub>4</sub>Ni<sub>4</sub>](global_optimisation/bh/examples/compositions.md) | cluster | Two compositions in one allocation |
 | [Cu<sub>6</sub>Ni<sub>x</sub>](global_optimisation/bh/examples/variable-composition.md) | cluster | Ni insertion and removal |

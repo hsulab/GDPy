@@ -11,8 +11,9 @@ recombined to discover better ones.
 :maxdepth: 2
 
 operators
-examples/index
 ```
+
+Find runnable recipes in the central {doc}`examples catalogue <examples/index>`.
 
 See {ref}`exploration-output-layout` for output directories and restart metadata.
 

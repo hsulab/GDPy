@@ -1,49 +1,8 @@
-(bh-examples)=
+---
+orphan: true
+---
 
-# examples
+# Basin-hopping examples
 
-These examples demonstrate complete basin-hopping searches, including structure
-generation, local relaxation, hopping moves, and inspection of the results.
-They use small populations and short move budgets to keep the workflows easy
-to inspect. Increase the search and relaxation budgets for production work.
-
-Exploration inputs live under
-`examples/global_optimisation/explorations/basin_hopping/`. Shared calculation
-inputs live under `examples/global_optimisation/runtimes/`. Each guide shows
-both files. Select a runtime with
-`gdp --runtime <runtime.yaml> explore <exploration.yaml>`; use a new output
-directory when changing the runtime or search settings.
-
-All examples use direct scheduling by default. See {ref}`scheduler-transport`
-for queue and SSH execution, and {ref}`exploration-output-layout` for output
-directories and restart metadata. EMT examples require no model download;
-TACE and MatterSim require their optional model dependencies.
-
-The examples below cover finite **Cluster** systems and supported **Interface** systems. Select a chemical system
-to open its configuration and guide.
-
-| Main system | Specific system | Potential | Notes |
-| --- | --- | --- | --- |
-| Cluster | {ref}`Cu₈ <bh-cu8-example>` | EMT | Basic search and trajectory export |
-| Cluster | {ref}`Cu₈ with seeds <bh-seeded-cu8-example>` | EMT | Two initial builders: random structures and seed-file frames |
-| Cluster | {ref}`Cu₆Ni₂ and Cu₄Ni₄ <bh-composition-broadcast-example>` | EMT | Broadcast two compositions in one allocation |
-| Cluster | {ref}`Cu₆Niₓ <bh-variable-composition-example>` | EMT | Variable composition through Ni insertion/removal |
-| Cluster | {ref}`Cu₄O₄ <bh-cuox-tace-example>` | TACE | Oxide cluster search |
-| Cluster | {ref}`Cu₄O₄ <bh-cuox-thanos-example>` | MatterSim | Extinction and chain restarts |
-| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <bh-supported-nanoparticle-example>` | User-selected | Cu-only hops; bottom substrate planes fixed by runtime |
-| Interface | {ref}`Two or three waters/TiO₂(101) <bh-tio2-water-rotation>` | xreac | Oxygen-pivot rotations; parallel and hydrogen-bonded seeds |
-| Interface | {ref}`Water dissociation/TiO₂(101) <bh-tio2-water-bond-change>` | xreac | Bond breaking/forming with relaxed fragment tags |
-
-```{toctree}
-:maxdepth: 1
-:hidden:
-
-cluster
-seeded-cluster
-compositions
-variable-composition
-cuox_tace
-cuox_thanos
-tio2-water-rotation
-tio2-water-bond-change
-```
+All recipes are listed by physical system in the central
+{doc}`global optimisation examples <../../examples/index>` catalogue.

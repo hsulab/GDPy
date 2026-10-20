@@ -4,14 +4,15 @@
 
 Global optimisation searches for low-energy atomic structures by repeatedly
 building candidates, relaxing them, and using the results to guide the next
-generation. GDPy provides two population-based strategies:
+generation. GDPy provides three population-based strategies:
 
 | Strategy | How it proposes new candidates |
 | --- | --- |
 | {doc}`Genetic algorithm <genetic-algorithm>` | Selects compatible parents for crossover, applies mutations, and fills any remaining generation slots with builders. |
 | {doc}`Basin hopping <basin_hopping>` | Selects starting structures for independent chains, then proposes, relaxes, and accepts or rejects a trial at each chain step. |
+| {doc}`Simulated annealing <simulated-annealing>` | Selects minima for independent MD cooling trajectories, then minimises their endpoints. |
 
-Both use `method: global_optimisation` and the same {doc}`population configuration
+All use `method: global_optimisation` and the same {doc}`population configuration
 <population>`. Generation 0 builds and evaluates the initial candidates. Later
 generations select from the best distinct, eligible candidates in the search
 history. The strategy determines how new candidates are produced; the runtime
@@ -68,8 +69,8 @@ gdp -d run-separate --runtime runtime.yaml explore expo.yaml
 
 This layout lets several explorations share one runtime. To compare suitable
 potentials, select another runtime file and use a new output directory. The
-repository examples use this layout; see the {doc}`GA examples <examples/index>`
-and {doc}`BH examples <bh/examples/index>`.
+repository examples use this layout; see the central
+{doc}`examples catalogue <examples/index>`.
 
 ### Embed the runtime in `expo.yaml`
 
@@ -147,3 +148,9 @@ Inspect `gdp.out` for progress, `candidates.db` for evaluated candidates, and
 command with the same configuration and output directory to resume interrupted
 work. Use a new directory when changing the strategy, runtime, or search setup.
 See {doc}`output` for the complete directory layout and restart conventions.
+
+## Examples by system
+
+Choose a physical system from the {doc}`examples catalogue <examples/index>`,
+then select its GA, BH, or SA recipe. Shared
+system descriptions and method-specific inputs live in the same catalogue.
