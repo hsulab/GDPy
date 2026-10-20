@@ -23,6 +23,11 @@ def sampling_config(method="monte_carlo"):
             "setup": [{"provider": "ase", "method": "md", "parameters": {
                 "random_seed": 17, "setup": {}, "stop": {"steps": 2}}}, mc],
             "stop": {"steps": 2}}}
+    if method == "biased_monte_carlo":
+        executor["method"] = method
+        executor["parameters"]["setup"]["executor"] = {
+            "parameters": {"stop": {"steps": 100, "fmax": .01}}}
+        executor["parameters"]["setup"]["operators"][0]["skip_distance_check"] = True
     executor["parameters"]["random_seed"] = 7
     return {"potential": {"provider": "emt"}, "executor": executor}
 

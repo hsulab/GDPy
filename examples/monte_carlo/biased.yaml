@@ -1,0 +1,35 @@
+potential:
+  provider: emt
+executor:
+  provider: native
+  method: biased_monte_carlo
+  parameters:
+    random_seed: 1112
+    ensemble:
+      method: nvt
+      temperature: 600.0
+    setup:
+      executor:
+        parameters:
+          setup:
+            optimizer:
+              name: bfgs
+              parameters:
+                maxstep: 0.2
+          stop:
+            steps: 100
+            fmax: 0.05
+      operators:
+      - method: move
+        particles: [Cu]
+        max_disp: 0.2
+        skip_distance_check: false
+        covalent_ratio: [0.8, 2.0]
+        max_random_attempts: 1
+    output:
+      trajectory:
+        period: 1
+      checkpoint:
+        period: 5
+    stop:
+      steps: 10

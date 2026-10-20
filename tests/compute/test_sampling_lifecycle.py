@@ -21,7 +21,7 @@ def copper():
     return Atoms("Cu2", positions=[[3, 3, 3], [5.5, 3, 3]], cell=[12] * 3)
 
 
-@pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
 @pytest.mark.parametrize("steps,period,expected", [(0, 10, 1), (3, 10, 2), (3, 2, 3)])
 def test_multiple_chains_sparse_output_and_collection(tmp_path, method, steps, period, expected):
     config = sampling_config(method)
@@ -50,12 +50,20 @@ def test_multiple_chains_sparse_output_and_collection(tmp_path, method, steps, p
 @pytest.mark.parametrize("method,delayed", [
     ("monte_carlo", "step.0000"),
     ("monte_carlo", "step.0001"),
+    ("biased_monte_carlo", "step.0000"),
+    ("biased_monte_carlo", "step.0001"),
     ("hybrid_monte_carlo", "procedure.0000"),
     ("hybrid_monte_carlo", "procedure.0001/cand0/calculations/step.0001"),
 ])
 def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, method, delayed):
     config = sampling_config(method)
-    baseline = prepare_compute(config, [copper()], tmp_path / "baseline")
+    initial = copper()
+    if method == "biased_monte_carlo":
+        from ase.constraints import FixAtoms
+        initial.set_constraint(FixAtoms(indices=[0]))
+        initial.set_tags([11, 22])
+        config["executor"]["parameters"]["setup"]["ignore_atoms_tags"] = False
+    baseline = prepare_compute(config, [initial], tmp_path / "baseline")
     orchestrate_compute(baseline)
     original_submit = DirectScheduler.submit
     original_finished = DirectScheduler.is_finished
@@ -78,7 +86,7 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
 
     monkeypatch.setattr(DirectScheduler, "submit", submit)
     monkeypatch.setattr(DirectScheduler, "is_finished", finished)
-    plan = prepare_compute(config, [copper()], tmp_path / "deferred")
+    plan = prepare_compute(config, [initial], tmp_path / "deferred")
     submit_compute(plan)
     assert inspect_compute(plan).state == "running"
     before = list(submissions)
@@ -101,12 +109,15 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
     for first, second in zip(expected, actual):
         np.testing.assert_array_equal(first.positions, second.positions)
         assert first.get_potential_energy() == second.get_potential_energy()
+        if method == "biased_monte_carlo":
+            np.testing.assert_array_equal(second.get_tags(), [11, 22])
+            assert second.constraints[0].get_indices().tolist() == [0]
     state = load_data(tmp_path / "deferred/cand0/checkpoint.2/state.json")
     baseline_state = load_data(tmp_path / "baseline/cand0/checkpoint.2/state.json")
     assert state["rng"] == baseline_state["rng"]
 
 
-@pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
 def test_checkpoint_resume_and_earlystop(tmp_path, method):
     config = sampling_config(method)
     params = config["executor"]["parameters"]

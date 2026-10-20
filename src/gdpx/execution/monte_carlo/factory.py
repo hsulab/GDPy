@@ -10,6 +10,7 @@ from gdpx.providers.specs import thaw
 from gdpx.providers.ensemble import inherit_ensemble
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
 from .hybrid_monte_carlo import HybridMonteCarlo
+from .biased_monte_carlo import BiasedMonteCarlo, validate_minimisation
 
 
 def resolve_child(config, definition, resolver):
@@ -41,7 +42,7 @@ def resolve_sampling_runtime(config, resolver):
         value = cadence[key]
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
             raise ValueError(f"output.{label} must be a positive integer.")
-    if method == "monte_carlo":
+    if method in {"monte_carlo", "biased_monte_carlo"}:
         setup = raw.get("setup", {})
         allowed = {"operators", "ignore_atoms_tags", "executor"}
         if not isinstance(setup, Mapping) or setup.keys() - allowed:
@@ -49,12 +50,16 @@ def resolve_sampling_runtime(config, resolver):
         operators, _ = resolve_monte_carlo_system(
             {"ensemble": parameters["ensemble"], "ignore_atoms_tags": setup.get("ignore_atoms_tags", True)},
             setup.get("operators"), method)
-        evaluator = child_executor(setup.get("executor", {}), default_spc=True)
-        if evaluator["method"] != "spc" or evaluator["provider"] == "native":
-            raise ValueError("MC setup.executor requires method: spc.")
+        cls = BiasedMonteCarlo if method == "biased_monte_carlo" else MonteCarlo
+        required = cls.required_evaluation_method
+        evaluator = child_executor(setup.get("executor", {}), default_method=required)
+        if evaluator["method"] != required or evaluator["provider"] == "native":
+            raise ValueError(f"{method} setup.executor requires method: {required}.")
+        if method == "biased_monte_carlo":
+            validate_minimisation(evaluator.get("parameters", {}))
         child = resolve_child(config, evaluator, resolver)
         config = replace(config, potential=child.config.potential, modifiers=child.config.modifiers)
-        executor = MonteCarlo(operators=operators, convergence=convergence,
+        executor = cls(operators=operators, convergence=convergence,
                               random_seed=raw.get("random_seed"), dump_period=cadence["dump_period"],
                               ckpt_period=cadence["ckpt_period"],
                               ignore_atoms_tags=setup.get("ignore_atoms_tags", True), should_retry=False)

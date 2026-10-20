@@ -9,6 +9,7 @@ from .errors import ProviderConfigurationError
 SUPPORTED_ENSEMBLES = {
     "md": {"nve", "nvt", "npt"},
     "monte_carlo": {"nvt", "uvt", "suvt"},
+    "biased_monte_carlo": {"nvt", "uvt", "suvt"},
     "hybrid_monte_carlo": {"nvt", "uvt", "suvt"},
 }
 

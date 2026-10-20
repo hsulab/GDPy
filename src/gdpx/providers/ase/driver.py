@@ -133,6 +133,7 @@ def save_trajectory(atoms, traj_fpath) -> None:
         cell=atoms.get_cell().copy(),
         pbc=copy.deepcopy(atoms.get_pbc()),
     )
+    atoms_to_save.set_constraint(copy.deepcopy(atoms.constraints))
     if "tags" in atoms.arrays:
         atoms_to_save.set_tags(atoms.get_tags())
     if atoms.get_kinetic_energy() > 0.0:

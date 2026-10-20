@@ -22,7 +22,7 @@ NATIVE_PROVIDER = Provider(
     capabilities={
         CapabilityKind.EXECUTOR: {
             name: NativeExecutorFactory(name)
-            for name in ("monte_carlo", "hybrid_monte_carlo")
+            for name in ("monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo")
         },
     },
 )

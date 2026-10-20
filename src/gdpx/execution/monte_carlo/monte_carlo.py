@@ -46,7 +46,7 @@ def resolve_monte_carlo_system(setup, operators, method_name="monte_carlo"):
     if not isinstance(operators, list) or not operators:
         raise ValueError(f"{method_name} requires a nonempty setup.operators list.")
 
-    ensemble = resolve_ensemble(setup.get("ensemble"), "monte_carlo")
+    ensemble = resolve_ensemble(setup.get("ensemble"), method_name)
     ensemble_method = ensemble["method"]
     resolved_operators = copy.deepcopy(operators)
     for operator in resolved_operators:
@@ -61,12 +61,15 @@ def resolve_monte_carlo_system(setup, operators, method_name="monte_carlo"):
             raise ValueError(
                 "Move operator temperature and chempots to parameters.ensemble."
             )
-        if operator.get("skip_distance_check", True) is not True:
+        if method_name != "biased_monte_carlo" and operator.get("skip_distance_check", True) is not True:
             raise ValueError(
                 "MC ensembles require skip_distance_check: true because "
-                "distance-filtered proposals break detailed balance; use basin hopping for structure search."
+                "distance-filtered proposals break detailed balance; use biased_monte_carlo for filtered MC proposals."
             )
-        operator["skip_distance_check"] = True
+        if method_name != "biased_monte_carlo":
+            operator["skip_distance_check"] = True
+        elif not isinstance(operator.get("skip_distance_check", False), bool):
+            raise ValueError("skip_distance_check must be a boolean.")
         operator["temperature"] = float(temperature)
         name = operator.get("method", "move")
         particles = operator.get("particles", [])
@@ -147,7 +150,7 @@ def convert_blmin_to_str(blmin: dict) -> str:
 class MonteCarlo(SingleStructureExecutor):
     name = "monte_carlo"
     restart = False
-    requires_single_point_runtime = True
+    required_evaluation_method = "spc"
     runtime_method_name = "monte_carlo"
 
     #: Prefix of the working directory.
@@ -206,16 +209,14 @@ class MonteCarlo(SingleStructureExecutor):
         return
 
     def register_worker(self, worker, *args, **kwargs) -> None:
-        """Attach an energy-only runtime for ordinary Monte Carlo."""
+        """Attach the evaluation method required by this MC variant."""
         candidate = worker[0] if isinstance(worker, list) and worker else worker
-        if self.requires_single_point_runtime:
-            method = getattr(getattr(getattr(candidate, "runtime", None), "config", None), "executor", None)
-            method = getattr(method, "method", None)
-            if method != "spc":
-                raise ValueError(
-                    f"{self.runtime_method_name} requires runtime.executor.method: spc so trial structures "
-                    "are evaluated without relaxation or dynamics."
-                )
+        method = getattr(getattr(getattr(candidate, "runtime", None), "config", None), "executor", None)
+        method = getattr(method, "method", None)
+        if method != self.required_evaluation_method:
+            raise ValueError(
+                f"{self.runtime_method_name} requires runtime.executor.method: {self.required_evaluation_method}."
+            )
         self.worker = candidate
 
     def _init_structure(self):
@@ -347,7 +348,8 @@ class MonteCarlo(SingleStructureExecutor):
             for l in convert_blmin_to_str(op.blmin).split("\n"):
                 self._print("  " + l)
         self._print(f"normalised probabilities {self.op_probs}")
-        report_setup(self.operators, self.op_probs, self.convergence["steps"], self.random_seed)
+        report_setup(self.operators, self.op_probs, self.convergence["steps"], self.random_seed,
+                     method=self.runtime_method_name)
 
         # NOTE: Something about statmech
         # Check if operators' regions are consistent

@@ -29,7 +29,7 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
         resolved["setup"] = setup
         return resolved
     sections = EXECUTOR_PARAMETER_SECTIONS.intersection(data)
-    if not sections and not isinstance(data.get("ensemble"), Mapping) and method != "monte_carlo":
+    if not sections and not isinstance(data.get("ensemble"), Mapping) and method not in {"monte_carlo", "biased_monte_carlo"}:
         return data
     extra = set(data) - EXECUTOR_PARAMETER_SECTIONS - EXECUTOR_PARAMETER_GLOBALS
     if extra:
@@ -63,8 +63,8 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
                    (("temperature", "temp"), ("pressure", "press")) if public in ensemble}, "ensemble")
         else:
             merge({"ensemble": ensemble}, "ensemble")
-    elif method == "monte_carlo":
-        raise ProviderConfigurationError("monte_carlo requires parameters.ensemble.")
+    elif method in {"monte_carlo", "biased_monte_carlo"}:
+        raise ProviderConfigurationError(f"{method} requires parameters.ensemble.")
     merge({"random_seed": data["random_seed"]} if "random_seed" in data else {}, "parameters")
     if "ensemble" in setup:
         raise ProviderConfigurationError("Move setup.ensemble to parameters.ensemble using a mapping.")
@@ -532,7 +532,7 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         if provider == "gdpx":
             raise ProviderConfigurationError("Executor provider gdpx was renamed to native; migrate the input and start a new run.")
         resolve_executor_parameters(parameters, method)
-        if provider == "native" and method in {"monte_carlo", "hybrid_monte_carlo"}:
+        if provider == "native" and method in {"monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"}:
             setup = parameters.get("setup", {})
             if isinstance(setup, list):
                 ensemble = resolve_ensemble(parameters.get("ensemble"), method)
@@ -544,9 +544,9 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
                 parameters["setup"] = children
             elif isinstance(setup, Mapping):
                 if "evaluator" in setup:
-                    raise ProviderConfigurationError("Remove setup.evaluator; MC defaults to ASE spc. Use optional setup.executor for overrides.")
+                    raise ProviderConfigurationError("Remove setup.evaluator; use setup.executor for evaluator settings.")
                 if "executor" in setup:
-                    setup["executor"] = child_executor(setup["executor"], default_spc=True)
+                    setup["executor"] = child_executor(setup["executor"], default_method="min" if method == "biased_monte_carlo" else "spc")
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
     if label == "modifier":
@@ -554,15 +554,15 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     return ComponentConfig(str(provider or ""), method, parameters)
 
 
-def child_executor(value, *, default_spc=False):
+def child_executor(value, *, default_method=None):
     """Normalize a child definition without allowing a second energy surface."""
     if not isinstance(value, Mapping):
         raise ProviderConfigurationError("Child executor must be a mapping.")
     data = copy.deepcopy(dict(value))
     scheduler = data.pop("scheduler", None)
-    if default_spc:
+    if default_method is not None:
         data.setdefault("provider", "ase")
-        data.setdefault("method", "spc")
+        data.setdefault("method", default_method)
     result = _component(data, "executor", require_method=True).to_dict()
     if scheduler is not None:
         result["scheduler"] = scheduler_component(scheduler).to_dict()

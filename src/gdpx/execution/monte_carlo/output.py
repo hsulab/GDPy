@@ -34,8 +34,8 @@ def hmc_box(title):
         yield box
 
 
-def report_setup(operators, probabilities, steps, seed):
-    with mc_box("setup") as box:
+def report_setup(operators, probabilities, steps, seed, method="monte_carlo"):
+    with _progress_box(method.replace("_", " "), "setup") as box:
         box.line(f"step budget: {steps} | random seed: {seed}")
         for index, (operator, probability) in enumerate(zip(operators, probabilities)):
             if index:
