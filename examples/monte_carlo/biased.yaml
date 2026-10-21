@@ -9,16 +9,14 @@ executor:
       method: nvt
       temperature: 600.0
     setup:
-      executor:
-        parameters:
-          setup:
-            optimizer:
-              name: bfgs
-              parameters:
-                maxstep: 0.2
-          stop:
-            steps: 100
-            fmax: 0.05
+      evaluation:
+        optimizer:
+          name: bfgs
+          parameters:
+            maxstep: 0.2
+        stop:
+          steps: 100
+          fmax: 0.05
       operators:
       - method: move
         particles: [Cu]

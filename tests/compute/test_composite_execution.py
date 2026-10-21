@@ -102,8 +102,8 @@ def test_child_cannot_override_surface_or_dispatch(field, value):
 def test_native_migration_default_and_single_point_override():
     config = sampling_config()
     assert resolve_runtime(config).executor.worker.runtime.config.executor.method == "spc"
-    config["executor"]["parameters"]["setup"]["executor"] = {"method": "min"}
-    with pytest.raises(ValueError, match="method: spc"):
+    config["executor"]["parameters"]["setup"]["evaluation"] = {"method": "min"}
+    with pytest.raises(ValueError, match="Unsupported evaluation fields: method"):
         resolve_runtime(config)
     config["executor"]["provider"] = "gdpx"
     with pytest.raises(ValueError, match="renamed to native"):
@@ -133,7 +133,7 @@ def test_composite_broadcast_and_child_schedulers():
     lambda p: p["ensemble"].update(method="bad"),
     lambda p: p["setup"]["operators"][0].update(temperature=1),
     lambda p: p["setup"]["operators"][0].update(skip_distance_check=False),
-    lambda p: p["setup"].update(executor=None),
+    lambda p: p["setup"].update(evaluation=None),
     lambda p: p.update(output={"checkpoint": {"period": 0}}),
     lambda p: p.update(output={"trajectory": {"period": True}}),
     lambda p: p.update(output={"checkpoint": {"keep": 0}}),

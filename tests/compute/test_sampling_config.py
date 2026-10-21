@@ -25,8 +25,8 @@ def sampling_config(method="monte_carlo"):
             "stop": {"steps": 2}}}
     if method == "biased_monte_carlo":
         executor["method"] = method
-        executor["parameters"]["setup"]["executor"] = {
-            "parameters": {"stop": {"steps": 100, "fmax": .01}}}
+        executor["parameters"]["setup"]["evaluation"] = {
+            "stop": {"steps": 100, "fmax": .01}}
         executor["parameters"]["setup"]["operators"][0]["skip_distance_check"] = True
     executor["parameters"]["random_seed"] = 7
     return {"potential": {"provider": "emt"}, "executor": executor}
@@ -56,7 +56,7 @@ def test_roundtrip_and_independent_evaluation_scheduler(method):
     restored = resolve_runtime(engine.as_dict()).executor
     assert restored.as_dict() == engine.as_dict()
     assert restored.convergence == engine.convergence
-    setup["executor"] = {"scheduler": {"provider": "pbs"}}
+    setup["evaluation"] = {"scheduler": {"provider": "pbs"}}
     engine = resolve_runtime(config).executor
     mc = engine.children[1].executor if method == "hybrid_monte_carlo" else engine
     assert mc.worker.scheduler.name == "pbs"
@@ -175,4 +175,41 @@ def test_hmc_rejects_child_temperature_ramp():
     config = sampling_config("hybrid_monte_carlo")
     config["executor"]["parameters"]["setup"][0]["parameters"]["setup"]["tend"] = 200
     with pytest.raises(ValueError, match="ramps"):
+        resolve_runtime(config)
+
+
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
+def test_flat_evaluation_settings_survive_roundtrip(method):
+    config = sampling_config(method)
+    setup = mc_parameters(config)["setup"]
+    evaluation = setup.setdefault("evaluation", {})
+    evaluation.update(constraint="indices 0", random_seed=29,
+                      output={"trajectory": {"period": 2}})
+    original = copy.deepcopy(evaluation)
+    runtime = resolve_runtime(config)
+    mc = runtime.executor.children[1].executor if method == "hybrid_monte_carlo" else runtime.executor
+    child = mc.worker.runtime.config.executor
+    assert child.method == ("min" if method == "biased_monte_carlo" else "spc")
+    assert child.parameters["setup"]["constraint"] == "indices 0"
+    assert child.parameters["random_seed"] == 29
+    assert child.parameters["output"]["trajectory"]["period"] == 2
+    saved = runtime.executor.as_dict()
+    assert mc_parameters(saved)["setup"]["evaluation"] == original
+    assert resolve_runtime(saved).executor.as_dict() == saved
+
+
+@pytest.mark.parametrize("legacy", ["executor", "evaluator"])
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
+def test_old_evaluation_block_requires_migration(method, legacy):
+    config = sampling_config(method)
+    mc_parameters(config)["setup"][legacy] = {}
+    with pytest.raises(ValueError, match="use the flat setup.evaluation"):
+        resolve_runtime(config)
+
+
+@pytest.mark.parametrize("field", ["parameters", "setup", "method", "potential", "modifiers", "ensemble"])
+def test_evaluation_rejects_wrappers_and_runtime_overrides(field):
+    config = sampling_config()
+    mc_parameters(config)["setup"]["evaluation"] = {field: {}}
+    with pytest.raises(ValueError, match="Unsupported evaluation fields"):
         resolve_runtime(config)

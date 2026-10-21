@@ -23,9 +23,8 @@ def test_defaults_optimizer_scheduler_and_roundtrip():
     source = config()
     setup = source["executor"]["parameters"]["setup"]
     setup["operators"][0].pop("skip_distance_check")
-    setup["executor"]["parameters"]["setup"] = {
-        "optimizer": {"name": "bfgs", "parameters": {"maxstep": .1}}}
-    setup["executor"]["scheduler"] = {"provider": "pbs"}
+    setup["evaluation"]["optimizer"] = {"name": "bfgs", "parameters": {"maxstep": .1}}
+    setup["evaluation"]["scheduler"] = {"provider": "pbs"}
     source["scheduler"] = {"provider": "slurm"}
     original = copy.deepcopy(source)
     runtime = resolve_runtime(source)
@@ -45,8 +44,8 @@ def test_defaults_optimizer_scheduler_and_roundtrip():
 @pytest.mark.parametrize("method", ["spc", "md", "cmin"])
 def test_rejects_non_min_evaluator(method):
     source = config()
-    source["executor"]["parameters"]["setup"]["executor"]["method"] = method
-    with pytest.raises(ValueError, match="requires method: min"):
+    source["executor"]["parameters"]["setup"]["evaluation"]["method"] = method
+    with pytest.raises(ValueError, match="Unsupported evaluation fields: method"):
         resolve_runtime(source)
     engine = resolve_runtime(config()).executor
     # Registration also enforces the method even when bypassing the factory.
@@ -62,7 +61,7 @@ def test_rejects_non_min_evaluator(method):
     {"steps": 10, "fmax": float("nan")}, {"steps": 10, "fmax": float("inf")}])
 def test_requires_explicit_valid_minimisation_limits(stop):
     source = config()
-    source["executor"]["parameters"]["setup"]["executor"]["parameters"]["stop"] = stop
+    source["executor"]["parameters"]["setup"]["evaluation"]["stop"] = stop
     with pytest.raises((ValueError, TypeError)):
         resolve_runtime(source)
 
@@ -70,8 +69,8 @@ def test_requires_explicit_valid_minimisation_limits(stop):
 @pytest.mark.parametrize("field", ["potential", "modifiers"])
 def test_evaluator_cannot_override_surface(field):
     source = config()
-    source["executor"]["parameters"]["setup"]["executor"][field] = {}
-    with pytest.raises(ValueError, match="Unknown executor fields"):
+    source["executor"]["parameters"]["setup"]["evaluation"][field] = {}
+    with pytest.raises(ValueError, match="Unsupported evaluation fields"):
         resolve_runtime(source)
 
 
@@ -83,7 +82,7 @@ def test_shared_ensemble_and_explicit_provider(ensemble):
     if ensemble != "nvt":
         params["ensemble"]["chemical_potentials"] = {"Cu": 0., "Ni": .2}
         params["setup"]["operators"] = [{"method": "swap_type", "particles": ["Cu", "Ni"]}]
-    params["setup"]["executor"].update(provider="ase", method="min")
+    params["setup"]["evaluation"].update(provider="ase")
     runtime = resolve_runtime(source)
     assert runtime.executor.operators[0].temperature == 900
     if ensemble != "nvt":
@@ -160,7 +159,7 @@ def test_iteration_limit_endpoint_is_used(tmp_path, monkeypatch):
     source = config()
     params = source["executor"]["parameters"]
     params["stop"]["steps"] = 1
-    params["setup"]["executor"]["parameters"]["stop"] = {"steps": 1, "fmax": 1e-12}
+    params["setup"]["evaluation"]["stop"] = {"steps": 1, "fmax": 1e-12}
     monkeypatch.setattr(AcceptanceRule, "accept", lambda *args: True)
     engine = resolve_runtime(source).executor
     engine.directory = tmp_path
@@ -187,7 +186,7 @@ def test_alternate_provider_and_modifier_share_outer_surface():
     manager.register(replace(ASE_PROVIDER, name="alternate_ase"))
     manager.register(Provider("test_bias", capabilities={CapabilityKind.MODIFIER: {"default": BiasFactory()}}))
     source = config()
-    source["executor"]["parameters"]["setup"]["executor"]["provider"] = "alternate_ase"
+    source["executor"]["parameters"]["setup"]["evaluation"]["provider"] = "alternate_ase"
     source["modifiers"] = [{"provider": "test_bias"}]
     runtime = resolve_runtime(source, providers=manager)
     child = runtime.executor.worker.runtime

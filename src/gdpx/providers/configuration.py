@@ -543,10 +543,13 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
                     children.append(normalized)
                 parameters["setup"] = children
             elif isinstance(setup, Mapping):
-                if "evaluator" in setup:
-                    raise ProviderConfigurationError("Remove setup.evaluator; use setup.executor for evaluator settings.")
-                if "executor" in setup:
-                    setup["executor"] = child_executor(setup["executor"], default_method="min" if method == "biased_monte_carlo" else "spc")
+                for legacy in ("executor", "evaluator"):
+                    if legacy in setup:
+                        raise ProviderConfigurationError(
+                            f"Remove setup.{legacy}; use the flat setup.evaluation mapping.")
+                if "evaluation" in setup:
+                    evaluation_executor(setup["evaluation"],
+                                        "min" if method == "biased_monte_carlo" else "spc")
     if label == "potential":
         return PotentialConfig(str(provider or ""), method, parameters, backend)
     if label == "modifier":
@@ -554,19 +557,41 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
     return ComponentConfig(str(provider or ""), method, parameters)
 
 
-def child_executor(value, *, default_method=None):
+def child_executor(value):
     """Normalize a child definition without allowing a second energy surface."""
     if not isinstance(value, Mapping):
         raise ProviderConfigurationError("Child executor must be a mapping.")
     data = copy.deepcopy(dict(value))
     scheduler = data.pop("scheduler", None)
-    if default_method is not None:
-        data.setdefault("provider", "ase")
-        data.setdefault("method", default_method)
     result = _component(data, "executor", require_method=True).to_dict()
     if scheduler is not None:
         result["scheduler"] = scheduler_component(scheduler).to_dict()
     return result
+
+
+def evaluation_executor(value, method):
+    """Translate flat MC evaluation settings without changing their public shape."""
+    if not isinstance(value, Mapping):
+        raise ProviderConfigurationError("MC setup.evaluation must be a mapping.")
+    data = copy.deepcopy(dict(value))
+    forbidden = set(data) & {
+        "method", "parameters", "setup", "potential", "modifiers", "dispatch",
+        "runtime", "executor", "ensemble", "backend", "schema_version",
+    }
+    if forbidden:
+        raise ProviderConfigurationError(
+            "Unsupported evaluation fields: " + ", ".join(sorted(forbidden))
+            + ". Use flat evaluator settings; the MC method fixes spc/min and the outer runtime supplies the potential.")
+    provider = data.pop("provider", "ase")
+    if provider == "native":
+        raise ProviderConfigurationError("MC evaluation requires a provider supporting spc/min, not native.")
+    scheduler = data.pop("scheduler", None)
+    parameters = {key: data.pop(key) for key in ("output", "stop", "random_seed") if key in data}
+    parameters["setup"] = data
+    definition = {"provider": provider, "method": method, "parameters": parameters}
+    if scheduler is not None:
+        definition["scheduler"] = scheduler
+    return child_executor(definition)
 
 
 def scheduler_component(value: Any) -> SchedulerConfig:

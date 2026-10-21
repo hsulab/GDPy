@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from gdpx.execution.factory import create_worker
 from gdpx.execution.runtime import Runtime
-from gdpx.providers.configuration import child_executor, resolve_executor_parameters
+from gdpx.providers.configuration import evaluation_executor, resolve_executor_parameters
 from gdpx.providers.specs import thaw
 from gdpx.providers.ensemble import inherit_ensemble
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
@@ -44,17 +44,15 @@ def resolve_sampling_runtime(config, resolver):
             raise ValueError(f"output.{label} must be a positive integer.")
     if method in {"monte_carlo", "biased_monte_carlo"}:
         setup = raw.get("setup", {})
-        allowed = {"operators", "ignore_atoms_tags", "executor"}
+        allowed = {"operators", "ignore_atoms_tags", "evaluation"}
         if not isinstance(setup, Mapping) or setup.keys() - allowed:
-            raise ValueError("Unsupported MC setup; use operators, ignore_atoms_tags, and optional executor.")
+            raise ValueError("Unsupported MC setup; use operators, ignore_atoms_tags, and optional evaluation.")
         operators, _ = resolve_monte_carlo_system(
             {"ensemble": parameters["ensemble"], "ignore_atoms_tags": setup.get("ignore_atoms_tags", True)},
             setup.get("operators"), method)
         cls = BiasedMonteCarlo if method == "biased_monte_carlo" else MonteCarlo
         required = cls.required_evaluation_method
-        evaluator = child_executor(setup.get("executor", {}), default_method=required)
-        if evaluator["method"] != required or evaluator["provider"] == "native":
-            raise ValueError(f"{method} setup.executor requires method: {required}.")
+        evaluator = evaluation_executor(setup.get("evaluation", {}), required)
         if method == "biased_monte_carlo":
             validate_minimisation(evaluator.get("parameters", {}))
         child = resolve_child(config, evaluator, resolver)
