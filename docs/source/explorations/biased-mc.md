@@ -31,25 +31,21 @@ the input and output workflow.
 
 ## Minimisation settings
 
-Configure the evaluator under `parameters.setup.executor`. Its defaults are
-`provider: ase` and `method: min`; both fields may be omitted. Only `min` is
-accepted: `spc`, `md`, and `cmin` are rejected.
+Configure the evaluator under `parameters.setup.evaluation`. The provider defaults
+to `ase`; biased MC always selects `min`, so no `method` field is needed.
 
-Choose the minimisation algorithm in the evaluator's
-`parameters.setup.optimizer`:
+Choose the minimisation algorithm directly in `evaluation.optimizer`:
 
 ```yaml
 setup:
-  executor:
-    parameters:
-      setup:
-        optimizer:
-          name: bfgs
-          parameters:
-            maxstep: 0.2
-      stop:
-        steps: 1000
-        fmax: 0.05
+  evaluation:
+    optimizer:
+      name: bfgs
+      parameters:
+        maxstep: 0.2
+    stop:
+      steps: 1000
+      fmax: 0.05
 ```
 
 This fragment belongs under the biased-MC executor's `parameters`. The ASE
@@ -65,13 +61,14 @@ its iteration limit supplies its final endpoint for acceptance even if `fmax`
 is not satisfied. Calculation failures remain failures; they are not accepted
 as completed trials.
 
-Set constraints in the evaluator's `parameters.setup.constraint`, using the
+Set constraints in the evaluator's `constraint`, using the
 normal {doc}`constraint syntax <../groups-and-constraints>`. Input constraints
 are retained when no override is supplied. Particle tags survive minimisation.
 The evaluator inherits the outer potential and modifiers and cannot override
 them. Its optional `scheduler` defaults to direct execution independently of
 the parent scheduler. A different evaluator provider must support the shared
-potential.
+potential. Evaluation-specific `output` and `random_seed` settings also go
+directly under `evaluation`; provider-specific setup fields need no wrapper.
 
 ## Ensembles and filters
 

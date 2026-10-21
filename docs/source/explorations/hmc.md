@@ -67,7 +67,7 @@ cannot be overridden in children.
 - MD owns its integration settings. Its `parameters.stop.steps` counts MD steps.
 - Standard MC owns its operators, evaluator, and proposal count.
   Its `parameters.stop.steps` counts MC proposals. Evaluation defaults to ASE
-  single-point calculation; use its optional `setup.executor` to override it.
+  single-point calculation; use its optional `setup.evaluation` to override it.
 - The parent `parameters.stop.steps` counts full passes through the setup list.
   Parent early stopping is checked after a complete cycle. An early-stopped
   child completes its invocation and passes its endpoint to the next child.

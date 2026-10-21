@@ -57,7 +57,8 @@ defaults to 0.2. Optimizer names and algorithm parameters depend on the executor
 provider; the availability of an algorithm in ASE alone does not expose it
 through GDPy.
 
-The same executor configuration is nested under `parameters.setup.executor`
+For MC, place `optimizer`, `constraint`, and `stop` directly under
+`parameters.setup.evaluation`, without `parameters` or `setup` wrappers, as shown
 in {doc}`biased Monte Carlo <../../explorations/biased-mc>`. There, the initial
 structure and each valid proposal are minimised before acceptance. Both
 minimisation limits are required explicitly; a step-limited endpoint is used

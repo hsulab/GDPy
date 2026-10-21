@@ -10,11 +10,24 @@ Each input structure starts an independent chain. Settings below are relative to
 `setup` contains operators and the optional evaluator;
 `output` controls output cadence; `stop` controls the step budget and early stopping.
 MC defaults to an ASE single-point evaluator using the outer potential and
-modifiers. Optional `setup.executor` accepts `provider`, `method`, `parameters`,
-and `scheduler` to customize evaluation. Provider defaults to `ase` and method
-to `spc`; other methods are rejected. The evaluator scheduler defaults to
-direct execution independently of the outer scheduler. Incompatible potential
-backends fail during preparation.
+modifiers. Optional `setup.evaluation` accepts `provider` (default `ase`),
+`scheduler`, `output`, `stop`, `random_seed`, and provider-specific setup fields
+directly. Standard MC always selects `spc`; omit `method`, `parameters`, and
+`setup` wrappers. The evaluator scheduler defaults to direct execution
+independently of the outer scheduler. Incompatible potential backends fail
+during preparation. For example, to customize only the evaluator scheduler:
+
+```yaml
+setup:
+  evaluation:
+    scheduler:
+      provider: pbs
+  operators:
+  - method: move
+    particles: [Cu]
+    max_disp: 0.2
+```
+
 The {doc}`examples <mc/examples/index>` use ASE EMT, so no model download or
 external simulation executable is needed.
 

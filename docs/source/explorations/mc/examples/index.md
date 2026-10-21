@@ -28,8 +28,8 @@ gdp -d run-mc-grand-canonical compute examples/monte_carlo/assets/aucu8.xyz --ru
 ```
 
 All three define one EMT potential and use the default ASE single-point
-MC evaluator. Optional `executor.parameters.setup.executor` customizes its
-provider, parameters, or scheduler; its method must remain `spc`.
+MC evaluator. Optional `executor.parameters.setup.evaluation` customizes its
+provider, settings, or scheduler; MC selects `spc` automatically.
 
 The {doc}`hybrid examples <../../hmc/examples/index>` alternate MD segments with MC proposals
 and list MD and standard MC executors directly in `parameters.setup`.

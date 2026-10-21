@@ -231,7 +231,7 @@ independent chain. There is no compatibility adapter for old inputs or runs.
   on the parent only. Move `system.ignore_atoms_tags` and `strategy.operators`
   to `executor.parameters.setup` (the standard MC child for HMC).
 - Define potential and modifiers once on the outer runtime. MC uses ASE `spc`
-  by default; optional `setup.executor` customizes evaluation.
+  by default; optional `setup.evaluation` customizes evaluation.
 - For HMC, make `setup` an ordered list of MD and `native/monte_carlo`
   executor definitions. Move operators and proposal limits into
   the MC child. Remove `setup.cycle`, nested runtimes, and `setup.evaluator`.
@@ -279,3 +279,29 @@ and regulator targets from children. MD inherits `nvt` for `uvt`/`suvt` parent
 ensembles, with the shared temperature. Children cannot override the ensemble
 or add temperature/pressure ramps. Change temperature broadcast paths to
 `ensemble.temperature`. Use a new run directory for migrated inputs.
+
+### Flat MC evaluation settings
+
+For standard and biased Monte Carlo, replace `setup.executor` with
+`setup.evaluation`. Move the evaluator's `parameters.setup` fields directly
+into `evaluation`, alongside `stop`, `output`, and `random_seed`. Keep optional
+`provider` and `scheduler` there, and remove `method`: standard MC selects
+`spc`, while biased MC selects `min`. The evaluator shares the outer potential
+and modifiers. This also applies to the standard MC child of HMC.
+
+For example, biased MC minimisation settings become:
+
+```yaml
+setup:
+  evaluation:
+    optimizer:
+      name: bfgs
+      parameters:
+        maxstep: 0.2
+    stop:
+      steps: 100
+      fmax: 0.05
+```
+
+Old `setup.executor` and `setup.evaluator` inputs are rejected with a migration
+message. Use a fresh run directory after migrating an existing configuration.
