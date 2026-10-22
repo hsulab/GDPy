@@ -54,6 +54,20 @@ class DriverFailure:
     traceback: str
 
 
+def candidate_failure(directory):
+    """Read a durable failure, including terminal LAMMPS errors from older runs."""
+    path = pathlib.Path(directory) / "gdp-failure.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    output = pathlib.Path(directory) / "lmp.out"
+    if output.exists():
+        errors = [line for line in output.read_text(errors="replace").splitlines()
+                  if line.startswith("ERROR:")]
+        if errors:
+            return {"exception": "LammpsError", "message": errors[-1]}
+    return None
+
+
 class DriverBatchError(RuntimeError):
     """Raised after every structure in a batch has been attempted."""
 
@@ -131,6 +145,8 @@ def run_computation_in_commandline(
             return all_drivers[0]
         return all_drivers[idx]
 
+    skip_failed = (metadata is not None and metadata.inputs.read()["workers"].get(
+        metadata.worker, {}).get("candidate_failure_policy") == "skip")
     failures: list[DriverFailure] = []
 
     def _record_failure(gi: int, dirname: str, d_idx: int, driver: SingleStructureExecutor, error: Exception) -> None:
@@ -144,6 +160,13 @@ def run_computation_in_commandline(
             traceback=traceback_text,
         )
         failures.append(failure)
+        if skip_failed:
+            failure_dir = directory / dirname
+            failure_dir.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(failure_dir / "gdp-failure.json", json.dumps({
+                "exception": type(error).__name__, "message": str(error),
+                "traceback": traceback_text,
+            }))
         if error_func is None:
             print_func(f"ERROR: driver computation failed in {dirname} ({failure.driver_name})\n{traceback_text}")
         else:
@@ -156,6 +179,11 @@ def run_computation_in_commandline(
         with CustomTimer(name="run-driver", func=print_func):
             if not share_wdir:
                 for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
+                    if skip_failed and candidate_failure(directory / dirname) is not None:
+                        print_func(f"Skipping failed candidate {dirname}.")
+                        if progress_func is not None:
+                            progress_func(dirname, False)
+                        continue
                     d_idx = 0 if driver_indices is None else driver_indices[gi]
                     curr_driver = _get_driver(d_idx)
                     curr_driver.directory = directory / dirname
@@ -226,7 +254,7 @@ def run_computation_in_commandline(
         for driver, previous_prefix in zip(all_drivers, prev_prefixes):
             driver.setting.machine_prefix = previous_prefix
 
-    if failures:
+    if failures and not skip_failed:
         raise DriverBatchError(failures) from failures[0].exception
 
     return
@@ -251,6 +279,7 @@ class DriverBasedWorker(CatalogWorker):
     worker_kind = "driver"
 
     reserved_keys: list[str] = ["energy", "step", "wdir"]
+    skip_failed_candidates: bool = False
     is_spawned: bool = False
     print_period: int = 100
 
@@ -272,6 +301,16 @@ class DriverBasedWorker(CatalogWorker):
         self.runtime = runtime
         self.scheduler = runtime.scheduler
         self._drivers: list[SingleStructureExecutor] = [runtime.executor]
+
+    def _skips_failed_candidates(self):
+        return self.skip_failed_candidates or self.metadata.inputs.read()["workers"].get(
+            self.metadata.worker, {}).get("candidate_failure_policy") == "skip"
+
+    def get_failed_candidates(self):
+        if not self._skips_failed_candidates():
+            return {}
+        return {path.name: failure for path in sorted(self.directory.glob("cand*"))
+                if path.is_dir() and (failure := candidate_failure(path)) is not None}
 
     def _job_reference(self, uid):
         return uid if self.compact_metadata else self.metadata_directory / f"job-{uid}.json"
@@ -521,6 +560,11 @@ class DriverBasedWorker(CatalogWorker):
         if self.is_spawned and target_batch is None:
             raise ValueError("Spawned workers require a batch index.")
         self._freeze_prepared(identifier, frames, batches, rng_states)
+        if self.skip_failed_candidates:
+            if self._share_wdir:
+                raise ValueError("Skipping failed candidates requires separate working directories.")
+            with self.metadata.inputs.transaction() as data:
+                data["workers"][self.metadata.worker]["candidate_failure_policy"] = "skip"
         super().run(*args, **kwargs)
         selected = batches if target_batch is None else [batches[target_batch]]
         get_reporter(self).configure(selected)
@@ -805,6 +849,9 @@ class DriverBasedWorker(CatalogWorker):
             # For single-driver, always use _drivers[0]
             # For multi-driver, look up from wdir name -> task plan index
             for wdir_name in wdir_names:
+                if (self._skips_failed_candidates()
+                        and candidate_failure(self.directory / wdir_name) is not None):
+                    continue
                 if not (self.directory / wdir_name).exists():
                     return False
                 # Determine driver index from wdir name
@@ -881,7 +928,11 @@ class DriverBasedWorker(CatalogWorker):
         for job in unretrieved_jobs:
             self._validate_job(job)
             unretrieved_identifiers.append(job.structure_digest)
-            unretrieved_wdirs_.extend(self.directory / w for w in job.wdir_names)
+            unretrieved_wdirs_.extend(
+                self.directory / w for w in job.wdir_names
+                if not (self._skips_failed_candidates()
+                        and candidate_failure(self.directory / w) is not None)
+            )
 
         unretrieved_wdirs = []
         if given_wdirs is not None:

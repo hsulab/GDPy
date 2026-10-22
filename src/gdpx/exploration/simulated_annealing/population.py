@@ -129,7 +129,46 @@ class PopulationAnnealing(PopulationBasedExploration):
         params.update(temp=start, tend=end, velocity_seed=None,
                       ignore_atoms_velocities=True)
         runtime["executor"]["parameters"] = params
-        return create_worker(runtime, directory=self.directory / f"gen{generation}" / "sim")
+        worker = create_worker(runtime, directory=self.directory / f"gen{generation}" / "sim")
+        worker.skip_failed_candidates = True
+        return worker
+
+    def _evaluate_stage(self, worker, frames, seeds, indices, state, plan, stage):
+        if not frames:
+            return {}
+        worker.skip_failed_candidates = True
+        worker.run(frames, rng_states=seeds)
+        worker.inspect(resubmit=True)
+        if worker.get_number_of_running_jobs():
+            return None
+        results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
+        failed = worker.get_failed_candidates()
+        expected = {f"cand{i}" for i in range(len(frames))}
+        by_name = {}
+        for trajectory in results:
+            if not trajectory:
+                raise RuntimeError(f"Empty SA {stage} result.")
+            atoms = trajectory[-1]
+            name = atoms.info["wdir"]
+            if name not in expected or name in by_name or name in failed:
+                raise RuntimeError(f"Unexpected or duplicate SA {stage} result: {name}.")
+            by_name[name] = atoms
+        if set(by_name) | set(failed) != expected:
+            raise RuntimeError(f"Missing or duplicate SA {stage} results.")
+        # A partially propagated MD trajectory is not a completed cooling attempt.
+        for name, atoms in list(by_name.items()):
+            if atoms.info.get("earlystop"):
+                failed[name] = {"message": str(atoms.info["earlystop"])}
+                del by_name[name]
+        plan.setdefault("failures", {})[stage] = {
+            str(indices[int(name[4:])]): failure for name, failure in failed.items()
+        }
+        self._save(state)
+        for name, failure in failed.items():
+            self._print(f"SA {stage}: skipping replica {indices[int(name[4:])]}: "
+                        f"{failure.get('message', 'calculation failed')}")
+        return {indices[i]: by_name[f"cand{i}"] for i in range(len(frames))
+                if f"cand{i}" in by_name}
 
     def run(self):
         state = self._checkpoint()
@@ -168,28 +207,22 @@ class PopulationAnnealing(PopulationBasedExploration):
             self.random_streams.restore(plan["after_input_rng"])
             frames = read(inputs, ":")
             seeds = np.random.default_rng(plan["seed"]).integers(0, 2**31 - 1, len(frames)).tolist()
+            indices = list(range(len(frames)))
             if generation:
                 dynamics = self._cooling(generation, frames, plan["seed"])
-                dynamics.run(frames, rng_states=seeds)
-                dynamics.inspect(resubmit=True)
-                if dynamics.get_number_of_running_jobs():
+                cooled = self._evaluate_stage(
+                    dynamics, frames, seeds, indices, state, plan, "dynamics")
+                if cooled is None:
                     return
-                trajectories = dynamics.retrieve(include_retrieved=True)
-                by_name = {traj[-1].info["wdir"]: traj[-1] for traj in trajectories if traj}
-                if len(trajectories) != len(frames) or set(by_name) != {f"cand{i}" for i in range(len(frames))}:
-                    raise RuntimeError("Missing or duplicate SA dynamics results.")
-                frames = [by_name[f"cand{i}"] for i in range(len(frames))]
+                indices = list(cooled)
+                frames = list(cooled.values())
+                seeds = [seeds[index] for index in indices]
             worker = create_worker(self._minimum_runtime(), directory=root / "min")
-            worker.run(frames, rng_states=seeds)
-            worker.inspect(resubmit=True)
-            if worker.get_number_of_running_jobs():
+            minima = self._evaluate_stage(
+                worker, frames, seeds, indices, state, plan, "minimisation")
+            if minima is None:
                 return
-            results = worker.retrieve(include_retrieved=True, use_archive=self.use_archive)
-            by_name = {traj[-1].info["wdir"]: traj[-1] for traj in results if traj}
-            if len(results) != len(frames) or set(by_name) != {f"cand{i}" for i in range(len(frames))}:
-                raise RuntimeError("Missing or duplicate SA minimisation results.")
-            for index in range(len(frames)):
-                atoms = by_name[f"cand{index}"]
+            for index, atoms in minima.items():
                 canonical_candidates_from_worker_results(
                     [atoms], gen_num=generation, objective=self.objective,
                     extinct_callbacks=self.population_config.extinct_callbacks)
@@ -197,10 +230,12 @@ class PopulationAnnealing(PopulationBasedExploration):
                                           cycle=generation, replica=index)
                 database.add_evaluated_candidate(atoms, f"sa:{generation}:{index}")
             self.population.refresh(database)
+            if not self.population.candidates:
+                raise RuntimeError("SA has no surviving candidates to continue exploration.")
             plan["retained"] = [a.info["confid"] for a in self.population.candidates]
             state["completed"] = generation
             self._save(state)
-            self._print(f"SA generation {generation}: evaluated {len(frames)}, retained {len(plan['retained'])}")
+            self._print(f"SA generation {generation}: evaluated {len(minima)}, retained {len(plan['retained'])}")
         self.population.refresh(database)
         self.report(database)
 
@@ -231,5 +266,7 @@ class PopulationAnnealing(PopulationBasedExploration):
             if generation and (root / "inputs.xyz").exists():
                 workers.append(self._cooling(generation, read(root / "inputs.xyz", ":"), plan["seed"]))
             if (root / "min").exists():
-                workers.append(create_worker(self._minimum_runtime(), directory=root / "min"))
+                worker = create_worker(self._minimum_runtime(), directory=root / "min")
+                worker.skip_failed_candidates = True
+                workers.append(worker)
         return workers
