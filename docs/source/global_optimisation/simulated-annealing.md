@@ -88,6 +88,16 @@ Every generation starts with fresh velocities and persisted independent seeds
 for each candidate. All candidates finish MD and minimisation before selection
 for the next generation.
 
+Failed MD or minimisation candidates are recorded and excluded from selection;
+they are not retried or switched to another optimiser. Successful candidates in
+the same generation still enter the population. If a later generation has no
+successful candidates, the retained minima from earlier generations remain
+available for the next generation. If no eligible minima exist at all (for
+example, every initial minimisation fails), the search stops with an explicit
+error. Failure details are saved in `population.json` and, for new failures,
+`candN/gdp-failure.json`; restart preserves the skip decision. Incomplete queued
+jobs remain pending and are not treated as failed candidates.
+
 ## Results and restart
 
 - `candidates.db`: all evaluated minima, including duplicate and unretained
