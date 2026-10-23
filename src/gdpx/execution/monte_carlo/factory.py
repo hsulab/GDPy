@@ -9,7 +9,7 @@ from gdpx.providers.configuration import evaluation_executor, resolve_executor_p
 from gdpx.providers.specs import thaw
 from gdpx.providers.ensemble import inherit_ensemble
 from .monte_carlo import MonteCarlo, resolve_monte_carlo_system, resolve_monte_carlo_convergence
-from .hybrid_monte_carlo import HybridMonteCarlo
+from .hybrid_monte_carlo import HybridMonteCarlo, HybridBiasedMonteCarlo
 from .biased_monte_carlo import BiasedMonteCarlo, validate_minimisation
 
 
@@ -68,13 +68,14 @@ def resolve_sampling_runtime(config, resolver):
         executor.runtime_config = config.to_dict()
     else:
         definitions = [inherit_ensemble(item, parameters["ensemble"]) for item in raw["setup"]]
+        mc_method = "biased_monte_carlo" if method == "hybrid_biased_monte_carlo" else "monte_carlo"
         methods = [item["method"] for item in definitions]
-        if set(methods) != {"md", "monte_carlo"}:
-            raise ValueError("HMC setup requires MD and conventional Monte Carlo children only.")
+        if set(methods) != {"md", mc_method}:
+            raise ValueError(f"{method} setup requires MD and {mc_method} children only.")
         for item in definitions:
-            if item["method"] == "monte_carlo" and item["provider"] != "native":
+            if item["method"] == mc_method and item["provider"] != "native":
                 raise ValueError("HMC Monte Carlo children require provider: native.")
-        first = next(i for i, item in enumerate(definitions) if item["method"] == "monte_carlo")
+        first = next(i for i, item in enumerate(definitions) if item["method"] == mc_method)
         children = [None] * len(definitions)
         children[first] = resolve_child(config, definitions[first], resolver)
         config = replace(config, potential=children[first].config.potential,
@@ -83,7 +84,8 @@ def resolve_sampling_runtime(config, resolver):
             if i != first:
                 children[i] = resolve_child(config, definition, resolver)
         initializer = children[first].executor.worker.runtime
-        executor = HybridMonteCarlo(config, children, initializer, convergence, **cadence)
+        cls = HybridBiasedMonteCarlo if method == "hybrid_biased_monte_carlo" else HybridMonteCarlo
+        executor = cls(config, children, initializer, convergence, **cadence)
     return Runtime(potential=config.potential_spec(), materialization=None, executor=executor,
                    modifiers=config.modifier_specs(), config=config,
                    scheduler=resolver.resolve_scheduler(config))

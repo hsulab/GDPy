@@ -61,7 +61,7 @@ class CompositeExecutor(SingleStructureExecutor):
 
     def _run_child(self, runtime, atoms, seed, directory):
         from gdpx.execution.sampling_requests import evaluate
-        if runtime.config.executor.method == "monte_carlo":
+        if runtime.config.executor.method in {"monte_carlo", "biased_monte_carlo"}:
             engine = runtime.executor
             engine.directory = directory
             engine.set_rng(seed=seed)
@@ -112,7 +112,7 @@ class CompositeExecutor(SingleStructureExecutor):
         if not isinstance(atoms, Atoms):
             raise TypeError("Composite executors require one Atoms input per chain.")
         self.directory.mkdir(parents=True, exist_ok=True)
-        if self.name == "hybrid_monte_carlo":
+        if self.name in {"hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
             from gdpx.execution.monte_carlo.output import report_hybrid_intro
             report_hybrid_intro([child.config.executor.to_dict() for child in self.children],
                                 self.convergence["steps"], self.random_seed, self.TRAJ_NAME)

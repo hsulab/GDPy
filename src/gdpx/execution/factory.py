@@ -51,7 +51,7 @@ def create_worker(
 
     if isinstance(runtime.executor, SingleStructureExecutor):
         if runtime.config.executor.provider == "native" and runtime.config.executor.method in {
-            "monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"
+            "monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo", "hybrid_biased_monte_carlo"
         }:
             from gdpx.execution.workers.monte_carlo import MonteCarloWorker
             worker = MonteCarloWorker(runtime=runtime)

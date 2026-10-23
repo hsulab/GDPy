@@ -11,6 +11,7 @@ SUPPORTED_ENSEMBLES = {
     "monte_carlo": {"nvt", "uvt", "suvt"},
     "biased_monte_carlo": {"nvt", "uvt", "suvt"},
     "hybrid_monte_carlo": {"nvt", "uvt", "suvt"},
+    "hybrid_biased_monte_carlo": {"nvt", "uvt", "suvt"},
 }
 
 

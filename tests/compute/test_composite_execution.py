@@ -15,7 +15,7 @@ from test_sampling_lifecycle import copper
 
 
 
-@pytest.mark.parametrize("method", ["hybrid_monte_carlo"])
+@pytest.mark.parametrize("method", ["hybrid_monte_carlo", "hybrid_biased_monte_carlo"])
 @pytest.mark.parametrize("boundary", ["child", "trajectory"])
 def test_interrupted_boundary_matches_uninterrupted(tmp_path, monkeypatch, method, boundary):
     config = sampling_config(method)

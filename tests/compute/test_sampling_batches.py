@@ -17,7 +17,8 @@ from test_sampling_lifecycle import copper
 
 
 @pytest.mark.parametrize('method,basic', [('monte_carlo', 'spc'), ('biased_monte_carlo', 'min'),
-                                         ('hybrid_monte_carlo', 'md')])
+                                         ('hybrid_monte_carlo', 'md'),
+                                         ('hybrid_biased_monte_carlo', 'md')])
 def test_batches_basic_calculations_instead_of_chains(tmp_path, method, basic):
     config = sampling_config(method)
     config['dispatch'] = {'batch_size': 2}
@@ -36,6 +37,8 @@ def test_batches_basic_calculations_instead_of_chains(tmp_path, method, basic):
     methods = {load_data(tmp_path / '_requests/runtimes' / f"{row['runtime']}.json")['executor']['method']
                for row in ledger['requests'].values()}
     assert basic in methods
+    if method == 'hybrid_biased_monte_carlo':
+        assert methods == {'md', 'min'}
     assert not methods.intersection({'monte_carlo', 'biased_monte_carlo', 'hybrid_monte_carlo'})
     assert {len(batch['members']) for batch in ledger['batches'].values()} == {1, 2}
     for batch in ledger['batches'].values():

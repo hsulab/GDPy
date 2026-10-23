@@ -16,8 +16,14 @@ def sampling_config(method="monte_carlo"):
         "setup": {"operators": [{"method": "move", "particles": ["Cu"], "max_disp": 0.1}]},
         "stop": {"steps": 2}}}
     executor = copy.deepcopy(mc)
-    if method == "hybrid_monte_carlo":
+    if method in {"hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
         ensemble = mc["parameters"].pop("ensemble")
+        if method == "hybrid_biased_monte_carlo":
+            mc["method"] = "biased_monte_carlo"
+            mc["parameters"]["setup"]["evaluation"] = {
+                "optimizer": {"name": "bfgs", "parameters": {"maxstep": .2}},
+                "stop": {"steps": 100, "fmax": .01}}
+            mc["parameters"]["setup"]["operators"][0]["skip_distance_check"] = True
         executor = {"provider": "native", "method": method, "parameters": {
             "ensemble": ensemble,
             "setup": [{"provider": "ase", "method": "md", "parameters": {

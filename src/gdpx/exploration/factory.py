@@ -63,7 +63,7 @@ def create_exploration(config):
         split_global_strategy(parameters.get("strategy"))
         if "system" not in parameters:
             raise ValueError("global_optimisation requires system settings.")
-    if method in {"monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"}:
+    if method in {"monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
         raise ValueError(
             f"{method} moved to gdp compute INPUT --runtime RUNTIME.yaml; "
             "use executor.provider: native and executor.parameters.setup/output/stop. "
