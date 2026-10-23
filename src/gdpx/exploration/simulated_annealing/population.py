@@ -3,6 +3,7 @@ import copy
 import math
 import json
 import os
+from collections.abc import Mapping
 
 import numpy as np
 
@@ -12,7 +13,7 @@ from ase.io.jsonio import encode
 from gdpx.analysis.selectors import create_selector
 from gdpx.data.array import AtomsNDArray
 
-from gdpx.providers.configuration import child_executor, resolve_executor_parameters
+from gdpx.providers.configuration import RuntimeConfig, child_executor, resolve_executor_parameters
 from gdpx.execution.factory import create_worker
 from gdpx.execution.fingerprint import payload_digest
 from ..population.exploration import PopulationBasedExploration
@@ -49,13 +50,19 @@ class PopulationAnnealing(PopulationBasedExploration):
         if generation != len(temperatures):
             raise ValueError("SA requires one temperature range per generation (excluding initial generation 0).")
         definition = strategy.get("minimisation")
-        if not isinstance(definition, dict) or "executor" not in definition:
-            raise ValueError("SA strategy.minimisation requires executor and an optional selector.")
-        if set(definition) - {"executor", "selector"}:
-            raise ValueError("SA minimisation accepts only executor and selector.")
+        if not isinstance(definition, Mapping) or "runtime" not in definition:
+            raise ValueError("SA strategy.minimisation requires runtime and an optional selector.")
+        if set(definition) - {"runtime", "selector"}:
+            raise ValueError("SA minimisation accepts only runtime and selector.")
         selector_config = copy.deepcopy(definition.get("selector", {"method": "locate", "indices": "-1"}))
         create_selector(selector_config)  # Validate before any calculations are submitted.
-        minimisation = child_executor(definition["executor"])
+        if not isinstance(definition["runtime"], Mapping):
+            raise ValueError("SA minimisation.runtime must be a runtime mapping.")
+        minimum_runtime = copy.deepcopy(dict(definition["runtime"]))
+        minimisation = child_executor(minimum_runtime.get("executor"))
+        if "scheduler" in minimisation:
+            raise ValueError("Move the minimisation scheduler to minimisation.runtime.scheduler.")
+        minimum_runtime["executor"] = minimisation
         if minimisation["method"] != "min":
             raise ValueError("SA strategy.minimisation requires method: min.")
         params = resolve_executor_parameters(minimisation.get("parameters", {}), "min")
@@ -65,7 +72,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                 or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
             raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
         strategy = copy.deepcopy(strategy)
-        strategy["minimisation"] = {"executor": minimisation, "selector": selector_config}
+        strategy["minimisation"] = {"runtime": minimum_runtime, "selector": selector_config}
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -98,15 +105,19 @@ class PopulationAnnealing(PopulationBasedExploration):
         create_worker(self._minimum_runtime())
 
     def _minimum_runtime(self):
-        runtime = self.worker.as_dict()
-        definition = copy.deepcopy(self.strategy_config["minimisation"]["executor"])
-        scheduler = definition.pop("scheduler", None)
-        runtime["executor"] = definition
-        runtime.pop("scheduler", None)
-        if scheduler is not None:
-            runtime["scheduler"] = scheduler
-        runtime["dispatch"]["worker"] = "batch"
-        return runtime
+        definition = copy.deepcopy(self.strategy_config["minimisation"]["runtime"])
+        md_runtime = self.worker.as_dict()
+        definition.setdefault("potential", md_runtime["potential"])
+        dispatch = definition.get("dispatch", {})
+        if not isinstance(dispatch, Mapping):
+            raise ValueError("SA minimisation.runtime.dispatch must be a mapping.")
+        definition["dispatch"] = {**md_runtime["dispatch"], "worker": "batch", **dispatch}
+        runtime = RuntimeConfig.from_mapping(definition)
+        if runtime.modifiers or runtime.dispatch.share_workdir:
+            raise ValueError("SA minimisation requires an unmodified potential and separate candidate directories.")
+        if runtime.dispatch.worker != "batch":
+            raise ValueError("SA minimisation requires dispatch.worker: batch.")
+        return runtime.to_dict()
 
     def as_dict(self):
         return self.serialise_search(self._init_params)

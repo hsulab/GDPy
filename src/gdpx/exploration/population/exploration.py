@@ -28,7 +28,7 @@ def validate_strategy(strategy, method=None):
     if "num_mcmoves" in strategy:
         raise ValueError("strategy.num_mcmoves was renamed to strategy.steps_per_chain.")
     if selected == "simulated_annealing" and "annealing" in strategy:
-        raise ValueError("Use strategy.temperatures for the temperature of each SA generation and strategy.minimisation for its executor.")
+        raise ValueError("Use strategy.temperatures for the temperature of each SA generation and strategy.minimisation.runtime for its minimisation runtime.")
     unknown = strategy.keys() - allowed[selected] - {"method"}
     if unknown:
         raise ValueError(

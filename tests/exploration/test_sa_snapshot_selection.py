@@ -23,8 +23,8 @@ def search(tmp_path):
         initial={"total_size": 1, "builder_allocations": [{"builder": "init", "size": 1}]},
         generation={"total_size": 2}), strategy=dict(
         method="simulated_annealing", temperatures=[[600, 300]], minimisation={
-            "executor": {"provider": "ase", "method": "min", "parameters": {
-                "stop": {"steps": 100, "fmax": .1}}}}))
+            "runtime": {"executor": {"provider": "ase", "method": "min", "parameters": {
+                "stop": {"steps": 100, "fmax": .1}}}}}))
     runtime = dict(potential={"provider": "emt"}, executor=dict(
         provider="ase", method="md", parameters=dict(
             ensemble={"method": "nvt", "temperature": 600},
@@ -129,8 +129,8 @@ def test_rejects_old_minimisation_shape(search):
     obj = search()
     recipe = obj.as_dict()
     runtime = recipe.pop("runtime")
-    recipe["strategy"]["minimisation"] = recipe["strategy"]["minimisation"]["executor"]
-    with pytest.raises(ValueError, match="requires executor"):
+    recipe["strategy"]["minimisation"] = {"executor": recipe["strategy"]["minimisation"]["runtime"]["executor"]}
+    with pytest.raises(ValueError, match="requires runtime"):
         create_exploration(recipe)
 
 
@@ -139,3 +139,66 @@ def test_selection_configuration_changes_require_new_directory(search):
     obj.run()
     with pytest.raises(ValueError, match="configuration changed"):
         search({"method": "locate", "indices": ":"}).run()
+
+
+def with_minimum_runtime(search, **overrides):
+    obj = search()
+    recipe = obj.as_dict()
+    md_runtime = recipe.pop("runtime")
+    recipe["strategy"]["minimisation"]["runtime"].update(overrides)
+    rebuilt = create_exploration(recipe)
+    rebuilt.directory = obj.directory
+    rebuilt.register_worker(create_worker(md_runtime))
+    return rebuilt
+
+
+def test_minimum_runtime_inherits_potential_and_overrides_dispatch(search):
+    obj = search()
+    recipe = obj.as_dict()
+    md_runtime = recipe.pop("runtime")
+    md_runtime["dispatch"].update(batch_size=7, retain_info=True)
+    md_runtime["scheduler"] = {"provider": "slurm"}
+    recipe["strategy"]["minimisation"]["runtime"]["dispatch"] = {"batch_size": 2}
+    original = copy.deepcopy((recipe, md_runtime))
+    rebuilt = create_exploration(recipe)
+    rebuilt.register_worker(create_worker(md_runtime))
+    minimum = rebuilt._minimum_runtime()
+    assert minimum["potential"] == rebuilt.worker.runtime.config.potential.to_dict()
+    assert minimum["dispatch"]["batch_size"] == 2
+    assert minimum["dispatch"]["retain_info"] is True
+    assert minimum.get("scheduler", {}).get("provider", "direct") == "direct"
+    assert (recipe, md_runtime) == original
+    overridden = with_minimum_runtime(search, scheduler={"provider": "slurm"})
+    assert overridden._minimum_runtime()["scheduler"]["provider"] == "slurm"
+
+
+def test_minimum_runtime_uses_own_potential_for_every_generation(search):
+    from ase.calculators.lj import LennardJones
+    potential = {"provider": "ase", "parameters": {"method": "lj", "sigma": 2.0, "epsilon": .5}}
+    obj = with_minimum_runtime(search, potential=potential)
+    assert obj.worker.runtime.config.potential.provider == "emt"
+    assert obj._minimum_runtime()["potential"]["provider"] == "ase"
+    obj.run()
+    rows = list(GlobalOptimisationDatabase(obj.directory / "candidates.db").connection.select(relaxed=1))
+    assert {row.generation for row in rows} == {0, 1}
+    assert len(rows) == 3
+    for row in rows:
+        atoms = row.toatoms()
+        atoms.calc = LennardJones(sigma=2.0, epsilon=.5)
+        assert row.energy == pytest.approx(atoms.get_potential_energy(), abs=1e-6)
+    saved = obj.as_dict()
+    md_runtime = saved.pop("runtime")
+    rebuilt = create_exploration(saved)
+    rebuilt.register_worker(create_worker(md_runtime))
+    assert rebuilt._minimum_runtime() == obj._minimum_runtime()
+
+
+@pytest.mark.parametrize("overrides,message", [
+    ({"dispatch": {"share_workdir": True}}, "separate candidate directories"),
+    ({"dispatch": {"worker": "single"}}, "dispatch.worker: batch"),
+    ({"dispatch": {"batch_size": 0}}, "positive integer"),
+    ({"unexpected": True}, "Unknown runtime fields"),
+])
+def test_minimum_runtime_rejects_unsupported_configuration(search, overrides, message):
+    with pytest.raises(ValueError, match=message):
+        with_minimum_runtime(search, **overrides)

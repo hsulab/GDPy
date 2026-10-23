@@ -49,12 +49,13 @@ strategy:
   - [450, 100]
   - [300, 100]
   minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        setup:
-          constraint: '`zbot 4`'
-        stop:
-          steps: 1000
-          fmax: 0.05
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          setup:
+            constraint: '`zbot 4`'
+          stop:
+            steps: 1000
+            fmax: 0.05

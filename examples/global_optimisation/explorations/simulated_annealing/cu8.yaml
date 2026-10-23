@@ -24,10 +24,11 @@ strategy:
   - [900, 200]
   - [600, 100]
   minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          stop:
+            steps: 1000
+            fmax: 0.05
