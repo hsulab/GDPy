@@ -1,6 +1,6 @@
 # Ensembles
 
-Standard MC and HMC define thermodynamic settings under
+Standard MC, biased MC, HMC, and hybrid biased MC define thermodynamic settings under
 `executor.parameters.ensemble`, using the same mapping format as
 {doc}`MD <../molecular-dynamics/ensembles>`.
 

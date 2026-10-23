@@ -2,6 +2,9 @@
 
 # Hybrid Monte Carlo
 
+For MD alternating with minimisation-based MC proposals, use
+{doc}`hybrid biased Monte Carlo <hybrid-biased-mc>`.
+
 `hybrid_monte_carlo` alternates worker calculations and blocks of MC proposals.
 The examples combine short NVT molecular-dynamics segments with Cu
 displacements or Cu/Ni identity changes using EMT, and oxygen exchange on

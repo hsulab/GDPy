@@ -1,6 +1,6 @@
 # Batching evaluations
 
-Standard MC, biased MC, and HMC use a Monte Carlo worker to coordinate independent
+Standard MC, biased MC, HMC, and hybrid biased MC use a Monte Carlo worker to coordinate independent
 chains. The worker advances each chain until it needs an energy evaluation or
 MD segment, collects compatible requests, and submits them through the ordinary
 calculation worker. MC proposals and HMC stage order remain sequential within
@@ -27,6 +27,7 @@ calculations sequentially.
 - Standard MC requests single-point (`spc`) calculations.
 - Biased MC requests minimisations (`min`).
 - HMC requests MD segments and the single-point evaluations of its MC stages.
+- Hybrid biased MC requests MD segments and minimisations for its biased MC stages.
 
 The top-level scheduler is inherited by evaluations. An explicit
 `setup.evaluation.scheduler` overrides it for MC. In HMC, a stage's `scheduler`

@@ -1,0 +1,56 @@
+potential:
+  provider: emt
+executor:
+  provider: native
+  method: hybrid_biased_monte_carlo
+  parameters:
+    ensemble:
+      method: nvt
+      temperature: 1200.0
+    random_seed: 1112
+    setup:
+    - provider: ase
+      method: md
+      parameters:
+        random_seed: 7
+        setup:
+          timestep: 1.0
+          velocities:
+            seed: 7
+            remove_rotation: false
+          regulator:
+            name: langevin
+            parameters:
+              friction: 0.01
+        output:
+          trajectory:
+            period: 5
+        stop:
+          steps: 20
+    - provider: native
+      method: biased_monte_carlo
+      parameters:
+        setup:
+          evaluation:
+            optimizer:
+              name: bfgs
+              parameters:
+                maxstep: 0.2
+            stop:
+              steps: 100
+              fmax: 0.05
+          operators:
+          - method: move
+            particles:
+            - Cu
+            max_disp: 0.1
+            max_random_attempts: 1
+        stop:
+          steps: 5
+    output:
+      trajectory:
+        period: 1
+      checkpoint:
+        period: 1
+    stop:
+      steps: 5

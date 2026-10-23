@@ -22,6 +22,7 @@ batching <batching>
 standard monte carlo <mc>
 biased monte carlo <biased-mc>
 hybrid monte carlo <hmc>
+hybrid biased monte carlo <hybrid-biased-mc>
 sampling operators <operators/index>
 ```
 
