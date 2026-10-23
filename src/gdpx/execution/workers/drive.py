@@ -337,8 +337,13 @@ class DriverBasedWorker(CatalogWorker):
         paths = {self.metadata.inputs.path.resolve(), self.scheduler.script.resolve(), journal}
         if isinstance(snapshot, dict) and "file" in snapshot:
             paths.add((self.metadata_directory / snapshot["file"]).resolve())
+        if "." in wdir_names:
+            candidates = {p.resolve() for p in self.directory.iterdir()
+                          if p.name not in {"_meta", "results", "gdp.out"}}
+            self.scheduler.sync_excludes = {
+                (self.directory / name).resolve() for name in ("_meta", "results", "gdp.out")}
         self.scheduler.staging_paths = paths | candidates
-        self.scheduler.sync_paths = candidates | {journal}
+        self.scheduler.sync_paths = ({self.directory.resolve()} if "." in wdir_names else candidates) | {journal}
         if scheduler_job_id and self.scheduler.name == "slurm":
             self.scheduler.sync_paths.add(
                 (self.scheduler.script.parent / f"slurm-{scheduler_job_id}.out").resolve()
@@ -449,7 +454,7 @@ class DriverBasedWorker(CatalogWorker):
         driver_for_wdir = []
         struct_for_wdir = []
         for gi, (di, si) in enumerate(task_plan):
-            wdir_name = "cand{}".format(gi)
+            wdir_name = "." if num_tasks == 1 and not self._share_wdir else f"cand{gi}"
             wdirs.append(wdir_name)
             driver_for_wdir.append(di)
             struct_for_wdir.append(si)
@@ -857,7 +862,7 @@ class DriverBasedWorker(CatalogWorker):
                 # Determine driver index from wdir name
                 wdir = self.directory / wdir_name
                 try:
-                    task_idx = int(wdir_name[4:])  # "cand{idx}"
+                    task_idx = 0 if wdir_name == "." else int(wdir_name[4:])  # "cand{idx}"
                 except ValueError:
                     return False
                 if hasattr(self, "_task_plan") and task_idx < len(self._task_plan):
@@ -937,7 +942,7 @@ class DriverBasedWorker(CatalogWorker):
         unretrieved_wdirs = []
         if given_wdirs is not None:
             for wdir in unretrieved_wdirs_:
-                if wdir.name in given_wdirs:
+                if str(wdir.relative_to(self.directory)) in given_wdirs:
                     unretrieved_wdirs.append(wdir)
         else:
             unretrieved_wdirs = unretrieved_wdirs_
@@ -956,9 +961,19 @@ class DriverBasedWorker(CatalogWorker):
                 if use_archive and archive_path is None:
                     self._print("archive computation folders...")
                     archive_path = (self.directory / ZSTD_ARCHIVE_NAME).absolute()
-                    create_zstd_archive(archive_path, ((w, w.name) for w in unretrieved_wdirs))
+                    entries = []
                     for w in unretrieved_wdirs:
-                        shutil.rmtree(w)
+                        if w.resolve() == self.directory.resolve():
+                            entries.extend((p, f"_single/{p.name}") for p in w.iterdir()
+                                           if p.name not in {"_meta", "results", "gdp.out", ZSTD_ARCHIVE_NAME, "cand.tgz"})
+                        else:
+                            entries.append((w, w.name))
+                    create_zstd_archive(archive_path, entries)
+                    for path, _ in entries:
+                        if path.is_dir():
+                            shutil.rmtree(path)
+                        else:
+                            path.unlink()
             else:
                 cache_frames = []
                 if self.compact_metadata:
@@ -1016,6 +1031,7 @@ class DriverBasedWorker(CatalogWorker):
                     wdir,
                     info_data=self._info_data,
                     archive_path=archive_path,
+                    wdir_name=str(wdir.relative_to(self.directory)),
                 )
                 for wdir in unretrieved_wdirs
             )
@@ -1047,7 +1063,7 @@ class DriverBasedWorker(CatalogWorker):
         return results
 
     @staticmethod
-    def _iread_results(drivers, wdir, info_data: dict = None, archive_path: pathlib.Path = None) -> list[Atoms]:
+    def _iread_results(drivers, wdir, info_data: dict = None, archive_path: pathlib.Path = None, wdir_name=None) -> list[Atoms]:
         """Extract results from a single directory.
 
         Must be a staticmethod — may be pickled by joblib for parallel execution.
@@ -1063,7 +1079,11 @@ class DriverBasedWorker(CatalogWorker):
             driver = drivers[0] if isinstance(drivers, list) else drivers
 
         driver.directory = wdir
-        confid_ = int(wdir.name.strip("cand").split("_")[0])
+        name = wdir.name if wdir_name is None else wdir_name
+        if name == "." and archive_path is not None:
+            # A fixed archive prefix remains readable after moving the run tree.
+            driver.directory = wdir / "_single"
+        confid_ = 0 if name == "." else int(name.strip("cand").split("_")[0])
         if info_data is not None and len(info_data) > confid_:
             cache_confid = int(info_data[confid_][2]) if len(info_data[confid_]) > 2 else -1
             confid = cache_confid if cache_confid >= 0 else confid_
@@ -1073,7 +1093,7 @@ class DriverBasedWorker(CatalogWorker):
         traj_frames = driver.read_trajectory(add_step_info=True, archive_path=archive_path)
         for a in traj_frames:
             a.info["confid"] = confid
-            a.info["wdir"] = str(wdir.name)
+            a.info["wdir"] = name
 
         return traj_frames
 

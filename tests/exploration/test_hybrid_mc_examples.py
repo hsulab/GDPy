@@ -25,7 +25,7 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
     source = "cu32" if name == "canonical" else "cu16ni16"
     inputs = [str(EXAMPLES / "assets" / f"{source}.xyz")]
     run_computation(inputs, params, directory=tmp_path)
-    chain = tmp_path / "cand0"
+    chain = tmp_path
     frames = read(chain / "mc.xyz", ":")
     assert len(frames) == 3
     assert all(len(a) == 32 and np.isfinite(a.get_potential_energy()) for a in frames)
@@ -38,7 +38,7 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
     for cycle in (1, 2):
         path = chain / "steps" / f"step.{cycle:04d}"
         assert (path / "procedure.0000" / "_meta" / "inputs.json").is_file()
-        child = path / "procedure.0001" / "cand0"
+        child = path / "procedure.0001"
         assert len((child / "opstat.txt").read_text().splitlines()) == 3
         assert len(read(child / "mc.xyz", ":")) == 3
     before = (chain / "mc.xyz").read_bytes()

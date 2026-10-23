@@ -51,7 +51,7 @@ class _BatchDriver:
 @pytest.mark.parametrize("retain_info", [False, True])
 def test_retrieval_rejects_empty_results_before_retaining_info(tmp_path, retain_info):
     worker = SimpleNamespace(
-        n_jobs=1, _drivers=[], _info_data=None,
+        directory=tmp_path, n_jobs=1, _drivers=[], _info_data=None,
         _retain_info=retain_info, compact_metadata=False, _print=lambda *args: None,
         _iread_results=lambda drivers, wdir, **kwargs: [] if wdir.name == "cand38" else [Atoms("H")],
     )
@@ -66,7 +66,7 @@ def test_retrieval_rejects_empty_results_before_retaining_info(tmp_path, retain_
 def test_retrieval_preserves_complete_result_order(tmp_path):
     frames = {"cand38": [Atoms("H")], "cand37": [Atoms("He")]}
     worker = SimpleNamespace(
-        n_jobs=1, _drivers=[], _info_data=None,
+        directory=tmp_path, n_jobs=1, _drivers=[], _info_data=None,
         _retain_info=False, _print=lambda *args: None,
         _iread_results=lambda drivers, wdir, **kwargs: frames[wdir.name],
     )

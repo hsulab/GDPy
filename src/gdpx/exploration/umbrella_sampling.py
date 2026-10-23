@@ -287,7 +287,9 @@ class UmbrellaSampling(BaseExploration):
         return frames[-1]
 
     def _annotate_trajectory(self, worker, record):
-        trajectory_path = worker.directory / "cand0" / worker._drivers[0].xyz_fname
+        job, = worker.job_store.get_finished()
+        workdir, = job.wdir_names
+        trajectory_path = worker.directory / workdir / worker._drivers[0].xyz_fname
         frames = read(trajectory_path, ":")
         metadata = self._metadata(record)
         if all(all(frame.info.get(key) == value for key, value in metadata.items()) for frame in frames):

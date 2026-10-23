@@ -115,3 +115,53 @@ def test_batch_upload_and_fetch_are_isolated(tmp_path, monkeypatch):
     assert (staged / "cand0/restart.txt").read_text() == "stale unrelated output"
     assert (staged / "_meta" / journal.name).exists()
     assert not (staged / "_meta" / sibling.name).exists()
+
+
+def test_single_input_root_transfer_preserves_controller_metadata(tmp_path, monkeypatch):
+    local, remote = tmp_path / 'local', tmp_path / 'remote'
+    remote.mkdir()
+    worker = create_worker({
+        'potential': {'provider': 'emt'},
+        'executor': {'provider': 'ase', 'method': 'spc'},
+        'scheduler': {'provider': 'slurm', 'transport': {
+            'provider': 'ssh', 'parameters': {'hostname': 'cluster', 'remote_wdir': '/jobs'}}},
+    }, directory=local)
+    transport = worker.scheduler
+    sftp = LocalSftp(remote)
+
+    def submit(**kwargs):
+        local_root, remote_root, _ = transport._roots()
+        transport._transfer(sftp, local_root, remote_root)
+        return '123'
+
+    monkeypatch.setattr(transport, 'submit', submit)
+    worker.run([Atoms('Cu')])
+    job, = worker.job_store.get_queued()
+    assert job.wdir_names == ['.']
+    worker._prepare_scheduler_for_job(job)
+    _, remote_root, _ = transport._roots()
+    staged = sftp.path(remote_root)
+    assert (staged / '_meta/inputs.json').exists()
+    assert not (staged / '_meta/scheduler.json').exists()
+    before = (local / '_meta/scheduler.json').read_bytes()
+    (staged / '_meta/scheduler.json').write_text('remote state must not replace controller')
+    (staged / 'traj.xyz').write_text('new trajectory')
+    (local / 'obsolete.log').write_text('old output')
+    (local / 'gdp.out').write_text('controller log')
+    journal = worker.metadata.result_path(job.uid)
+    (staged / '_meta' / journal.name).write_text('job-owned journal')
+
+    class Client:
+        def open_sftp(self):
+            return sftp
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(transport, '_client', Client)
+    transport.sync(job.wdir_names)
+    assert (local / 'traj.xyz').read_text() == 'new trajectory'
+    assert not (local / 'obsolete.log').exists()
+    assert (local / '_meta/scheduler.json').read_bytes() == before
+    assert (local / 'gdp.out').read_text() == 'controller log'
+    assert journal.read_text() == 'job-owned journal'

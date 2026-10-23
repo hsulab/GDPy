@@ -151,7 +151,7 @@ def test_incompatible_policies_choose_worker_subfolders_automatically(tmp_path):
     assert [worker.directory for worker in plan.workers] == ["w0", "w1"]
     submit_compute(plan)
     assert collect_compute(plan).number_of_trajectories == 3
-    assert (tmp_path / "w0/cand1").exists() and (tmp_path / "w1/cand0").exists()
+    assert (tmp_path / "w0/cand1").exists() and (tmp_path / "w1/traj.xyz").exists()
 
 
 def test_existing_plan_keeps_its_frozen_independent_worker_layout(tmp_path, monkeypatch):
@@ -169,7 +169,7 @@ def test_existing_plan_keeps_its_frozen_independent_worker_layout(tmp_path, monk
     assert len(create_workers(configs)) == 1
     submit_compute(plan)
     assert collect_compute(plan).number_of_trajectories == 2
-    assert (tmp_path / "w0/cand0").exists() and (tmp_path / "w1/cand0").exists()
+    assert (tmp_path / "w0/traj.xyz").exists() and (tmp_path / "w1/traj.xyz").exists()
     assert not (tmp_path / "cand0").exists()
 
 

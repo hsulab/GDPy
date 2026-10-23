@@ -22,7 +22,7 @@ def test_emt_mc_example_runs_with_scheduler_metadata(tmp_path, monkeypatch, name
     inputs = [str(EXAMPLES / "assets" / f"{source}.xyz")]
     run_computation(inputs, recipe, directory=tmp_path)
     assert (tmp_path / "_meta" / "inputs.json").is_file()
-    chain = tmp_path / "cand0"
+    chain = tmp_path
     frames = read(chain / "mc.xyz", ":")
     assert len(frames) == 3
     assert all(np.isfinite(a.get_potential_energy()) for a in frames)

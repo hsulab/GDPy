@@ -260,7 +260,7 @@ class MonteCarlo(SingleStructureExecutor):
         write(self.directory / "mc_attempts.xyz", self.atoms)
 
         # TODO: whether init driver?
-        self.worker.wdir_name = "cand0"
+        self.worker.wdir_name = "."
         _ = self.worker.run([self.atoms])
         self.worker.inspect(resubmit=True)
         if self.worker.get_number_of_running_jobs() == 0:
@@ -441,7 +441,7 @@ class MonteCarlo(SingleStructureExecutor):
         """Run a move without retaining a mutated accepted structure while waiting."""
         self._print(f"===== MC Step {istep} =====")
         self.worker.directory = self.directory / "steps" / f"step.{istep:04d}"
-        self.worker.wdir_name = "cand0"
+        self.worker.wdir_name = "."
         result = run_worker_move(
             self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
             self.worker, self.directory / f"pending-move-{istep}",
@@ -637,7 +637,10 @@ class MonteCarlo(SingleStructureExecutor):
             or path.match("run.script-*")
             for path in metadata.iterdir()
         )
-        if ((metadata.exists() and not scheduler_metadata) or (self.directory / "_data").exists()
+        compact_metadata = (metadata / "inputs.json").is_file()
+        if compact_metadata:
+            WorkerMetadata(self.directory).compact
+        if ((metadata.exists() and not scheduler_metadata and not compact_metadata) or (self.directory / "_data").exists()
                 or any(self.directory.glob("_*_jobs.json")) or any(self.directory.glob("cand*"))
                 or any(self.directory.glob("step.*")) or (self.directory / "init" / "_meta").exists()):
             raise ValueError("Legacy append-based exploration layout; use a new working directory.")
@@ -662,7 +665,7 @@ class MonteCarlo(SingleStructureExecutor):
             definition = metadata.calculation_set(metadata.inputs.read(), ".")
             worker = create_worker(definition["batches"][0]["runtime"], directory=directory)
             if isinstance(worker, SingleWorker):
-                worker.wdir_name = "cand0"
+                worker.wdir_name = "."
             worker._retrieve_mode = "all"
             workers.append(worker)
         return workers

@@ -334,8 +334,8 @@ def test_staged_plan_runs_in_its_new_working_tree(tmp_path):
     assert loaded.directory == str(staged.resolve())
     assert loaded.plan_id == original.plan_id
     assert run_compute_batch(loaded, batch=0).finished
-    assert (staged / "cand0").exists()
-    assert not (source / "cand0").exists()
+    assert (staged / "traj.xyz").exists()
+    assert not (source / "traj.xyz").exists()
 
 
 def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
@@ -347,7 +347,7 @@ def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
     run_computation(
         [str(inputs)], _emt_config(), batch=0, spawn=True, directory=tmp_path
     )
-    assert (tmp_path / "cand0").exists()
+    assert (tmp_path / "traj.xyz").exists()
     assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
 
 
@@ -447,8 +447,8 @@ def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
     before = records.read_bytes()
     run_computation(["run"], None, job=uid, directory=staged)
     assert records.read_bytes() == before
-    assert (staged / "cand0").exists()
-    assert not (source / "cand0").exists()
+    assert (staged / "traj.xyz").exists()
+    assert not (source / "traj.xyz").exists()
 
 
 def test_old_plan_schema_is_rejected_before_parsing_workers(tmp_path):

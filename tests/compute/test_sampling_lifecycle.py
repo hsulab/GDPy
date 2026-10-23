@@ -53,7 +53,7 @@ def test_multiple_chains_sparse_output_and_collection(tmp_path, method, steps, p
     ("biased_monte_carlo", "step.0000"),
     ("biased_monte_carlo", "step.0001"),
     ("hybrid_monte_carlo", "procedure.0000"),
-    ("hybrid_monte_carlo", "procedure.0001/cand0/steps/step.0001"),
+    ("hybrid_monte_carlo", "procedure.0001/steps/step.0001"),
 ])
 def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, method, delayed):
     config = sampling_config(method)
@@ -103,8 +103,8 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
     assert inspect_compute(plan).state == "finished"
     assert len(submissions) == len(set(submissions)), "pending children were submitted twice"
     collect_compute(plan)
-    expected = read(tmp_path / "baseline/cand0/mc.xyz", ":")
-    actual = read(tmp_path / "deferred/cand0/mc.xyz", ":")
+    expected = read(tmp_path / "baseline/mc.xyz", ":")
+    actual = read(tmp_path / "deferred/mc.xyz", ":")
     assert len(expected) == len(actual)
     for first, second in zip(expected, actual):
         np.testing.assert_array_equal(first.positions, second.positions)
@@ -112,8 +112,8 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
         if method == "biased_monte_carlo":
             np.testing.assert_array_equal(second.get_tags(), [11, 22])
             assert second.constraints[0].get_indices().tolist() == [0]
-    state = load_data(tmp_path / "deferred/cand0/checkpoint.2/state.json")
-    baseline_state = load_data(tmp_path / "baseline/cand0/checkpoint.2/state.json")
+    state = load_data(tmp_path / "deferred/checkpoint.2/state.json")
+    baseline_state = load_data(tmp_path / "baseline/checkpoint.2/state.json")
     assert state["rng"] == baseline_state["rng"]
 
 
@@ -171,7 +171,7 @@ def test_child_failure_does_not_complete_chain(tmp_path, monkeypatch):
         patch.setattr(AseDriver, "_irun", fail)
         with pytest.raises(DriverBatchError, match="evaluation unavailable"):
             submit_compute(plan)
-    assert not (tmp_path / "cand0/current.json").exists()
+    assert not (tmp_path / "current.json").exists()
     assert not (tmp_path / "results/end_frames.xyz").exists()
     assert orchestrate_compute(plan).state == "finished"
 
@@ -193,3 +193,20 @@ def test_cli_runtime_argument_position(tmp_path, monkeypatch, position):
     monkeypatch.setattr(sys, "argv", command)
     assert main() is None
     assert captured[0][0] == (["initial.xyz"], "mc.yaml")
+
+
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
+def test_single_chain_outputs_and_archive_use_worker_root(tmp_path, method):
+    config = sampling_config(method)
+    config["executor"]["parameters"]["stop"]["steps"] = 1
+    plan = prepare_compute(config, [copper()], tmp_path)
+    assert orchestrate_compute(plan).state == "finished"
+    assert (tmp_path / "mc.out").is_file()
+    assert (tmp_path / "mc.xyz").is_file()
+    assert not (tmp_path / "cand0").exists()
+    initial = tmp_path / "steps/step.0000"
+    assert (initial / "traj.xyz").is_file()
+    assert not (initial / "cand0").exists()
+    assert collect_compute(plan, archive=True).number_of_trajectories == 1
+    assert collect_compute(plan).number_of_trajectories == 1
+    assert (tmp_path / "_meta/inputs.json").is_file()

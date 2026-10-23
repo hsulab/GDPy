@@ -330,7 +330,7 @@ class BaseDriver(SingleStructureExecutor):
         has_outputs = False
         pattern = re.compile(r"[0-9]{4}[.]run")
         for p in self.directory.iterdir():
-            if re.match(pattern, p.name):
+            if re.match(pattern, p.name) or p.name in {"_meta", "results", "gdp.out"}:
                 continue
             else:
                 has_outputs = True
@@ -343,13 +343,15 @@ class BaseDriver(SingleStructureExecutor):
             self._debug(f"curr_wdir: {curr_wdir}")
             curr_wdir.mkdir()
             for x in self.directory.iterdir():
-                if not re.match(r"[0-9]{4}\.run", x.name):
+                if not re.match(r"[0-9]{4}\.run", x.name) and x.name not in {"_meta", "results", "gdp.out"}:
                     shutil.move(x, curr_wdir)  # save everything...
                 else:
                     ...
-        else:
+        elif prev_wdirs:
             curr_wdir = prev_wdirs[-1].resolve()
             self._debug(f"No outputs in {str(self.directory)} and they may be backed up before.")
+        else:
+            curr_wdir = None
 
         return curr_wdir
 

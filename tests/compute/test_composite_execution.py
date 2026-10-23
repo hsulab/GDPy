@@ -72,11 +72,11 @@ def test_repeated_children_have_distinct_state_and_handoff(tmp_path):
     for cycle in (1, 2):
         root = tmp_path / f"steps/step.{cycle:04d}"
         for index in (1, 3):
-            md_frames = read(root / f"procedure.{index-1:04d}/cand0/traj.xyz", ":")
+            md_frames = read(root / f"procedure.{index-1:04d}/traj.xyz", ":")
             np.testing.assert_array_equal(md_frames[0].positions[0], md_frames[-1].positions[0])
-            child = root / f"procedure.{index:04d}/cand0"
+            child = root / f"procedure.{index:04d}"
             assert len((child / "opstat.txt").read_text().splitlines()) == 3
-            before = read(root / f"procedure.{index-1:04d}/cand0/traj.xyz", -1)
+            before = read(root / f"procedure.{index-1:04d}/traj.xyz", -1)
             after = read(child / "mc.xyz", 0)
             np.testing.assert_array_equal(before.get_momenta(), after.get_momenta())
         # Different invocations must not reuse the same Monte Carlo random stream.
