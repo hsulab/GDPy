@@ -99,6 +99,7 @@ def test_hybrid_intro_reports_cycle_and_outputs(caplog):
 def test_hybrid_run_routes_progress_to_candidate_log(caplog, tmp_path):
     engine = object.__new__(HybridMonteCarlo)
     engine.directory = tmp_path
+    engine.set_rng(seed=17)
 
     def run_with_worker(atoms):
         config.logger.info("particles in system: Cu 8")

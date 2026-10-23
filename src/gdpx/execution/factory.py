@@ -50,7 +50,12 @@ def create_worker(
     retain_info = dispatch.retain_info
 
     if isinstance(runtime.executor, SingleStructureExecutor):
-        if worker_kind == "single":
+        if runtime.config.executor.provider == "native" and runtime.config.executor.method in {
+            "monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"
+        }:
+            from gdpx.execution.workers.monte_carlo import MonteCarloWorker
+            worker = MonteCarloWorker(runtime=runtime)
+        elif worker_kind == "single":
             worker = SingleWorker(runtime=runtime)
         elif worker_kind == "batch":
             worker = DriverBasedWorker(runtime=runtime)

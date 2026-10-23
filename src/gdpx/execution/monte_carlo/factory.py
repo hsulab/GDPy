@@ -3,7 +3,7 @@ import copy
 from collections.abc import Mapping
 from dataclasses import replace
 
-from gdpx.execution.factory import create_worker
+from gdpx.execution.sampling_requests import EvaluationClient
 from gdpx.execution.runtime import Runtime
 from gdpx.providers.configuration import evaluation_executor, resolve_executor_parameters
 from gdpx.providers.specs import thaw
@@ -21,6 +21,8 @@ def resolve_child(config, definition, resolver):
                  executor=definition, dispatch={"worker": "batch"})
     if scheduler is not None:
         child["scheduler"] = scheduler
+    elif config.scheduler is not None:
+        child["scheduler"] = config.scheduler.to_dict()
     return resolver.resolve(child)
 
 
@@ -62,7 +64,7 @@ def resolve_sampling_runtime(config, resolver):
                               ckpt_period=cadence["ckpt_period"],
                               ignore_atoms_tags=setup.get("ignore_atoms_tags", True), should_retry=False)
         executor.ckpt_keep = cadence["ckpt_keep"]
-        executor.register_worker(create_worker(child))
+        executor.register_worker(EvaluationClient(child))
         executor.runtime_config = config.to_dict()
     else:
         definitions = [inherit_ensemble(item, parameters["ensemble"]) for item in raw["setup"]]

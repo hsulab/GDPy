@@ -165,3 +165,80 @@ def test_single_input_root_transfer_preserves_controller_metadata(tmp_path, monk
     assert (local / '_meta/scheduler.json').read_bytes() == before
     assert (local / 'gdp.out').read_text() == 'controller log'
     assert journal.read_text() == 'job-owned journal'
+
+
+def test_evaluation_batch_stages_and_runs_directly_in_chain_steps(tmp_path, monkeypatch):
+    from gdpx.cli.compute import run_computation
+
+    local, remote = tmp_path / 'local', tmp_path / 'remote'
+    remote.mkdir()
+    relative_batch = pathlib.Path('_requests/batches/example')
+    worker = create_worker({
+        'potential': {'provider': 'emt'},
+        'executor': {'provider': 'ase', 'method': 'spc'},
+        'scheduler': {'provider': 'slurm', 'transport': {
+            'provider': 'ssh', 'parameters': {'hostname': 'cluster', 'remote_wdir': '/jobs'}}},
+        'dispatch': {'batch_size': 2},
+    }, directory=local / relative_batch)
+    worker.task_directories = ['../../../cand0/steps/step.0000',
+                               '../../../cand1/steps/step.0000']
+    transport = worker.scheduler
+    sftp = LocalSftp(remote)
+
+    def submit(**kwargs):
+        local_root, remote_root, _ = transport._roots()
+        assert local_root == local
+        transport._transfer(sftp, local_root, remote_root)
+        return '123'
+
+    monkeypatch.setattr(transport, 'submit', submit)
+    worker.run([Atoms('Cu'), Atoms('Cu')], rng_states=[17, 18])
+    job, = worker.job_store.get_queued()
+    _, remote_root, _ = transport._roots()
+    staged = sftp.path(remote_root)
+    run_computation(['run'], None, job=job.uid, directory=staged / relative_batch)
+    for index in range(2):
+        assert (staged / f'cand{index}/steps/step.0000/traj.xyz').is_file()
+    assert not list((staged / '_meta').rglob('traj.xyz'))
+    assert not list((staged / '_requests').rglob('traj.xyz'))
+
+
+def test_evaluation_batch_stages_shared_sources(tmp_path, monkeypatch):
+    from gdpx.cli.compute import run_computation
+    from gdpx.execution import resolve_runtime
+    from gdpx.execution.sampling_requests import coordinator, evaluation_workers
+    from gdpx.execution.schedulers.remote import SshTransport
+
+    local, remote = tmp_path / 'local', tmp_path / 'remote'
+    remote.mkdir()
+    sftp = LocalSftp(remote)
+    staged_roots = []
+
+    def submit(transport, **kwargs):
+        local_root, remote_root, _ = transport._roots()
+        transport._transfer(sftp, local_root, remote_root)
+        staged_roots.append(sftp.path(remote_root))
+        return '123'
+
+    monkeypatch.setattr(SshTransport, 'submit', submit)
+    monkeypatch.setattr(SshTransport, 'is_finished', lambda self: False)
+    runtime = resolve_runtime({
+        'potential': {'provider': 'emt'}, 'executor': {'provider': 'ase', 'method': 'spc'},
+        'scheduler': {'provider': 'slurm', 'transport': {
+            'provider': 'ssh', 'parameters': {'hostname': 'cluster', 'remote_wdir': '/jobs'}}},
+    })
+    with coordinator(local, batch_size=2) as broker:
+        for index in range(2):
+            broker.request(runtime, Atoms('Cu'), local / f'cand{index}/steps/step.0000', seed=17)
+        assert not broker.dispatch()
+        worker = evaluation_workers(local)[0]
+        job, = worker.job_store.get_queued()
+        staged, = staged_roots
+        batch_root = staged / worker.directory.relative_to(local)
+        assert len(list((staged / '_requests/runtimes').glob('*.json'))) == 1
+        assert len(list((staged / '_requests/requests').glob('*/input.json'))) == 2
+        assert not list(batch_root.rglob('structures-*.json'))
+        run_computation(['run'], None, job=job.uid, directory=batch_root)
+        for index in range(2):
+            assert (staged / f'cand{index}/steps/step.0000/traj.xyz').is_file()
+        assert not list((staged / '_requests').rglob('traj.xyz'))

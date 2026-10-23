@@ -9,7 +9,6 @@ from ase.io import read, write
 
 from gdpx.core.output import candidate_logging, quiet_logging
 from gdpx.providers.ensemble import resolve_ensemble
-from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
 
 from gdpx.execution.executor import SingleStructureExecutor, ExecutionSettings, RunState
@@ -217,7 +216,8 @@ class MonteCarlo(SingleStructureExecutor):
             raise ValueError(
                 f"{self.runtime_method_name} requires runtime.executor.method: {self.required_evaluation_method}."
             )
-        self.worker = candidate
+        from gdpx.execution.sampling_requests import EvaluationClient
+        self.worker = candidate if isinstance(candidate, EvaluationClient) else EvaluationClient(candidate.runtime)
 
     def _init_structure(self):
         with mc_box("initialization") as box:
@@ -305,10 +305,14 @@ class MonteCarlo(SingleStructureExecutor):
         return
 
     def run(self, atoms, read_ckpt=True, **kwargs):
-        """Run MonteCarlo simulation."""
+        """Advance until an evaluation is needed, or coordinate a direct call."""
+        from gdpx.execution.sampling_requests import run_standalone
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Sampling executors require one Atoms input per chain.")
+        state = run_standalone(self, atoms)
+        if state is not None:
+            return state
         with candidate_logging(self.directory), quiet_logging():
-            if not isinstance(atoms, Atoms):
-                raise TypeError("Sampling executors require one Atoms input per chain.")
             self._run_with_worker(atoms)
             return RunState.FINISHED if self.read_convergence() else RunState.PENDING
 
@@ -317,13 +321,6 @@ class MonteCarlo(SingleStructureExecutor):
         if self.worker is None:
             raise RuntimeError("Sampling requires an evaluation worker.")
 
-        # Check if it has a valid worker
-        if isinstance(self.worker, DriverBasedWorker) and not isinstance(self.worker, SingleWorker):
-            self._print("Convert a DriverBasedWorker to a SingleWorker.")
-            self.worker = SingleWorker.from_a_worker(self.worker)
-        assert isinstance(self.worker, SingleWorker), (
-            f"{self.__class__.__name__} only supports SingleWorker (set use_single=True)."
-        )
         self.worker.directory = self.directory
 
         self.atoms = atoms.copy()
@@ -375,6 +372,11 @@ class MonteCarlo(SingleStructureExecutor):
             pending = sorted(self.directory.glob("pending-move-*"), key=lambda p: int(p.name.rsplit("-", 1)[1]))
             if pending:
                 self.atoms, pending_data = read_pending(pending[-1], self.rng)
+                # A decision may be durable before its output/checkpoint is.
+                # Replay output from the saved boundary without accepting twice.
+                for name, size in pending_data["context"].get("output_sizes", {}).items():
+                    with (self.directory / name).open("r+b") as stream:
+                        stream.truncate(size)
                 self.energy_stored = pending_data["energy"]
                 self.start_step = pending_data["context"]["step"] - 1
                 step_converged = True
@@ -447,7 +449,11 @@ class MonteCarlo(SingleStructureExecutor):
             self.worker, self.directory / f"pending-move-{istep}",
             info={"confid": istep, "step": -1},
             attempts_path=self.directory / "mc_attempts.xyz",
-            resume_context={"step": istep},
+            resume_context={"step": istep, "output_sizes": {
+                name: (self.directory / name).stat().st_size
+                for name in (self.TRAJ_NAME, self.INFO_NAME)
+                if (self.directory / name).exists()
+            }},
         )
         report_outcome(box, result, self.energy_stored)
         self.atoms = result.atoms
@@ -654,6 +660,10 @@ class MonteCarlo(SingleStructureExecutor):
 
     def get_workers(self):
         """Reconstruct workers from each retained calculation's saved runtime."""
+        from gdpx.execution.sampling_requests import evaluation_workers
+        workers = evaluation_workers(self.directory)
+        if workers is not None:
+            return workers
         from gdpx.execution.factory import create_worker
         from gdpx.execution.workers.metadata import WorkerMetadata
 

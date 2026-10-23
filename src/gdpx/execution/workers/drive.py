@@ -1,4 +1,5 @@
 import copy
+from contextlib import nullcontext
 import dataclasses
 import functools
 import json
@@ -40,6 +41,12 @@ from .catalog import CatalogWorker
 # ---------------------------------------------------------------------------
 # Module-level command-line runners
 # ---------------------------------------------------------------------------
+
+
+def _completed_evaluations(directory):
+    """Published endpoints remain complete after MC prunes their step files."""
+    from .metadata import WorkerMetadata
+    return WorkerMetadata(directory).completed_evaluations()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -178,11 +185,16 @@ def run_computation_in_commandline(
     try:
         with CustomTimer(name="run-driver", func=print_func):
             if not share_wdir:
+                completed = _completed_evaluations(directory)
                 for gi, (dirname, atoms, rs) in enumerate(zip(computation_dirnames, structures, rng_states)):
                     if skip_failed and candidate_failure(directory / dirname) is not None:
                         print_func(f"Skipping failed candidate {dirname}.")
                         if progress_func is not None:
                             progress_func(dirname, False)
+                        continue
+                    if dirname in completed:
+                        if progress_func is not None:
+                            progress_func(dirname, True)
                         continue
                     d_idx = 0 if driver_indices is None else driver_indices[gi]
                     curr_driver = _get_driver(d_idx)
@@ -196,7 +208,11 @@ def run_computation_in_commandline(
                             f"{curr_driver.directory.name} is running..."
                         )
                         curr_driver.reset()
-                        state = curr_driver.run(atoms, read_ckpt=True, extra_info=None)
+                        from gdpx.core.output import candidate_logging
+                        log = (candidate_logging(curr_driver.directory, isolate=True)
+                               if (curr_driver.directory / '.sampling-request').exists() else nullcontext())
+                        with log:
+                            state = curr_driver.run(atoms, read_ckpt=True, extra_info=None)
                         succeeded = None if state is RunState.PENDING else True
                     except Exception as error:
                         _record_failure(gi, dirname, d_idx, curr_driver, error)
@@ -331,10 +347,16 @@ class DriverBasedWorker(CatalogWorker):
         if self.scheduler.transport_name != "ssh" or not self.compact_metadata:
             return
         candidates = {(self.directory / name).resolve() for name in wdir_names}
+        # Evaluation batches keep their metadata separate from chain outputs.
+        # Stage both under their common root so relative task paths survive SSH.
+        self.scheduler.local_root = pathlib.Path(os.path.commonpath(
+            [self.metadata.root.resolve(), *candidates]
+        ))
         journal = self.metadata.result_path(uid).resolve()
         inputs = self.metadata.inputs.read()
         snapshot = inputs["structures"][digest]
         paths = {self.metadata.inputs.path.resolve(), self.scheduler.script.resolve(), journal}
+        paths.update(self.metadata.evaluation_paths())
         if isinstance(snapshot, dict) and "file" in snapshot:
             paths.add((self.metadata_directory / snapshot["file"]).resolve())
         if "." in wdir_names:
@@ -450,11 +472,16 @@ class DriverBasedWorker(CatalogWorker):
             )
 
         # Build wdir names from the task plan
+        task_directories = getattr(self, "task_directories", None)
+        if task_directories is not None and len(task_directories) != num_tasks:
+            raise ValueError("Task directories must match the number of calculations.")
         wdirs = []
         driver_for_wdir = []
         struct_for_wdir = []
         for gi, (di, si) in enumerate(task_plan):
             wdir_name = "." if num_tasks == 1 and not self._share_wdir else f"cand{gi}"
+            if task_directories is not None:
+                wdir_name = str(task_directories[gi])
             wdirs.append(wdir_name)
             driver_for_wdir.append(di)
             struct_for_wdir.append(si)
@@ -541,6 +568,7 @@ class DriverBasedWorker(CatalogWorker):
     def _calculation_request(self, identifier, frames, batches, rng_states=()):
         return dict(worker=self.metadata.worker, frames=frames,
                     layout=getattr(self, "input_layout", None),
+                    evaluation_sources=getattr(self, "evaluation_sources", None),
                     provenance=self._input_provenance, retained=self._input_retained,
                     batches=[self._job_payload(identifier, batch, index) for index, batch in enumerate(batches)],
                     machine_prefix=self.scheduler.machine_prefix,
@@ -850,26 +878,20 @@ class DriverBasedWorker(CatalogWorker):
             nwdir_exists = sum(1 for x in wdir_existence if x)
             self._print(f"progress: {nwdir_exists}/{len(wdir_existence)}")
 
-            # Need the driver indices to check convergence
-            # For single-driver, always use _drivers[0]
-            # For multi-driver, look up from wdir name -> task plan index
-            for wdir_name in wdir_names:
+            # Frozen task mappings also cover evaluation paths outside this
+            # batch's metadata directory, without relying on candN names.
+            payload, _ = self._validate_job(job)
+            completed = _completed_evaluations(self.directory)
+            for wdir_name, di in zip(wdir_names, payload['driver_indices']):
                 if (self._skips_failed_candidates()
                         and candidate_failure(self.directory / wdir_name) is not None):
                     continue
+                if wdir_name in completed:
+                    continue
                 if not (self.directory / wdir_name).exists():
                     return False
-                # Determine driver index from wdir name
                 wdir = self.directory / wdir_name
-                try:
-                    task_idx = 0 if wdir_name == "." else int(wdir_name[4:])  # "cand{idx}"
-                except ValueError:
-                    return False
-                if hasattr(self, "_task_plan") and task_idx < len(self._task_plan):
-                    di = self._task_plan[task_idx][0]
-                    d = self._drivers[di]
-                else:
-                    d = self._drivers[0]  # fallback for single-driver mode
+                d = self._drivers[di]
                 d.directory = wdir
                 if not d.read_convergence():
                     self._print(f"Found unfinished computation at {wdir_name}")

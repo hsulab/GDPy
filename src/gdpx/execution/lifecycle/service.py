@@ -18,6 +18,7 @@ from ase import Atoms
 from ase.io import write
 
 from gdpx.execution.factory import create_worker, create_workers
+from gdpx.execution.executor import RunState
 from gdpx.execution.fingerprint import (
     normalise_value,
     payload_digest,
@@ -481,9 +482,10 @@ def run_compute_batch(
     _selected_batches(worker_plan, [batch])
     worker.is_spawned = True
     get_reporter(worker).configure([batches[batch]])
-    worker._run_by_commandline(worker_plan.structure_digest, [], batches, target_batch=batch)
-    get_reporter(worker).summary("finished")
-    return BatchResult(plan.plan_id, worker_index, batch, True)
+    state = worker._run_by_commandline(worker_plan.structure_digest, [], batches, target_batch=batch)
+    finished = state is not RunState.PENDING
+    get_reporter(worker).summary("finished" if finished else "waiting")
+    return BatchResult(plan.plan_id, worker_index, batch, finished)
 
 
 @reporting_session

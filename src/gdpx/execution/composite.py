@@ -60,15 +60,18 @@ class CompositeExecutor(SingleStructureExecutor):
         publish_snapshot(self.directory, staging, destination, "checkpoint.", keep=self.ckpt_keep)
 
     def _run_child(self, runtime, atoms, seed, directory):
-        worker = create_worker(runtime.config, directory=directory)
-        worker.run([atoms], rng_states=[seed])
-        worker.inspect(resubmit=True)
-        if worker.get_number_of_running_jobs():
-            return None
-        trajectories = worker.retrieve(include_retrieved=True)
-        if len(trajectories) != 1 or not trajectories[0]:
-            raise RuntimeError("Composite child requires exactly one completed trajectory.")
-        result = trajectories[0][-1]
+        from gdpx.execution.sampling_requests import evaluate
+        if runtime.config.executor.method == "monte_carlo":
+            engine = runtime.executor
+            engine.directory = directory
+            engine.set_rng(seed=seed)
+            if engine.run(atoms) is RunState.PENDING:
+                return None
+            result = engine.read_trajectory()[-1]
+        else:
+            result = evaluate(runtime, atoms, directory, seed)
+            if result is None:
+                return None
         # Invocation metadata must not become the next child's structural identity.
         result.info = {key: value for key, value in atoms.info.items()
                        if key not in {"step", "wdir", "confid", "group", "earlystop"}}
@@ -96,6 +99,12 @@ class CompositeExecutor(SingleStructureExecutor):
         return False
 
     def run(self, atoms, read_ckpt=True, **kwargs):
+        from gdpx.execution.sampling_requests import run_standalone
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Composite executors require one Atoms input per chain.")
+        state = run_standalone(self, atoms)
+        if state is not None:
+            return state
         with candidate_logging(self.directory), quiet_logging():
             return self._run(atoms)
 
@@ -174,6 +183,10 @@ class CompositeExecutor(SingleStructureExecutor):
         return []
 
     def get_workers(self):
+        from gdpx.execution.sampling_requests import evaluation_workers
+        workers = evaluation_workers(self.directory)
+        if workers is not None:
+            return workers
         from gdpx.execution.workers.metadata import WorkerMetadata
         workers = []
         for path in sorted((self.directory / "steps").glob("**/_meta/inputs.json")):

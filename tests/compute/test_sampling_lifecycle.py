@@ -73,7 +73,14 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
 
     def submit(scheduler, func_to_execute=None):
         key = str(scheduler.script)
-        if "deferred" in key and delayed in key:
+        ledger_path = tmp_path / "deferred/_requests/requests.json"
+        matches = False
+        if "deferred" in key and ledger_path.exists():
+            ledger = load_data(ledger_path)
+            for identifier, batch in ledger["batches"].items():
+                if identifier in key and any(delayed in member for member in batch["members"]):
+                    matches = True
+        if matches:
             submissions.append(key)
             if key not in delayed_once:
                 delayed_once.add(key)

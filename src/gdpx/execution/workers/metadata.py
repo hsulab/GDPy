@@ -25,6 +25,41 @@ from gdpx.execution.fingerprint import (
 from .store import JobRecord, JobStore
 
 
+def evaluation_source(directory, relative):
+    """Resolve a relocatable reference within the owning request store."""
+    directory = pathlib.Path(directory).resolve()
+    root = next((p for p in directory.parents if p.name == '_requests'), None)
+    path = (directory / relative).resolve()
+    if root is None or pathlib.Path(relative).is_absolute() or not path.is_relative_to(root):
+        raise ValueError('Evaluation source must stay inside its request store.')
+    return path
+
+
+def _runtime_references(data, directory, *, pack):
+    source = data.get('evaluation_sources', {}).get('runtime')
+    if source is None:
+        return data
+    from gdpx.execution.checkpoint import load_data
+    runtime = load_data(evaluation_source(directory, source['file']))
+    if payload_digest(runtime) != source['digest']:
+        raise ValueError('Evaluation runtime fingerprint mismatch.')
+
+    def visit(value):
+        if isinstance(value, dict):
+            if set(value) == {'runtime_ref'}:
+                if value['runtime_ref'] != source['digest']:
+                    raise ValueError('Unknown evaluation runtime reference.')
+                return copy.deepcopy(runtime) if not pack else value
+            return {key: ({'runtime_ref': source['digest']}
+                          if pack and key == 'runtime' and payload_digest(item) == source['digest']
+                          else visit(item)) for key, item in value.items()}
+        if isinstance(value, list):
+            return [visit(item) for item in value]
+        return value
+
+    return visit(data)
+
+
 class Catalog:
     def __init__(self, path, kind):
         self.path = pathlib.Path(path)
@@ -39,6 +74,8 @@ class Catalog:
         if not self.path.exists():
             return self.empty()
         data = decode(self.path.read_text())
+        if self.kind == 'inputs':
+            data = _runtime_references(data, self.path.parent, pack=False)
         required = ("structures", "workers", "jobs") if self.kind == "inputs" else ("providers", "_default", "results")
         if self.kind == "inputs" and data.get("format") == "gdpx-inputs" and data.get("version") == 1:
             raise ValueError("Legacy driver metadata has no frozen calculation set; use a new working directory.")
@@ -63,7 +100,8 @@ class Catalog:
                 yield data
                 after = encode(data)
                 if before != after or not self.path.exists():
-                    atomic_write_text(self.path, after)
+                    stored = _runtime_references(data, self.path.parent, pack=True) if self.kind == 'inputs' else data
+                    atomic_write_text(self.path, encode(stored))
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
@@ -151,6 +189,12 @@ class WorkerMetadata:
                 if existing and (not set(names).issubset(existing) or (complete and set(names) != existing)):
                     raise ValueError("Calculation set conflict: workers changed. Use a new working directory.")
                 for request in requests:
+                    sources = request.get('evaluation_sources')
+                    if sources is not None:
+                        previous_sources = data.get('evaluation_sources')
+                        if previous_sources is not None and previous_sources != sources:
+                            raise ValueError('Evaluation sources changed for a frozen batch.')
+                        data['evaluation_sources'] = copy.deepcopy(sources)
                     name = request["worker"]
                     definition = dict(version=1, batches=copy.deepcopy(request["batches"]),
                                       machine_prefix=request["machine_prefix"])
@@ -184,7 +228,12 @@ class WorkerMetadata:
                         for frame in frames:
                             frame.info = {}
                         digest = structure_digest(frames)
-                        if data["version"] == 2:
+                        if sources is not None:
+                            referenced = self._evaluation_frames(sources['structures'])
+                            if structure_digest(referenced) != digest:
+                                raise ValueError('Evaluation input fingerprint mismatch.')
+                            data['structures'].setdefault(digest, {'evaluation_sources': True})
+                        elif data["version"] == 2:
                             if structure_digest(decode(encode(frames))) != digest:
                                 raise ValueError("Structure input serialization changed its fingerprint.")
                             data["structures"].setdefault(digest, frames)
@@ -236,6 +285,11 @@ class WorkerMetadata:
     def frames(self, digest):
         data = self.inputs.read()
         snapshot = data["structures"][digest]
+        if snapshot == {'evaluation_sources': True}:
+            frames = self._evaluation_frames(data['evaluation_sources']['structures'])
+            if structure_digest(frames) != digest:
+                raise ValueError('Evaluation input fingerprint mismatch.')
+            return frames
         if data["version"] == 3:
             if not isinstance(snapshot, dict) or set(snapshot) != {"file"}:
                 raise ValueError("Invalid structure snapshot reference.")
@@ -247,6 +301,37 @@ class WorkerMetadata:
         if structure_digest(frames) != digest:
             raise ValueError("Structure fingerprint mismatch.")
         return frames
+
+    def _evaluation_frames(self, sources):
+        from gdpx.execution.accepted_state import load_structure
+        frames = [load_structure(evaluation_source(self.directory, source)) for source in sources]
+        for frame in frames:
+            frame.info = {}
+        return frames
+
+    def completed_evaluations(self):
+        sources = self.inputs.read().get('evaluation_sources', {}).get('results', {})
+        return {name for name, source in sources.items()
+                if evaluation_source(self.directory, source).is_file()}
+
+    def evaluation_paths(self):
+        """Immutable source files needed to execute a staged evaluation batch."""
+        sources = self.inputs.read().get('evaluation_sources')
+        if sources is None:
+            return set()
+        from gdpx.execution.checkpoint import load_data
+        import json
+        paths = set()
+        for source in [sources['runtime']['file'], *sources['structures'], *sources['results'].values()]:
+            path = evaluation_source(self.directory, source)
+            if not path.exists():
+                continue
+            load_data(path)  # Validate referenced arrays before staging them.
+            paths.add(path)
+            document = json.loads(path.read_text())
+            if 'arrays' in document:
+                paths.add(path.parent / document['arrays'])
+        return paths
 
     def provenance(self):
         return self.inputs.read()["workers"].get(self.worker, {}).get("provenance", {})

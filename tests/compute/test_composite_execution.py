@@ -80,10 +80,9 @@ def test_repeated_children_have_distinct_state_and_handoff(tmp_path):
             after = read(child / "mc.xyz", 0)
             np.testing.assert_array_equal(before.get_momenta(), after.get_momenta())
         # Different invocations must not reuse the same Monte Carlo random stream.
-        from gdpx.execution.workers.metadata import WorkerMetadata
-        metadata = WorkerMetadata(root / "procedure.0001")
-        definition = metadata.calculation_set(metadata.inputs.read(), ".")
-        seeds.append(definition["batches"][0]["random_seeds"])
+        from gdpx.execution.checkpoint import load_data
+        state = load_data(root / "procedure.0001/checkpoint.2/state.json")
+        seeds.append(state["rng"])
     assert seeds[0] != seeds[1]
     for frame in engine.read_trajectory():
         np.testing.assert_array_equal(frame.get_tags(), initial.get_tags())
@@ -122,7 +121,7 @@ def test_composite_broadcast_and_child_schedulers():
     for runtime in runtimes:
         assert runtime.scheduler.name == "slurm"
         assert runtime.executor.children[0].scheduler.name == "pbs"
-        assert runtime.executor.children[1].scheduler.name == "direct"
+        assert runtime.executor.children[1].scheduler.name == "slurm"
         assert all(child.config.potential == runtime.config.potential for child in runtime.executor.children)
 
 

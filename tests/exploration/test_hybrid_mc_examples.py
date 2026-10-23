@@ -37,7 +37,7 @@ def test_hybrid_emt_cycles_and_saved_cli_input(tmp_path, monkeypatch, name):
         assert all(set(a.symbols) <= {"Cu", "Ni"} for a in frames)
     for cycle in (1, 2):
         path = chain / "steps" / f"step.{cycle:04d}"
-        assert (path / "procedure.0000" / "_meta" / "inputs.json").is_file()
+        assert (path / "procedure.0000" / "evaluation.json").is_file()
         child = path / "procedure.0001"
         assert len((child / "opstat.txt").read_text().splitlines()) == 3
         assert len(read(child / "mc.xyz", ":")) == 3

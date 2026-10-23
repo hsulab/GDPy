@@ -38,7 +38,7 @@ def mc_parameters(config):
 
 
 @pytest.mark.parametrize("method", ["monte_carlo", "hybrid_monte_carlo"])
-def test_roundtrip_and_independent_evaluation_scheduler(method):
+def test_roundtrip_and_evaluation_scheduler_override(method):
     config = sampling_config(method)
     config["scheduler"] = {"provider": "slurm"}
     setup = mc_parameters(config)["setup"]
@@ -51,7 +51,7 @@ def test_roundtrip_and_independent_evaluation_scheduler(method):
     assert runtime.materialization is None
     assert runtime.scheduler.name == "slurm"
     mc = engine.children[1].executor if method == "hybrid_monte_carlo" else engine
-    assert mc.worker.scheduler.name == "direct"
+    assert mc.worker.scheduler.name == "slurm"
     assert mc.ignore_atoms_tags is False
     restored = resolve_runtime(engine.as_dict()).executor
     assert restored.as_dict() == engine.as_dict()

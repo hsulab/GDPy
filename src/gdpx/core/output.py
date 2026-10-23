@@ -58,9 +58,9 @@ class _CandidateLogFilter(logging.Filter):
 
 
 @contextmanager
-def candidate_logging(directory):
+def candidate_logging(directory, *, isolate=False):
     """Route this chain and its inline children to one append-only GDP log."""
-    if _CANDIDATE_LOG.get() is not None:
+    if _CANDIDATE_LOG.get() is not None and not isolate:
         yield
         return
     directory = Path(directory)
