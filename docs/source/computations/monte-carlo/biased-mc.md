@@ -95,7 +95,7 @@ filter behavior. Basin-hopping filters remain available independently.
 - `candN/mc_attempts.xyz`: initial input and valid proposed structures before
   minimisation.
 - `candN/opstat.txt`: proposal outcomes and endpoint energies.
-- `candN/calculations/step.NNNN/`: evaluator calculations and relaxation
+- `candN/steps/step.NNNN/`: evaluator calculations and relaxation
   trajectories; step zero is initial minimisation. Intermediate calculation
   directories follow the MC trajectory cadence and may be pruned.
 - `results/end_frames.xyz`: collected final chain endpoints.

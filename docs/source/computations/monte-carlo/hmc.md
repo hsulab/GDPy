@@ -90,12 +90,12 @@ For a five-cycle run with `output.trajectory.period: 1`, each `candN` contains:
 - `mc.out`: cycle progress and inline MD/MC evaluation diagnostics, appended on
   resume. The terminal and top-level `gdp.out` retain batch status and summaries.
 - `mc.xyz`: six frames, the initial state and five complete-cycle endpoints.
-- `calculations/step.0000/`: initial single-point evaluation using the first
+- `steps/step.0000/`: initial single-point evaluation using the first
   MC child's evaluator.
-- `calculations/step.0001/procedure.0000/`: the first MD invocation.
-- `calculations/step.0001/procedure.0001/cand0/`: the first MC invocation,
+- `steps/step.0001/procedure.0000/`: the first MD invocation.
+- `steps/step.0001/procedure.0001/cand0/`: the first MC invocation,
   including its own `mc.xyz`, `mc_attempts.xyz`, and `opstat.txt` decision log.
-  Its `calculations/step.NNNN/` directories hold individual energy evaluations.
+  Its `steps/step.NNNN/` directories hold individual energy evaluations.
 
 For the example, each MC invocation records five decisions in `opstat.txt`.
 There is no parent-level `mcmoves.log`. Child output settings control child

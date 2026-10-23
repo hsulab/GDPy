@@ -146,7 +146,7 @@ Each chain directory (`cand0`, `cand1`, … under the compute directory) contain
   trials; this is not the accepted-state trajectory.
 - `opstat.txt`: operator, diagnostic, current atom count, acceptance flag, and
   previous/trial energies.
-- `calculations/step.NNNN/`: retained runtime calculations.
+- `steps/step.NNNN/`: retained runtime calculations.
 
 `stop.steps: 100` is the attempted-step budget. An optional
 `stop.earlystop` uses the existing early-stop criteria. The

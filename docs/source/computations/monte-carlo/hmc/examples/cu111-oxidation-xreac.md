@@ -18,7 +18,7 @@ repository root:
 ```shell
 gdp -d run-hmc-cu111-oxidation \
     compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
-cat run-hmc-cu111-oxidation/cand0/calculations/step.0001/procedure.0001/cand0/opstat.txt
+cat run-hmc-cu111-oxidation/cand0/steps/step.0001/procedure.0001/cand0/opstat.txt
 ```
 
 With `executor.parameters.random_seed: 2033`, the first insertion is accepted and the cycle changes

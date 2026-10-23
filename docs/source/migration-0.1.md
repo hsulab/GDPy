@@ -178,9 +178,9 @@ working directory. A conflict is checked before writing metadata or scripts.
 There is no append option or automatic migration.
 
 Calculation directories (`cand*`), collected `results/`, and trajectory archives
-remain in each calculation folder. MC uses `calculations/step.0000/` for its
-initial calculation and `calculations/step.NNNN/` for subsequent steps. HMC uses
-`calculations/step.NNNN/procedure.NNNN/` directly for MD and adds
+remain in each calculation folder. MC uses `steps/step.0000/` for its
+initial calculation and `steps/step.NNNN/` for subsequent steps. HMC uses
+`steps/step.NNNN/procedure.NNNN/` directly for MD and adds
 `proposal.NNNN/` beneath that directory for MC. Pending calculations resume in
 their original folders;
 checkpoint rollback removes entire calculation folders beyond the saved step.
