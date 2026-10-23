@@ -39,7 +39,7 @@ Run from the repository root:
 
 ```shell
 gdp -d run-mc-hybrid-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/hybrid-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-hybrid-canonical
 ```
 
 The example pages explain {doc}`canonical displacement <hmc/examples/canonical>`,
@@ -85,7 +85,9 @@ segments unless the MD child explicitly requests fresh velocities.
 
 ## Outputs and restart
 
-For a five-cycle run with `output.trajectory.period: 1`, each `candN` contains:
+A single input writes directly in the compute directory; batches use `candN`
+for each chain. For a five-cycle run with `output.trajectory.period: 1`, each
+chain directory contains:
 
 - `mc.out`: cycle progress and inline MD/MC evaluation diagnostics, appended on
   resume. The terminal and top-level `gdp.out` retain batch status and summaries.
@@ -93,7 +95,7 @@ For a five-cycle run with `output.trajectory.period: 1`, each `candN` contains:
 - `steps/step.0000/`: initial single-point evaluation using the first
   MC child's evaluator.
 - `steps/step.0001/procedure.0000/`: the first MD invocation.
-- `steps/step.0001/procedure.0001/cand0/`: the first MC invocation,
+- `steps/step.0001/procedure.0001/`: the first MC invocation,
   including its own `mc.xyz`, `mc_attempts.xyz`, and `opstat.txt` decision log.
   Its `steps/step.NNNN/` directories hold individual energy evaluations.
 

@@ -240,7 +240,7 @@ independent chain. There is no compatibility adapter for old inputs or runs.
   `output.checkpoint.period`.
 - Move `random_seed` to `executor.parameters.random_seed`, and use
   `executor.broadcast` paths for parameter sweeps.
-- Start a new compute directory. Chain outputs are under `candN`, and collected
+- Start a new compute directory. A single chain writes directly in the worker directory; batches use `candN`. Collected
   endpoints are under `results/end_frames.xyz`.
 
 Shared Python sampling primitives now live in `gdpx.sampling`; sampling

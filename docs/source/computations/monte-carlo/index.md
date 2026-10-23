@@ -50,6 +50,6 @@ Run from the repository root:
 gdp -d run-mc-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/canonical.yaml
 ```
 
-The sampled trajectory is written to `run-mc-canonical/cand0/mc.xyz`, including
+The sampled trajectory is written to `run-mc-canonical/mc.xyz`, including
 repeated states after rejection. This short demo illustrates the workflow;
 see the {doc}`standard Monte Carlo guide <mc>` for sampling, output, and restart details.

@@ -96,9 +96,10 @@ variant or omit it in every variant to batch them together; realized per-task
 seeds are persisted for restart. An explicit list of runtimes follows the same
 batching rules. Incompatible variants are assigned to separate workers.
 
-GDPy chooses the folder layout automatically: one worker uses `cand0`,
-`cand1`, etc. directly under the run directory; multiple workers use
-`w0/cand0`, `w1/cand0`, etc. Job batches do not add another directory level.
+GDPy chooses the folder layout automatically: multiple workers use `w0`, `w1`,
+etc. Each worker writes a single calculation directly in its directory, or
+uses `cand0`, `cand1`, etc. for multiple calculations. Job batches do not add
+another directory level.
 The frozen plan records variant indices, structure indices, and candidate
 paths. Existing plans retain their original layout on restart even when
 automatic batching policy changes. Use a new directory when changing inputs.

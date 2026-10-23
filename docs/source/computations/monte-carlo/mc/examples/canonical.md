@@ -20,7 +20,7 @@ Run the complete sampling runtime from the repository root:
 
 ```shell
 gdp -d run-mc-canonical compute examples/monte_carlo/assets/cu32.xyz --runtime examples/monte_carlo/canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-canonical
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

@@ -23,7 +23,7 @@ Run the complete sampling runtime from the repository root:
 
 ```shell
 gdp -d run-mc-semi-grand-canonical compute examples/monte_carlo/assets/cu16ni16.xyz --runtime examples/monte_carlo/semi-grand-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

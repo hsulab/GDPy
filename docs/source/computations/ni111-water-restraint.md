@@ -49,12 +49,12 @@ forces as the host contribution. The modifier adds its energy and forces before
 ASE advances the dynamics. For example, inspect the 1.55 Angstrom window with:
 
 ```shell
-cat run-ni-water-restraint/w3/cand0/01.DistanceHarmonicCalculator/calc.log
+cat run-ni-water-restraint/w3/01.DistanceHarmonicCalculator/calc.log
 ```
 
 The initial O-H distance is about 0.962 Angstrom, so the first bias energy is
 about 0.864 eV in that window. Its saved structures are in
-`run-ni-water-restraint/w3/cand0/traj.xyz`.
+`run-ni-water-restraint/w3/traj.xyz`.
 
 This deliberately short trajectory is a mechanics test, not equilibrated
 sampling and not a free-energy calculation. Broadcast supplies the independent

@@ -44,7 +44,7 @@ Run the complete sampling runtime from the repository root:
 
 ```shell
 gdp -d run-mc-grand-canonical compute examples/monte_carlo/assets/aucu8.xyz --runtime examples/monte_carlo/grand-canonical.yaml
-python examples/monte_carlo/inspect_run.py run-mc-grand-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-grand-canonical
 ```
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for sampling limitations,

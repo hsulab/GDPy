@@ -76,8 +76,10 @@ trajectories. Routine worker diagnostics remain available at DEBUG level.
 A runtime file can contain a list of complete runtime mappings to evaluate the
 same structures independently with different settings. Compatible batch
 runtimes share a worker automatically; incompatible settings create separate
-workers. One worker uses `cand0`, `cand1`, etc. under the run directory.
-Multiple workers add `w0`, `w1`, etc., each containing its own candidates.
+workers. A worker with exactly one calculation writes directly in its directory.
+Multiple calculations use `cand0`, `cand1`, etc. Multiple workers add `w0`, `w1`,
+etc.; each follows the same single-calculation rule. Multiple runtime variants
+still produce separate calculation directories, even for one input structure.
 The saved plan freezes this layout for restart. The current `gdp compute`
 lifecycle accepts a mapping or a
 flat list of mappings; it does not accept nested sequential chains or perform
@@ -96,5 +98,5 @@ Use `executor.provider: native` with `method: monte_carlo` or
 See the {ref}`Monte Carlo guide <monte-carlo>` and
 {ref}`hybrid MC guide <hybrid-monte-carlo>` for complete runtimes. Sampling uses
 the same prepare/submit/run/status/resubmit/collect lifecycle as other compute
-tasks. Each chain keeps its own state in `candN`; sharing working directories
-is unsupported. A pending child evaluation keeps its chain incomplete.
+tasks. A single chain keeps its state directly in the worker directory; batches
+use `candN` directories. Sharing state between chains is unsupported. A pending child evaluation keeps its chain incomplete.

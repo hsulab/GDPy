@@ -18,7 +18,7 @@ repository root:
 ```shell
 gdp -d run-mc-cu111-oxidation \
     compute examples/global_optimisation/assets/cu111_p2x2_3layer.xyz --runtime examples/monte_carlo/cu111-oxidation-xreac.yaml
-cat run-mc-cu111-oxidation/cand0/opstat.txt
+cat run-mc-cu111-oxidation/opstat.txt
 ```
 
 The run performs the initial energy evaluation and three trial evaluations. A

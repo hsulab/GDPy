@@ -126,7 +126,7 @@ as one particle. `swap_type` requires single-atom particles.
 
 ## Inspect the results
 
-Each candidate's `candN/mc.out` groups setup, initialization, each MC step, and completion in
+Each chain's `mc.out` groups setup, initialization, each MC step, and completion in
 boxes. Worker evaluations appear inside the corresponding initialization or
 step box. Each step reports its operator, acceptance decision, previous and
 trial energies, current energy, and atom count. Waiting evaluations and invalid
@@ -135,7 +135,8 @@ Restart messages identify the checkpoint or pending step being resumed. Resuming
 appends to this log. The terminal and top-level `gdp.out` show batch status and
 result summaries; candidate calculation progress goes to the candidate log.
 
-Each chain directory (`cand0`, `cand1`, … under the compute directory) contains:
+A single input writes directly in the compute directory; batches use `cand0`,
+`cand1`, … for independent chains. Each chain directory contains:
 
 - `mc.out`: candidate progress, evaluator diagnostics, and failure details.
 - `mc.xyz`: the initial state followed by the current state after each completed
@@ -159,9 +160,9 @@ Compute also collects each chain’s final structure into `results/end_frames.xy
 Inspect energy and composition from the repository root:
 
 ```shell
-python examples/monte_carlo/inspect_run.py run-mc-canonical/cand0
-python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical/cand0
-python examples/monte_carlo/inspect_run.py run-mc-grand-canonical/cand0
+python examples/monte_carlo/inspect_run.py run-mc-canonical
+python examples/monte_carlo/inspect_run.py run-mc-semi-grand-canonical
+python examples/monte_carlo/inspect_run.py run-mc-grand-canonical
 ```
 
 Canonical frames should all contain Cu32; semi-grand-canonical frames should all

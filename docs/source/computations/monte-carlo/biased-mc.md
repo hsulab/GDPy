@@ -88,14 +88,17 @@ filter behavior. Basin-hopping filters remain available independently.
 
 ## Output and restart
 
-- `candN/mc.out`: candidate progress and minimisation diagnostics, appended on
+A single input writes directly in the compute directory; batches use `candN`
+for each chain. Paths below are relative to the chain directory.
+
+- `mc.out`: candidate progress and minimisation diagnostics, appended on
   resume. The terminal and top-level `gdp.out` retain batch status and summaries.
-- `candN/mc.xyz`: initial relaxed endpoint and saved chain states, including
+- `mc.xyz`: initial relaxed endpoint and saved chain states, including
   repeated states after rejection or invalid proposals.
-- `candN/mc_attempts.xyz`: initial input and valid proposed structures before
+- `mc_attempts.xyz`: initial input and valid proposed structures before
   minimisation.
-- `candN/opstat.txt`: proposal outcomes and endpoint energies.
-- `candN/steps/step.NNNN/`: evaluator calculations and relaxation
+- `opstat.txt`: proposal outcomes and endpoint energies.
+- `steps/step.NNNN/`: evaluator calculations and relaxation
   trajectories; step zero is initial minimisation. Intermediate calculation
   directories follow the MC trajectory cadence and may be pruned.
 - `results/end_frames.xyz`: collected final chain endpoints.
