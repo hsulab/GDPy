@@ -80,8 +80,10 @@ those paths when using an existing committee or an older bootstrap directory
 layout. The default paths use the current flat step layout. As with the ordinary
 MD example, DPA4C inference and training require the experimental PyTorch backend.
 
-Each of two learning iterations starts a fresh SA search from `cu3au1.xyz`,
-using the current committee for both MD and minimisation. It minimises the
+Each of two learning iterations starts a fresh SA search. The first uses
+`cu3au1.xyz`; subsequent iterations use a candidate selected from the preceding
+search's `minimised_candidates` head. Both MD and minimisation use the current
+committee. The search minimises the
 initial structure, launches two 20-step trajectories cooling from 600 to 300 K,
 and minimises every second saved MD snapshot plus the endpoint. The MD save
 period is five integration steps; minimisation also saves intermediate frames
@@ -108,7 +110,12 @@ iteration's dataset state. No cross-source deduplication is performed.
 
 Only reference-labeled data enter the training dataset; the latest trained
 committee is used in the next learning iteration. No SA checkpoint is carried
-between models.
+between models. Instead, `select_initials` selects one minimum and persists it
+as `sa_initials` state. The input `builder_init: sa_initials` replaces only the
+`init` builder; `system.initial` allocations and all other builders remain in
+effect. `initial: null` means the first iteration uses the configured builder.
+The chosen seed is minimised again with the next iteration's committee. Random
+selection does not guarantee a previously unused seed.
 
 The default threshold comes from `common.yaml`. If either branch selects no frames, that
 iteration stops before training/state commit; the other branch does not borrow

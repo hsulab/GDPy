@@ -135,3 +135,54 @@ from its source, including intermediate minimisation frames. The SA example in
 `examples/workflows/active-learning-dpa4c/sa.yaml` scores, selects, and labels
 the two sources separately before adding both labeled contributions to the
 training dataset.
+
+### Carry selected candidates into the next search
+
+Population explorations accept `builder_<name>` inputs containing structures
+or a selected `AtomsNDArray`. For example, `builder_init` replaces the existing
+`system.builders.init` with a file-backed builder for that iteration. It does
+not change `system.initial` or other builders. The name must occur in both
+`system.builders` and `system.initial.builder_allocations`.
+
+```yaml
+workflow:
+  mode: repeat
+  targets: [save, select_initials]
+  max_iterations: 2
+
+state:
+  sa_initials:
+    initial: null
+    update: select_initials
+
+steps:
+  sample:
+    __type__: explore
+    inputs:
+      exploration: search
+      runtime: sampling_runtime
+      builder_init: sa_initials
+  select_initials:
+    __type__: select
+    inputs:
+      structures: sample
+      selector: initial_selector
+```
+
+This fragment extends a workflow defining `search`, `sampling_runtime`,
+`initial_selector`, and `save`; see the complete SA active-learning example.
+With `initial: null`, the configured builder supplies the first iteration.
+Subsequent iterations use the selected candidates. The selector should return
+at least the builder's allocated count. Binding takes the first allocated
+number of marked structures in array order and raises an error if too few are
+available; it does not duplicate seeds to fill the allocation. Multiple inputs
+such as `builder_init` and `builder_fresh` can bind separate existing builders.
+
+Structure state is versioned under `artifacts/structures/<state>/versions/`
+and preserves selection markers, geometry, custom arrays, constraints, and
+cached calculation results without running calculations. Restarting uses the
+last committed state. When used as seeds, structures are copied, old search
+metadata and calculators are removed, and the new search minimises them under
+its current runtime. Active builder bindings cannot be combined with an
+exploration continuation checkpoint. Selection may choose a previously used
+structure; it does not enforce novelty across iterations.
