@@ -11,10 +11,13 @@ parameters:
 
 workflow:
   mode: repeat
-  targets: save
+  targets: [save, select_initials]
   max_iterations: 2
 
 state:
+  sa_initials:
+    initial: null
+    update: select_initials
   potential:
     initial: seed_committee
     update: train
@@ -23,6 +26,13 @@ state:
     update: {node: collect_min, output: dataset}
 
 resources:
+  initial_selector:
+    __type__: selector
+    options:
+      selection:
+        method: random
+        number: [1, 1.0]
+        random_seed: 1114
   seed_committee:
     __type__: potential
     options:
@@ -153,6 +163,13 @@ steps:
     inputs:
       exploration: search
       runtime: sampling_runtime
+      builder_init: sa_initials
+
+  select_initials:
+    __type__: select
+    inputs:
+      structures: sample
+      selector: initial_selector
 
   md_trajectories:
     __type__: extract

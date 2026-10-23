@@ -138,6 +138,43 @@ class PopulationBasedExploration(BaseExploration):
     def _configure_population_strategy(self):
         """Validate population-dependent policies before constructing builders."""
 
+    def bind_initial_builder(self, name, structures, directory):
+        """Replace one existing initial builder without changing its allocation."""
+        from pathlib import Path
+        from ase import Atoms
+        from ase.io import write
+        from gdpx.data.array import AtomsNDArray
+        from gdpx.structures.builders.direct import DirectBuilder
+
+        allocations = {item["builder"]: item["size"]
+                       for item in self.population_config.initial_builder_allocations}
+        if name not in self.builders or name not in allocations:
+            raise ValueError(f"Builder {name!r} must exist in system.builders and system.initial.builder_allocations.")
+        frames = structures.get_marked_structures() if isinstance(structures, AtomsNDArray) else structures
+        if not isinstance(frames, (list, tuple)) or not all(isinstance(a, Atoms) for a in frames):
+            raise TypeError(f"Builder {name!r} requires structures or a selected AtomsNDArray.")
+        size = allocations[name]
+        if len(frames) < size:
+            raise ValueError(f"Builder {name!r} requires {size} structures; received {len(frames)}.")
+        if size == 0:
+            return
+        frames = self.population_config.clean_initial_structures(list(frames[:size]), name)
+        for index, atoms in enumerate(frames):
+            self.population_config.validate_candidate(atoms, f"builder {name!r}", index)
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        # Use a stable file-backed builder so dispatched searches can serialise it.
+        import hashlib
+        path = directory / (hashlib.sha256(name.encode()).hexdigest() + ".xyz")
+        temporary = path.with_suffix(".tmp.xyz")
+        write(temporary, frames, format="extxyz")
+        temporary.replace(path)
+        builder = DirectBuilder(frames=str(path.resolve()))
+        builder.rng = self.random_streams.get(f"builder/{name}")
+        self.builders[name] = builder
+        if name == self.reference_builder_name:
+            self.generator = builder
+
     def serialise_search(self, parameters):
         result = copy.deepcopy(parameters)
         population = result.pop("population")

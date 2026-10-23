@@ -97,13 +97,19 @@ class explore(Operation):
                 raise ValueError("explore accepts either runtime or worker, not both.")
             worker = runtime
         input_nodes = [exploration, worker, scheduler, continuation]
+        self.builder_names = []
+        for key, value in kwargs.items():
+            if not key.startswith("builder_") or not key[8:]:
+                raise TypeError(f"Unknown explore input {key!r}; use builder_<name> for structure bindings.")
+            self.builder_names.append(key[8:])
+            input_nodes.append(value)
         super().__init__(input_nodes, directory)
 
         self.wait_time = wait_time
 
         return
 
-    def forward(self, exploration, dyn_worker, scheduler, continuation=None):
+    def forward(self, exploration, dyn_worker, scheduler, continuation=None, *builder_structures):
         """Explore an exploration and forward results for further analysis.
 
         Returns:
@@ -125,7 +131,16 @@ class explore(Operation):
             continuations = [continuation]
         if len(continuations) != len(explorations):
             raise ValueError("Exploration continuation count does not match explorations.")
-        for current, previous in zip(explorations, continuations):
+        if len(builder_structures) != len(self.builder_names):
+            raise ValueError("Exploration builder binding count does not match inputs.")
+        for index, (current, previous) in enumerate(zip(explorations, continuations)):
+            for name, structures in zip(self.builder_names, builder_structures):
+                if structures is not None:
+                    if previous is not None:
+                        raise ValueError("Builder bindings require a fresh exploration, without continuation.")
+                    if not hasattr(current, "bind_initial_builder"):
+                        raise TypeError(f"{type(current).__name__} does not support initial builder bindings.")
+                    current.bind_initial_builder(name, structures, self.directory / "builder_inputs" / str(index))
             if hasattr(current, "restore_continuation"):
                 current.restore_continuation(previous)
             elif previous is not None:

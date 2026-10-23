@@ -184,6 +184,32 @@ def encode_state(
 ) -> dict:
     from gdpx.data.loaders.dataset import XyzDataloader, XyzSnapshotDataloader
     from gdpx.exploration.continuation import ExplorationContinuation
+    from gdpx.data.array import AtomsNDArray
+    from ase import Atoms
+
+    if isinstance(value, AtomsNDArray) or (
+        isinstance(value, (list, tuple)) and value and all(isinstance(a, Atoms) for a in value)
+    ):
+        array = value if isinstance(value, AtomsNDArray) else AtomsNDArray(value)
+        name = state_name or "structures"
+        from ase.io.jsonio import encode
+        def pack(item):
+            if isinstance(item, Atoms):
+                results = (item.calc.results if item.calc is not None
+                           and not item.calc.check_state(item) else {})
+                return {"atoms": item, "results": results}
+            return [pack(child) for child in item] if isinstance(item, list) else None
+        payload = {"data": pack(array.tolist()), "markers": array.markers,
+                   "dims": array.dims, "coords": dict(array.coords)}
+        target = root / "artifacts" / "structures" / name / "versions" / f"{_artifact_version(iteration)}.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(".tmp.json")
+        try:
+            temporary.write_text(encode(payload), encoding="utf-8")
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return {"kind": "structures", "artifact": _artifact(target, root)}
 
     if isinstance(value, PotentialConfig):
         if state_name is not None:
@@ -234,6 +260,21 @@ def encode_state(
 def decode_state(record: Mapping[str, Any], root: pathlib.Path) -> Any:
     kind = record["kind"]
     value = record.get("value")
+    if kind == "structures":
+        from gdpx.data.array import AtomsNDArray
+        from ase.io.jsonio import decode
+        from ase.calculators.singlepoint import SinglePointCalculator
+        def unpack(item):
+            if isinstance(item, dict):
+                atoms = item["atoms"]
+                if item["results"]:
+                    atoms.calc = SinglePointCalculator(atoms)
+                    atoms.calc.results = item["results"]
+                return atoms
+            return [unpack(child) for child in item] if isinstance(item, list) else None
+        payload = decode(pathlib.Path(_restore_artifact(record["artifact"], root)).read_text(encoding="utf-8"))
+        return AtomsNDArray(unpack(payload["data"]), markers=payload["markers"],
+                            dims=payload["dims"], coords=payload["coords"])
     if kind == "json":
         return value
     if kind == "potential":
