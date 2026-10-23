@@ -31,6 +31,98 @@ the best structures. This initial version uses supplied builders for generation
 
 ## Examples
 
+### Complete minimal input
+
+This self-contained Cu₂ example uses ASE's EMT potential, so no model download
+is needed. Save the following three files in the same directory. It minimises
+one starting structure, runs one 100-step MD trajectory cooling from 600 to
+300 K, and minimises the endpoint. This short run demonstrates the workflow;
+it is not a converged global-minimum search.
+
+`input.xyz`:
+
+```text
+2
+Lattice="10 0 0 0 10 0 0 0 10" Properties=species:S:1:pos:R:3 pbc="T T T"
+Cu 4.0 5.0 5.0
+Cu 6.4 5.0 5.0
+```
+
+`sa.yaml`:
+
+```yaml
+method: global_optimisation
+random_seed: 7
+system:
+  periodic: true
+  preserve_fragments: false
+  retained_size: 1
+  builders:
+    random:
+      method: read_stru
+      fname: ./input.xyz
+  initial:
+    total_size: 1
+    builder_allocations:
+      - builder: random
+        size: 1
+  generation:
+    total_size: 1
+strategy:
+  method: simulated_annealing
+  temperatures:
+    - [600, 300]
+  convergence:
+    generation: 1
+  minimisation:
+    provider: ase
+    method: min
+    parameters:
+      stop:
+        steps: 1000
+        fmax: 0.05
+```
+
+`runtime.yaml`:
+
+```yaml
+potential:
+  provider: emt
+executor:
+  provider: ase
+  method: md
+  parameters:
+    ensemble:
+      method: nvt
+      temperature: 600.0
+    setup:
+      timestep: 1.0
+      velocities:
+        initialize: if_missing
+        remove_rotation: false
+      regulator:
+        name: berendsen
+        parameters:
+          Tdamp: 100.0
+    stop:
+      steps: 100
+    output:
+      trajectory:
+        period: 10
+```
+
+Run from the directory containing these files:
+
+```shell
+gdp -d ./run-sa --runtime ./runtime.yaml explore ./sa.yaml
+```
+
+The two evaluated minima are written to `run-sa/results/all_candidates.xyz`,
+and the retained population contains at most one distinct minimum. Rerun the
+same command to resume the search.
+
+### Larger examples
+
 The central {doc}`examples catalogue <examples/index>` groups recipes by physical
 system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
 {ref}`CO adsorption on Cu(111) <co-cu111-example>` for a DPA4C surface search.
