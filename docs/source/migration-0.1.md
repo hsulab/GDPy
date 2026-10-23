@@ -150,17 +150,19 @@ New driver-based runs keep two JSON catalogs under `_meta/`:
 
 ```text
 _meta/
-  inputs.json
-  scheduler.json
-  jobscripts/
-    run-<uuid>.script
+  manifest.json
+  structures.json
+  status.json
+  jobs/
+    <uuid>.sh
 ```
 
-`inputs.json` contains lossless structures indexed by fingerprint, provenance,
+`manifest.json` contains structure references indexed by fingerprint, provenance,
 retained information, frozen calculation sets, immutable job manifests, and the
 optional compute plan.
-`scheduler.json` contains scheduler providers, job lifecycle records, and cached
-shared-workdir results including calculator properties. Workers in one compute
+`structures.json` holds the lossless input structures. `status.json` contains
+scheduler providers and job lifecycle records. Shared-workdir result journals,
+including calculator properties, use `jobs/<uuid>.jsonl`. Workers in one compute
 plan share these catalogs. A hidden `.metadata.lock` coordinates atomic updates
 between processes.
 
@@ -203,11 +205,11 @@ order; signed zero is normalized. Positions are not rounded, wrapped, sorted,
 or aligned. Non-finite numbers and unsupported values are rejected.
 
 Bookkeeping in `Atoms.info`, attached calculators, and calculated results do not
-affect input identity. Lossless snapshots embedded in `inputs.json` preserve calculation
+affect input identity. Lossless snapshots in `structures.json` preserve calculation
 inputs, including constraints and full coordinate precision. Snapshots are
 checked against their saved fingerprints before reuse.
 
-Each job manifest in `inputs.json` records a separate job fingerprint covering the
+Each job manifest in `manifest.json` records a separate job fingerprint covering the
 structure fingerprint, runtime configuration, batch mapping, workdir names,
 and exact random seeds or generator states. Resubmission and staged execution
 read that saved batch. Restarting without an explicit seed reuses the saved

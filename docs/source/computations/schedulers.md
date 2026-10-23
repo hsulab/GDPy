@@ -154,9 +154,14 @@ requires all models in the group. Packing currently supports local scheduler
 transports. Existing submitted metadata must not be regrouped while jobs are
 active. Set the train step's `auto_submit: false` to prepare without submitting.
 
-Training and drive workers share a compact layout: `_meta/inputs.json` stores
-the frozen job inputs, `_meta/scheduler.json` tracks submissions and completion,
-and `_meta/jobscripts/run-<uuid>.script` contains each generated job script.
+Training and drive workers share a compact layout: `_meta/manifest.json` stores
+the frozen job inputs, `_meta/status.json` tracks submissions and completion,
+and `_meta/jobs/<uuid>.sh` contains each generated job script.
+
+Compute inputs share `_meta/structures.json`; the manifest maps jobs to their
+input indices. Per-job result journals, when used, live in
+`_meta/jobs/<uuid>.jsonl`. Existing runs keep their previous filenames and job
+identities when resumed.
 Model configurations, logs, checkpoints, and exports stay in `m0`, `m1`, etc.;
 the shared training dataset stays in `shared_dataset`. Resubmission reconstructs
 missing scripts and model configurations from the saved inputs, preserving model

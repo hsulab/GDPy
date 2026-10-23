@@ -68,14 +68,21 @@ Calculation diagnostics are also appended to the owning chain's `mc.out`.
 The worker's `_meta/` directory holds coordinator records. Its sibling
 `_requests/` directory stores evaluation records:
 
-- `requests.json`: request identities, runtime references, and batch assignments.
-- `runtimes/`: one immutable configuration per distinct evaluation runtime.
+- `index.json`: request identities, runtime references, and batch assignments.
+- `runtimes/000001.json`, etc.: one immutable configuration per distinct evaluation runtime.
 - `requests/`: immutable input structures and completed endpoints.
 - `batches/`: references to those inputs and runtimes, job records, scripts, and batch logs.
 
 Batch workers read the original request inputs instead of saving additional
 structure snapshots. A published endpoint is the completion record; there are
 no separate readiness flags or completion lists to keep in sync.
+
+The coordinator and each evaluation batch use `_meta/manifest.json` for frozen
+job inputs and `_meta/status.json` for submission and completion records.
+Job scripts are `_meta/jobs/<uuid>.sh`. The coordinator's initial structures
+are stored in `_meta/structures.json`; evaluation batches reference request
+inputs instead. Per-job result journals, when needed, are stored alongside the
+scripts as `_meta/jobs/<uuid>.jsonl`. Existing runs retain their old filenames.
 
 Keep this directory for restart. Chain trajectory cadence can prune step outputs;
 the completed endpoints and job records remain available without retaining full

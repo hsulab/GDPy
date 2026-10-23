@@ -46,11 +46,30 @@ gdp -d results compute collect
 `prepare` writes a versioned plan without submitting work. `status` is
 read-only, and resubmission is always explicit.
 
-The plan in `_meta/inputs.json` records the global seed provenance and the
+The plan in `_meta/manifest.json` records the global seed provenance and the
 resolved random seed for every calculation. These persisted task seeds are the
 reproducibility record; normal command output only points to that file. Use
 `--debug` when the complete initial and final global RNG states are needed for
 diagnostics.
+
+For four structures with `dispatch.batch_size: 2`, a queued calculation uses:
+
+```text
+_meta/
+  manifest.json       # runtime, seeds, and task assignments
+  structures.json     # all four input structures
+  status.json         # scheduler jobs and submission history
+  jobs/
+    <uuid-1>.sh       # cand0, cand1
+    <uuid-2>.sh       # cand2, cand3
+cand0/
+cand1/
+cand2/
+cand3/
+```
+
+Job UUIDs are retained on resubmission. Optional result journals use
+`_meta/jobs/<uuid>.jsonl`. Existing runs keep their previous metadata filenames.
 
 ## Progress output
 

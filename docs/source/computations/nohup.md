@@ -59,7 +59,7 @@ gdp -d cu2-nohup compute collect
 
 The three final structures are written to `cu2-nohup/results/end_frames.xyz`.
 Submission, status queries, and collection can be run in separate terminal
-sessions. Inspect per-attempt logs under `cu2-nohup/_meta/jobscripts/`.
+sessions. Inspect per-attempt logs under `cu2-nohup/_meta/jobs/`.
 
 ## List simulations across submissions
 
@@ -96,7 +96,7 @@ its job script. Previous attempt logs remain available after resubmission.
 The backend creates no status directories or startup/completion JSON files.
 It queries live supervisors through `ps`; disappearance from the process table
 means scheduler completion, just as disappearance from `squeue` does for the
-Slurm backend. GDPy's shared `_meta/scheduler.json` retains submission IDs and
+Slurm backend. GDPy's shared `_meta/status.json` retains submission IDs and
 attempt counts for every scheduler.
 
 Generated job commands disable the extra `gdp.out` file log. Child diagnostics
