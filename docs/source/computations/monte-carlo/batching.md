@@ -49,6 +49,10 @@ check reports the chain coordinator's completion state; it does not apply
 acceptance decisions or generate new proposals.
 
 Requests have stable identities based on their chain, step, and HMC stage.
+New request and batch directories use independent sequences of zero-padded
+numbers, such as `requests/000001/` and `batches/000001/`. IDs are saved in the
+ledger and reused on restart; existing runs retain their previously assigned
+IDs. Full fingerprints remain in metadata for validation.
 Their structures, runtimes, random seeds, and batch assignments are saved
 before submission. On resume, the coordinator reuses those assignments and the
 calculation worker's saved jobs. Acceptance decisions and chain checkpoints
