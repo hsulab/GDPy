@@ -126,8 +126,8 @@ def test_acceptance_uses_relaxed_endpoints(tmp_path, monkeypatch, accept):
 
     monkeypatch.setattr(AcceptanceRule, "accept", decide)
     assert engine.run(initial) is RunState.FINISHED
-    start = read(tmp_path / "calculations/step.0000/cand0/traj.xyz", -1)
-    trial_frames = read(tmp_path / "calculations/step.0001/cand0/traj.xyz", ":")
+    start = read(tmp_path / "steps/step.0000/cand0/traj.xyz", -1)
+    trial_frames = read(tmp_path / "steps/step.0001/cand0/traj.xyz", ":")
     trial = trial_frames[-1]
     assert not np.allclose(initial.positions, start.positions)
     assert not np.allclose(trial_frames[0].positions, trial.positions)
@@ -150,8 +150,8 @@ def test_filtered_proposals_consume_steps_without_minimisation(tmp_path):
     assert len(trajectory) == 3
     for frame in trajectory[1:]:
         np.testing.assert_array_equal(frame.positions, trajectory[0].positions)
-    assert not (tmp_path / "calculations/step.0001").exists()
-    assert not (tmp_path / "calculations/step.0002").exists()
+    assert not (tmp_path / "steps/step.0001").exists()
+    assert not (tmp_path / "steps/step.0002").exists()
     assert len((tmp_path / "opstat.txt").read_text().splitlines()) == 3
 
 
@@ -166,7 +166,7 @@ def test_iteration_limit_endpoint_is_used(tmp_path, monkeypatch):
     assert engine.run(copper()) is RunState.FINISHED
     final = engine.read_trajectory()[-1]
     assert np.max(np.abs(final.get_forces())) > 1e-12
-    trial = read(tmp_path / "calculations/step.0001/cand0/traj.xyz", -1)
+    trial = read(tmp_path / "steps/step.0001/cand0/traj.xyz", -1)
     np.testing.assert_array_equal(final.positions, trial.positions)
 
 

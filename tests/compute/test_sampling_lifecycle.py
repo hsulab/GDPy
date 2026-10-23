@@ -53,7 +53,7 @@ def test_multiple_chains_sparse_output_and_collection(tmp_path, method, steps, p
     ("biased_monte_carlo", "step.0000"),
     ("biased_monte_carlo", "step.0001"),
     ("hybrid_monte_carlo", "procedure.0000"),
-    ("hybrid_monte_carlo", "procedure.0001/cand0/calculations/step.0001"),
+    ("hybrid_monte_carlo", "procedure.0001/cand0/steps/step.0001"),
 ])
 def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, method, delayed):
     config = sampling_config(method)

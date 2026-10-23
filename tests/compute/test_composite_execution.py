@@ -70,7 +70,7 @@ def test_repeated_children_have_distinct_state_and_handoff(tmp_path):
     assert len(engine.read_trajectory()) == 3
     seeds = []
     for cycle in (1, 2):
-        root = tmp_path / f"calculations/step.{cycle:04d}"
+        root = tmp_path / f"steps/step.{cycle:04d}"
         for index in (1, 3):
             md_frames = read(root / f"procedure.{index-1:04d}/cand0/traj.xyz", ":")
             np.testing.assert_array_equal(md_frames[0].positions[0], md_frames[-1].positions[0])

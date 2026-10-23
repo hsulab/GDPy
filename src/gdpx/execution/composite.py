@@ -124,7 +124,7 @@ class CompositeExecutor(SingleStructureExecutor):
             seed = self._seed(state, -1)
             self._commit(state, atoms, "-initial")
             result = self._run_child(self.initializer, atoms, seed,
-                                     self.directory / "calculations" / "step.0000")
+                                     self.directory / "steps" / "step.0000")
             if result is None:
                 return RunState.PENDING
             atoms = result
@@ -137,7 +137,7 @@ class CompositeExecutor(SingleStructureExecutor):
                 index = state["child"]
                 seed = self._seed(state, index)
                 self._commit(state, atoms, f"-child.{index}")
-                directory = (self.directory / "calculations" / f"step.{state['step'] + 1:04d}"
+                directory = (self.directory / "steps" / f"step.{state['step'] + 1:04d}"
                              / f"procedure.{index:04d}")
                 result = self._run_child(self.children[index], atoms, seed, directory)
                 if result is None:
@@ -176,7 +176,7 @@ class CompositeExecutor(SingleStructureExecutor):
     def get_workers(self):
         from gdpx.execution.workers.metadata import WorkerMetadata
         workers = []
-        for path in sorted((self.directory / "calculations").glob("**/_meta/inputs.json")):
+        for path in sorted((self.directory / "steps").glob("**/_meta/inputs.json")):
             root = path.parent.parent
             metadata = WorkerMetadata(root)
             definition = metadata.calculation_set(metadata.inputs.read(), ".")

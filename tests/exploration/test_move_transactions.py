@@ -632,14 +632,14 @@ def test_real_mc_steps_have_independent_frozen_sets_and_recover(tmp_path):
     engine = real_mc_engine(tmp_path / "mc")
     engine._irun(1)
     engine._save_checkpoint(1)
-    first = engine.directory / "calculations" / "step.0001" / "_meta" / "inputs.json"
+    first = engine.directory / "steps" / "step.0001" / "_meta" / "inputs.json"
     original_inputs = first.read_bytes()
     engine._irun(2)
     expected = engine.atoms.positions.copy()
     expected_rng = copy.deepcopy(engine.rng.bit_generator.state)
     assert len(engine.get_workers()) == 2
     engine._load_checkpoint()
-    assert not (engine.directory / "calculations" / "step.0002").exists()
+    assert not (engine.directory / "steps" / "step.0002").exists()
     engine._irun(2)
     np.testing.assert_array_equal(engine.atoms.positions, expected)
     assert engine.rng.bit_generator.state == expected_rng

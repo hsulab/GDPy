@@ -236,7 +236,7 @@ class MonteCarlo(SingleStructureExecutor):
 
         """
         # Prepare the initial structure
-        self.worker.directory = self.directory / "calculations" / "step.0000"
+        self.worker.directory = self.directory / "steps" / "step.0000"
         self._print("===== MonteCarlo Structure =====")
         tags = self.atoms.arrays.get("tags", None)
         if self.ignore_atoms_tags or tags is None:
@@ -413,10 +413,10 @@ class MonteCarlo(SingleStructureExecutor):
                     # -- save checkpoint
                     self._save_checkpoint(step=curr_step, force=curr_step == self.convergence["steps"])
                     # -- clean up
-                    if ((self.directory / "calculations" / f"step.{curr_step:04d}").exists()) and (
+                    if ((self.directory / "steps" / f"step.{curr_step:04d}").exists()) and (
                         curr_step % self.dump_period != 0
                     ):
-                        shutil.rmtree(self.directory / "calculations" / f"step.{curr_step:04d}")
+                        shutil.rmtree(self.directory / "steps" / f"step.{curr_step:04d}")
                     curr_step += 1
                 elif step_state == MCStepState.FAILED:
                     self._print(f"RETRY STEP {curr_step}.")
@@ -440,7 +440,7 @@ class MonteCarlo(SingleStructureExecutor):
     def _run_trial(self, istep, box) -> MCStepState:
         """Run a move without retaining a mutated accepted structure while waiting."""
         self._print(f"===== MC Step {istep} =====")
-        self.worker.directory = self.directory / "calculations" / f"step.{istep:04d}"
+        self.worker.directory = self.directory / "steps" / f"step.{istep:04d}"
         self.worker.wdir_name = "cand0"
         result = run_worker_move(
             self.atoms, self.energy_stored, self.operators, self.op_probs, self.rng,
@@ -641,11 +641,11 @@ class MonteCarlo(SingleStructureExecutor):
                 or any(self.directory.glob("_*_jobs.json")) or any(self.directory.glob("cand*"))
                 or any(self.directory.glob("step.*")) or (self.directory / "init" / "_meta").exists()):
             raise ValueError("Legacy append-based exploration layout; use a new working directory.")
-        for path in (self.directory / "calculations").glob("**/_meta"):
+        for path in (self.directory / "steps").glob("**/_meta"):
             WorkerMetadata(path.parent).compact
 
     def _prune_calculations(self, step):
-        for path in (self.directory / "calculations").glob("step.*"):
+        for path in (self.directory / "steps").glob("step.*"):
             if int(path.name.split(".")[1]) > step:
                 shutil.rmtree(path)
 
@@ -656,7 +656,7 @@ class MonteCarlo(SingleStructureExecutor):
 
         self._validate_calculation_layout()
         workers = []
-        for path in sorted((self.directory / "calculations").glob("**/_meta/inputs.json")):
+        for path in sorted((self.directory / "steps").glob("**/_meta/inputs.json")):
             directory = path.parent.parent
             metadata = WorkerMetadata(directory)
             definition = metadata.calculation_set(metadata.inputs.read(), ".")

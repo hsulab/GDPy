@@ -49,7 +49,7 @@ def test_hybrid_cu111_oxidation_moves_surface_and_accepts_oxygen(tmp_path, monke
     assert [frame.get_chemical_formula() for frame in frames] == ["Cu12", "Cu12O"]
     assert (frames[-1].positions[:4] == initial.positions[:4]).all()
     assert not (frames[-1].positions[4:12] == initial.positions[4:12]).all()
-    rows = (chain / "calculations/step.0001/procedure.0001/cand0/opstat.txt").read_text().splitlines()
+    rows = (chain / "steps/step.0001/procedure.0001/cand0/opstat.txt").read_text().splitlines()
     assert len(rows) == 4
     assert "Insert_O_" in rows[1]
     assert "True" in rows[1]
