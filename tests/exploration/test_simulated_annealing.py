@@ -42,8 +42,8 @@ def test_population_requires_valid_minimisation(fmax):
     from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
     with pytest.raises(ValueError, match="positive stop.steps and stop.fmax"):
         PopulationAnnealing(None, {"method": "simulated_annealing", "temperatures": [[600, 300]],
-            "minimisation": {"provider": "ase", "method": "min",
-                             "parameters": {"stop": {"steps": 10, "fmax": fmax}}}})
+            "minimisation": {"executor": {"provider": "ase", "method": "min",
+                             "parameters": {"stop": {"steps": 10, "fmax": fmax}}}}})
 
 
 def engine(path):
@@ -108,7 +108,7 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     md["stop"]["steps"] = 1
     md["output"]["trajectory"]["period"] = 1
     md["ensemble"]["temperature"] = 600.
-    config["strategy"]["minimisation"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
+    config["strategy"]["minimisation"]["executor"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
     config["strategy"]["temperatures"] = [[600., 300.], [450., 200.]]
     config["strategy"]["convergence"]["generation"] = 2
     config["system"]["generation"]["total_size"] = 2
@@ -132,7 +132,7 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     record = GlobalOptimisationDatabase.add_evaluated_candidate
     def interrupt_record(database, atoms, evaluation_key):
         result = record(database, atoms, evaluation_key)
-        if boundary == "ingestion" and evaluation_key == "sa:1:0":
+        if boundary == "ingestion" and evaluation_key.startswith("sa:1:0:"):
             raise RuntimeError("interrupted")
         return result
     monkeypatch.setattr(GlobalOptimisationDatabase, "add_evaluated_candidate", interrupt_record)
@@ -253,8 +253,8 @@ def test_linear_ramp_targets(tmp_path, monkeypatch, thermostat):
 def test_population_rejects_invalid_generation_temperatures(temperatures, generations):
     from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
     strategy = {"method": "simulated_annealing", "temperatures": temperatures,
-                "minimisation": {"provider": "ase", "method": "min",
-                                 "parameters": {"stop": {"steps": 100, "fmax": .1}}}}
+                "minimisation": {"executor": {"provider": "ase", "method": "min",
+                                 "parameters": {"stop": {"steps": 100, "fmax": .1}}}}}
     with pytest.raises(ValueError, match="temperature"):
         PopulationAnnealing(None, strategy, convergence={"generation": generations})
 
@@ -282,7 +282,7 @@ def test_population_defaults_generation_count_and_preserves_surface(monkeypatch)
     assert minimum["potential"] == engine.worker.runtime.config.potential.to_dict()
     assert minimum["executor"]["method"] == "min"
     assert runtime == original
-    recipe["strategy"]["minimisation"]["potential"] = {"provider": "emt"}
+    recipe["strategy"]["minimisation"]["executor"]["potential"] = {"provider": "emt"}
     with pytest.raises(ValueError, match="Unknown executor fields"):
         create_exploration(recipe)
 
@@ -298,7 +298,7 @@ def test_population_pending_generation_resumes(tmp_path, monkeypatch, stage):
     recipe = yaml.safe_load(Path("cu8.yaml").read_text())
     recipe["strategy"]["temperatures"] = [[450, 150]]
     recipe["strategy"]["convergence"] = {"generation": 1}
-    recipe["strategy"]["minimisation"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
+    recipe["strategy"]["minimisation"]["executor"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
     recipe["system"]["generation"]["total_size"] = 1
     runtime = yaml.safe_load((root / "runtimes/emt_sa.yaml").read_text())
     runtime["executor"]["parameters"]["stop"]["steps"] = 1

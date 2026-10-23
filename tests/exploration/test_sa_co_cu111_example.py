@@ -39,7 +39,7 @@ def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
     assert substrate.pbc.all()
     assert original.pbc.tolist() == [True, True, False]
     md = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-    minimum = resolve_executor_parameters(config["strategy"]["minimisation"], "min")
+    minimum = resolve_executor_parameters(config["strategy"]["minimisation"]["executor"]["parameters"], "min")
     for atoms in frames:
         assert atoms.get_chemical_formula() == "CCu12O"
         assert atoms.pbc.all()

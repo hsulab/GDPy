@@ -1,4 +1,4 @@
-"""Population search with generation-specific MD cooling ranges and quenched endpoints."""
+"""Population search with MD cooling and minimisation of selected snapshots."""
 import copy
 import math
 import json
@@ -8,6 +8,9 @@ import numpy as np
 
 from ase.io import read, write
 from ase.io.jsonio import encode
+
+from gdpx.analysis.selectors import create_selector
+from gdpx.data.array import AtomsNDArray
 
 from gdpx.providers.configuration import child_executor, resolve_executor_parameters
 from gdpx.execution.factory import create_worker
@@ -45,7 +48,14 @@ class PopulationAnnealing(PopulationBasedExploration):
             raise ValueError("SA convergence requires a nonnegative integer generation.")
         if generation != len(temperatures):
             raise ValueError("SA requires one temperature range per generation (excluding initial generation 0).")
-        minimisation = child_executor(strategy.get("minimisation"))
+        definition = strategy.get("minimisation")
+        if not isinstance(definition, dict) or "executor" not in definition:
+            raise ValueError("SA strategy.minimisation requires executor and an optional selector.")
+        if set(definition) - {"executor", "selector"}:
+            raise ValueError("SA minimisation accepts only executor and selector.")
+        selector_config = copy.deepcopy(definition.get("selector", {"method": "locate", "indices": "-1"}))
+        create_selector(selector_config)  # Validate before any calculations are submitted.
+        minimisation = child_executor(definition["executor"])
         if minimisation["method"] != "min":
             raise ValueError("SA strategy.minimisation requires method: min.")
         params = resolve_executor_parameters(minimisation.get("parameters", {}), "min")
@@ -55,7 +65,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                 or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
             raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
         strategy = copy.deepcopy(strategy)
-        strategy["minimisation"] = minimisation
+        strategy["minimisation"] = {"executor": minimisation, "selector": selector_config}
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -89,7 +99,7 @@ class PopulationAnnealing(PopulationBasedExploration):
 
     def _minimum_runtime(self):
         runtime = self.worker.as_dict()
-        definition = copy.deepcopy(self.strategy_config["minimisation"])
+        definition = copy.deepcopy(self.strategy_config["minimisation"]["executor"])
         scheduler = definition.pop("scheduler", None)
         runtime["executor"] = definition
         runtime.pop("scheduler", None)
@@ -107,12 +117,12 @@ class PopulationAnnealing(PopulationBasedExploration):
         signature = payload_digest(json.loads(encode(self.as_dict())))
         if path.exists():
             state = json.loads(path.read_text())
-            if state.get("version") != 1 or state["signature"] != signature:
+            if state.get("version") != 2 or state["signature"] != signature:
                 raise ValueError("SA configuration changed; use a new directory.")
         else:
             if (self.directory / "candidates.db").exists():
                 raise ValueError("Missing population checkpoint; use a new directory.")
-            state = dict(version=1, signature=signature, completed=-1, plans={},
+            state = dict(version=2, signature=signature, completed=-1, plans={},
                          random_states=self.random_streams.snapshot())
             write_json(path, state)
         self.random_streams.restore(state["random_states"])
@@ -137,6 +147,9 @@ class PopulationAnnealing(PopulationBasedExploration):
         if not frames:
             return {}
         worker.skip_failed_candidates = True
+        # Explicit task directories keep snapshot identity independent of the
+        # worker's single-calculation layout and its failure bookkeeping.
+        worker.task_directories = [f"cand{i}" for i in range(len(frames))]
         worker.run(frames, rng_states=seeds)
         worker.inspect(resubmit=True)
         if worker.get_number_of_running_jobs():
@@ -152,11 +165,12 @@ class PopulationAnnealing(PopulationBasedExploration):
             name = atoms.info["wdir"]
             if name not in expected or name in by_name or name in failed:
                 raise RuntimeError(f"Unexpected or duplicate SA {stage} result: {name}.")
-            by_name[name] = atoms
+            by_name[name] = trajectory
         if set(by_name) | set(failed) != expected:
             raise RuntimeError(f"Missing or duplicate SA {stage} results.")
         # A partially propagated MD trajectory is not a completed cooling attempt.
-        for name, atoms in list(by_name.items()):
+        for name, trajectory in list(by_name.items()):
+            atoms = trajectory[-1]
             if atoms.info.get("earlystop"):
                 failed[name] = {"message": str(atoms.info["earlystop"])}
                 del by_name[name]
@@ -165,10 +179,60 @@ class PopulationAnnealing(PopulationBasedExploration):
         }
         self._save(state)
         for name, failure in failed.items():
-            self._print(f"SA {stage}: skipping replica {indices[int(name[4:])]}: "
+            self._print(f"SA {stage}: skipping candidate {indices[int(name[4:])]}: "
                         f"{failure.get('message', 'calculation failed')}")
         return {indices[i]: by_name[f"cand{i}"] for i in range(len(frames))
                 if f"cand{i}" in by_name}
+
+    def _select_snapshots(self, generation, trajectories, plan):
+        """Persist selector output before publishing the selection manifest."""
+        directory = self.directory / f"gen{generation}" / "sel"
+        directory.mkdir(parents=True, exist_ok=True)
+        manifest = directory / "selection.json"
+        selected_path = directory / "selected.xyz"
+        if manifest.exists():
+            records = json.loads(manifest.read_text())["snapshots"]
+            if not selected_path.exists():
+                raise RuntimeError("SA selection.json requires the saved selected.xyz.")
+            frames = read(selected_path, ":") if records else []
+            if len(frames) != len(records):
+                raise RuntimeError("SA selected structures do not match selection.json.")
+            return frames, records
+        frames, records = [], []
+        for replica, trajectory in sorted(trajectories.items()):
+            selector = create_selector(copy.deepcopy(self.strategy_config["minimisation"]["selector"]))
+            selector.directory = directory / f"replica{replica}"
+            # Composed selectors own child RNGs; seed those as well so a
+            # selection interrupted before its cache is written is reproducible.
+            pending = [selector]
+            seed_rng = np.random.default_rng(np.random.SeedSequence([plan["seed"], replica]))
+            while pending:
+                component = pending.pop(0)
+                component.set_rng(seed=int(seed_rng.integers(0, 2**31 - 1)))
+                pending.extend(getattr(component, "selectors", []))
+            data = AtomsNDArray(trajectory)
+            selector.select(data)
+            for (frame_index,) in np.argwhere(data.markers):
+                frame_index = int(frame_index)
+                source = trajectory[frame_index]
+                record = dict(replica=replica, frame_index=frame_index,
+                              parent=plan["parents"][replica],
+                              md_step=int(source.info.get("step", -1)))
+                atoms = source.copy()
+                atoms.info = {}
+                atoms.calc = None
+                if "momenta" in atoms.arrays:
+                    del atoms.arrays["momenta"]
+                frames.append(atoms)
+                records.append(record)
+        temporary = directory / "selected.tmp.xyz"
+        if frames:
+            write(temporary, frames, format="extxyz")
+        else:
+            temporary.write_text("")
+        os.replace(temporary, selected_path)
+        write_json(manifest, {"snapshots": records})
+        return frames, records
 
     def run(self):
         state = self._checkpoint()
@@ -208,27 +272,41 @@ class PopulationAnnealing(PopulationBasedExploration):
             frames = read(inputs, ":")
             seeds = np.random.default_rng(plan["seed"]).integers(0, 2**31 - 1, len(frames)).tolist()
             indices = list(range(len(frames)))
+            records = [dict(replica=i) for i in indices]
             if generation:
-                dynamics = self._cooling(generation, frames, plan["seed"])
-                cooled = self._evaluate_stage(
-                    dynamics, frames, seeds, indices, state, plan, "dynamics")
-                if cooled is None:
-                    return
-                indices = list(cooled)
-                frames = list(cooled.values())
-                seeds = [seeds[index] for index in indices]
+                manifest = root / "sel" / "selection.json"
+                if manifest.exists():
+                    frames, records = self._select_snapshots(generation, {}, plan)
+                else:
+                    dynamics = self._cooling(generation, frames, plan["seed"])
+                    cooled = self._evaluate_stage(
+                        dynamics, frames, seeds, indices, state, plan, "dynamics")
+                    if cooled is None:
+                        return
+                    frames, records = self._select_snapshots(generation, cooled, plan)
+                indices = list(range(len(records)))
+                seeds = [int(np.random.SeedSequence(
+                    [plan["seed"], record["replica"], record["frame_index"]]
+                ).generate_state(1)[0]) for record in records]
             worker = create_worker(self._minimum_runtime(), directory=root / "min")
             minima = self._evaluate_stage(
                 worker, frames, seeds, indices, state, plan, "minimisation")
             if minima is None:
                 return
-            for index, atoms in minima.items():
+            for index, trajectory in minima.items():
+                atoms = trajectory[-1]
+                record = records[index]
+                replica = record["replica"]
                 canonical_candidates_from_worker_results(
                     [atoms], gen_num=generation, objective=self.objective,
                     extinct_callbacks=self.population_config.extinct_callbacks)
-                atoms.info["data"].update(parents=[plan["parents"][index]] if generation else [],
-                                          cycle=generation, replica=index)
-                database.add_evaluated_candidate(atoms, f"sa:{generation}:{index}")
+                atoms.info["data"].update(parents=[plan["parents"][replica]] if generation else [],
+                                          cycle=generation, replica=replica)
+                evaluation_key = f"sa:{generation}:{replica}"
+                if generation:
+                    atoms.info["data"].update(frame_index=record["frame_index"], md_step=record["md_step"])
+                    evaluation_key += f":{record['frame_index']}"
+                database.add_evaluated_candidate(atoms, evaluation_key)
             self.population.refresh(database)
             if not self.population.candidates:
                 raise RuntimeError("SA has no surviving candidates to continue exploration.")
