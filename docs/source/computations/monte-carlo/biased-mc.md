@@ -88,6 +88,8 @@ filter behavior. Basin-hopping filters remain available independently.
 
 ## Output and restart
 
+- `candN/mc.out`: candidate progress and minimisation diagnostics, appended on
+  resume. The terminal and top-level `gdp.out` retain batch status and summaries.
 - `candN/mc.xyz`: initial relaxed endpoint and saved chain states, including
   repeated states after rejection or invalid proposals.
 - `candN/mc_attempts.xyz`: initial input and valid proposed structures before

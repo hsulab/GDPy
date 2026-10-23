@@ -87,6 +87,8 @@ segments unless the MD child explicitly requests fresh velocities.
 
 For a five-cycle run with `output.trajectory.period: 1`, each `candN` contains:
 
+- `mc.out`: cycle progress and inline MD/MC evaluation diagnostics, appended on
+  resume. The terminal and top-level `gdp.out` retain batch status and summaries.
 - `mc.xyz`: six frames, the initial state and five complete-cycle endpoints.
 - `calculations/step.0000/`: initial single-point evaluation using the first
   MC child's evaluator.
