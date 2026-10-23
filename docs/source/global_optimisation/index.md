@@ -120,7 +120,7 @@ strategy:
     size: 0
   completion:
     builder_proportions:
-      - builder: random
+      - builder: init
         proportion: 1.0
   operators:
     crossover:

@@ -56,7 +56,7 @@ A top-level `broadcast` mapping expands one recipe into independent searches:
 ```yaml
 method: global_optimisation
 broadcast:
-  system.builders.random.composition:
+  system.builders.init.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
 strategy:

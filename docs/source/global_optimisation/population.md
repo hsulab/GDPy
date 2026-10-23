@@ -58,7 +58,7 @@ Both methods use named `builders` and exact `initial.builder_allocations`:
 system:
   retained_size: 2
   builders:
-    random:
+    init:
       method: random_structure_improved
       composition: {Cu: 8}
       box: [20.0, 20.0, 20.0]
@@ -69,7 +69,7 @@ system:
   initial:
     total_size: 4
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 4
   generation:
     total_size: 2
@@ -80,8 +80,12 @@ system:
 Allocation sizes must sum to `initial.total_size`. Each allocation can set
 `maximum_attempts`; the default is ten times its requested size. Exhausting the
 attempt limit without generating enough valid structures raises an error.
-`reference_builder` defaults to `random` and identifies the builder supplying
+`reference_builder` defaults to `init` and identifies the builder supplying
 system metadata to the search operators.
+Name the default builder `init` and use `builder: init` in the initial
+allocations. Existing inputs with a builder named `random` can retain that name
+by explicitly setting `system.reference_builder: random`. Renaming a builder
+changes its random stream; use a fresh run directory after migrating inputs.
 
 `periodic` defaults to `true` and controls builder and comparator periodicity.
 Set it to `false` for gas-phase clusters; do not set `pbc` inside builders or

@@ -59,13 +59,13 @@ system:
   preserve_fragments: false
   retained_size: 1
   builders:
-    random:
+    init:
       method: read_stru
       fname: ./input.xyz
   initial:
     total_size: 1
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 1
   generation:
     total_size: 1
