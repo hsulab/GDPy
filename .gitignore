@@ -38,3 +38,4 @@ slurm.*
 *.data
 *.lammps
 *.png
+!docs/source/computations/monte-carlo/monte_carlo.png

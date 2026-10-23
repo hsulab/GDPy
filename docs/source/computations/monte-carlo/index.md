@@ -2,15 +2,32 @@
 
 # Monte Carlo
 
-Boltzmann sampling generates configurations with the probability prescribed
-by a thermodynamic ensemble. GDPy provides canonical, semi-grand-canonical,
-and grand-canonical ensembles (`nvt`, `suvt`, and `uvt`) through standard
-and hybrid Monte Carlo. The selected
-{doc}`operators <operators/index>` determine which quantities can change.
-{doc}`Hybrid Monte Carlo <hmc>` alternates molecular dynamics with MC moves.
-See {doc}`ensembles` for thermodynamic settings and inheritance.
-{doc}`Biased Monte Carlo <biased-mc>` instead minimises proposals and permits
-geometry filters for independent searches over relaxed structures.
+GDPy supports standard, biased, and hybrid Monte Carlo with `nvt`, `uvt`, and
+`suvt` ensembles. Choose {doc}`operators <operators/index>` to define the proposed
+changes and an {doc}`ensemble <ensembles>` to set the thermodynamic conditions.
+
+## Schemes
+
+```{figure} monte_carlo.png
+:alt: "Monte Carlo workflow: evaluate the initial structure, optionally run a simulation, then perform MC steps consisting of proposal, evaluation, and Metropolis acceptance."
+:width: 100%
+
+The simulation stage is optional. Each MC step proposes a change, evaluates it,
+and applies the Metropolis acceptance rule.
+```
+
+| Scheme | Simulation | Evaluation |
+| --- | --- | --- |
+| {doc}`Standard MC <mc>` (`monte_carlo`) | None | Single-point calculation (`spc`) |
+| {doc}`Biased MC <biased-mc>` (`biased_monte_carlo`) | None | Minimisation (`min`) |
+| {doc}`Hybrid MC <hmc>` (`hybrid_monte_carlo`) | Molecular dynamics (`md`) | Single-point calculation (`spc`) |
+| {doc}`Hybrid biased MC <hybrid-biased-mc>` (`hybrid_biased_monte_carlo`) | Molecular dynamics (`md`) | Minimisation (`min`) |
+
+The evaluation method is fixed by the MC scheme and applies to initialisation
+and proposal evaluation. Hybrid schemes alternate simulation stages with MC
+blocks; MD endpoints are accepted directly, while MC proposals undergo the
+acceptance test. Biased MC compares relaxed structures, changing the sampled
+energy landscape.
 
 ```{toctree}
 :maxdepth: 3
@@ -26,9 +43,8 @@ hybrid biased monte carlo <hybrid-biased-mc>
 sampling operators <operators/index>
 ```
 
-Unlike {doc}`basin hopping <../../global_optimisation/basin_hopping>`, Boltzmann
-sampling evaluates each trial without relaxation and accepts or rejects it for
-the configured ensemble. Basin hopping uses the same kinds of proposals but
+Standard MC evaluates each trial without relaxation and accepts or rejects it
+for the configured ensemble. {doc}`Basin hopping <../../global_optimisation/basin_hopping>` uses the same kinds of proposals but
 relaxes trials to local minima and ranks them for structure search.
 
 ## Demo
