@@ -100,3 +100,9 @@ See the {ref}`Monte Carlo guide <monte-carlo>` and
 the same prepare/submit/run/status/resubmit/collect lifecycle as other compute
 tasks. A single chain keeps its state directly in the worker directory; batches
 use `candN` directories. Sharing state between chains is unsupported. A pending child evaluation keeps its chain incomplete.
+
+
+The Monte Carlo worker advances chains locally and batches their basic SPC,
+minimisation, or MD requests. Top-level `dispatch.batch_size` and `scheduler`
+settings apply to these evaluations. See {doc}`monte-carlo/batching` for
+scheduler inheritance, request storage, and resuming pending chains.

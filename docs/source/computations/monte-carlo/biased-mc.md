@@ -65,8 +65,8 @@ Set constraints in the evaluator's `constraint`, using the
 normal {doc}`constraint syntax <../../groups-and-constraints>`. Input constraints
 are retained when no override is supplied. Particle tags survive minimisation.
 The evaluator inherits the outer potential and modifiers and cannot override
-them. Its optional `scheduler` defaults to direct execution independently of
-the parent scheduler. A different evaluator provider must support the shared
+them. Its optional `scheduler` overrides the top-level scheduler. The sampling
+worker batches compatible minimisation requests across chains. A different evaluator provider must support the shared
 potential. Evaluation-specific `output` and `random_seed` settings also go
 directly under `evaluation`; provider-specific setup fields need no wrapper.
 

@@ -13,8 +13,8 @@ MC defaults to an ASE single-point evaluator using the outer potential and
 modifiers. Optional `setup.evaluation` accepts `provider` (default `ase`),
 `scheduler`, `output`, `stop`, `random_seed`, and provider-specific setup fields
 directly. Standard MC always selects `spc`; omit `method`, `parameters`, and
-`setup` wrappers. The evaluator scheduler defaults to direct execution
-independently of the outer scheduler. Incompatible potential backends fail
+`setup` wrappers. The evaluator inherits the top-level scheduler unless explicitly overridden.
+The Monte Carlo worker batches its single-point requests across chains. Incompatible potential backends fail
 during preparation. For example, to customize only the evaluator scheduler:
 
 ```yaml

@@ -74,8 +74,9 @@ cannot be overridden in children.
 
 MD endpoints are accepted directly. Structures, cell, constraints, and momenta
 pass between children. MD and MC use the same inherited
-ensemble temperature. Each child scheduler defaults to
-`direct`; the parent scheduler controls orchestration. The potential backend
+ensemble temperature. Each child inherits the parent scheduler unless explicitly overridden.
+The sampling coordinator runs locally and batches compatible MD and single-point
+requests across chains; native MC stages are never submitted as calculation jobs. The potential backend
 is resolved once and must support all children.
 
 The parent's `random_seed`, child seeds, cycle, and child index determine

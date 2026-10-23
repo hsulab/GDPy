@@ -18,6 +18,7 @@ geometry filters for independent searches over relaxed structures.
 :hidden:
 
 ensembles <ensembles>
+batching <batching>
 standard monte carlo <mc>
 biased monte carlo <biased-mc>
 hybrid monte carlo <hmc>

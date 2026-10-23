@@ -133,7 +133,8 @@ connection. Queue jobs are detached by the remote scheduler after submission.
 ## Batches and application launchers
 
 `dispatch.batch_size` controls how many structures belong to one scheduler job.
-It is not a CPU or GPU count. Calculations in a batch run sequentially unless a
+For MC/HMC, it counts compatible basic evaluation requests across chains; see
+{doc}`monte-carlo/batching`. It is not a CPU or GPU count. Calculations in a batch run sequentially unless a
 supported scheduler configures `concurrent_tasks`.
 
 For external MPI applications, `machine_prefix` wraps the application command.
