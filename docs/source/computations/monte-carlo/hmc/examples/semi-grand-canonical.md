@@ -5,7 +5,7 @@ block attempts Cu ↔ Ni identity changes while preserving the total of 32 atoms
 `chempots` is in eV per atom in `particles` order. Raising the Ni chemical
 potential relative to Cu favours Ni; equal values do not fix the composition.
 
-```{literalinclude} ../../../../../examples/monte_carlo/hybrid-semi-grand-canonical.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/hybrid-semi-grand-canonical.yaml
 :language: yaml
 ```
 

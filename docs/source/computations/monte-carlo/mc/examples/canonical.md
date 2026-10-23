@@ -6,7 +6,7 @@ The energy-only Metropolis rule is
 $P = \min(1, \exp[-\Delta E/(k_\mathrm{B}T)])$, with
 $\Delta E = E_\mathrm{trial} - E_\mathrm{current}$.
 
-```{literalinclude} ../../../../../examples/monte_carlo/canonical.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/canonical.yaml
 :language: yaml
 ```
 

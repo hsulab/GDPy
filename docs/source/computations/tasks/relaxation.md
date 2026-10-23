@@ -59,7 +59,7 @@ through GDPy.
 
 For MC, place `optimizer`, `constraint`, and `stop` directly under
 `parameters.setup.evaluation`, without `parameters` or `setup` wrappers, as shown
-in {doc}`biased Monte Carlo <../../explorations/biased-mc>`. There, the initial
+in {doc}`biased Monte Carlo <../monte-carlo/biased-mc>`. There, the initial
 structure and each valid proposal are minimised before acceptance. Both
 minimisation limits are required explicitly; a step-limited endpoint is used
 even if it has not met the force tolerance.

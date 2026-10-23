@@ -2,7 +2,7 @@
 
 # Two or three neighboring waters on anatase (101)
 
-This example searches water orientations with {doc}`../../../explorations/operators/rotate`
+This example searches water orientations with {doc}`../../../computations/monte-carlo/operators/rotate`
 and xreac's bundled `ffield.reax.TiOH.Monti2012` parameters. GDPy's `reax` extra
 pins the xreac source revision prepared for v0.10.0, which includes these Ti/O/H
 parameters. Install `pip install -e '.[reax]'` before running the example.

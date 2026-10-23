@@ -40,10 +40,10 @@ described in the {doc}`task examples overview <computations/tasks/index>`.
 
 | Example | System | Focus |
 | --- | --- | --- |
-| [Cu<sub>32</sub>](explorations/mc/examples/canonical.md) | bulk | Canonical displacements |
-| [Cu<sub>16</sub>Ni<sub>16</sub>](explorations/mc/examples/semi-grand-canonical.md) | bulk | Semi-grand-canonical identity changes |
-| [Cu<sub>n</sub>Au](explorations/mc/examples/grand-canonical.md) | bulk | Grand-canonical insertion and removal |
-| {doc}`O/Cu(111) <explorations/mc/examples/cu111-oxidation-xreac>` | surface | Grand-canonical O exchange |
+| [Cu<sub>32</sub>](computations/monte-carlo/mc/examples/canonical.md) | bulk | Canonical displacements |
+| [Cu<sub>16</sub>Ni<sub>16</sub>](computations/monte-carlo/mc/examples/semi-grand-canonical.md) | bulk | Semi-grand-canonical identity changes |
+| [Cu<sub>n</sub>Au](computations/monte-carlo/mc/examples/grand-canonical.md) | bulk | Grand-canonical insertion and removal |
+| {doc}`O/Cu(111) <computations/monte-carlo/mc/examples/cu111-oxidation-xreac>` | surface | Grand-canonical O exchange |
 
 See the {ref}`Monte Carlo guide <monte-carlo>` for proposal rules, outputs,
 restart behavior, and sampling limitations.
@@ -58,9 +58,9 @@ restart behavior, and sampling limitations.
 
 | Example | System | Focus |
 | --- | --- | --- |
-| [Cu<sub>32</sub>](explorations/hmc/examples/canonical.md) | bulk | NVT MD followed by Cu displacements |
-| [Cu<sub>16</sub>Ni<sub>16</sub>](explorations/hmc/examples/semi-grand-canonical.md) | bulk | NVT MD followed by identity changes |
-| {doc}`O/Cu(111) <explorations/hmc/examples/cu111-oxidation-xreac>` | surface | NVT MD followed by O exchange |
+| [Cu<sub>32</sub>](computations/monte-carlo/hmc/examples/canonical.md) | bulk | NVT MD followed by Cu displacements |
+| [Cu<sub>16</sub>Ni<sub>16</sub>](computations/monte-carlo/hmc/examples/semi-grand-canonical.md) | bulk | NVT MD followed by identity changes |
+| {doc}`O/Cu(111) <computations/monte-carlo/hmc/examples/cu111-oxidation-xreac>` | surface | NVT MD followed by O exchange |
 
 See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle settings,
 runtime roles, outputs, and restart behavior.

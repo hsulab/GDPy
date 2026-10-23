@@ -30,7 +30,7 @@ This complete canonical input alternates 20 NVT MD steps and five Cu displacemen
 proposals per cycle, for five cycles at 1200 K. It uses ASE EMT and the Cu32
 structure in `examples/monte_carlo/assets/cu32.xyz`.
 
-```{literalinclude} ../../../examples/monte_carlo/hybrid-canonical.yaml
+```{literalinclude} ../../../../examples/monte_carlo/hybrid-canonical.yaml
 :language: yaml
 :caption: examples/monte_carlo/hybrid-canonical.yaml
 ```

@@ -7,7 +7,7 @@ three-layer Cu(111)-p(2×2) slab. The four Cu atoms in the bottom layer are fixe
 in the input structure. With `executor.parameters.random_seed: 2033`, the first insertion is
 accepted and `mc.xyz` changes from Cu12 to Cu12O.
 
-```{literalinclude} ../../../../../examples/monte_carlo/cu111-oxidation-xreac.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/cu111-oxidation-xreac.yaml
 :language: yaml
 ```
 

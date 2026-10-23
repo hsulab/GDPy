@@ -5,8 +5,8 @@
 Exploration proposes and selects candidate structures. Execution evaluates
 those candidates through a complete runtime. Genetic algorithms, basin hopping,
 and other search policies remain independent of the evaluation backend.
-Monte Carlo and hybrid MC run through `gdp compute`; umbrella sampling remains
-here pending a separate migration.
+Standard, biased, and hybrid {doc}`Monte Carlo <../computations/monte-carlo/index>`
+run through `gdp compute`; umbrella sampling remains here pending a separate migration.
 
 Run a complete exploration configuration with:
 
@@ -63,15 +63,6 @@ strategy:
 
 Omitting the top-level `scheduler` also runs the exploration itself directly
 on the current machine.
-
-## Monte Carlo ensembles
-
-See {doc}`Monte Carlo <mc>` for canonical, semi-grand-canonical, and grand-canonical EMT examples using single-point energies.
-The guide covers displacement, identity-change, and insertion/removal moves,
-chemical potentials, output inspection, restart behaviour, and current
-limitations of the ensemble sampling rules.
-For alternating MD and MC blocks, see the {doc}`Hybrid Monte Carlo guide
-<hmc>`.
 
 ## Rare-event sampling
 

@@ -86,7 +86,7 @@ tasks <computations/tasks/index>
 runtime configurations <computations/runtime>
 machine resources <computations/schedulers>
 molecular dynamics <computations/tasks/molecular-dynamics>
-monte carlo <explorations/sampling>
+monte carlo <computations/monte-carlo/index>
 ```
 
 ```{toctree}

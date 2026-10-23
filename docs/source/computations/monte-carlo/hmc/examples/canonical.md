@@ -4,7 +4,7 @@ The initial Cu32 FCC supercell has a fixed 7.2 Å cubic cell. Langevin NVT MD
 moves all atoms; each MC proposal displaces one Cu atom. Composition and cell
 remain fixed throughout.
 
-```{literalinclude} ../../../../../examples/monte_carlo/hybrid-canonical.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/hybrid-canonical.yaml
 :language: yaml
 ```
 

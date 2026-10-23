@@ -24,7 +24,7 @@ hybrid monte carlo <hmc>
 sampling operators <operators/index>
 ```
 
-Unlike {doc}`basin hopping <../global_optimisation/basin_hopping>`, Boltzmann
+Unlike {doc}`basin hopping <../../global_optimisation/basin_hopping>`, Boltzmann
 sampling evaluates each trial without relaxation and accepts or rejects it for
 the configured ensemble. Basin hopping uses the same kinds of proposals but
 relaxes trials to local minima and ranks them for structure search.
@@ -37,7 +37,7 @@ The run stops after 100 attempts.
 
 Compute runtime:
 
-```{literalinclude} ../../../examples/monte_carlo/canonical.yaml
+```{literalinclude} ../../../../examples/monte_carlo/canonical.yaml
 :language: yaml
 :caption: examples/monte_carlo/canonical.yaml
 ```

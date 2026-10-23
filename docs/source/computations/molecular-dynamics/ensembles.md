@@ -12,7 +12,7 @@ under `setup.regulator.parameters`.
 
 Temperature is in K and must be finite and positive. Pressure is in bar and
 must be finite. MD does not support `uvt` or `suvt` by itself; see
-{doc}`Monte Carlo ensembles <../../explorations/ensembles>` for particle and
+{doc}`Monte Carlo ensembles <../monte-carlo/ensembles>` for particle and
 species exchange, including HMC inheritance.
 
 The examples below are executor fragments for a runtime with one potential.

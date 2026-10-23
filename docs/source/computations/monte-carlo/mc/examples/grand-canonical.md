@@ -6,7 +6,7 @@ keeps the structure nonempty even if every Cu atom is removed. This example
 uses exchange moves alone; it is not a model of a bulk phase or a relaxed
 adsorption surface.
 
-```{literalinclude} ../../../../../examples/monte_carlo/grand-canonical.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/grand-canonical.yaml
 :language: yaml
 ```
 

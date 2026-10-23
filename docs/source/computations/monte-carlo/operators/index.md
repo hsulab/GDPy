@@ -101,7 +101,7 @@ on the exploration method:
 - Hybrid MC consumes the proposal's place in its MC block and retains the
   current state.
 - Basin hopping consumes a hop in that chain. Its {doc}`method guide
-  <../../global_optimisation/basin_hopping>` describes candidate storage,
+  <../../../global_optimisation/basin_hopping>` describes candidate storage,
   population ranking, and chain replacement.
 
 Moves temporarily borrow and edit a candidate. Local moves record only the

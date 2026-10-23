@@ -59,6 +59,6 @@ placement center and fail the geometric checks.
 Acceptance includes energy, standard chemical-potential changes, stoichiometric
 particle-count factors, temperature, and volume. With `use_bias: true`, the
 volume is the region's estimated empty volume, as described for
-{doc}`../../../explorations/operators/biased_volume_exchange`; the example uses geometric volume instead.
+{doc}`../../../computations/monte-carlo/operators/biased_volume_exchange`; the example uses geometric volume instead.
 The current reaction acceptance calculation uses a fixed standard-pressure
 factor, so changing `pressure` does not tune a reservoir pressure in that rule.

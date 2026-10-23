@@ -8,7 +8,7 @@ state. This is a biased search over relaxed structures, not equilibrium sampling
 of the original potential. Reaching a minimiser's step limit does not guarantee
 a local minimum.
 
-Unlike population {doc}`basin hopping <../global_optimisation/basin_hopping>`,
+Unlike population {doc}`basin hopping <../../global_optimisation/basin_hopping>`,
 this method has no population selection or generations. Standard
 {doc}`Monte Carlo <mc>` requires single-point energies and rejects enabled
 geometry filters. Biased MC permits those filters and requires fixed-cell
@@ -16,7 +16,7 @@ minimisation. It cannot be used as an {doc}`HMC <hmc>` child.
 
 ## EMT example
 
-```{literalinclude} ../../../examples/monte_carlo/biased.yaml
+```{literalinclude} ../../../../examples/monte_carlo/biased.yaml
 :language: yaml
 ```
 
@@ -51,7 +51,7 @@ setup:
 This fragment belongs under the biased-MC executor's `parameters`. The ASE
 adapter currently exposes `bfgs` for `min`, which is also its default. `maxstep`
 is in Å. Available algorithms and their parameters depend on the evaluator
-provider. See {doc}`optimizer configuration <../computations/tasks/relaxation>`
+provider. See {doc}`optimizer configuration <../tasks/relaxation>`
 for the ordinary minimisation input.
 
 Minimisation `stop.steps` must be an explicitly supplied positive integer, and
@@ -62,7 +62,7 @@ is not satisfied. Calculation failures remain failures; they are not accepted
 as completed trials.
 
 Set constraints in the evaluator's `constraint`, using the
-normal {doc}`constraint syntax <../groups-and-constraints>`. Input constraints
+normal {doc}`constraint syntax <../../groups-and-constraints>`. Input constraints
 are retained when no override is supplied. Particle tags survive minimisation.
 The evaluator inherits the outer potential and modifiers and cannot override
 them. Its optional `scheduler` defaults to direct execution independently of

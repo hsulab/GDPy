@@ -64,5 +64,5 @@ accepted for compatibility, but they cannot be mixed with the structured form.
 
 MD, standard MC, and HMC share an `executor.parameters.ensemble` mapping.
 See {doc}`MD ensembles <molecular-dynamics/ensembles>` for NVE, NVT, and NPT,
-and {doc}`Monte Carlo ensembles <../explorations/ensembles>` for NVT, UVT, SUVT,
+and {doc}`Monte Carlo ensembles <monte-carlo/ensembles>` for NVT, UVT, SUVT,
 and HMC inheritance. Regulator algorithms remain under `setup.regulator`.

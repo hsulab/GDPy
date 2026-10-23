@@ -4,7 +4,7 @@ Start from Cu16Ni16 in the same fixed cell. Half the operator selections attempt
 a displacement; the other half attempt a Cu ↔ Ni identity change. Total
 $N=32$ stays fixed while the Cu/Ni counts fluctuate.
 
-```{literalinclude} ../../../../../examples/monte_carlo/semi-grand-canonical.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/semi-grand-canonical.yaml
 :language: yaml
 ```
 

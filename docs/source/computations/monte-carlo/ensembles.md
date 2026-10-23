@@ -2,7 +2,7 @@
 
 Standard MC and HMC define thermodynamic settings under
 `executor.parameters.ensemble`, using the same mapping format as
-{doc}`MD <../computations/molecular-dynamics/ensembles>`.
+{doc}`MD <../molecular-dynamics/ensembles>`.
 
 | Method | Required fields | Allowed changes |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ Temperature is in K and must be finite and positive. Chemical potentials are
 finite values in eV per particle, keyed by species or particle name. NVT does
 not accept chemical potentials. Define these settings on the ensemble, not on
 individual MC operators. The former `custom` ensemble is no longer supported;
-use {doc}`basin hopping <../global_optimisation/basin_hopping>` for structure
+use {doc}`basin hopping <../../global_optimisation/basin_hopping>` for structure
 search with per-operator acceptance settings.
 
 ## HMC inheritance

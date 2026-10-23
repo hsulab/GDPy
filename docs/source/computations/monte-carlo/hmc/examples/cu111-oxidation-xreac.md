@@ -7,7 +7,7 @@ system as the {doc}`MC example <../../mc/examples/cu111-oxidation-xreac>`. One
 cycle runs 40 NVT MD steps followed by three grand-canonical atomic-O
 exchanges. The four Cu atoms in the bottom layer are fixed in the initial structure and both child executors.
 
-```{literalinclude} ../../../../../examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
+```{literalinclude} ../../../../../../examples/monte_carlo/hybrid-cu111-oxidation-xreac.yaml
 :language: yaml
 ```
 
