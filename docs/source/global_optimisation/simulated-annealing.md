@@ -20,7 +20,8 @@ For each subsequent generation:
 2. Start independent MD trajectories with fresh velocities. Run all candidates
    as a batch, cooling linearly from start to end in
    `strategy.temperatures[generation - 1]`.
-3. Minimise each final structure with the same potential.
+3. Select snapshots from each successful MD trajectory and minimise them with
+   the same potential. By default, select only the final snapshot.
 4. Store every endpoint minimum, refresh the retained population from all
    generations, and repeat.
 
@@ -75,12 +76,13 @@ strategy:
   convergence:
     generation: 1
   minimisation:
-    provider: ase
-    method: min
-    parameters:
-      stop:
-        steps: 1000
-        fmax: 0.05
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
 ```
 
 `runtime.yaml`:
@@ -140,12 +142,13 @@ strategy:
     - [900, 200]
     - [600, 100]
   minimisation:
-    provider: ase
-    method: min
-    parameters:
-      stop:
-        steps: 1000
-        fmax: 0.05
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
   convergence:
     generation: 3
 ```
@@ -166,12 +169,58 @@ NVT or NPT dynamics with a driver and thermostat that support temperature ramps.
 Omit runtime `tend`: the exploration supplies it from each pair. The MD
 `stop.steps` controls the number of integration steps over which cooling occurs.
 
-`strategy.minimisation` defines a complete minimisation executor with its own
+`strategy.minimisation.executor` defines a complete minimisation executor with its own
 provider and parameters, plus an optional scheduler (direct by default).
 It inherits the MD runtime's fixed potential and dispatch settings. Potential
 and modifier overrides are forbidden. Positive minimisation `stop.steps` and
 `stop.fmax` are required. SA retains the existing restriction against modifiers.
 There is no `native/simulated_annealing` compute executor.
+
+### Snapshot selection
+
+`strategy.minimisation.selector` is optional. Omitting it instantiates the
+ordinary `locate` selector with `indices: "-1"`, selecting the last saved snapshot
+of each successful cooling trajectory. Generation 0 bypasses selection and
+minimises all initial structures.
+
+Use the existing {doc}`selectors <../selections/index>` to select other snapshots.
+For example, minimise every second saved snapshot and include the endpoint:
+
+```yaml
+minimisation:
+  selector:
+    method: interval
+    period: 2
+    include_last: true
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      stop:
+        steps: 1000
+        fmax: 0.05
+```
+
+Use `selector: {method: locate, indices: ":"}` for every saved snapshot, or
+`selector: {method: locate, indices: "0 5 -1"}` for specific saved-frame indices.
+Indices are zero-based; `-1` selects the last frame. Selection operates separately
+on each successful trajectory, including its saved initial frame when requested.
+The MD runtime's trajectory output period determines which snapshots exist;
+selection does not recover unsaved integration steps.
+
+Both default and explicit selectors write `genN/sel/selected.xyz` and
+`genN/sel/selection.json` before minimisation. The manifest maps each selected
+structure, in file order, to its parent, original replica, frame index, and MD
+step (`-1` when unavailable). Per-trajectory selector caches are stored under
+`genN/sel/replicaN/`. Selection uses reproducible search-derived random seeds.
+Restart reuses the saved structures and manifest without rerunning selection.
+
+All selected snapshots are minimised as one batch. A failed minimisation drops
+only that snapshot. Empty selections add no minima; the existing retained
+population remains available. Successful minima retain their source frame
+metadata in `candidates.db`. The population comparator removes duplicates only
+from the retained population, after minimisation. All evaluated minima remain
+in the database and contribute to the existing similarity-based fitness counts.
 
 The exploration owns `convergence.generation`, `objective`, `use_archive`, and
 the temperature schedule. The exploration scheduler controls the population
@@ -203,7 +252,8 @@ jobs remain pending and are not treated as failed candidates.
   highlighted. Generation 0 contains the minimised initial structures.
 - `gen0/min/`: initial evaluations.
 - `genN/sim/`: MD cooling trajectories over generation N’s temperature range.
-- `genN/min/`: endpoint minimisations on the same potential.
+- `genN/sel/`: selected snapshots, provenance manifest, and selector caches.
+- `genN/min/`: minimisations of the selected snapshots on the same potential.
 - `genN/inputs.xyz`: an extended XYZ snapshot of the generation's starting
   structures, not its MD trajectory. Generation 0 stores builder outputs; later
   generations store selected parent structures, with old momenta removed so that
@@ -213,7 +263,9 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
-Old population SA inputs and checkpoints require a fresh directory.
+Move older `strategy.minimisation` executor fields under
+`strategy.minimisation.executor`. Older population SA checkpoints require a fresh
+directory for the snapshot-selection format.
 Changes to the configuration require a fresh directory.
 Rerunning a completed search regenerates the final results from the database
 without repeating simulations. Existing `population.xyz` files from older runs

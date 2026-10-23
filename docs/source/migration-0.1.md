@@ -258,7 +258,7 @@ modifiers. Child `scheduler` settings remain independent and default to direct.
 
 Population SA remains under `gdp explore`. Supply an ordinary MD runtime and
 put its per-generation `[start, end]` cooling ranges in `strategy.temperatures`. Put the full
-minimisation executor definition in `strategy.minimisation`; it inherits the
+minimisation executor definition in `strategy.minimisation.executor`; it inherits the
 runtime potential. Generation 0 is initial minimisation, and cooling range entry
 N-1 applies to generation N. Each pair must satisfy `start > end > 0`. Omit MD
 `tend`; the exploration supplies both endpoints for linear cooling within each
