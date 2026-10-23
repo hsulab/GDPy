@@ -7,8 +7,10 @@ potential and executor.
 
 Define the candidate builder and genetic-algorithm settings as exploration
 inputs, then pass one complete runtime for candidate relaxation. Downstream
-`extract`, `select`, and `validate` operations can consume the resulting
-trajectories.
+`select` and `compute` operations can consume the default
+`minimised_candidates` head directly. To extract relaxation trajectories, pass
+`{node: search, output: minimisation}` to `extract`, where `search` is the
+exploration step. For MD trajectories, select the `dynamics` head instead.
 
 Multiple evaluation levels must be represented as an explicit runtime chain.
 gdpx does not infer pairings between lists of potentials and executors.

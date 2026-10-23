@@ -62,3 +62,63 @@ The normal run lives in `workflow/`; each iteration's final `save` step writes
 Repeating the same run command resumes the saved state. Use a fresh run directory
 after changing configuration or parameters. Generated datasets and run outputs
 are ignored by Git.
+
+## Simulated-annealing sampling
+
+`sa.yaml` uses population SA instead of ordinary MD. It reuses `common.yaml`
+and `dpa4c.json`. Prepare the data and bootstrap a committee as above, then run
+from this directory:
+
+```console
+gdp workflow validate sa.yaml
+gdp workflow run sa.yaml
+gdp workflow status sa.yaml
+```
+
+`parameters.initial_models` points to the compressed bootstrap models. Update
+those paths when using an existing committee or an older bootstrap directory
+layout. The default paths use the current flat step layout. As with the ordinary
+MD example, DPA4C inference and training require the experimental PyTorch backend.
+
+Each of two learning iterations starts a fresh SA search from `cu3au1.xyz`,
+using the current committee for both MD and minimisation. It minimises the
+initial structure, launches two 20-step trajectories cooling from 600 to 300 K,
+and minimises every second saved MD snapshot plus the endpoint. The MD save
+period is five integration steps; minimisation also saves intermediate frames
+with a period of five steps. These short budgets demonstrate the workflow.
+
+The `sample` operation exposes `dynamics` and `minimisation`
+separately. The latter includes both generation-0 relaxation and minimisations
+of selected MD snapshots. `md_trajectories` and `min_trajectories` extract each
+source separately, including intermediate minimisation frames. No worker
+methods are mixed before selection. The population comparator does not filter
+these trajectories; SA's `minimisation.selector` only controls which MD frames
+are relaxed. The default `sample.minimised_candidates` head contains all successful final
+minima as structures, including duplicates; it does not contain workers.
+
+Each branch has its own committee scoring and uncertainty-selection steps.
+`md_label_budget` and `min_label_budget` default to four, independently limiting
+the number of labels from each source. Both selectors use the threshold in
+`force_deviation_min`. Selected structures are labeled with EMT in separate
+`label_md` and `label_min` steps. `collect_md` appends the MD labels to the
+existing dataset; `collect_min` appends the minimisation labels to that result.
+Their dataset shards use `active_md` and `active_min` prefixes to distinguish
+the sources. The resulting dataset is used for retraining and becomes the next
+iteration's dataset state. No cross-source deduplication is performed.
+
+Only reference-labeled data enter the training dataset; the latest trained
+committee is used in the next learning iteration. No SA checkpoint is carried
+between models.
+
+The default threshold comes from `common.yaml`. If either branch selects no frames, that
+iteration stops before training/state commit; the other branch does not borrow
+its unused budget. To make every finite nonnegative
+uncertainty eligible in a fresh run:
+
+```console
+gdp -d /tmp/dpa4c-sa-al workflow run sa.yaml --set force_deviation_min=0.0
+```
+
+The default run directory is `sa/`. YAML validation and a shortened EMT-only
+SA-to-separated-extraction smoke test have been checked; full DPA4C inference and retraining
+were not run for this example.

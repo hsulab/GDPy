@@ -110,7 +110,7 @@ steps:
   trajectories:
     __type__: extract
     inputs:
-      compute: sample
+      compute: {node: sample, output: dynamics}
 
   candidates:
     __type__: select
