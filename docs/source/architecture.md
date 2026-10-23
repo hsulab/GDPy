@@ -85,4 +85,5 @@ Native HMC uses list-based `parameters.setup`; ordinary MD, minimisation, and
 MC retain mapping-based setup. `gdpx.execution.composite` owns HMC child
 execution, invocation seeds, and durable stage boundaries. Simulated annealing
 remains an exploration: it assigns cooling ranges by generation and runs separate
-MD and minimisation executors on the shared potential.
+MD and minimisation runtimes. The minimisation runtime inherits the MD potential
+unless it explicitly supplies its own potential.

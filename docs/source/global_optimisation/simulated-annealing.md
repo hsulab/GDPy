@@ -21,7 +21,7 @@ For each subsequent generation:
    as a batch, cooling linearly from start to end in
    `strategy.temperatures[generation - 1]`.
 3. Select snapshots from each successful MD trajectory and minimise them with
-   the same potential. By default, select only the final snapshot.
+   the minimisation runtime. By default, select only the final snapshot.
 4. Store every endpoint minimum, refresh the retained population from all
    generations, and repeat.
 
@@ -76,13 +76,14 @@ strategy:
   convergence:
     generation: 1
   minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          stop:
+            steps: 1000
+            fmax: 0.05
 ```
 
 `runtime.yaml`:
@@ -142,13 +143,14 @@ strategy:
     - [900, 200]
     - [600, 100]
   minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          stop:
+            steps: 1000
+            fmax: 0.05
   convergence:
     generation: 3
 ```
@@ -169,12 +171,43 @@ NVT or NPT dynamics with a driver and thermostat that support temperature ramps.
 Omit runtime `tend`: the exploration supplies it from each pair. The MD
 `stop.steps` controls the number of integration steps over which cooling occurs.
 
-`strategy.minimisation.executor` defines a complete minimisation executor with its own
-provider and parameters, plus an optional scheduler (direct by default).
-It inherits the MD runtime's fixed potential and dispatch settings. Potential
-and modifier overrides are forbidden. Positive minimisation `stop.steps` and
-`stop.fmax` are required. SA retains the existing restriction against modifiers.
+`strategy.minimisation.runtime` supplies a minimisation runtime. Its `executor`
+must use `method: min`, with positive `parameters.stop.steps` and
+`parameters.stop.fmax`. The optional `selector` remains alongside `runtime`.
+
+Omit `runtime.potential` to inherit the MD potential, or supply a complete
+potential definition to override it. The minimisation runtime evaluates both
+generation 0 and all selected snapshots, so population ranking always uses
+its energy surface. The MD runtime remains unchanged.
+
+Put minimisation scheduling settings in `runtime.scheduler`; the default is
+direct execution, independent of the MD scheduler. Dispatch settings inherit
+from the MD runtime and can be overridden through `runtime.dispatch`.
+Minimisation uses the batch worker with separate candidate directories;
+`dispatch.worker: single` and `dispatch.share_workdir: true` are unsupported.
+Modifiers remain unsupported for both runtimes.
 There is no `native/simulated_annealing` compute executor.
+
+For example, add a separate potential and batch size under the minimisation
+runtime (alongside its required executor):
+
+```yaml
+minimisation:
+  runtime:
+    potential:
+      provider: emt
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
+    scheduler:
+      provider: direct
+    dispatch:
+      batch_size: 4
+```
 
 ### Snapshot selection
 
@@ -192,13 +225,14 @@ minimisation:
     method: interval
     period: 2
     include_last: true
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      stop:
-        steps: 1000
-        fmax: 0.05
+  runtime:
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
 ```
 
 Use `selector: {method: locate, indices: ":"}` for every saved snapshot, or
@@ -253,7 +287,7 @@ jobs remain pending and are not treated as failed candidates.
 - `gen0/min/`: initial evaluations.
 - `genN/sim/`: MD cooling trajectories over generation N’s temperature range.
 - `genN/sel/`: selected snapshots, provenance manifest, and selector caches.
-- `genN/min/`: minimisations of the selected snapshots on the same potential.
+- `genN/min/`: minimisations of the selected snapshots using the minimisation runtime.
 - `genN/inputs.xyz`: an extended XYZ snapshot of the generation's starting
   structures, not its MD trajectory. Generation 0 stores builder outputs; later
   generations store selected parent structures, with old momenta removed so that
@@ -263,8 +297,10 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
-Move older `strategy.minimisation` executor fields under
-`strategy.minimisation.executor`. Older population SA checkpoints require a fresh
+Move older `strategy.minimisation.executor` to
+`strategy.minimisation.runtime.executor`, and any executor-level scheduler to
+`strategy.minimisation.runtime.scheduler`. Omit `runtime.potential` to retain
+the inherited MD potential. Older population SA checkpoints require a fresh
 directory for the snapshot-selection format.
 Changes to the configuration require a fresh directory.
 Rerunning a completed search regenerates the final results from the database
