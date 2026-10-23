@@ -24,8 +24,8 @@ def test_layout_collection_restart_and_archive(tmp_path, count):
         assert not (tmp_path / 'cand0').exists()
     assert orchestrate_compute(plan).state == 'finished'
     assert collect_compute(plan, archive=True).number_of_trajectories == count
-    assert (tmp_path / '_meta/inputs.json').is_file()
-    assert (tmp_path / '_meta/scheduler.json').is_file()
+    assert (tmp_path / '_meta/manifest.json').is_file()
+    assert (tmp_path / '_meta/status.json').is_file()
     assert collect_compute(plan).number_of_trajectories == count
 
 
@@ -52,12 +52,12 @@ def test_checkpoint_backup_preserves_worker_metadata(tmp_path):
     worker = create_worker(runtime(), directory=tmp_path)
     worker.driver.directory = tmp_path
     (tmp_path / '_meta').mkdir()
-    (tmp_path / '_meta/inputs.json').write_text('inputs')
+    (tmp_path / '_meta/manifest.json').write_text('inputs')
     (tmp_path / 'gdp.out').write_text('batch log')
     assert worker.driver._save_checkpoint() is None
     (tmp_path / 'traj.xyz').write_text('calculation output')
     checkpoint = worker.driver._save_checkpoint()
-    assert (tmp_path / '_meta/inputs.json').read_text() == 'inputs'
+    assert (tmp_path / '_meta/manifest.json').read_text() == 'inputs'
     assert (tmp_path / 'gdp.out').read_text() == 'batch log'
     assert (checkpoint / 'traj.xyz').read_text() == 'calculation output'
 

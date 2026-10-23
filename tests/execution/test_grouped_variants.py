@@ -48,7 +48,7 @@ def test_grouped_broadcast_plans_one_concurrent_slurm_batch(tmp_path):
     tasks = plan.workers[0].batches[0].tasks
     assert [task.driver_index for task in tasks] == [0, 1, 2, 3]
     assert [task.structure_index for task in tasks] == [0] * 4
-    scripts = list((tmp_path / "_meta/jobscripts").glob("run-*.script"))
+    scripts = list((tmp_path / "_meta/jobs").glob("*.sh"))
     assert len(scripts) == 1
     script = scripts[0].read_text()
     assert "task_count=4" in script and "concurrent_tasks=4" in script
@@ -117,11 +117,11 @@ def test_grouped_implicit_seeds_resume_and_explicit_changes_conflict(tmp_path):
     worker = create_runtime_workers(config)[0]
     worker.directory = tmp_path
     worker.prepare_batches([atoms()])
-    catalog = (tmp_path / "_meta/inputs.json").read_bytes()
+    catalog = (tmp_path / "_meta/manifest.json").read_bytes()
     restored = create_runtime_workers(config)[0]
     restored.directory = tmp_path
     restored.prepare_batches([atoms()])
-    assert (tmp_path / "_meta/inputs.json").read_bytes() == catalog
+    assert (tmp_path / "_meta/manifest.json").read_bytes() == catalog
     configs = restored.as_dict()
     configs[-1]["executor"]["parameters"]["random_seed"] = 42
     with pytest.raises(ValueError, match="all specify random_seed"):

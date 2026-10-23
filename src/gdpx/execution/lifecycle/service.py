@@ -33,7 +33,7 @@ from gdpx.providers import expand_runtime_configs
 from gdpx.structures.builders.factory import canonicalise_builder
 
 PLAN_SCHEMA_VERSION = 6
-DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "inputs.json"
+DEFAULT_PLAN_RELPATH = pathlib.Path("_meta") / "manifest.json"
 LEGACY_PLAN_RELPATH = pathlib.Path("_meta") / "compute-plan.json"
 
 
@@ -82,7 +82,7 @@ class ComputePlan:
 
     @property
     def path(self) -> pathlib.Path:
-        return pathlib.Path(self.directory) / DEFAULT_PLAN_RELPATH
+        return WorkerMetadata(self.directory).inputs.path
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -252,11 +252,13 @@ def load_compute_plan(path_or_directory: Union[str, pathlib.Path]) -> ComputePla
     if path.is_dir() or path.suffix != ".json":
         root = path
         path = root / DEFAULT_PLAN_RELPATH
+        if not path.exists() and (root / '_meta/inputs.json').exists():
+            path = root / '_meta/inputs.json'
         if not path.exists():
             path = root / LEGACY_PLAN_RELPATH
     if not path.exists():
         raise ComputeLifecycleError(f"Compute plan does not exist: {path}")
-    if path.name == "inputs.json":
+    if path.name in {"manifest.json", "inputs.json"}:
         data = WorkerMetadata(path.parent.parent).inputs.read().get("plan")
         if data is None:
             raise ComputeLifecycleError(f"No compute plan in {path}.")

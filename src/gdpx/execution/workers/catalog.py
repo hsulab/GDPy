@@ -26,8 +26,10 @@ class CatalogWorker(BaseWorker):
         return self.metadata.directory
 
     def _script_path(self, uid):
-        parent = self.metadata_directory / "jobscripts" if self.compact_metadata else self.metadata_directory
-        return parent / f"run-{uid}.script"
+        if self.metadata.legacy_names:
+            return self.metadata_directory / 'jobscripts' / f'run-{uid}.script'
+        parent = self.metadata_directory / "jobs" if self.compact_metadata else self.metadata_directory
+        return parent / f"{uid}.sh"
 
     def _initialise(self, *args, **kwargs):
         # Do not silently start new jobs beside an old worker's records.

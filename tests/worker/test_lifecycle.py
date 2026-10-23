@@ -111,7 +111,7 @@ def test_runtime_worker_retrieves_and_archives(mock_sched, fake_driver, fake_str
     worker = DriverBasedWorker(_runtime(fake_driver, mock_sched), directory=tmp_path)
     worker.run([fake_structure])
     _create_computation_dirs(worker, tmp_path)
-    output_path = tmp_path / "cand0" / "output.txt"
+    output_path = tmp_path / "output.txt"
     output_path.write_text("finished")
     mock_sched.finish(True)
     assert isinstance(worker.retrieve(use_archive=True), list)
@@ -141,10 +141,10 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     worker.run([fake_structure])
     metadata = tmp_path / "_meta"
     assert set(p.name for p in tmp_path.iterdir()) == {"_meta"}
-    assert worker.job_store.path == metadata / "scheduler.json"
+    assert worker.job_store.path == metadata / "status.json"
     metadata_files = {path.name for path in metadata.glob("*.json")}
-    assert {"inputs.json", "scheduler.json"}.issubset(metadata_files)
-    assert len([name for name in metadata_files if name.startswith("structures-")]) == 1
+    assert {"manifest.json", "status.json"}.issubset(metadata_files)
+    assert len([name for name in metadata_files if name == "structures.json"]) == 1
     assert len(worker.metadata.inputs.read()["jobs"]) == 1
     assert len(worker.metadata.inputs.read()["structures"]) == 1
     original = worker.job_store.get_running()[0]
@@ -155,14 +155,16 @@ def test_metadata_layout_resume_and_resubmit(mock_sched, fake_driver, fake_struc
     # A restarted worker reconstructs a missing script before resubmission.
     mock_sched.script.unlink()
     mock_sched.finish()
+    monkeypatch.setattr(fake_driver, "read_convergence", lambda: False)
     restarted.inspect(resubmit=True)
     record = restarted.job_store.get_running()[0]
     assert record.uid == original.uid
     assert record.attempt == 2
-    assert mock_sched.script.parent == metadata / "jobscripts"
+    assert mock_sched.script.parent == metadata / "jobs"
     assert mock_sched.script.exists()
     assert "cd ../.. && gdp" in mock_sched.user_commands
     _create_computation_dirs(restarted, tmp_path)
+    monkeypatch.setattr(fake_driver, "read_convergence", lambda: True)
     restarted.inspect()
     restarted.retrieve()
     assert len(restarted.job_store.get_retrieved()) == 1
@@ -216,7 +218,7 @@ def test_scheduler_change_rejected(mock_sched, fake_driver, fake_structure, tmp_
     worker.scheduler = DirectScheduler()
     with pytest.raises(ValueError, match="provider changed"):
         worker.inspect()
-    assert (tmp_path / "_meta" / "scheduler.json").read_bytes() == before
+    assert (tmp_path / "_meta" / "status.json").read_bytes() == before
 
 
 def test_remote_driver_sync_preserves_jobs_and_updates_cache(tmp_path):

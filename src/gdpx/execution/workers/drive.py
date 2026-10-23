@@ -916,7 +916,7 @@ class DriverBasedWorker(CatalogWorker):
     def _sync_job(self, job):
         self.scheduler.sync(job.wdir_names)
         if self.compact_metadata and self._share_wdir and self.scheduler.transport_name == "ssh":
-            content = self.scheduler.read_remote_file("_meta/scheduler.json")
+            content = self.scheduler.read_remote_file(f"_meta/{self.metadata.state.path.name}")
             if content is None:
                 return  # The job may have failed before producing its first result.
             remote = decode(content)

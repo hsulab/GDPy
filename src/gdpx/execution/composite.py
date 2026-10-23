@@ -189,7 +189,7 @@ class CompositeExecutor(SingleStructureExecutor):
             return workers
         from gdpx.execution.workers.metadata import WorkerMetadata
         workers = []
-        for path in sorted((self.directory / "steps").glob("**/_meta/inputs.json")):
+        for path in sorted((self.directory / "steps").glob("**/_meta/manifest.json")):
             root = path.parent.parent
             metadata = WorkerMetadata(root)
             definition = metadata.calculation_set(metadata.inputs.read(), ".")

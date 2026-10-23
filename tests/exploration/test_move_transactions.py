@@ -632,7 +632,7 @@ def test_real_mc_steps_have_independent_frozen_sets_and_recover(tmp_path):
     engine = real_mc_engine(tmp_path / "mc")
     engine._irun(1)
     engine._save_checkpoint(1)
-    first = engine.directory / "steps" / "step.0001" / "_meta" / "inputs.json"
+    first = engine.directory / "steps" / "step.0001" / "_meta" / "manifest.json"
     original_inputs = first.read_bytes()
     engine._irun(2)
     expected = engine.atoms.positions.copy()
@@ -659,7 +659,7 @@ def test_old_exploration_layout_rejected_before_checkpoint_changes(tmp_path, cls
     (engine.directory / "_meta").mkdir()
     if mixed_metadata:
         (engine.directory / "_meta" / "_scheduler.json").write_text("{}")
-        (engine.directory / "_meta" / "inputs.json").write_text("{}")
+        (engine.directory / "_meta" / "manifest.json").write_text("{}")
     before = {p: p.read_bytes() for p in engine.directory.rglob('*') if p.is_file()}
     with pytest.raises(ValueError, match="Legacy append-based exploration"):
         engine._load_checkpoint()

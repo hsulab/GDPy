@@ -113,7 +113,7 @@ def test_single_point_layout_is_frozen_and_used_by_extract(tmp_path):
     operation = compute(runtime, structures=Variable(structures), directory=tmp_path / "compute")
     result = operation.forward(structures, runtime.value)
 
-    inputs_path = operation.directory / "_meta" / "inputs.json"
+    inputs_path = operation.directory / "_meta" / "manifest.json"
     before = inputs_path.read_bytes()
     record = decode(before.decode())["workers"]["."]
     assert record["layout"] == {

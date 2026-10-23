@@ -73,7 +73,7 @@ def test_pending_child_resume_matches_uninterrupted(tmp_path, monkeypatch, metho
 
     def submit(scheduler, func_to_execute=None):
         key = str(scheduler.script)
-        ledger_path = tmp_path / "deferred/_requests/requests.json"
+        ledger_path = tmp_path / "deferred/_requests/index.json"
         matches = False
         if "deferred" in key and ledger_path.exists():
             ledger = load_data(ledger_path)
@@ -216,4 +216,4 @@ def test_single_chain_outputs_and_archive_use_worker_root(tmp_path, method):
     assert not (initial / "cand0").exists()
     assert collect_compute(plan, archive=True).number_of_trajectories == 1
     assert collect_compute(plan).number_of_trajectories == 1
-    assert (tmp_path / "_meta/inputs.json").is_file()
+    assert (tmp_path / "_meta/manifest.json").is_file()

@@ -67,7 +67,9 @@ class EvaluationBroker:
         self.root = Path(root).resolve()
         self.directory = self.root / '_requests'
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.path = self.directory / 'requests.json'
+        self.path = self.directory / 'index.json'
+        if not self.path.exists() and (self.directory / 'requests.json').exists():
+            self.path = self.directory / 'requests.json'
         self.state = load_data(self.path) if self.path.exists() else dict(version=2, requests={}, batches={})
         if self.state.get('version') != 2:
             raise ValueError('Unsupported sampling request ledger; start a new run.')
@@ -84,9 +86,10 @@ class EvaluationBroker:
 
     def next_id(self, kind):
         """Allocate within each namespace without reusing persisted or orphan IDs."""
-        identifiers = (self.state['batches'] if kind == 'batches' else
+        identifiers = (self.state.get(kind, {}) if kind in {'batches', 'runtimes'} else
                        [row['id'] for row in self.state['requests'].values()])
-        names = set(identifiers) | {path.name for path in (self.directory / kind).glob('*')}
+        names = set(identifiers) | {path.stem if kind == 'runtimes' else path.name
+                                    for path in (self.directory / kind).glob('*')}
         sequence = max((int(name) for name in names if name.isdecimal()), default=0) + 1
         return f'{sequence:06d}'
 
@@ -104,13 +107,19 @@ class EvaluationBroker:
             seed = config['executor'].get('parameters', {}).get('random_seed')
         if seed is None:
             seed = int(payload_digest(dict(key=key, chain_seed=self.chain_seed))[:8], 16)
-        runtime_id = payload_digest(config)
+        runtime_digest = payload_digest(config)
         signature = payload_digest(dict(runtime=config, structure=structure_digest([atoms]), seed=seed))
         existing = self.state['requests'].get(key)
         if existing is not None:
             if existing['signature'] != signature:
                 raise ValueError(f'Sampling evaluation request changed: {key}. Start a new run.')
             return
+        runtimes = self.state.setdefault('runtimes', {})
+        runtime_id = next((key for key, digest in runtimes.items() if digest == runtime_digest), None)
+        if runtime_id is None:
+            # Reuse runtime files belonging to runs created before numeric names.
+            runtime_id = runtime_digest if (self.directory / 'runtimes' / f'{runtime_digest}.json').exists() else self.next_id('runtimes')
+            runtimes[runtime_id] = runtime_digest
         identifier = self.next_id('requests')
         path = self.directory / 'requests' / identifier
         path.mkdir(parents=True, exist_ok=True)
@@ -167,7 +176,7 @@ class EvaluationBroker:
 
             relative = lambda path: os.path.relpath(path, root / '_meta')
             worker.evaluation_sources = dict(
-                runtime=dict(file=relative(runtime_path), digest=rows[0]['runtime']),
+                runtime=dict(file=relative(runtime_path), digest=payload_digest(config)),
                 structures=[relative(self.directory / 'requests' / row['id'] / 'input.json') for row in rows],
                 results={name: relative(self.directory / 'requests' / row['id'] / 'result.json')
                          for name, row in zip(worker.task_directories, rows)},
@@ -255,7 +264,9 @@ def evaluation_workers(directory):
     from gdpx.execution.factory import create_worker
     directory = Path(directory).resolve()
     for root in (directory, *directory.parents):
-        ledger = root / '_requests/requests.json'
+        ledger = root / '_requests/index.json'
+        if not ledger.exists():
+            ledger = root / '_requests/requests.json'
         if not ledger.exists():
             continue
         state = load_data(ledger)

@@ -64,18 +64,18 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     config["scheduler"]["parameters"]["environs"] += f'while [ ! -e "{gate}" ]; do sleep 0.05; done\n'
     runtime.write_text(yaml.safe_dump(config))
     cli("-r", runtime, "compute", "prepare", inputs)
-    assert not list(directory.glob("_meta/jobscripts/*.nohup"))
+    assert not list(directory.glob("_meta/jobs/*.nohup"))
     cli("compute", "submit", log="gdp.out")
     shared_log = directory / "gdp.out"
     submission_log = shared_log.read_bytes()
-    records = json.loads((directory / "_meta/scheduler.json").read_text())["_default"]
+    records = json.loads((directory / "_meta/status.json").read_text())["_default"]
     assert len(records) == 2  # Queued dispatch honors batch_size instead of direct batching.
     job_ids = {record["scheduler_job_id"] for record in records.values()}
-    assert not list(directory.glob("_meta/jobscripts/*.nohup"))
-    assert not list(directory.glob("_meta/jobscripts/**/*.json"))
-    before = (directory / "_meta/scheduler.json").read_bytes()
+    assert not list(directory.glob("_meta/jobs/*.nohup"))
+    assert not list(directory.glob("_meta/jobs/**/*.json"))
+    before = (directory / "_meta/status.json").read_bytes()
     cli("compute", "submit")
-    assert (directory / "_meta/scheduler.json").read_bytes() == before
+    assert (directory / "_meta/status.json").read_bytes() == before
     status = cli("compute", "status")
     assert "running" in status.stdout + status.stderr
     rows = json.loads(cli("queue", "--json").stdout)
@@ -85,13 +85,13 @@ def test_nohup_cli_submit_query_retrieve_across_processes(calculation, tmp_path)
     _wait(lambda: inspect_compute(load_compute_plan(directory)).state == "finished")
     assert shared_log.read_bytes() == submission_log
     for job_id in job_ids:
-        output = directory / "_meta/jobscripts" / f"{job_id}.out"
+        output = directory / "_meta/jobs" / f"{job_id}.out"
         assert "____" in output.read_text()  # Child CLI diagnostics remain captured.
     status = cli("compute", "status")
     assert "finished" in status.stdout + status.stderr
     cli("compute", "collect")
     assert len(read(directory / "results/end_frames.xyz", ":")) == 2
-    state = json.loads((directory / "_meta/scheduler.json").read_text())
+    state = json.loads((directory / "_meta/status.json").read_text())
     assert {record["scheduler_job_id"] for record in state["_default"].values()} == job_ids
     assert {record["attempt"] for record in state["_default"].values()} == {1}
 
@@ -104,9 +104,9 @@ def test_nohup_failed_calculation_requires_explicit_resubmission(calculation, tm
     runtime.write_text(yaml.safe_dump(config))
     cli("-r", runtime, "compute", "prepare", inputs)
     cli("compute", "submit")
-    state_path = directory / "_meta/scheduler.json"
+    state_path = directory / "_meta/status.json"
     first = next(iter(json.loads(state_path.read_text())["_default"].values()))["scheduler_job_id"]
-    first_log = directory / "_meta/jobscripts" / f"{first}.out"
+    first_log = directory / "_meta/jobs" / f"{first}.out"
     _wait(lambda: first_log.exists() and "status 7" in first_log.read_text())
     assert inspect_compute(directory).state == "running"
     assert cli("compute", "collect", check=False).returncode != 0
@@ -117,7 +117,7 @@ def test_nohup_failed_calculation_requires_explicit_resubmission(calculation, tm
     _wait(lambda: inspect_compute(directory).state == "finished")
     cli("compute", "collect")
     assert len(read(directory / "results/end_frames.xyz", ":")) == 2
-    record = next(iter(json.loads((directory / "_meta/scheduler.json").read_text())["_default"].values()))
+    record = next(iter(json.loads((directory / "_meta/status.json").read_text())["_default"].values()))
     assert record["attempt"] == 2
     assert first_log.exists()
-    assert not list(directory.glob("_meta/jobscripts/*.nohup"))
+    assert not list(directory.glob("_meta/jobs/*.nohup"))

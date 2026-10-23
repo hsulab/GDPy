@@ -42,8 +42,8 @@ def test_prepare_is_immutable_and_does_not_submit(tmp_path):
     assert plan.config["potential"] == original["potential"]
     assert plan.schema_version == 6
     assert plan.path.exists()
-    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
-    assert len(list((tmp_path / "_meta" / "jobscripts").glob("run-*.script"))) == 1
+    assert not json.loads((tmp_path / "_meta" / "status.json").read_text())["_default"]
+    assert len(list((tmp_path / "_meta" / "jobs").glob("*.sh"))) == 1
 
     loaded = load_compute_plan(tmp_path)
     assert loaded.plan_id == plan.plan_id
@@ -89,7 +89,7 @@ def test_compute_prepare_reports_persisted_task_seeds_only(tmp_path, monkeypatch
         random_provenance={"global_seed": 12345, "bit_generator": "PCG64"},
     )
 
-    assert "random seeds: 1 task recorded in _meta/inputs.json" in lines
+    assert "random seeds: 1 task recorded in _meta/manifest.json" in lines
     assert not any("GLOBAL RANDOM SEED" in line or "bit_generator:" in line for line in lines)
 
 
@@ -200,7 +200,7 @@ def test_local_submit_status_and_collect_round_trip(tmp_path):
     assert result.number_of_trajectories == 1
     assert (tmp_path / "results" / "end_frames.xyz").exists()
 
-    records = json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "status.json").read_text())["_default"]
     record = next(iter(records.values()))
     assert record["scheduler_job_id"] == "direct"
     assert record["attempt"] == 1
@@ -217,7 +217,7 @@ def test_submit_all_dry_run_scheduler_batches(tmp_path):
     result = submit_compute(plan)
 
     assert result.submitted_batches == ("w0/b0", "w0/b1")
-    records = json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
+    records = json.loads((tmp_path / "_meta" / "status.json").read_text())["_default"]
     assert len(records) == 2
     assert {record["group_number"] for record in records.values()} == {0, 1}
 
@@ -228,7 +228,7 @@ def test_submit_retries_an_attempt_zero_record(tmp_path):
     plan = prepare_compute(config, [_cu()], tmp_path)
     assert submit_compute(plan).submitted_batches == ("w0/b0",)
 
-    state_path = tmp_path / "_meta" / "scheduler.json"
+    state_path = tmp_path / "_meta" / "status.json"
     state = json.loads(state_path.read_text())
     record = next(iter(state["_default"].values()))
     record["attempt"] = 0
@@ -284,7 +284,7 @@ def test_prepare_renders_bounded_concurrent_task_loop(tmp_path):
 
     prepare_compute(config, structures, tmp_path)
 
-    script = next((tmp_path / "_meta" / "jobscripts").glob("run-*.script")).read_text()
+    script = next((tmp_path / "_meta" / "jobs").glob("*.sh")).read_text()
     assert "#SBATCH --ntasks=256" in script
     assert "#SBATCH --concurrent-tasks" not in script
     assert "task_count=8" in script
@@ -302,7 +302,7 @@ def test_saved_job_can_execute_one_selected_task(tmp_path):
     second = _cu()
     second.positions[0, 0] = 0.1
     prepare_compute(config, [_cu(), second], tmp_path)
-    uid = next(iter(json.loads((tmp_path / "_meta" / "inputs.json").read_text())["jobs"]))
+    uid = next(iter(json.loads((tmp_path / "_meta" / "manifest.json").read_text())["jobs"]))
 
     run_computation(["run"], None, job=uid, task=1, directory=tmp_path)
 
@@ -348,7 +348,7 @@ def test_spawned_cli_runs_batch_without_submitting_again(tmp_path):
         [str(inputs)], _emt_config(), batch=0, spawn=True, directory=tmp_path
     )
     assert (tmp_path / "traj.xyz").exists()
-    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
+    assert not json.loads((tmp_path / "_meta" / "status.json").read_text())["_default"]
 
 
 def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
@@ -361,18 +361,18 @@ def test_queued_plan_script_survives_staging_and_pbs_launch(tmp_path):
     staged = tmp_path / "staged with spaces"
     plan = prepare_compute(config, [_cu()], source)
     submit_compute(plan)
-    script = next((source / "_meta" / "jobscripts").glob("run-*.script"))
+    script = next((source / "_meta" / "jobs").glob("*.sh"))
     script.write_text(script.read_text().replace(
         "cd ", 'gdp() { pwd > launch-cwd; printf "%s\\n" "$@" > launch-args; }\ncd ', 1
     ))
     shutil.copytree(source, staged)
-    script = staged / "_meta" / "jobscripts" / script.name
+    script = staged / "_meta" / "jobs" / script.name
     subprocess.run(["bash", str(script)], cwd=tmp_path,
                    env=dict(os.environ, PBS_O_WORKDIR=str(script.parent)), check=True)
     assert (staged / "launch-cwd").read_text().strip() == str(staged)
     args = (staged / "launch-args").read_text().splitlines()
     assert args[:4] == ["--log=", "compute", "run", "--job"]
-    assert args[4] in json.loads((staged / "_meta" / "inputs.json").read_text())["jobs"]
+    assert args[4] in json.loads((staged / "_meta" / "manifest.json").read_text())["jobs"]
 
 
 def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
@@ -380,8 +380,8 @@ def test_shared_workdir_cache_is_retrievable_after_restart(tmp_path):
     config["dispatch"] = {"share_workdir": True}
     plan = prepare_compute(config, [_cu()], tmp_path)
     submit_compute(plan)
-    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["results"]
-    result_files = list((tmp_path / "_meta").glob("results-*.jsonl"))
+    assert not json.loads((tmp_path / "_meta" / "status.json").read_text())["results"]
+    result_files = list((tmp_path / "_meta").glob("jobs/*.jsonl"))
     assert len(result_files) == 1
     assert len(result_files[0].read_text().splitlines()) == 1
     assert inspect_compute(load_compute_plan(tmp_path)).state == "finished"
@@ -426,7 +426,7 @@ def test_modified_snapshot_and_plan_are_rejected_before_submission(tmp_path):
     path.write_text(encode(data))
     with pytest.raises(ValueError, match="fingerprint mismatch"):
         submit_compute(plan)
-    assert not json.loads((tmp_path / "_meta" / "scheduler.json").read_text())["_default"]
+    assert not json.loads((tmp_path / "_meta" / "status.json").read_text())["_default"]
 
 
 def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
@@ -440,10 +440,10 @@ def test_saved_job_cli_uses_staged_snapshot_without_resubmitting(tmp_path):
     staged = tmp_path / "staged"
     worker = create_worker(config, directory=source)
     worker.run([_cu()], rng_states=[876])
-    uid, saved = next(iter(decode((source / "_meta" / "inputs.json").read_text())["jobs"].items()))
+    uid, saved = next(iter(decode((source / "_meta" / "manifest.json").read_text())["jobs"].items()))
     assert saved["input"]["random_seeds"] == [876]
     shutil.copytree(source, staged)
-    records = staged / "_meta" / "scheduler.json"
+    records = staged / "_meta" / "status.json"
     before = records.read_bytes()
     run_computation(["run"], None, job=uid, directory=staged)
     assert records.read_bytes() == before

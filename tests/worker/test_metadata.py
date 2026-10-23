@@ -33,10 +33,10 @@ def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
     configs = [config(), config()]
     configs[1]["dispatch"]["retain_info"] = True  # Distinct worker policies.
     plan = prepare_compute(configs, [atom()], tmp_path)
-    inputs = tmp_path / "_meta" / "inputs.json"
-    state = tmp_path / "_meta" / "scheduler.json"
-    structures = tmp_path / "_meta" / f"structures-{plan.structure_digest}.json"
-    scripts = sorted((tmp_path / "_meta" / "jobscripts").iterdir())
+    inputs = tmp_path / "_meta" / "manifest.json"
+    state = tmp_path / "_meta" / "status.json"
+    structures = tmp_path / "_meta" / "structures.json"
+    scripts = sorted((tmp_path / "_meta" / "jobs").iterdir())
     assert len(scripts) == 2
     assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state, structures}
     before = inputs.read_bytes()
@@ -47,7 +47,7 @@ def test_multiple_workers_share_two_catalogs_and_prepared_scripts(tmp_path):
     submit_compute(plan)
     assert inspect_compute(plan).total == 2
     assert collect_compute(plan).number_of_trajectories == 2
-    assert sorted((tmp_path / "_meta" / "jobscripts").iterdir()) == scripts
+    assert sorted((tmp_path / "_meta" / "jobs").iterdir()) == scripts
     assert inputs.read_bytes() == before
     assert set(tmp_path.glob("**/_meta/*.json")) == {inputs, state, structures}
     assert submit_compute(load_compute_plan(tmp_path)).submitted_batches == ()
@@ -60,7 +60,7 @@ def test_structure_snapshots_are_stored_outside_inputs_catalog(tmp_path):
     worker = create_worker(params, directory=tmp_path)
     worker.run(frames)
 
-    inputs = tmp_path / "_meta" / "inputs.json"
+    inputs = tmp_path / "_meta" / "manifest.json"
     data = decode(inputs.read_text())
     digest = structure_digest(frames)
     relative = pathlib.PurePosixPath(data["structures"][digest]["file"])
@@ -79,7 +79,7 @@ def test_v2_inline_structure_catalog_remains_readable(tmp_path):
     digest = structure_digest([atoms])
     metadata = tmp_path / "_meta"
     metadata.mkdir()
-    (metadata / "inputs.json").write_text(encode(dict(
+    (metadata / "manifest.json").write_text(encode(dict(
         format="gdpx-inputs",
         version=2,
         structures={digest: [atoms]},
@@ -116,10 +116,10 @@ def test_shared_results_preserve_calculator_data(tmp_path):
     assert all(np.isfinite(frame.get_potential_energy()) for frame in frames)
     assert all(frame.get_forces().shape == (1, 3) for frame in frames)
     metadata_files = {p.name for p in (tmp_path / "_meta").glob("*.json")}
-    assert {"inputs.json", "scheduler.json"}.issubset(metadata_files)
+    assert {"manifest.json", "status.json"}.issubset(metadata_files)
     assert len(metadata_files) == 3
-    assert len([name for name in metadata_files if name.startswith("structures-")]) == 1
-    result_files = list((tmp_path / "_meta").glob("results-*.jsonl"))
+    assert len([name for name in metadata_files if name == "structures.json"]) == 1
+    result_files = list((tmp_path / "_meta").glob("jobs/*.jsonl"))
     assert len(result_files) == 1
     assert len(result_files[0].read_text().splitlines()) == 2
     assert worker.metadata.state.read()["results"] == {}
@@ -193,7 +193,7 @@ def _update_catalog(path, worker):
 
 
 def test_concurrent_updates_do_not_lose_records(tmp_path):
-    path = tmp_path / "scheduler.json"
+    path = tmp_path / "status.json"
     context = multiprocessing.get_context("spawn")
     processes = [context.Process(target=_update_catalog, args=(path, index)) for index in range(4)]
     for process in processes:
@@ -212,7 +212,7 @@ def test_previous_layout_requires_fresh_folder(tmp_path, mode, layout):
     if layout == "legacy":
         (metadata / "_scheduler.json").write_text('{"_default": {}}')
     else:
-        (metadata / "inputs.json").write_text(encode(dict(
+        (metadata / "manifest.json").write_text(encode(dict(
             format="gdpx-inputs", version=1, structures={}, workers={}, jobs={})))
     before = {p.name: p.read_bytes() for p in metadata.iterdir()}
     with pytest.raises(ValueError, match="new working directory"):
@@ -231,11 +231,11 @@ def test_corrupt_compact_catalog_does_not_fall_back_to_legacy(tmp_path):
     worker.run([atom()])
     metadata = tmp_path / "_meta"
     (metadata / "_scheduler.json").write_text('{"_default": {}}')
-    (metadata / "inputs.json").write_text('{"version": 999}')
-    before = (metadata / "scheduler.json").read_bytes()
+    (metadata / "manifest.json").write_text('{"version": 999}')
+    before = (metadata / "status.json").read_bytes()
     with pytest.raises(ValueError, match="Invalid inputs catalog"):
         create_worker(params, directory=tmp_path).run([atom()])
-    assert (metadata / "scheduler.json").read_bytes() == before
+    assert (metadata / "status.json").read_bytes() == before
 
 
 def test_remote_result_merge_protects_parent_and_sibling_jobs(tmp_path):
@@ -307,12 +307,12 @@ def test_multiworker_staged_job_executes_only_its_worker(tmp_path):
     uid = next(uid for uid, saved in data["jobs"].items() if saved["worker"] == "w1")
     shutil.copytree(source, staged)
     # Match actual SSH staging: the controller state and lock are not uploaded.
-    (staged / "_meta" / "scheduler.json").unlink()
+    (staged / "_meta" / "status.json").unlink()
     (staged / "_meta" / ".metadata.lock").unlink()
     run_computation(["run"], None, directory=staged, job=uid)
-    assert (staged / "w1" / "cand0").exists()
-    assert not (staged / "w0" / "cand0").exists()
-    assert not (source / "w1" / "cand0").exists()
+    assert (staged / "w1" / "traj.xyz").exists()
+    assert not (staged / "w0" / "traj.xyz").exists()
+    assert not (source / "w1" / "traj.xyz").exists()
 
 
 def test_legacy_manifest_argument_requires_fresh_folder(tmp_path):
@@ -477,6 +477,48 @@ def test_compute_plan_cannot_adopt_existing_child_worker(tmp_path):
     params = config("slurm")
     create_worker(params, directory=tmp_path / "w0").run([atom()])
     before = files_under(tmp_path)
+    other = config('slurm')
+    other['dispatch']['retain_info'] = True
     with pytest.raises(ValueError, match="separate metadata"):
-        prepare_compute([params, params], [atom()], tmp_path)
+        prepare_compute([params, other], [atom()], tmp_path)
     assert files_under(tmp_path) == before
+
+
+def test_four_structures_two_jobs_have_readable_metadata_names(tmp_path):
+    params = config('slurm')
+    params['dispatch']['batch_size'] = 2
+    plan = prepare_compute(params, [atom(i) for i in range(4)], tmp_path)
+    metadata = WorkerMetadata(tmp_path)
+    jobs = metadata.inputs.read()['jobs']
+    assert len(jobs) == 2
+    assert plan.structure_file == '_meta/structures.json'
+    assert {path.name for path in metadata.directory.iterdir()} == {
+        'manifest.json', 'structures.json', 'status.json', 'jobs', '.metadata.lock'}
+    assert {path.name for path in (metadata.directory / 'jobs').iterdir()} == {
+        f'{uid}.sh' for uid in jobs}
+
+
+def test_existing_metadata_names_resume_without_renaming(tmp_path):
+    from ase.io.jsonio import encode
+
+    params = config('slurm')
+    plan = prepare_compute(params, [atom()], tmp_path)
+    metadata = WorkerMetadata(tmp_path)
+    data = metadata.inputs.read()
+    old_structures = f'structures-{plan.structure_digest}.json'
+    data['structures'][plan.structure_digest]['file'] = old_structures
+    data['plan']['structure_file'] = f'_meta/{old_structures}'
+    (metadata.directory / 'inputs.json').write_text(encode(data))
+    metadata.inputs.path.unlink()
+    metadata.state.path.rename(metadata.directory / 'scheduler.json')
+    (metadata.directory / 'structures.json').rename(metadata.directory / old_structures)
+    (metadata.directory / 'jobs').rename(metadata.directory / 'jobscripts')
+    for path in (metadata.directory / 'jobscripts').glob('*.sh'):
+        path.rename(path.with_name(f'run-{path.stem}.script'))
+    resumed = prepare_compute(params, [atom()], tmp_path)
+    assert resumed.path.name == 'inputs.json'
+    submit_compute(resumed)
+    assert len(WorkerMetadata(tmp_path).state.read()['_default']) == 1
+    assert not (metadata.directory / 'manifest.json').exists()
+    assert not (metadata.directory / 'status.json').exists()
+    assert not (metadata.directory / 'jobs').exists()

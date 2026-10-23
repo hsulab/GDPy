@@ -111,8 +111,9 @@ class WorkerMetadata:
         self.root = pathlib.Path(root)
         self.worker = worker
         self.directory = self.root / "_meta"
-        self.inputs = Catalog(self.directory / "inputs.json", "inputs")
-        self.state = Catalog(self.directory / "scheduler.json", "scheduler")
+        self.legacy_names = not (self.directory / 'manifest.json').exists() and (self.directory / 'inputs.json').exists()
+        self.inputs = Catalog(self.directory / ('inputs.json' if self.legacy_names else 'manifest.json'), "inputs")
+        self.state = Catalog(self.directory / ('scheduler.json' if self.legacy_names else 'status.json'), "scheduler")
 
     @property
     def compact(self):
@@ -122,7 +123,7 @@ class WorkerMetadata:
             self.inputs.read()
             self.state.read()
             if not self.inputs.path.exists():
-                raise ValueError("Missing inputs.json for compact driver metadata.")
+                raise ValueError("Missing manifest.json for compact driver metadata.")
             return True
         legacy = ("_scheduler.json", "compute-plan.json", "task_plan.json")
         if (any((self.directory / name).exists() for name in legacy)
@@ -157,18 +158,19 @@ class WorkerMetadata:
 
     @staticmethod
     def structure_relative_path(digest):
-        return pathlib.PurePosixPath(f"structures-{digest}.json")
+        return pathlib.PurePosixPath("structures.json")
 
     def structure_path(self, digest):
-        relative = self.structure_relative_path(digest)
+        relative = (f'structures-{digest}.json' if self.legacy_names else self.structure_relative_path(digest))
+        relative = pathlib.PurePosixPath(relative)
         return self.directory.joinpath(*relative.parts)
 
     @staticmethod
     def result_relative_path(uid):
-        return pathlib.PurePosixPath(f"results-{uid}.jsonl")
+        return pathlib.PurePosixPath(f"jobs/{uid}.jsonl")
 
     def result_path(self, uid):
-        relative = self.result_relative_path(uid)
+        relative = pathlib.PurePosixPath(f'results-{uid}.jsonl') if self.legacy_names else self.result_relative_path(uid)
         return self.directory.joinpath(*relative.parts)
 
     def freeze_calculations(self, requests, *, complete=False, plan=None):
@@ -450,6 +452,7 @@ class WorkerMetadata:
             raise ValueError("Result serialization changed its workdir.")
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.result_path(uid)
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.directory / ".metadata.lock", "a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:

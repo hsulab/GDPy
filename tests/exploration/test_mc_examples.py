@@ -21,7 +21,7 @@ def test_emt_mc_example_runs_with_scheduler_metadata(tmp_path, monkeypatch, name
     source = {"canonical": "cu32", "semi-grand-canonical": "cu16ni16", "grand-canonical": "aucu8"}[name]
     inputs = [str(EXAMPLES / "assets" / f"{source}.xyz")]
     run_computation(inputs, recipe, directory=tmp_path)
-    assert (tmp_path / "_meta" / "inputs.json").is_file()
+    assert (tmp_path / "_meta" / "manifest.json").is_file()
     chain = tmp_path
     frames = read(chain / "mc.xyz", ":")
     assert len(frames) == 3

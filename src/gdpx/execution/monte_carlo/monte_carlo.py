@@ -643,7 +643,7 @@ class MonteCarlo(SingleStructureExecutor):
             or path.match("run.script-*")
             for path in metadata.iterdir()
         )
-        compact_metadata = (metadata / "inputs.json").is_file()
+        compact_metadata = any((metadata / name).is_file() for name in ('manifest.json', 'inputs.json'))
         if compact_metadata:
             WorkerMetadata(self.directory).compact
         if ((metadata.exists() and not scheduler_metadata and not compact_metadata) or (self.directory / "_data").exists()
@@ -669,7 +669,7 @@ class MonteCarlo(SingleStructureExecutor):
 
         self._validate_calculation_layout()
         workers = []
-        for path in sorted((self.directory / "steps").glob("**/_meta/inputs.json")):
+        for path in sorted((self.directory / "steps").glob("**/_meta/manifest.json")):
             directory = path.parent.parent
             metadata = WorkerMetadata(directory)
             definition = metadata.calculation_set(metadata.inputs.read(), ".")

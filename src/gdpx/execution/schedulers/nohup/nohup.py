@@ -51,7 +51,7 @@ class NohupScheduler(BaseScheduler):
         job_id = "nohup-" + str(uuid.uuid4())
         script = self.script.resolve()
         directory = script.parent
-        if directory.name == "jobscripts" and directory.parent.name == "_meta":
+        if directory.name in {"jobs", "jobscripts"} and directory.parent.name == "_meta":
             directory = directory.parent.parent
         elif directory.name == "_meta":
             directory = directory.parent

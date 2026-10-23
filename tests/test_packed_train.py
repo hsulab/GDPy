@@ -41,8 +41,8 @@ def test_packed_grouping_and_lifecycle(tmp_path):
     worker.run(Dataset(), size=5)
     assert len(submitted) == 2
     assert [r.wdir_names for r in worker.job_store.get_queued()] == [["m0", "m1", "m2", "m3"], ["m4"]]
-    assert worker.job_store.path == tmp_path / "_meta/scheduler.json"
-    assert submitted[0].parent == tmp_path / "_meta/jobscripts"
+    assert worker.job_store.path == tmp_path / "_meta/status.json"
+    assert submitted[0].parent == tmp_path / "_meta/jobs"
     assert not (tmp_path / "_slurm_jobs.json").exists()
     assert not (tmp_path / "m0/train.script").exists()
     worker.scheduler.is_finished = lambda: True
@@ -100,7 +100,7 @@ def test_prepare_then_submit_uses_same_layout(tmp_path, concurrent):
     worker._submit = False
     worker.run(Dataset(), size=4)
     assert not submitted
-    assert len(list((tmp_path / "_meta/jobscripts").glob("*.script"))) == 4 // concurrent
+    assert len(list((tmp_path / "_meta/jobs").glob("*.sh"))) == 4 // concurrent
     worker._submit = True
     worker.scheduler.is_finished = lambda: True
     worker.inspect(resubmit=True)

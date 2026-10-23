@@ -26,7 +26,7 @@ def test_batches_basic_calculations_instead_of_chains(tmp_path, method, basic):
     plan = prepare_compute(config, [copper(), copper(), copper()], tmp_path)
     assert len(plan.workers[0].batches) == 1  # One coordinator, not one scheduler job.
     assert orchestrate_compute(plan).state == 'finished'
-    ledger = load_data(tmp_path / '_requests/requests.json')
+    ledger = load_data(tmp_path / '_requests/index.json')
     assert {row['id'] for row in ledger['requests'].values()} == {
         f'{index:06d}' for index in range(1, len(ledger['requests']) + 1)}
     assert set(ledger['batches']) == {
@@ -50,11 +50,13 @@ def test_batches_basic_calculations_instead_of_chains(tmp_path, method, basic):
     assert not list((tmp_path / '_requests/batches').glob('*/cand*'))
     assert len(list((tmp_path / '_requests/runtimes').glob('*.json'))) == len(
         {row['runtime'] for row in ledger['requests'].values()})
+    assert {path.name for path in (tmp_path / '_requests/runtimes').glob('*.json')} == {
+        f'{index:06d}.json' for index in range(1, len(ledger['runtimes']) + 1)}
     assert all('ready' not in row for row in ledger['requests'].values())
     assert all('complete' not in batch for batch in ledger['batches'].values())
     assert not list((tmp_path / '_requests').rglob('completed-evaluations.json'))
-    assert not list((tmp_path / '_requests/batches').rglob('structures-*.json'))
-    for path in (tmp_path / '_requests/batches').glob('*/_meta/inputs.json'):
+    assert not list((tmp_path / '_requests/batches').rglob('structures.json'))
+    for path in (tmp_path / '_requests/batches').glob('*/_meta/manifest.json'):
         catalog = json.loads(path.read_text())
         for job in catalog['jobs'].values():
             assert job['input']['runtime'] == {'runtime_ref': catalog['evaluation_sources']['runtime']['digest']}
@@ -93,9 +95,9 @@ def test_ready_chains_advance_while_other_batches_wait_and_resume(tmp_path, monk
     assert orchestrate_compute(plan).state == 'running'
     assert not (root / 'cand0/current.json').exists()
     assert len(read(root / 'cand2/mc.xyz', ':')) == 3
-    before = copy.deepcopy(load_data(root / '_requests/requests.json'))
+    before = copy.deepcopy(load_data(root / '_requests/index.json'))
     resubmit_compute(plan)
-    assert load_data(root / '_requests/requests.json') == before
+    assert load_data(root / '_requests/index.json') == before
     assert len(submissions) == len(set(submissions))
     pending = list(callbacks.values())
     callbacks.clear()
@@ -121,13 +123,13 @@ def test_parent_scheduler_is_inherited_by_basic_requests(tmp_path):
     config['dispatch'] = {'batch_size': 2}
     plan = prepare_compute(config, [copper(), copper()], tmp_path)
     assert orchestrate_compute(plan).state == 'running'
-    ledger = load_data(tmp_path / '_requests/requests.json')
+    ledger = load_data(tmp_path / '_requests/index.json')
     assert len(ledger['batches']) == 1
     row = next(iter(ledger['requests'].values()))
     runtime = load_data(tmp_path / '_requests/runtimes' / f"{row['runtime']}.json")
     assert runtime['executor']['method'] == 'spc'
     assert runtime['scheduler']['provider'] == 'slurm'
-    scripts = list((tmp_path / '_requests/batches').glob('*/_meta/jobscripts/*.script'))
+    scripts = list((tmp_path / '_requests/batches').glob('*/_meta/jobs/*.sh'))
     assert len(scripts) == 1
     assert 'concurrent_tasks=2' in scripts[0].read_text()
 
@@ -153,7 +155,7 @@ def test_assignment_survives_interruption_before_submission(tmp_path, monkeypatc
         patch.setattr(DriverBasedWorker, 'run', interrupt_once)
         with pytest.raises(KeyboardInterrupt):
             orchestrate_compute(plan)
-    before = load_data(tmp_path / '_requests/requests.json')
+    before = load_data(tmp_path / '_requests/index.json')
     assert len(before['batches']) == 1
     assert all(row['batch'] is not None for row in before['requests'].values())
     decisions = []
@@ -165,7 +167,7 @@ def test_assignment_survives_interruption_before_submission(tmp_path, monkeypatc
 
     monkeypatch.setattr(AcceptanceRule, 'accept', record_accept)
     assert orchestrate_compute(plan).state == 'finished'
-    after = load_data(tmp_path / '_requests/requests.json')
+    after = load_data(tmp_path / '_requests/index.json')
     assert set(before['batches']) <= set(after['batches'])
     assert len(decisions) == 2
     assert orchestrate_compute(plan).state == 'finished'

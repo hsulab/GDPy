@@ -76,12 +76,12 @@ def test_batch_upload_and_fetch_are_isolated(tmp_path, monkeypatch):
     staged = sftp.path(remote_root)
     assert {p.name for p in staged.glob("cand*")} == {"cand2", "cand3"}
     assert (staged / "cand2/restart.txt").read_text() == "restart 2"
-    assert (staged / "_meta/inputs.json").exists()
-    assert len(list((staged / "_meta").glob("structures-*.json"))) == 1
-    assert {p.name for p in (staged / "_meta/jobscripts").iterdir()} == {
-        f"run-{job.uid}.script",
+    assert (staged / "_meta/manifest.json").exists()
+    assert len(list((staged / "_meta").glob("structures.json"))) == 1
+    assert {p.name for p in (staged / "_meta/jobs").iterdir()} == {
+        f"{job.uid}.sh",
     }
-    assert not (staged / "_meta/scheduler.json").exists()
+    assert not (staged / "_meta/status.json").exists()
 
     # An older, polluted remote folder must not overwrite another batch's results.
     (staged / "cand0").mkdir()
@@ -89,8 +89,8 @@ def test_batch_upload_and_fetch_are_isolated(tmp_path, monkeypatch):
     (staged / "cand2/new-output.txt").write_text("new result")
     (local / "cand2/obsolete.txt").write_text("obsolete")
     journal = worker.metadata.result_path(job.uid)
-    (staged / "_meta" / journal.name).write_text("job-owned journal")
-    (staged / "_meta/jobscripts/slurm-123.out").write_text("current job log")
+    (staged / "_meta/jobs" / journal.name).write_text("job-owned journal")
+    (staged / "_meta/jobs/slurm-123.out").write_text("current job log")
 
     class Client:
         def open_sftp(self):
@@ -106,15 +106,15 @@ def test_batch_upload_and_fetch_are_isolated(tmp_path, monkeypatch):
     assert (local / "cand2/new-output.txt").read_text() == "new result"
     assert not (local / "cand2/obsolete.txt").exists()
     assert journal.read_text() == "job-owned journal"
-    assert (local / "_meta/jobscripts/slurm-123.out").read_text() == "current job log"
+    assert (local / "_meta/jobs/slurm-123.out").read_text() == "current job log"
 
     # A resubmission stages the current journal, but never the sibling journal.
     sibling = worker.metadata.result_path(jobs[0].uid)
     sibling.write_text("other batch journal")
     transport._transfer(sftp, local_root, remote_root)
     assert (staged / "cand0/restart.txt").read_text() == "stale unrelated output"
-    assert (staged / "_meta" / journal.name).exists()
-    assert not (staged / "_meta" / sibling.name).exists()
+    assert (staged / "_meta/jobs" / journal.name).exists()
+    assert not (staged / "_meta/jobs" / sibling.name).exists()
 
 
 def test_single_input_root_transfer_preserves_controller_metadata(tmp_path, monkeypatch):
@@ -141,15 +141,15 @@ def test_single_input_root_transfer_preserves_controller_metadata(tmp_path, monk
     worker._prepare_scheduler_for_job(job)
     _, remote_root, _ = transport._roots()
     staged = sftp.path(remote_root)
-    assert (staged / '_meta/inputs.json').exists()
-    assert not (staged / '_meta/scheduler.json').exists()
-    before = (local / '_meta/scheduler.json').read_bytes()
-    (staged / '_meta/scheduler.json').write_text('remote state must not replace controller')
+    assert (staged / '_meta/manifest.json').exists()
+    assert not (staged / '_meta/status.json').exists()
+    before = (local / '_meta/status.json').read_bytes()
+    (staged / '_meta/status.json').write_text('remote state must not replace controller')
     (staged / 'traj.xyz').write_text('new trajectory')
     (local / 'obsolete.log').write_text('old output')
     (local / 'gdp.out').write_text('controller log')
     journal = worker.metadata.result_path(job.uid)
-    (staged / '_meta' / journal.name).write_text('job-owned journal')
+    (staged / '_meta/jobs' / journal.name).write_text('job-owned journal')
 
     class Client:
         def open_sftp(self):
@@ -162,7 +162,7 @@ def test_single_input_root_transfer_preserves_controller_metadata(tmp_path, monk
     transport.sync(job.wdir_names)
     assert (local / 'traj.xyz').read_text() == 'new trajectory'
     assert not (local / 'obsolete.log').exists()
-    assert (local / '_meta/scheduler.json').read_bytes() == before
+    assert (local / '_meta/status.json').read_bytes() == before
     assert (local / 'gdp.out').read_text() == 'controller log'
     assert journal.read_text() == 'job-owned journal'
 
@@ -237,7 +237,7 @@ def test_evaluation_batch_stages_shared_sources(tmp_path, monkeypatch):
         batch_root = staged / worker.directory.relative_to(local)
         assert len(list((staged / '_requests/runtimes').glob('*.json'))) == 1
         assert len(list((staged / '_requests/requests').glob('*/input.json'))) == 2
-        assert not list(batch_root.rglob('structures-*.json'))
+        assert not list(batch_root.rglob('structures.json'))
         run_computation(['run'], None, job=job.uid, directory=batch_root)
         for index in range(2):
             assert (staged / f'cand{index}/steps/step.0000/traj.xyz').is_file()
