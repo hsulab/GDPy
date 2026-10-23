@@ -82,6 +82,14 @@ class EvaluationBroker:
     def key(self, directory):
         return str(Path(directory).resolve().relative_to(self.root))
 
+    def next_id(self, kind):
+        """Allocate within each namespace without reusing persisted or orphan IDs."""
+        identifiers = (self.state['batches'] if kind == 'batches' else
+                       [row['id'] for row in self.state['requests'].values()])
+        names = set(identifiers) | {path.name for path in (self.directory / kind).glob('*')}
+        sequence = max((int(name) for name in names if name.isdecimal()), default=0) + 1
+        return f'{sequence:06d}'
+
     def bind(self, runtime):
         config = runtime.config.to_dict()
         config['dispatch'] = dict(worker='batch', batch_size=self.batch_size, share_workdir=False, retain_info=False)
@@ -103,7 +111,7 @@ class EvaluationBroker:
             if existing['signature'] != signature:
                 raise ValueError(f'Sampling evaluation request changed: {key}. Start a new run.')
             return
-        identifier = payload_digest(key)
+        identifier = self.next_id('requests')
         path = self.directory / 'requests' / identifier
         path.mkdir(parents=True, exist_ok=True)
         save_structure(path / 'input.json', atoms)
@@ -136,7 +144,7 @@ class EvaluationBroker:
         for keys in grouped.values():
             for offset in range(0, len(keys), self.batch_size):
                 members = keys[offset:offset + self.batch_size]
-                identifier = payload_digest(members)
+                identifier = self.next_id('batches')
                 self.state['batches'][identifier] = dict(members=members)
                 for key in members:
                     self.state['requests'][key]['batch'] = identifier

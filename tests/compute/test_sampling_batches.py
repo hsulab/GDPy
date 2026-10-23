@@ -27,6 +27,10 @@ def test_batches_basic_calculations_instead_of_chains(tmp_path, method, basic):
     assert len(plan.workers[0].batches) == 1  # One coordinator, not one scheduler job.
     assert orchestrate_compute(plan).state == 'finished'
     ledger = load_data(tmp_path / '_requests/requests.json')
+    assert {row['id'] for row in ledger['requests'].values()} == {
+        f'{index:06d}' for index in range(1, len(ledger['requests']) + 1)}
+    assert set(ledger['batches']) == {
+        f'{index:06d}' for index in range(1, len(ledger['batches']) + 1)}
     assert all((tmp_path / '_requests/requests' / row['id'] / 'result.json').is_file()
                for row in ledger['requests'].values())
     methods = {load_data(tmp_path / '_requests/runtimes' / f"{row['runtime']}.json")['executor']['method']
@@ -291,3 +295,31 @@ def test_saved_evaluation_rejects_modified_shared_sources(tmp_path, source):
         with pytest.raises(ValueError, match='fingerprint mismatch'):
             worker.run_saved_job(job.uid)
         assert not (tmp_path / 'steps/step.0000/traj.xyz').exists()
+
+
+def test_numbered_ids_survive_reload_and_skip_orphan_directories(tmp_path):
+    from gdpx.execution import resolve_runtime
+    from gdpx.execution.sampling_requests import coordinator
+
+    runtime = resolve_runtime({'potential': {'provider': 'emt'},
+                               'executor': {'provider': 'ase', 'method': 'spc'}})
+    with coordinator(tmp_path, batch_size=2) as broker:
+        broker.request(runtime, copper(), tmp_path / 'steps/first', seed=17)
+        broker.request(runtime, copper(), tmp_path / 'steps/second', seed=18)
+        assert broker.dispatch()
+        saved = copy.deepcopy(broker.state)
+        assert [row['id'] for row in saved['requests'].values()] == ['000001', '000002']
+        assert list(saved['batches']) == ['000001']
+    # These unpublished directories simulate an interrupted allocation.
+    (tmp_path / '_requests/requests/000003').mkdir()
+    (tmp_path / '_requests/batches/000002').mkdir()
+    with coordinator(tmp_path, batch_size=2) as broker:
+        broker.request(runtime, copper(), tmp_path / 'steps/second', seed=18)
+        broker.request(runtime, copper(), tmp_path / 'steps/first', seed=17)
+        assert broker.state == saved
+        broker.request(runtime, copper(), tmp_path / 'steps/third', seed=19)
+        assert broker.dispatch()
+        row = broker.state['requests']['steps/third']
+        assert row['id'] == '000004'
+        assert row['batch'] == '000003'
+        assert all(broker.state['requests'][key] == value for key, value in saved['requests'].items())
