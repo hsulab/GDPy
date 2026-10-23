@@ -4,14 +4,14 @@ system:
   initial:
     total_size: 4
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 4
   generation:
     total_size: 2
   comparator:
     method: interatomic_distance
   builders:
-    random:
+    init:
       method: random_structure_improved
       composition:
         Cu: 4

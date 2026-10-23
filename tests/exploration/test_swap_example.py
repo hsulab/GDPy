@@ -21,7 +21,7 @@ def test_cu7ni6_example_generates_tagged_clusters_and_swaps_species():
     config.pop("scheduler", None)
     engine = create_exploration(config)[0]
 
-    candidates = engine.builders["random"].run(size=4)
+    candidates = engine.builders["init"].run(size=4)
     for atoms in candidates:
         assert atoms.get_chemical_formula() == "Cu7Ni6"
         assert np.array_equal(np.sort(atoms.get_tags()), np.arange(1, 14))

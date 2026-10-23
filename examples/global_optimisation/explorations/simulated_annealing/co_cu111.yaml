@@ -7,7 +7,7 @@ system:
   comparator:
     method: interatomic_distance
   builders:
-    random:
+    init:
       method: random_structure_improved
       substrates: ../../assets/cu111_p2x2_3layer_sa.xyz
       composition:
@@ -34,7 +34,7 @@ system:
   initial:
     total_size: 4
     builder_allocations:
-    - builder: random
+    - builder: init
       size: 4
   generation:
     total_size: 4

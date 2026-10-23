@@ -4,7 +4,7 @@ system:
   comparator:
     method: interatomic_distance
   builders:
-    random:
+    init:
       method: random_structure_improved
       substrates: ../../assets/alpha_alumina111_ortho.xyz
       composition:
@@ -29,7 +29,7 @@ system:
   initial:
     total_size: 8
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 4
       - builder: site_insertion
         size: 4
@@ -51,5 +51,5 @@ strategy:
     size: 0
   completion:
     builder_proportions:
-      - builder: random
+      - builder: init
         proportion: 1.0

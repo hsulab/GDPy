@@ -466,9 +466,9 @@ def test_promoted_bh_runs_a_population_generation_with_emt(tmp_path):
             'system': {
                 'periodic': False,
                 'retained_size': 1,
-                'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'random', 'size': 1}]},
+                'initial': {'total_size': 1, 'builder_allocations': [{'builder': 'init', 'size': 1}]},
                 'generation': {'total_size': 3},
-                'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
+                'builders': {'init': {'method': 'read_stru', 'fname': str(source)}},
             },
             'random_seed': 7,
             'strategy': {

@@ -4,7 +4,7 @@ system:
   comparator:
     method: interatomic_distance
   builders:
-    random:
+    init:
       method: random_structure_improved
       composition:
         H2O: 4
@@ -18,7 +18,7 @@ system:
   initial:
     total_size: 4
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 4
   generation:
     total_size: 2
@@ -38,5 +38,5 @@ strategy:
     size: 0
   completion:
     builder_proportions:
-      - builder: random
+      - builder: init
         proportion: 1.0

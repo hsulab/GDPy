@@ -21,9 +21,9 @@ from gdpx.exploration.persist.database import GlobalOptimisationDatabase
 def settings(initial=2, retained=3, generation=4):
     return {
         "retained_size": retained, "periodic": False, "preserve_fragments": False,
-        "builders": {"random": {"method": "random_structure_improved", "composition": {"Cu": 2},
+        "builders": {"init": {"method": "random_structure_improved", "composition": {"Cu": 2},
                                 "box": [10., 10., 10.]}},
-        "initial": {"total_size": initial, "builder_allocations": [{"builder": "random", "size": initial}]},
+        "initial": {"total_size": initial, "builder_allocations": [{"builder": "init", "size": initial}]},
         "generation": {"total_size": generation}, "comparator": {"method": "atoms"},
     }
 
@@ -112,7 +112,7 @@ def test_empty_singleton_equal_scores_and_bh_exact_chain_count():
 
 def test_ga_retained_capacity_and_variable_selection():
     params = settings(initial=1, retained=4, generation=2)
-    strategy = {"method": "genetic_algorithm", "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.}]}}
+    strategy = {"method": "genetic_algorithm", "completion": {"builder_proportions": [{"builder": "init", "proportion": 1.}]}}
     config = PopulationConfig(params)
     population = Population(config.retained_size, create_population_comparator({"method": "atoms"}))
     rng = np.random.default_rng(9)
@@ -317,7 +317,7 @@ def test_ga_incompatible_pairs_fall_back_to_independent_single_parent():
     params = settings(initial=2, retained=2, generation=1)
     strategy = dict(method="genetic_algorithm", **{
         "reproduction": {"size": 1},
-        "completion": {"builder_proportions": [{"builder": "random", "proportion": 1.}]},
+        "completion": {"builder_proportions": [{"builder": "init", "proportion": 1.}]},
     })
     config = PopulationConfig(params)
     frames = [candidate(1), candidate(2, symbol="Ag")]

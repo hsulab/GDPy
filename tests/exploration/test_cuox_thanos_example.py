@@ -31,7 +31,7 @@ def test_demo_thanos_checks_oo_even_with_shared_tags():
     extinct = dispatch_thanos(**thanos)
     assert extinct(cluster()) == 0
     assert extinct(cluster(oo=True)) == 1
-    assert config['system']['builders']['random']['method'] == 'random_structure_improved'
+    assert config['system']['builders']['init']['method'] == 'random_structure_improved'
 
 
 @pytest.mark.parametrize('accepted,extinct,continued,success', [

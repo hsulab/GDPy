@@ -89,7 +89,7 @@ def test_real_composition_example_serializes_resolved_recipes():
         exploration.register_worker(create_worker(copy.deepcopy(runtime)))
         saved = exploration.as_dict()
         assert 'broadcast' not in saved
-        assert saved['system']['builders']['random']['composition'] == composition
+        assert saved['system']['builders']['init']['composition'] == composition
         saved.pop('runtime')
         restored = create_exploration(saved)
         assert not isinstance(restored, list)

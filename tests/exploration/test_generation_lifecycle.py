@@ -74,9 +74,9 @@ def bh_config(tmp_path, initial=2, generations=0):
         'system': {
             'periodic': False,
             'retained_size': 1,
-            'initial': {'total_size': initial, 'builder_allocations': [{'builder': 'random', 'size': initial}]},
+            'initial': {'total_size': initial, 'builder_allocations': [{'builder': 'init', 'size': initial}]},
             'generation': {'total_size': 2},
-            'builders': {'random': {'method': 'read_stru', 'fname': str(source)}},
+            'builders': {'init': {'method': 'read_stru', 'fname': str(source)}},
         },
         'random_seed': 7,
         'strategy': {
@@ -112,7 +112,7 @@ def test_bh_pending_batch_does_not_regenerate_inputs(tmp_path, monkeypatch):
     assert db.get_generation_info().state is GenerationState.MID_OF_GEN
     assert db.get_generation_number() == 0
     resumed = make_engine(config, runtime, engine.directory)
-    monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
+    monkeypatch.setattr(resumed.builders["init"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
     def execute(candidates, *args, **kwargs):
         assert [a.info["confid"] for a in candidates] == submitted
         return original_execute(candidates, *args, **kwargs)
@@ -152,7 +152,7 @@ def test_partial_ingestion_restarts_without_duplicates(tmp_path, monkeypatch, me
         assert (engine.directory / "candidates.log").read_text().count(" - INFO: ") == 1
         assert (engine.directory / "tmp_folder/gen0/history.log").exists()
     resumed = make_engine(config, runtime, engine.directory)
-    monkeypatch.setattr(resumed.builders["random"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
+    monkeypatch.setattr(resumed.builders["init"], "run", lambda **kwargs: pytest.fail("regenerated inputs"))
     resumed.run()
     assert db.connection.count(relaxed=1) == engine.population_config.init_size
     if method == "bh":

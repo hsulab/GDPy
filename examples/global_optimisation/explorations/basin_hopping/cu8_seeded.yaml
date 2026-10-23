@@ -3,7 +3,7 @@ random_seed: 7
 system:
   retained_size: 4
   builders:
-    random:
+    init:
       method: random_structure_improved
       composition: {Cu: 8}
       box: [20.0, 20.0, 20.0]
@@ -19,7 +19,7 @@ system:
   initial:
     total_size: 4
     builder_allocations:
-      - builder: random
+      - builder: init
         size: 2
       - builder: seeds
         size: 2

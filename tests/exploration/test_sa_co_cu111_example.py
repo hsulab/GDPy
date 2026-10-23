@@ -31,7 +31,7 @@ def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
     engine.directory = tmp_path
     frames = engine.population_config._prepare_initial_population(engine.builders)
     assert len(frames) == 4
-    substrate = read(config["system"]["builders"]["random"]["substrates"])
+    substrate = read(config["system"]["builders"]["init"]["substrates"])
     original = read(ROOT / "examples/global_optimisation/assets/cu111_p2x2_3layer.xyz")
     np.testing.assert_allclose(substrate.positions, original.positions)
     np.testing.assert_allclose(substrate.cell, original.cell)

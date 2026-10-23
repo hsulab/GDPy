@@ -95,11 +95,11 @@ class PopulationConfig:
             raise ValueError("Global-optimisation system requires a non-empty 'builders' mapping.")
         if not all(isinstance(name, str) and name for name in configs):
             raise ValueError("Population builder names must be non-empty strings.")
-        reference = params.get("reference_builder", "random")
+        reference = params.get("reference_builder", "init")
         if not isinstance(reference, str) or reference not in configs:
             raise ValueError(
             "system.reference_builder must name one of system.builders; "
-                "GDPy defaults reference_builder to 'random'."
+                "GDPy defaults reference_builder to 'init'."
             )
         self.reference_builder_name = reference
         self.builders = {}

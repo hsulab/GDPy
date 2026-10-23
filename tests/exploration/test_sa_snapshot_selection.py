@@ -19,8 +19,8 @@ def search(tmp_path):
                                       cell=[10]*3, pbc=True))
     recipe = dict(method="global_optimisation", random_seed=7, system=dict(
         periodic=True, preserve_fragments=False, retained_size=1,
-        builders={"random": {"method": "read_stru", "fname": str(tmp_path / "seed.xyz")}},
-        initial={"total_size": 1, "builder_allocations": [{"builder": "random", "size": 1}]},
+        builders={"init": {"method": "read_stru", "fname": str(tmp_path / "seed.xyz")}},
+        initial={"total_size": 1, "builder_allocations": [{"builder": "init", "size": 1}]},
         generation={"total_size": 2}), strategy=dict(
         method="simulated_annealing", temperatures=[[600, 300]], minimisation={
             "executor": {"provider": "ase", "method": "min", "parameters": {

@@ -7,12 +7,12 @@ system:
   initial:
     total_size: 2
     builder_allocations:
-    - builder: random
+    - builder: init
       size: 2
   generation:
     total_size: 4
   builders:
-    random:
+    init:
       method: read_stru
       fname: ../../assets/cu8_seeds.xyz
 strategy:

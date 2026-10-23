@@ -146,8 +146,8 @@ class PopulationBasedExploration(BaseExploration):
             if key in result:
                 strategy[key] = result.pop(key)
         system = self.population_config.serialise(population)
-        reference = getattr(self, "reference_builder_name", "random")
-        if reference != "random":
+        reference = getattr(self, "reference_builder_name", "init")
+        if reference != "init":
             system["reference_builder"] = reference
         return dict(
             method="global_optimisation", random_seed=self.random_seed,

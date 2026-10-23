@@ -1,6 +1,6 @@
 method: global_optimisation
 broadcast:
-  system.builders.random.composition:
+  system.builders.init.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
 random_seed: 7
@@ -8,7 +8,7 @@ system:
   comparator:
     method: interatomic_distance
   builders:
-    random:
+    init:
       method: random_structure_improved
       composition: {Cu: 6, Ni: 2}
       box: [20.0, 20.0, 20.0]
@@ -20,7 +20,7 @@ system:
   initial:
     total_size: 2
     builder_allocations:
-      - {builder: random, size: 2}
+      - {builder: init, size: 2}
   generation:
     total_size: 2
 strategy:
