@@ -12,6 +12,11 @@ class Operation(abc.ABC):
     identifier: str = "op"
     node_kind = NodeKind.OPERATION
 
+    # Multi-output operations declare their public heads and one default head.
+    output_names = ()
+    default_output = None
+    receive_raw_outputs = False
+
     #: Whether re-compute this operation
     status: str = "unfinished"  # ["unfinished", "ready", "wait", "finished"]
 

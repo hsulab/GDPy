@@ -10,6 +10,7 @@ from gdpx import config
 
 from .node import NodeKind, WorkflowNode
 from .operation import Operation
+from gdpx.workflow.state import resolve_output, validate_outputs
 
 
 class SessionState(enum.Enum):
@@ -91,8 +92,12 @@ class BaseSession:
         state = None
         if not node.is_about_to_exit():
             if node.is_ready_to_forward():  # All input nodes finished.
-                node.inputs = [input_node.output for input_node in node.input_nodes]
+                node.inputs = [input_node.output if node.receive_raw_outputs
+                               else resolve_output(input_node, input_node.output)
+                               for input_node in node.input_nodes]
                 node.output = node.forward(*node.inputs)
+                if node.status == "finished":
+                    validate_outputs(node, node.output)
                 if node.status == "unfinished":
                     state = SessionState.StepToContinue
                     self._print("\x1b[1;33;40m" + "  wait current node to finish..." + "\x1b[0m")
@@ -168,6 +173,7 @@ class BaseSession:
 
             if node.node_kind is NodeKind.VARIABLE:
                 node.output = node.value
+                validate_outputs(node, node.output)
             elif node.node_kind is NodeKind.OPERATION:
                 if not isinstance(node, Operation):
                     raise TypeError(f"Operation node does not implement Operation: {type(node)}")

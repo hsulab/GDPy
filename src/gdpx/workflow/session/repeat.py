@@ -9,7 +9,7 @@ import yaml
 
 from gdpx.workflow.compiler import compile_workflow
 from gdpx.workflow.configuration import OutputReference, WorkflowSpec
-from gdpx.workflow.state import select_output
+from gdpx.workflow.state import resolve_output
 from gdpx.workflow.state_store import WorkflowStateStore
 
 from .session import BaseSession, SessionState
@@ -33,10 +33,8 @@ class RepeatSession(BaseSession):
             node = compiled.nodes[node_name]
             if not hasattr(node, "output"):
                 raise RuntimeError(f"State updater {node_name!r} produced no output.")
-            value = node.output
-            if isinstance(reference, OutputReference):
-                value = select_output(value, reference.output)
-            values[name] = value
+            head = reference.output if isinstance(reference, OutputReference) else None
+            values[name] = resolve_output(node, node.output, head)
         return values
 
     @staticmethod
@@ -52,8 +50,9 @@ class RepeatSession(BaseSession):
         for state_name, definition in self.spec.state.items():
             reference = definition.update
             node_name = reference.node if isinstance(reference, OutputReference) else reference
-            output = reference.output if isinstance(reference, OutputReference) else "default"
             node = compiled.nodes[node_name]
+            output = (reference.output if isinstance(reference, OutputReference)
+                      else getattr(node, "default_output", None) or "default")
             if hasattr(node, "bind_state_artifact"):
                 node.bind_state_artifact(output, state_name, self.directory, iteration)
 

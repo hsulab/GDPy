@@ -216,7 +216,8 @@ def test_workflow_uses_explicit_exploration_continuation(tmp_path, count):
     )
     outputs = operation.forward(explorations, None, DirectScheduler(), continuations)
     assert updates == continuations
-    assert outputs['results'] == [(current / name).resolve() for name in names]
+    assert outputs['minimised_candidates'] == []
+    assert outputs['dynamics'] == outputs['minimisation'] == []
     expected = tuple((current / name).resolve() for name in names)
     assert outputs['continuation'] == (expected[0] if count == 1 else expected)
     assert operation.status == 'finished'

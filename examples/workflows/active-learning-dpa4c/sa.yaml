@@ -1,0 +1,252 @@
+# Run from this directory after prepare.py and bootstrap.yaml.
+# Reuses the dataset, DPA4C trainer, and training potential in common.yaml.
+includes: [common.yaml]
+
+parameters:
+  md_label_budget: 4
+  min_label_budget: 4
+  initial_models:
+    - ./bootstrap/0000.train/m0/deepmd-c.pt2
+    - ./bootstrap/0000.train/m1/deepmd-c.pt2
+
+workflow:
+  mode: repeat
+  targets: save
+  max_iterations: 2
+
+state:
+  potential:
+    initial: seed_committee
+    update: train
+  training_data:
+    initial: seed_data
+    update: {node: collect_min, output: dataset}
+
+resources:
+  seed_committee:
+    __type__: potential
+    options:
+      provider: deepmd
+      backend: ase
+      parameters:
+        model: {$param: initial_models}
+        estimate_uncertainty: true
+
+  search:
+    __type__: exploration
+    options:
+      method: global_optimisation
+      random_seed: 1112
+      system:
+        periodic: true
+        preserve_fragments: false
+        retained_size: 2
+        builders:
+          init:
+            method: read_stru
+            fname: {$param: initial_structure}
+        initial:
+          total_size: 1
+          builder_allocations:
+            - {builder: init, size: 1}
+        generation:
+          total_size: 2
+      strategy:
+        method: simulated_annealing
+        temperatures:
+          - [600, 300]
+        convergence:
+          generation: 1
+        minimisation:
+          # Per MD trajectory: every second SAVED frame plus the endpoint.
+          selector:
+            method: interval
+            period: 2
+            include_last: true
+          runtime:
+            # Inherit the current iteration's MD committee potential.
+            executor:
+              provider: ase
+              method: min
+              parameters:
+                stop:
+                  steps: 100
+                  fmax: 0.1
+                output:
+                  trajectory:
+                    period: 5
+
+  md:
+    __type__: executor
+    options:
+      provider: ase
+      method: md
+      parameters:
+        ensemble:
+          method: nvt
+          temperature: 600.0
+        setup:
+          timestep: 0.5
+          velocities:
+            initialize: if_missing
+            remove_rotation: false
+          regulator:
+            name: langevin
+            parameters:
+              friction: 0.01
+        output:
+          trajectory:
+            period: 5
+        stop:
+          steps: 20
+
+  uncertain_md:
+    __type__: selector
+    options:
+      selection:
+        - method: property
+          name: max_devi_f
+          sparsify: {method: filter, range: [{$param: force_deviation_min}, null]}
+        - method: random
+          number: [{$param: md_label_budget}, 1.0]
+          random_seed: 1112
+
+  uncertain_min:
+    __type__: selector
+    options:
+      selection:
+        - method: property
+          name: max_devi_f
+          sparsify: {method: filter, range: [{$param: force_deviation_min}, null]}
+        - method: random
+          number: [{$param: min_label_budget}, 1.0]
+          random_seed: 1113
+
+  emt:
+    __type__: potential
+    options:
+      provider: emt
+
+  spc:
+    __type__: executor
+    options:
+      provider: ase
+      method: spc
+
+  labeling_runtime:
+    __type__: runtime
+    inputs:
+      potential: emt
+      executor: spc
+
+steps:
+  sampling_runtime:
+    __type__: assemble
+    inputs:
+      potential: potential
+      executor: md
+    options:
+      variable: runtime
+
+  sample:
+    __type__: explore
+    inputs:
+      exploration: search
+      runtime: sampling_runtime
+
+  md_trajectories:
+    __type__: extract
+    inputs:
+      compute: {node: sample, output: dynamics}
+    options:
+      merge_workers: true
+      use_archive: false
+
+  min_trajectories:
+    __type__: extract
+    inputs:
+      compute: {node: sample, output: minimisation}
+    options:
+      merge_workers: true
+      use_archive: false
+
+  scoring_runtime:
+    __type__: assemble
+    inputs:
+      potential: potential
+      executor: spc
+    options:
+      variable: runtime
+
+  score_md:
+    __type__: compute
+    inputs:
+      structures: md_trajectories
+      runtime: scoring_runtime
+
+  score_min:
+    __type__: compute
+    inputs:
+      structures: min_trajectories
+      runtime: scoring_runtime
+
+  select_md:
+    __type__: select
+    inputs:
+      structures: score_md
+      selector: uncertain_md
+
+  select_min:
+    __type__: select
+    inputs:
+      structures: score_min
+      selector: uncertain_min
+
+  label_md:
+    __type__: compute
+    inputs:
+      structures: select_md
+      runtime: labeling_runtime
+
+  label_min:
+    __type__: compute
+    inputs:
+      structures: select_min
+      runtime: labeling_runtime
+
+  collect_md:
+    __type__: transfer
+    inputs:
+      structures: label_md
+      dataset: training_data
+    options:
+      split_ratio: 1.0
+      prefix: active_md
+      suffix: bulk
+      version: emt
+
+  collect_min:
+    __type__: transfer
+    inputs:
+      structures: label_min
+      dataset: {node: collect_md, output: dataset}
+    options:
+      split_ratio: 1.0
+      prefix: active_min
+      suffix: bulk
+      version: emt
+
+  train:
+    __type__: train
+    inputs:
+      dataset: {node: collect_min, output: dataset}
+      trainer: dpa4c_trainer
+      potential: training_potential
+    options:
+      size: 2
+      share_dataset: true
+
+  save:
+    __type__: save_potential
+    inputs:
+      potential: train

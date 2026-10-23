@@ -15,6 +15,8 @@ class Variable:
     #: Node ID.
     identifier: str = "vx"
     node_kind = NodeKind.VARIABLE
+    output_names = ()
+    default_output = None
 
     #: Working directory for the operation.
     _directory: pathlib.Path = pathlib.Path.cwd()

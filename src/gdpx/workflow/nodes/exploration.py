@@ -66,7 +66,8 @@ class ExplorationVariable(Variable):
 
 @registers.operation.register
 class explore(Operation):
-    output_names = ("results", "continuation")
+    output_names = ("minimised_candidates", "dynamics", "minimisation", "continuation")
+    default_output = "minimised_candidates"
 
     def __init__(
         self,
@@ -149,7 +150,7 @@ class explore(Operation):
             self._debug(f"basic_workers: {basic_workers}")
             self.status = "finished"
         else:
-            return NamedOutputs(results=[], continuation=continuation)
+            return NamedOutputs(minimised_candidates=[], dynamics=[], minimisation=[], continuation=continuation)
 
         next_continuations = tuple(
             current.capture_continuation()
@@ -158,7 +159,27 @@ class explore(Operation):
             for current in explorations
         )
         continuation_output = next_continuations[0] if len(next_continuations) == 1 else next_continuations
-        return NamedOutputs(results=basic_workers, continuation=continuation_output)
+        def workers_for(method):
+            return [worker for worker in basic_workers
+                    if getattr(getattr(worker, "runtime", None), "config", None) is not None
+                    and worker.runtime.config.executor.method == method]
+
+        candidates = []
+        for current in explorations:
+            if hasattr(current, "get_minimised_candidates"):
+                candidates.extend(current.get_minimised_candidates())
+            elif hasattr(current, "get_workers"):
+                # Explorations without a candidate database can expose the
+                # successful endpoints of their minimisation calculations.
+                for basic in current.get_workers():
+                    runtime = getattr(basic, "runtime", None)
+                    if runtime is not None and runtime.config.executor.method == "min":
+                        candidates.extend(trajectory[-1] for trajectory in
+                                          basic.retrieve(include_retrieved=True, use_archive=False)
+                                          if trajectory and not trajectory[-1].info.get("earlystop"))
+        return NamedOutputs(minimised_candidates=candidates,
+                            dynamics=workers_for("md"), minimisation=workers_for("min"),
+                            continuation=continuation_output)
 
 
 if __name__ == "__main__":

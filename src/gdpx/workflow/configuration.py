@@ -281,13 +281,17 @@ def _parse_reference(value: Any, path: str) -> str | OutputReference | list[Any]
         return value
     if isinstance(value, list):
         return [_parse_reference(item, f"{path}[{index}]") for index, item in enumerate(value)]
+    if isinstance(value, Mapping) and set(value) == {"node"}:
+        if not isinstance(value["node"], str) or not value["node"]:
+            raise WorkflowConfigError(f"{path} node must be a nonempty string.")
+        return value["node"]
     if isinstance(value, Mapping) and set(value) == {"node", "output"}:
         node, output = value["node"], value["output"]
         if not isinstance(node, str) or not node or not isinstance(output, str) or not output:
             raise WorkflowConfigError(f"{path} node and output must be nonempty strings.")
         return OutputReference(node, output)
     raise WorkflowConfigError(
-        f"{path} must be a node name, list of node references, or {{node, output}} reference."
+        f"{path} must be a node name, list of node references, or {{node}} / {{node, output}} reference."
     )
 
 

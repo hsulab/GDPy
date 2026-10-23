@@ -42,6 +42,7 @@ class workflow_test_join(Operation):
 @registers.operation.register
 class workflow_test_pair(Operation):
     output_names = ("left", "right")
+    default_output = "left"
 
     def __init__(self, value, directory="."):
         super().__init__([value], directory)
@@ -551,3 +552,119 @@ steps:
 
     with pytest.raises(WorkflowConfigError, match="has no output"):
         compile_workflow(load_workflow(path), tmp_path / "run")
+
+
+@pytest.mark.parametrize('reference', ['pair', {'node': 'pair'}, {'node': 'pair', 'output': 'left'}])
+def test_default_heads_are_equivalent_and_producer_runs_once(tmp_path, monkeypatch, reference):
+    from gdpx.workflow.session.once import OnceSession
+    calls = []
+    original = workflow_test_pair.forward
+    def counted(self, value):
+        calls.append(value)
+        result = original(self, value)
+        return NamedOutputs(reversed(list(result.items())))
+    monkeypatch.setattr(workflow_test_pair, 'forward', counted)
+    path = tmp_path / 'heads.yaml'
+    path.write_text(yaml.safe_dump({
+        'workflow': {'targets': ['default', 'right']},
+        'resources': {'seed': {'__type__': 'workflow_test', 'options': {'value': 3}}},
+        'steps': {
+            'pair': {'__type__': 'workflow_test_pair', 'inputs': {'value': 'seed'}},
+            'default': {'__type__': 'workflow_test_add', 'inputs': {'value': reference}, 'options': {'amount': 0}},
+            'right': {'__type__': 'workflow_test_add', 'inputs': {'value': {'node': 'pair', 'output': 'right'}}, 'options': {'amount': 0}},
+        },
+    }))
+    compiled = compile_workflow(load_workflow(path), tmp_path / 'run')
+    session = OnceSession(directory=tmp_path / 'run', stable_directories=True)
+    session.run(compiled.entry)
+    assert session.is_finished()
+    assert calls == [3]
+    assert compiled.nodes['default'].output == 4
+    assert compiled.nodes['right'].output == 5
+    assert compiled.nodes['pair'].output == {'left': 4, 'right': 5}
+
+
+@pytest.mark.parametrize('reference', ['pair', {'node': 'pair'}])
+def test_repeat_state_uses_declared_default_head(tmp_path, reference):
+    path = tmp_path / 'defaults.yaml'
+    path.write_text(yaml.safe_dump({
+        'workflow': {'mode': 'repeat', 'targets': 'pair', 'max_iterations': 3},
+        'resources': {'seed': {'__type__': 'workflow_test', 'options': {'value': 0}}},
+        'state': {'counter': {'initial': 'seed', 'update': reference}},
+        'steps': {'pair': {'__type__': 'workflow_test_pair', 'inputs': {'value': 'counter'}}},
+    }))
+    assert run_workflow_spec(load_workflow(path), tmp_path / 'runs')
+    manifest = yaml.safe_load((tmp_path / 'runs/defaults/state/current.yaml').read_text())
+    assert manifest['values']['counter'] == {'kind': 'json', 'value': 3}
+
+
+def test_missing_declared_head_is_rejected_before_consumption(tmp_path, monkeypatch):
+    def broken(self, value):
+        self.status = 'finished'
+        return NamedOutputs(left=value)
+    monkeypatch.setattr(workflow_test_pair, 'forward', broken)
+    path = _write(tmp_path / 'missing.yaml', '''
+workflow: {targets: pair}
+resources:
+  seed: {__type__: workflow_test, options: {value: 1}}
+steps:
+  pair: {__type__: workflow_test_pair, inputs: {value: seed}}
+''')
+    with pytest.raises(RuntimeError, match="missing.*right"):
+        run_workflow_spec(load_workflow(path), tmp_path / 'run')
+
+
+def test_invalid_default_head_is_rejected_at_validation(tmp_path, monkeypatch):
+    monkeypatch.setattr(workflow_test_pair, 'default_output', 'absent')
+    path = _write(tmp_path / 'invalid.yaml', '''
+workflow: {targets: pair}
+resources:
+  seed: {__type__: workflow_test, options: {value: 1}}
+steps:
+  pair: {__type__: workflow_test_pair, inputs: {value: seed}}
+''')
+    with pytest.raises(WorkflowConfigError, match='default_output'):
+        compile_workflow(load_workflow(path))
+
+
+def test_explicit_head_survives_node_reset():
+    from gdpx.workflow.state import OutputSelector
+    selector = OutputSelector(Variable(0), 'right')
+    selector.output = selector.forward(NamedOutputs(left=1, right=2))
+    selector.reset()
+    assert selector.forward(NamedOutputs(left=3, right=4)) == 4
+
+
+@registers.variable.register
+class WorkflowTestHeadsVariable(Variable):
+    output_names = ('primary', 'secondary')
+    default_output = 'primary'
+
+    def __init__(self, directory='.'):
+        super().__init__(NamedOutputs(primary=3, secondary=7), directory=directory)
+
+
+def test_resource_heads_work_for_resources_steps_and_initial_state(tmp_path):
+    path = _write(tmp_path / 'resource_heads.yaml', '''
+workflow: {mode: repeat, targets: [result, secondary], max_iterations: 1}
+resources:
+  source: {__type__: workflow_test_heads}
+  default_resource: {__type__: workflow_test, inputs: {value: source}}
+  named_resource:
+    __type__: workflow_test
+    inputs: {value: {node: source, output: secondary}}
+state:
+  counter: {initial: source, update: result}
+steps:
+  result:
+    __type__: workflow_test_add
+    inputs: {value: counter}
+  secondary:
+    __type__: workflow_test_add
+    inputs: {value: {node: source, output: secondary}}
+''')
+    compiled = compile_workflow(load_workflow(path), tmp_path / 'compiled')
+    assert compiled.nodes['default_resource'].value.value == 3
+    assert compiled.nodes['named_resource'].value.value == 7
+    assert compiled.nodes['counter'].value == 3
+    assert run_workflow_spec(load_workflow(path), tmp_path / 'run')

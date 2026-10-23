@@ -70,3 +70,24 @@ def test_state_dataset_is_centralized_and_versions_are_cumulative(tmp_path):
     assert (artifact / "versions" / "0000.yaml").is_file()
     assert snapshot1.manifest == (artifact / "versions" / "0001.yaml").resolve()
     assert sum(map(len, snapshot1.load_frames().values())) == 2
+
+
+def test_default_dataset_state_binds_the_named_artifact(tmp_path):
+    from types import SimpleNamespace
+    from gdpx.workflow.session.repeat import RepeatSession
+    from gdpx.workflow.state import resolve_output, validate_outputs
+    seed_root = tmp_path / 'seed'
+    seed_root.mkdir()
+    seed = XyzDataloader(seed_root, train_ratio=1.0)
+    operation = transfer(Variable([_labelled_hydrogen(0.)]), version='ignored',
+                         dataset=Variable(seed), directory=tmp_path / 'collect')
+    session = object.__new__(RepeatSession)
+    session.directory = tmp_path
+    session.spec = SimpleNamespace(state={'training_data': SimpleNamespace(update='collect')})
+    compiled = SimpleNamespace(nodes={'collect': operation})
+    session._bind_state_artifacts(compiled, 0)
+    operation.output = operation.forward([_labelled_hydrogen(0.)], seed)
+    validate_outputs(operation, operation.output)
+    value = session._next_values(compiled)['training_data']
+    assert value is resolve_output(operation, operation.output)
+    assert value.manifest == (tmp_path / 'artifacts/datasets/training_data/versions/0000.yaml').resolve()

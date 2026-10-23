@@ -86,6 +86,12 @@ def transfer_structures_to_dataset(
 class transfer(Operation):
     """Transfer worker results to target destination."""
 
+    default_output = "dataset"
+
+    @classmethod
+    def output_names_for(cls, spec):
+        return tuple(name for name in spec.inputs if name.startswith("dataset"))
+
     @classmethod
     def validates_output(cls, spec, output: str) -> bool:
         return output in spec.inputs and output.startswith("dataset")
@@ -117,6 +123,7 @@ class transfer(Operation):
 
         self.splits = splits
         self.dataset_names = dataset_names
+        self.output_names = tuple(dataset_names)
 
         self.clean_info = clean_info  # whether clean atoms info
         self.set_pbc = set_pbc  # Whether set structures to full pbc

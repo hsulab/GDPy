@@ -346,6 +346,11 @@ class PopulationAnnealing(PopulationBasedExploration):
         path = self.directory / "population.json"
         return path.exists() and json.loads(path.read_text())["completed"] >= self.convergence["generation"]
 
+    def get_minimised_candidates(self):
+        """All successful minima, including duplicates and unretained candidates."""
+        database = GlobalOptimisationDatabase(self.directory / "candidates.db")
+        return database.get_all_relaxed_candidates(use_extinct=False)
+
     def get_workers(self):
         state = json.loads((self.directory / "population.json").read_text())
         workers = []

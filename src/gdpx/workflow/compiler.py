@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from gdpx.workflow.session.operation import Operation
+from gdpx.workflow.session.variable import Variable
 from gdpx.workflow.session.registry import workflow_registers as registers
 
 from .configuration import NodeSpec, OutputReference, WorkflowConfigError, WorkflowSpec
-from .state import OutputSelector, StateVariable, TargetBarrier
+from .state import OutputSelector, OutputVariable, StateVariable, TargetBarrier, resolve_output, validate_outputs
 
 STEP_DIRECTORY_LAYOUT = "topological-flat-v2"
 
@@ -36,8 +37,18 @@ def _node_class(spec: NodeSpec, category: str):
         ) from error
 
 
+def _output_names(cls, spec):
+    factory = getattr(cls, "output_names_for", None)
+    return tuple(factory(spec) if factory is not None else getattr(cls, "output_names", ()))
+
+
 def _validate_signature(spec: NodeSpec, category: str) -> None:
     cls = _node_class(spec, category)
+    names = _output_names(cls, spec)
+    default = getattr(cls, "default_output", None)
+    if (names or default is not None) and (not all(isinstance(name, str) and name for name in names)
+                  or len(set(names)) != len(names) or default not in names):
+        raise WorkflowConfigError(f"Node {spec.name!r} must declare unique output_names and a default_output among them.")
     kwargs = {**spec.options, **{name: None for name in spec.inputs}, "directory": pathlib.Path(".")}
     try:
         inspect.signature(cls).bind(**kwargs)
@@ -66,14 +77,18 @@ def _validate_output_references(value: Any, spec: WorkflowSpec) -> None:
         return
     if not isinstance(value, OutputReference):
         return
-    if value.node not in spec.steps:
-        raise WorkflowConfigError(f"Named output source {value.node!r} must be a step.")
-    cls = _node_class(spec.steps[value.node], "operation")
-    output_names = tuple(getattr(cls, "output_names", ()))
+    if value.node in spec.steps:
+        definition, category = spec.steps[value.node], "operation"
+    elif value.node in spec.resources:
+        definition, category = spec.resources[value.node], "variable"
+    else:
+        raise WorkflowConfigError(f"Named output source {value.node!r} must be a resource or step.")
+    cls = _node_class(definition, category)
+    output_names = _output_names(cls, definition)
     validates_output = getattr(cls, "validates_output", None)
     supported = value.output in output_names
     if validates_output is not None:
-        supported = supported or bool(validates_output(spec.steps[value.node], value.output))
+        supported = supported or bool(validates_output(definition, value.output))
     if not supported:
         available = ", ".join(output_names) or "(none)"
         raise WorkflowConfigError(
@@ -84,17 +99,20 @@ def _validate_output_references(value: Any, spec: WorkflowSpec) -> None:
 def _resolve_input(
     value: Any,
     nodes: Mapping[str, Any],
-    ports: dict[tuple[str, str], OutputSelector],
+    ports: dict[tuple[str, str], Any],
 ) -> Any:
     if isinstance(value, str):
-        return nodes[value]
+        source = nodes[value]
+        default = getattr(source, "default_output", None)
+        if isinstance(source, Variable) and default is not None:
+            return _resolve_input(OutputReference(value, default), nodes, ports)
+        return source
     if isinstance(value, OutputReference):
         key = (value.node, value.output)
         if key not in ports:
-            ports[key] = OutputSelector(
-                nodes[value.node],
-                value.output,
-            )
+            source = nodes[value.node]
+            selector = OutputVariable if isinstance(source, Variable) else OutputSelector
+            ports[key] = selector(source, value.output)
         return ports[key]
     return [_resolve_input(item, nodes, ports) for item in value]
 
@@ -181,14 +199,19 @@ def compile_workflow(
     definitions = {**spec.resources, **spec.steps}
     step_directories = _step_directory_names(spec)
     nodes: dict[str, Any] = {}
-    ports: dict[tuple[str, str], OutputSelector] = {}
+    ports: dict[tuple[str, str], Any] = {}
     for name in _dependency_order(spec):
         if name in spec.state:
             if state_values is not None and name in state_values:
                 value = state_values[name]
             else:
                 initial = spec.state[name].initial
-                value = None if initial is None else nodes[initial].value
+                if initial is None:
+                    value = None
+                else:
+                    source = nodes[initial]
+                    validate_outputs(source, source.value)
+                    value = resolve_output(source, source.value)
             nodes[name] = StateVariable(value, directory=root / "state" / name)
             continue
         definition = definitions[name]
