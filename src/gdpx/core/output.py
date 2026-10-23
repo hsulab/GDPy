@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 import logging
+from pathlib import Path
 import textwrap
 
 from gdpx import config
@@ -44,6 +45,44 @@ def _unicode_supported():
 
 
 _PARENT = ContextVar('output_parent', default=None)
+_CANDIDATE_LOG = ContextVar('candidate_log', default=None)
+
+
+class _CandidateLogFilter(logging.Filter):
+    def filter(self, record):
+        handler = _CANDIDATE_LOG.get()
+        if handler is None:
+            return True
+        handler.handle(record)
+        return False
+
+
+@contextmanager
+def candidate_logging(directory):
+    """Route this chain and its inline children to one append-only GDP log."""
+    if _CANDIDATE_LOG.get() is not None:
+        yield
+        return
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(directory / 'mc.out', encoding='utf-8')
+    handler.setFormatter(config.formatter)
+    token = _CANDIDATE_LOG.set(handler)
+    parent = _PARENT.set(None)
+    filter_ = _CandidateLogFilter()
+    # Capture diagnostics before quiet_logging can suppress them. Context-local
+    # routing leaves other chains and the batch logger's handlers untouched.
+    config.logger.filters.insert(0, filter_)
+    try:
+        yield
+    except (Exception, KeyboardInterrupt):
+        config.logger.exception('Candidate execution failed or was interrupted')
+        raise
+    finally:
+        config.logger.removeFilter(filter_)
+        _PARENT.reset(parent)
+        _CANDIDATE_LOG.reset(token)
+        handler.close()
 
 
 class Box:

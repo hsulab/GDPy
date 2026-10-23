@@ -6,7 +6,7 @@ from io import StringIO
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-from gdpx.core.output import quiet_logging
+from gdpx.core.output import candidate_logging, quiet_logging
 
 from gdpx.execution.accepted_state import load_structure, save_structure
 from gdpx.execution.checkpoint import load_data, publish_snapshot, read_snapshot, save_data
@@ -96,7 +96,7 @@ class CompositeExecutor(SingleStructureExecutor):
         return False
 
     def run(self, atoms, read_ckpt=True, **kwargs):
-        with quiet_logging():
+        with candidate_logging(self.directory), quiet_logging():
             return self._run(atoms)
 
     def _run(self, atoms):

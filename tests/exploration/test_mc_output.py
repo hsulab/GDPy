@@ -80,7 +80,8 @@ def test_mc_box_ascii_fallback(caplog, monkeypatch):
 def test_hybrid_intro_reports_cycle_and_outputs(caplog):
     cycle = [
         {"provider": "ase", "method": "md", "parameters": {"steps": 20, "temp": 1200}},
-        {"provider": "native", "method": "monte_carlo", "parameters": {"stop": {"steps": 5}}},
+        {"provider": "native", "method": "monte_carlo", "parameters": {
+            "ensemble": {"method": "nvt", "temperature": 1200}, "stop": {"steps": 5}}},
     ]
     config.logger.addHandler(caplog.handler)
     try:
@@ -95,8 +96,9 @@ def test_hybrid_intro_reports_cycle_and_outputs(caplog):
     assert "outputs: trajectory mc.xyz | MC moves in child opstat.txt files" in text
 
 
-def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
+def test_hybrid_run_routes_progress_to_candidate_log(caplog, tmp_path):
     engine = object.__new__(HybridMonteCarlo)
+    engine.directory = tmp_path
 
     def run_with_worker(atoms):
         config.logger.info("particles in system: Cu 8")
@@ -116,4 +118,8 @@ def test_hybrid_run_hides_routine_diagnostics_at_info(caplog):
         config.logger.setLevel(original_level)
     assert "particles in system" not in caplog.text
     assert "succeed to insert" not in caplog.text
-    assert "concise progress" in caplog.text
+    assert "concise progress" not in caplog.text
+    text = (tmp_path / "mc.out").read_text()
+    assert "particles in system" in text
+    assert "succeed to insert" in text
+    assert "concise progress" in text

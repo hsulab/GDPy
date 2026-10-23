@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms, data
 from ase.io import read, write
 
-from gdpx.core.output import quiet_logging
+from gdpx.core.output import candidate_logging, quiet_logging
 from gdpx.providers.ensemble import resolve_ensemble
 from gdpx.execution.workers.drive import DriverBasedWorker
 from gdpx.execution.workers.single import SingleWorker
@@ -306,7 +306,7 @@ class MonteCarlo(SingleStructureExecutor):
 
     def run(self, atoms, read_ckpt=True, **kwargs):
         """Run MonteCarlo simulation."""
-        with quiet_logging():
+        with candidate_logging(self.directory), quiet_logging():
             if not isinstance(atoms, Atoms):
                 raise TypeError("Sampling executors require one Atoms input per chain.")
             self._run_with_worker(atoms)
