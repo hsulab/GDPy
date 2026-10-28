@@ -3,8 +3,27 @@ from typing import Any, Callable, Literal, Optional
 
 from ase import Atoms
 
+from gdpx.structures.groups.group import evaluate_group_expression
+from gdpx.structures.regions.factory import create_region
 from gdpx.structures.geometry.restraints import evaluate_restraints, parse_restraints
 from gdpx.utils.atoms_tags import get_tags_per_species
+
+
+def extinct_by_region(atoms: Atoms, group: str, region, wrap: bool = True) -> Literal[0, 1]:
+    """Extinguish when any selected atom lies in the forbidden region.
+
+    Selection uses the original structure. Region membership uses Cartesian
+    positions, wrapped along periodic axes by default, without changing input.
+    Boundaries follow the selected region's membership convention.
+    """
+    indices = set(evaluate_group_expression(atoms, group))
+    if not indices:
+        return 0
+    candidate = atoms.copy()
+    if wrap:
+        candidate.wrap()
+    region.preprocess(candidate)
+    return int(bool(indices.intersection(region.get_contained_indices(candidate))))
 
 
 def extinct_by_restraints(atoms: Atoms, restraints) -> Literal[0, 1]:
@@ -36,9 +55,20 @@ def dispatch_thanos(
     restraints: Optional[list[dict[str, Any]]] = None,
     covalent_ratio=(0.8, 2.0),
     number: tuple[str, Optional[int], Optional[int]] = ("", None, None),
+    group: Optional[str] = None,
+    region: Optional[dict[str, Any]] = None,
+    wrap: bool = True,
 ) -> Callable[[Atoms], Literal[0, 1]]:
     """"""
-    if name == "restraints":
+    if name == "region":
+        if not isinstance(group, str) or not group.strip():
+            raise ValueError("Region Thanos requires a non-empty group expression.")
+        if region is None:
+            raise ValueError("Region Thanos requires a region configuration.")
+        if not isinstance(wrap, bool):
+            raise ValueError("Region Thanos wrap must be a boolean.")
+        return functools.partial(extinct_by_region, group=group, region=create_region(region), wrap=wrap)
+    elif name == "restraints":
         parsed_restraints = parse_restraints(restraints, covalent_ratio=covalent_ratio)
         return functools.partial(extinct_by_restraints, restraints=parsed_restraints)
     elif name == "particle_number":
