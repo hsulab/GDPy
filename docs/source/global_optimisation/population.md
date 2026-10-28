@@ -7,6 +7,12 @@ population: the best distinct, eligible candidates retained from the search
 history for parent selection. The comparator determines whether candidates are
 similar; extinction rules exclude candidates that are no longer eligible.
 
+```{toctree}
+:maxdepth: 1
+
+population/thanos
+```
+
 ## Shared search configuration
 
 Both algorithms use `method: global_optimisation` with `system` and `strategy`
@@ -103,8 +109,8 @@ definition. Oganov fingerprints alone do not apply an energy gate.
 Candidates are ranked by descending objective score and duplicates removed.
 Fitness includes similarity counts across eligible search history. GA additionally
 uses pairing participation; BH does not. Equal scores receive equal base fitness
-before history weighting. Optional `system.thanos` callbacks apply extinction
-rules in both methods.
+before history weighting. Optional {doc}`Thanos rules <population/thanos>`
+under `system.thanos` exclude candidates from the population.
 
 GA uses `strategy.reproduction`, `strategy.mutation`, and
 `strategy.completion`. BH requires only `generation.total_size`; its move
