@@ -30,7 +30,7 @@ freezing them with `executor.parameters.setup.constraint`.
 
 | Executor provider | Registered methods |
 | --- | --- |
-| `ase` | `spc`, `min`, `cmin`, `md`, `neb`; `dimer` is registered but its controller is not implemented |
+| `ase` | `spc`, `min`, `cmin`, `md`, `freq`, `neb`; `dimer` is registered but its controller is not implemented |
 | `lammps` | `spc`, `min`, `md` |
 | `vasp` | `spc`, `min`, `cmin`, `md`, `freq`, `neb` |
 | `cp2k` | `spc`, `min`, `md`, `freq`, `ts`, `dimer`, `neb` |
