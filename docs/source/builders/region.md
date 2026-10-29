@@ -2,117 +2,53 @@
 
 # regions
 
-A region is a space defined in the Cartesian coordinate system, which help operators
-access and modify atoms in a much easier way. See its application in {ref}`monte-carlo`.
+Regions define where to generate particles or check their positions. Builders
+use them to sample candidate coordinates; selection and extinction rules use
+membership checks. All lengths and Cartesian coordinates are in Å, and volumes
+are in Å³.
 
-Define a region in the `yaml` input file as follows (units: Ang):
+Choose a region by its geometry:
 
-- `auto`.
+| Region | Geometry and typical use |
+| --- | --- |
+| {doc}`auto <regions/auto>` | Use the current structure's simulation cell. |
+| {doc}`surface <regions/surface>` | Full periodic xy plane with finite Cartesian z bounds. |
+| {doc}`cube <regions/cube>` | Axis-aligned box with explicit bounds on all three axes. |
+| {doc}`sphere <regions/sphere>` | Ball around a chosen center. |
+| {doc}`hemisphere <regions/hemisphere>` | Half-ball oriented by a plane normal. |
+| {doc}`cylinder <regions/cylinder>` | Vertical cylinder with a circular xy cross-section. |
+| {doc}`lattice <regions/lattice>` | Explicit lattice cell for periodic membership and sampling. |
 
-  > This region takes the simulation box of the input atoms.
+```{toctree}
+:maxdepth: 1
 
-```yaml
-region:
-  method: auto
+regions/auto
+regions/surface
+regions/cube
+regions/sphere
+regions/hemisphere
+regions/cylinder
+regions/lattice
+regions/surface_lattice
 ```
 
-- `cube`.
+## Configuration and coordinates
 
-```yaml
-# Create a cube as ox+xl <= x <= ox+xh, oy+yl <= y <= oy+yh, oz+zl <= z <= oz+zh
-region:
-  method: cube
-  origin: [50, 50, 50] # ox, oy, oz
-  boundary: [0, 0, 0, 10, 10, 10] # xl, yl, zl, xh, yh, zh
-```
+Set `region.method` to the region name and supply its geometry parameters.
+Each subpage gives a YAML fragment for an existing builder or operator input.
+A region alone does not constrain motion during a calculation.
 
-The figure shows a cubic region in a (10x10x10) simulation box. The origin is (2,2,2)
-and the boundary is [0,0,0,2,2,2].
+Region types own their coordinate conventions. Cubes, spheres, hemispheres,
+and cylinders check the supplied Cartesian positions without minimum-image
+distances. The {doc}`surface <regions/surface>` region provides `region.wrap`
+for a configurable fractional interval before its Cartesian height check.
+{ref}`Thanos <global-optimisation-thanos>` delegates membership to the region
+without adding a separate wrapping step.
 
-```{image} ../../images/region-cube.png
-:align: center
-:alt: Cubic region
-:width: 800
-```
+Use {doc}`surface <regions/surface>` for a slab with a finite height interval.
+A lattice region repeats its membership check along z as well as xy, so it does
+not impose a slab cutoff. The old `surface_lattice` implementation is described
+on its {doc}`legacy reference page <regions/surface_lattice>`.
 
-- `sphere`.
-
-```yaml
-# Create a sphere centre at [50, 50, 50] with the radius 50.
-region:
-  method: sphere
-  origin: [50, 50, 50]
-  radius: 50
-```
-
-The figure shows a spherical region in a (10x10x10) simulation box. The origin is (5,5,5)
-and the radius is 2.
-
-```{image} ../../images/region-sphere.png
-:align: center
-:alt: Spherical region
-:width: 800
-```
-
-- `hemisphere`.
-
-This solid half-sphere includes points within `radius` of `origin` on the side
-pointed to by `normal`: `(position - origin) dot normal >= 0`. Both the flat face
-and spherical surface are included. The normal may have any nonzero length;
-it defaults to `[0, 0, 1]`. Random positions are sampled uniformly in volume.
-
-```yaml
-region:
-  method: hemisphere
-  origin: [5, 5, 2]
-  radius: 2
-  normal: [0, 0, 1] # Include the half above z = 2.
-```
-
-The volume is `2*pi*radius**3/3`. The radius must be finite and positive,
-and the origin and normal must contain finite coordinates.
-
-- `cylinder`.
-
-```yaml
-# Create a vertical cylinder.
-region:
-  method: cylinder
-  origin: [50, 50, 50]
-  radius: 50
-  height: 20
-```
-
-The figure shows a vertical cylinderal region in a (10x10x10) simulation box.
-The origin is (5,5,2), the radius is 2, and the height is 6.
-
-```{image} ../../images/region-cylinder.png
-:align: center
-:alt: Cylindrical region
-:width: 800
-```
-
-- `lattice`.
-
-```yaml
-# Create a periodic cubic lattice that is centred at [50, 50, 50].
-region:
-  method: lattice
-  origin: [0, 0, 2]
-  cell: [10, 0, 0, 0, 10, 0, 0, 0, 1]
-```
-
-The figure shows a lattice region in a (10x10x10) simulation box. The origin is (0,0,2)
-and the cell is [10,0,0,0,10,0,0,0,1]. The surface thickness is 1 and atoms with z-coordinate
-within \[2, 3) will be considered as in the region. Periodic boundary condition is used for this region.
-
-```{image} ../../images/region-lattice.png
-:align: center
-:alt: Lattice region
-:width: 800
-```
-
-- `surface_lattice`
-
-This has the same definition as `lattice`. However, periodic boundary condition
-is only applied in x- and y-axis. This is useful when only considering surface atoms.
+See {ref}`monte-carlo` for region-based sampling and
+{ref}`global-optimisation-thanos` for excluding evaluated structures.

@@ -29,6 +29,25 @@ They illustrate individual rules; multiple rules can be listed under the same
 
 ## Region
 
+For a surface spanning the periodic xy plane, only Cartesian height bounds are
+needed:
+
+```yaml
+system:
+  thanos:
+    - name: region
+      group: "`symbol O`"
+      region:
+        method: surface
+        wrap: [-0.1, 0.9]
+        z_range: [0.0, 3.0]
+```
+
+This excludes selected atoms with `0 ≤ z ≤ 3` Å after the surface region's
+wrapping step. `wrap` belongs inside `region`; Thanos delegates coordinate
+handling to the region. See {doc}`surface <../../builders/regions/surface>`
+for default and custom wrapping intervals.
+
 Select atoms with `group` and define a forbidden `region`. For example, exclude
 any oxygen atom in a Cartesian box:
 
@@ -37,7 +56,6 @@ system:
   thanos:
     - name: region
       group: "`symbol O`"
-      wrap: true
       region:
         method: cube
         origin: [0.0, 0.0, 0.0]
@@ -48,7 +66,6 @@ system:
 | --- | --- |
 | `group` | Required, non-empty atom selection expression. |
 | `region` | Required region configuration, using an existing region type. |
-| `wrap` | Boolean, default `true`; wrap positions along periodic axes before checking membership. |
 
 The cube boundary order is `[xmin, ymin, zmin, xmax, ymax, zmax]`, relative to
 `origin`, in Å. Cube faces are included. Other region types use their own
@@ -60,10 +77,10 @@ Selection uses the original structure and the standard
 The rule tests individual selected atoms, not molecular centers. A symbol
 selection works even when all atoms share a tag. An empty selection survives.
 
-Positions are checked on a copy; the input structure is unchanged.
-`wrap: false` uses the unwrapped Cartesian coordinates. With wrapping enabled,
-define the region in the wrapped simulation cell. The box is a preset region;
-it does not automatically follow a moving surface or infer atomic layers.
+Positions are checked on a copy; the input structure is unchanged. Thanos does
+not wrap coordinates itself. A cube checks the original Cartesian positions;
+a surface uses its own `region.wrap` setting. Regions are preset geometries;
+they do not automatically follow a moving surface or infer atomic layers.
 
 ## Geometric restraints
 
