@@ -11,6 +11,7 @@ import numpy as np
 from ase import Atoms
 
 from gdpx.utils.strconv import string_to_integers
+from gdpx.structures.geometry.wrapping import validate_wrap_interval, wrap_fractional
 
 
 def get_indices_by_index(atoms: Atoms, inp: str) -> set[int]:
@@ -83,26 +84,20 @@ def get_indices_by_pos(atoms: Atoms, inp: str, component: Literal["x", "y", "z"]
         The integer indices.
 
     """
-    number, *args = inp.strip().split()
-    number = int(number)
-    if len(args) == 2:
-        fz_min, fz_max = float(args[0]), float(args[1])
-    else:
-        fz_min, fz_max = -0.1, 0.9
+    fields = inp.strip().split()
+    if len(fields) not in (1, 3):
+        raise ValueError("Position group syntax: count [wrap_lower wrap_upper].")
+    number = int(fields[0])
+    if number < 0:
+        raise ValueError("Position group count must be non-negative.")
+    bounds = (-0.1, 0.9) if len(fields) == 1 else tuple(float(x) for x in fields[1:])
+    bounds = validate_wrap_interval(bounds)
 
-    axis = {"x": 0, "y": 1, "z": 2}.get(component)
-
+    axis = {"x": 0, "y": 1, "z": 2}[component]
     atomic_indices = list(range(len(atoms)))
     if atoms.pbc[axis]:
-        z_frac_coords = atoms.get_scaled_positions()[:, axis]
-        wrapped_coordinates = []
-        for z in z_frac_coords:
-            z_ = np.modf(z)[0]
-            if z_ < fz_min:
-                z_ += 1.0
-            elif z >= fz_max:
-                z_ -= 1.0
-            wrapped_coordinates.append(z_)
+        fractional = atoms.get_scaled_positions(wrap=False)[:, axis]
+        wrapped_coordinates = wrap_fractional(fractional, bounds)
     else:
         wrapped_coordinates = atoms.positions[:, axis]
 

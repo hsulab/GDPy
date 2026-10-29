@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from gdpx.structures.geometry.wrapping import wrap_fractional
+
 from .base import BaseRegion
 
 
@@ -31,30 +33,17 @@ class LatticeRegion(BaseRegion):
         return ran_pos
 
     def _is_within_region(self, position) -> bool:
-        """Check if a position is in the region.
+        """Include every finite periodic image in the region's lattice cell.
 
-        Some atoms may have negative coordinates, thus,
-        users need set origin with a small negative value (e.g. 1e-7)
-        to make atoms at boundary included in the region
-
-        Args:
-            position: An array that has a shape of (3,).
-
-        Returns:
-            A boolen.
-
+        The region's origin and cell define fractional coordinates; structure
+        PBC flags do not restrict this explicitly periodic region.
         """
-        is_in = False
-        pos_ = position - self._origin
-        frac_pos_ = np.dot(np.linalg.inv(self._cell.T), pos_)
-        if (
-            0.0 <= np.modf(frac_pos_[0])[0] < 1.0
-            and 0.0 <= np.modf(frac_pos_[1])[0] < 1.0
-            and 0.0 <= np.modf(frac_pos_[2])[0] < 1.0
-        ):
-            is_in = True
-
-        return is_in
+        position = np.asarray(position, dtype=float)
+        if position.shape != (3,) or not np.isfinite(position).all():
+            return False
+        fractional = np.linalg.solve(self._cell.T, position - self._origin)
+        wrapped = wrap_fractional(fractional)
+        return bool(np.all((0.0 <= wrapped) & (wrapped < 1.0)))
 
     def get_volume(self) -> float:
         """"""
