@@ -92,7 +92,7 @@ MODIFIER_REMOVE_PARAMS = dict(
         #"id 37 38 39 40 41 42 43 44 45 46 47 48",
         "symbol O",
         # NOTE: LatticeRegion takes the pbc in z-axis as well
-        "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0",
+        "region surface 8.0 16.0 0.0 1.0",
     ]
 )
 
@@ -117,7 +117,7 @@ MODIFIER_EXCHANGE_PARAMS = dict(
     target_group = [
         "symbol Zn Cr",
         # NOTE: LatticeRegion takes the pbc in z-axis as well
-        "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0",
+        "region surface 8.0 16.0 0.0 1.0",
     ] 
 )
 

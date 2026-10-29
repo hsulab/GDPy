@@ -78,7 +78,7 @@ def test_invalid_command(command):
 @pytest.mark.parametrize("module, name", [
     ("base", "BaseRegion"), ("auto", "AutoRegion"), ("cube", "CubeRegion"),
     ("sphere", "SphereRegion"), ("cylinder", "CylinderRegion"), ("lattice", "LatticeRegion"),
-    ("surface_lattice", "SurfaceLatticeRegion"), ("surface", "SurfaceRegion"),
+    ("surface", "SurfaceRegion"),
     ("intersect", "IntersectRegion"), ("hemisphere", "HemisphereRegion"),
 ])
 def test_compatibility_imports(module, name):
