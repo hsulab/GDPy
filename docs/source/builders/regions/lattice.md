@@ -23,16 +23,20 @@ product of its vectors.
 
 ## Membership and periodicity
 
-Membership uses fractional remainders in all three directions. The sampled
+Membership wraps fractional coordinates into `[0, 1)` in all three directions.
+Coordinates are measured relative to the region's `origin` and `cell`, not the
+structure's simulation cell, and structure PBC flags do not disable this
+explicitly periodic region. Negative coordinates and translations by any number
+of cells are supported. Integer cell boundaries map to the lower face.
+The sampled
 cell is therefore not a finite containment box: a point above its upper z
 face can still be included. For a finite Cartesian z interval with periodic
 xy membership, use {doc}`surface`.
 
-The current membership implementation uses signed fractional remainders.
-Negative, nonintegral fractional coordinates relative to `origin` are rejected
-rather than wrapped into positive images. Avoid assuming symmetric handling
-of positive and negative images with this legacy behavior. Caller-side wrapping
-also depends on the simulation cell, which may differ from this region's cell.
+Every finite point has an image in the lattice cell, so this region does not
+exclude points merely because they are far from the origin. Nonfinite positions
+are excluded. The membership interval is fixed; there is no `wrap` option for
+this region. Sampling remains confined to the single cell specified above.
 
 The figure illustrates the sampling cell with origin `(0, 0, 2)` Å and height
 1 Å; it does not depict a finite z cutoff for membership.

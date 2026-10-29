@@ -58,6 +58,14 @@ interval [-0.1, 0.9). You can specify an alternative interval:
 group: "`zbot 4 0.0 1.0`"
 ```
 
+Bounds must be finite and span exactly one fractional cell. The lower bound
+is included and the upper bound maps to the lower one. Intervals shifted by
+multiple cells, such as `[2.9, 3.9)`, are supported, as are atomic coordinates
+outside the primary cell. Wrapping changes only the coordinates used to rank
+atoms; it does not move the structure. For a nonperiodic z axis, selection uses
+the original Cartesian z coordinates. Counts must be non-negative integers;
+zero selects no atoms. Supply either a count alone or a count and both bounds.
+
 The two extra values control fractional-coordinate wrapping; they do not
 define a spatial filter. Choose the wrapping interval to match the slab's
 placement in the cell, and verify which atoms are selected, especially if the

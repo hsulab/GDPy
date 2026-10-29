@@ -13,6 +13,6 @@ substrate when used by the random structure builder.
 The legacy class takes `origin` and `cell`, requires zero xy components in
 `origin` and the third cell vector, and checks
 `origin[2] ≤ z < origin[2] + cell[2][2]` before applying lattice membership.
-It inherits the lattice implementation's handling of signed fractional
-remainders. The new surface region includes both z boundaries, so account for
+It inherits periodic lattice membership, including negative lateral images.
+The new surface region includes both z boundaries, so account for
 that difference when migrating an exact boundary check.
