@@ -69,6 +69,10 @@ class AseExecutorFactory:
         random_seed = params.pop("random_seed", None)
         calculator = materialization.calculator
         executor_class = AseDriver
+        if self.method == "freq":
+            from .vibrations import AseFrequencyDriver
+
+            executor_class = AseFrequencyDriver
         if self.method == "neb":
             from .path import AseStringReactor
 
@@ -82,7 +86,7 @@ class AseExecutorFactory:
         )
 
 
-ASE_METHODS = ("spc", "min", "cmin", "md", "dimer", "neb")
+ASE_METHODS = ("spc", "min", "cmin", "md", "freq", "dimer", "neb")
 ASE_PROVIDER = Provider(
     name="ase",
     version="1",
