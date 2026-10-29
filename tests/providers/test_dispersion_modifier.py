@@ -73,7 +73,8 @@ def test_modifier_failure_resumes_host_and_restores_atoms():
 
 @pytest.mark.parametrize('fail', [False, True])
 @pytest.mark.parametrize('selection', [{}, {'backend': 'ase'}, {'method': 'default'}])
-def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail, selection):
+@pytest.mark.parametrize('method', ['spc', 'freq'])
+def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail, selection, method):
     events = []
     import gdpx.providers.vasp.manager as vasp
     def register(self, params):
@@ -90,7 +91,7 @@ def test_dftd3_modifier_runtime_and_driver_cleanup(monkeypatch, tmp_path, fail, 
     runtime = get_provider_manager().resolve_runtime({
         'potential': {'provider':'vasp','backend':'interactive'},
         'modifiers': [{'provider':'dftd3',**selection,'parameters':{'method':'PBE','damping':'d3bj'}}],
-        'executor': {'provider':'ase','method':'spc'},
+        'executor': {'provider':'ase','method':method},
     })
     assert seen == [{'method':'PBE','damping':'d3bj'}]
     assert runtime.modifiers[0].backend == 'ase'

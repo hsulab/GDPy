@@ -120,3 +120,46 @@ def test_imaginary_modes_are_preserved(tmp_path):
     assert result["frequencies_cm1"] == [0, 0, 0]
     assert np.all(np.asarray(result["imaginary_frequencies_cm1"]) > 0)
     assert np.all(np.asarray(result["imaginary_energies_eV"]) > 0)
+
+
+@pytest.mark.parametrize("fail_calculation", [False, True])
+def test_cleanup_failure_stops_other_calculators_and_preserves_run_error(tmp_path, fail_calculation):
+    from gdpx.providers.ase.backend import EnhancedCalculator
+
+    events = []
+
+    class InteractiveHarmonic(HarmonicCalculator):
+        def calculate(self, *args, **kwargs):
+            if fail_calculation:
+                raise ValueError("force evaluation failed")
+            super().calculate(*args, **kwargs)
+
+        def finalize(self):
+            events.append("host")
+            raise RuntimeError("host cleanup failed")
+
+    class Modifier(HarmonicCalculator):
+        def finalize(self):
+            events.append("modifier")
+
+    host, modifier = InteractiveHarmonic(), Modifier()
+    # Nested mixers with a shared calculator must finalize each leaf once.
+    calc = EnhancedCalculator([EnhancedCalculator([host, modifier]), modifier])
+    driver = AseFrequencyDriver(calc, {}, directory=tmp_path)
+    error = ValueError if fail_calculation else RuntimeError
+    message = "force evaluation failed" if fail_calculation else "host cleanup failed"
+    with pytest.raises(error, match=message):
+        driver.run(Atoms("Cu"))
+    assert events == ["host", "modifier"]
+
+
+def test_unwrapped_calculator_is_finalized(tmp_path):
+    events = []
+
+    class InteractiveHarmonic(HarmonicCalculator):
+        def finalize(self):
+            events.append("finalize")
+
+    driver = AseFrequencyDriver(InteractiveHarmonic(), {}, directory=tmp_path)
+    driver.run(Atoms("Cu"))
+    assert events == ["finalize"]

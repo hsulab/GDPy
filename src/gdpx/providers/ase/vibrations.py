@@ -114,6 +114,11 @@ class AseFrequencyDriver(AseDriver):
             completed = read(trajectory)
             completed.info["freq_completed"] = True
             write(trajectory, completed)
-        finally:
-            if hasattr(self.calc, "finalize"):
-                self.calc.finalize()
+        except BaseException:
+            try:
+                self._finalize_calculators()
+            except Exception as cleanup_error:
+                self._debug(f"Failed to finalize ASE frequency driver: {cleanup_error!r}")
+            raise
+        else:
+            self._finalize_calculators()

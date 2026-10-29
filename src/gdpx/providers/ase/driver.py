@@ -666,6 +666,30 @@ class AseDriver(BaseDriver):
 
         return self.directory / self.log_fname
 
+    def _finalize_calculators(self):
+        """Stop interactive calculators, including those inside ASE mixers."""
+        seen = set()
+        errors = []
+
+        def finalize(calc):
+            if id(calc) in seen:
+                return
+            seen.add(id(calc))
+            if isinstance(calc, LinearCombinationCalculator):
+                for child in calc.mixer.calcs:
+                    finalize(child)
+            callback = getattr(calc, "finalize", None)
+            if callable(callback):
+                try:
+                    callback()
+                except Exception as error:
+                    # Still attempt to stop the other calculator processes.
+                    errors.append(error)
+
+        finalize(self.calc)
+        if errors:
+            raise errors[0]
+
     def _create_dynamics(self, atoms: Atoms, start_step: int = 0, *args, **kwargs) -> Tuple[Dynamics, dict]:
         """Create the correct class of this simulation with running parameters.
 
@@ -894,13 +918,7 @@ class AseDriver(BaseDriver):
 
         def cleanup_after_run():
             try:
-                # Some interactive calculators need their child processes stopped.
-                if hasattr(self.calc, "finalize"):
-                    self.calc.finalize()
-                if isinstance(self.calc, EnhancedCalculator):
-                    for calc in self.calc.mixer.calcs:
-                        if hasattr(calc, "finalize"):
-                            calc.finalize()
+                self._finalize_calculators()
             finally:
                 # To restart, velocities are always retained only for this run.
                 self.setting.ignore_atoms_velocities = prev_ignore_atoms_velocities
