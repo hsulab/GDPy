@@ -29,7 +29,6 @@ regions/sphere
 regions/hemisphere
 regions/cylinder
 regions/lattice
-regions/surface_lattice
 ```
 
 ## Configuration and coordinates
@@ -47,8 +46,7 @@ without adding a separate wrapping step.
 
 Use {doc}`surface <regions/surface>` for a slab with a finite height interval.
 A lattice region repeats its membership check along z as well as xy, so it does
-not impose a slab cutoff. The old `surface_lattice` implementation is described
-on its {doc}`legacy reference page <regions/surface_lattice>`.
+not impose a slab cutoff.
 
 See {ref}`monte-carlo` for region-based sampling and
 {ref}`global-optimisation-thanos` for excluding evaluated structures.

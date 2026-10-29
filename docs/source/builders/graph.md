@@ -57,7 +57,7 @@ graph:
 spectators: [O]
 target_group:
     - "symbol O"
-    - "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0"
+    - "region surface 8.0 16.0 0.0 1.0"
 ```
 
 ## exchange
@@ -78,5 +78,5 @@ graph:
 spectators: [Zn, Cr]
 target_group:
     - "symbol Zn Cr"
-    - "region surface_lattice 0.0 0.0 8.0 9.8431 0.0 0.0 0.0 10.5534 0.0 0.0 0.0 8.0"
+    - "region surface 8.0 16.0 0.0 1.0"
 ```

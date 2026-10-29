@@ -105,23 +105,20 @@ Thus, set `pbc: True` to make generated structures periodic.
 ## Surface
 
 Generate random atoms on a substrate. This is useful to explore reconstructed (amorphous)
-surfaces or supported nanoparticles. The region defines the lattice vector in the x-axis
-and the y-axis but a cut in z-axis that has a range from 7.5 to 13.5 (7.5+6.0).
+surfaces or supported nanoparticles. The surface region samples the substrate's
+xy cell and Cartesian heights from 7.5 to 13.5 Å.
 
 ```yaml
-# - Genreate a surface with 8 Cu and 3 O.
-method: random_surface
-substrate: ./assets/slab.xyz
+# Generate a surface with 8 Cu and 3 O.
+method: random_structure_improved
+substrates: ./assets/slab.xyz
 composition:
   Cu: 8
   O: 3
 region:
-  method: surface_lattice
-  origin: [0., 0., 7.5]
-  cell: [5.85, 0.0, 0.0, 0.0, 4.40, 0.0, 0.0, 0.0, 6.0]
+  method: surface
+  z_range: [7.5, 13.5]
 covalent_ratio: [0.4, 2.0]
-test_dist_to_slab: false
-test_too_far: false
 random_seed: 1112
 ```
 
