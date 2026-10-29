@@ -9,19 +9,18 @@ from gdpx.structures.geometry.restraints import evaluate_restraints, parse_restr
 from gdpx.utils.atoms_tags import get_tags_per_species
 
 
-def extinct_by_region(atoms: Atoms, group: str, region, wrap: bool = True) -> Literal[0, 1]:
+def extinct_by_region(
+    atoms: Atoms, group: str, region,
+) -> Literal[0, 1]:
     """Extinguish when any selected atom lies in the forbidden region.
 
-    Selection uses the original structure. Region membership uses Cartesian
-    positions, wrapped along periodic axes by default, without changing input.
-    Boundaries follow the selected region's membership convention.
+    Selection uses the original structure. The region owns membership,
+    coordinate wrapping, and boundary conventions.
     """
     indices = set(evaluate_group_expression(atoms, group))
     if not indices:
         return 0
     candidate = atoms.copy()
-    if wrap:
-        candidate.wrap()
     region.preprocess(candidate)
     return int(bool(indices.intersection(region.get_contained_indices(candidate))))
 
@@ -57,7 +56,6 @@ def dispatch_thanos(
     number: tuple[str, Optional[int], Optional[int]] = ("", None, None),
     group: Optional[str] = None,
     region: Optional[dict[str, Any]] = None,
-    wrap: bool = True,
 ) -> Callable[[Atoms], Literal[0, 1]]:
     """"""
     if name == "region":
@@ -65,9 +63,7 @@ def dispatch_thanos(
             raise ValueError("Region Thanos requires a non-empty group expression.")
         if region is None:
             raise ValueError("Region Thanos requires a region configuration.")
-        if not isinstance(wrap, bool):
-            raise ValueError("Region Thanos wrap must be a boolean.")
-        return functools.partial(extinct_by_region, group=group, region=create_region(region), wrap=wrap)
+        return functools.partial(extinct_by_region, group=group, region=create_region(region))
     elif name == "restraints":
         parsed_restraints = parse_restraints(restraints, covalent_ratio=covalent_ratio)
         return functools.partial(extinct_by_restraints, restraints=parsed_restraints)

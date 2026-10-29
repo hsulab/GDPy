@@ -38,6 +38,7 @@ def stratified_random_structures(
 ) -> list[Atoms]:
     """"""
     # prepare inputs for parallel
+    region.preprocess(substrate)
     prepared_substrates = [copy.deepcopy(substrate) for _ in range(outer_max_attempts)]
     prepared_fragments = [composition_space.get_fragments_from_one_composition(rng) for _ in range(outer_max_attempts)]
     prepared_random_states = rng.integers(low=0, high=RANDOM_INTEGER_HIGH, size=outer_max_attempts)

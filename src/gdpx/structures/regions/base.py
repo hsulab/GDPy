@@ -1,7 +1,6 @@
 """BaseRegion implementation."""
 
 import abc
-import copy
 from typing import Mapping, Optional
 
 import numpy as np
@@ -68,6 +67,10 @@ class BaseRegion(abc.ABC):
 
         return get_tags_per_species(atoms)
 
+    def _get_positions_for_tags(self, atoms: Atoms):
+        """Coordinates used to locate tagged particle centers."""
+        return atoms.get_positions(wrap=True)
+
     def get_contained_tags_dict(self, atoms: Atoms, tags_dict: Optional[dict] = None) -> Mapping[str, list[int]]:
         """"""
         # - find tags and compute cops
@@ -77,7 +80,7 @@ class BaseRegion(abc.ABC):
             tags_dict_within_system = tags_dict
 
         # Get wrapped positions due to PBC
-        positions = copy.deepcopy(atoms.get_positions(wrap=True))
+        positions = self._get_positions_for_tags(atoms)
 
         cops_dict = {}
         for key, tags_and_indices in tags_dict_within_system.items():
