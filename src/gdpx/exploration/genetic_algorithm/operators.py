@@ -61,6 +61,8 @@ def instantiate_a_genetic_operator(
     op_params = copy.deepcopy(op_params)
     if "rng" in op_params:
         raise ValueError("Operator RNGs are managed by the GA engine; remove the 'rng' option.")
+    if "n_top" in op_params:
+        raise ValueError("n_top is removed from GA configuration; mobile atoms have tag != 0.")
     method = op_params.pop("method", None)
     if category == "mutation" and method == "rattle_buffer":
         raise ValueError("Mutation 'rattle_buffer' was renamed to 'group_rattle'.")

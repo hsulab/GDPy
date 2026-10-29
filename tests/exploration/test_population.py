@@ -348,7 +348,7 @@ def test_ga_incompatible_pairs_fall_back_to_independent_single_parent():
 
     pairing = SimpleNamespace(allow_variable_composition=False)
     child = manager._reproduce(database, 1, population,
-                               {"mobile": {"pairing": pairing, "mutations": Mutation()}}, 0)
+                               {"mobile": {"pairing": pairing, "mutations": Mutation()}})
     assert child is not None and len(writes) == 2
     assert child.info["data"]["parents"][0] == child.info["data"]["parents"][1]
     for frame, info, coords in zip(frames, snapshots, positions):

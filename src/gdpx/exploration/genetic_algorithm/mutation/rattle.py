@@ -19,7 +19,6 @@ class RattleMutation(OffspringCreator):
     def __init__(
         self,
         blmin,
-        n_top,
         rattle_strength=0.8,
         rattle_prop=0.4,
         test_dist_to_slab=True,
@@ -29,16 +28,16 @@ class RattleMutation(OffspringCreator):
     ):
         super().__init__(verbose=verbose, rng=rng)
         self.blmin = blmin
-        self.n_top = n_top
         self.rattle_strength = rattle_strength
         self.rattle_prop = rattle_prop
         self.test_dist_to_slab = test_dist_to_slab
         self.use_tags = use_tags
 
     def mutate(self, atoms: Atoms):
-        number_to_optimize = len(atoms) if self.n_top is None else self.n_top
-        slab = atoms[: len(atoms) - number_to_optimize]
-        top = atoms[-number_to_optimize:]
+        slab, top = atoms[atoms.get_tags() == 0], atoms[atoms.get_tags() != 0]
+        number_to_optimize = len(top)
+        if not number_to_optimize:
+            return None
         tags = top.get_tags() if self.use_tags else np.arange(number_to_optimize)
         reference_positions = top.get_positions()
         displacement_width = 2.0 * self.rattle_strength
@@ -62,7 +61,7 @@ class RattleMutation(OffspringCreator):
                 positions=positions,
                 cell=top.cell,
                 pbc=top.pbc,
-                tags=tags,
+                tags=top.get_tags(),
             )
             too_close = atoms_too_close(
                 rattled_top,

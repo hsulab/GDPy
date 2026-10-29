@@ -117,7 +117,7 @@ def test_generation_uses_operator_compatibility(allow_variable, difference):
         pairing.allow_variable_composition = allow_variable
     operators = {"mobile": {"pairing": pairing, "mutations": SimpleNamespace(oplist=[])}}
     with pytest.raises(StopSelection):
-        manager._reproduce(None, 1, population, operators, 0)
+        manager._reproduce(None, 1, population, operators)
     assert observed == [allow_variable is True or difference in ("none", "empty_substrate")]
 
 

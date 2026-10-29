@@ -24,11 +24,11 @@ def test_mirror_matches_ase_ga_for_identical_generator_state(reflect):
         ],
         cell=[15.0, 15.0, 15.0],
         pbc=False,
+        tags=[0, 1, 2, 3, 4],
     )
     minimum_distances = closest_distances_generator(parent.numbers, 0.5)
     parameters = dict(
         blmin=minimum_distances,
-        n_top=4,
         reflect=reflect,
     )
     gdpx_mutation = MirrorMutation(
@@ -37,6 +37,7 @@ def test_mirror_matches_ase_ga_for_identical_generator_state(reflect):
         rng=np.random.default_rng(42),
     )
     ase_mutation = ASEMirrorMutation(
+        n_top=4,
         **parameters,
         rng=np.random.default_rng(42),
     )
@@ -46,6 +47,6 @@ def test_mirror_matches_ase_ga_for_identical_generator_state(reflect):
 
     assert gdpx_child is not None
     assert ase_child is not None
-    assert gdpx_child == ase_child
-    np.testing.assert_array_equal(gdpx_child.get_tags(), ase_child.get_tags())
+    np.testing.assert_array_equal(gdpx_child.numbers, ase_child.numbers)
+    np.testing.assert_array_equal(gdpx_child.get_tags(), parent.get_tags())
     np.testing.assert_allclose(gdpx_child.positions, ase_child.positions, atol=0.0, rtol=0.0)

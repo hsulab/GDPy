@@ -28,7 +28,6 @@ def test_mirror_preserves_tags_at_parent_atom_indices(reflect, n_top):
     original = parent.copy()
     mutation = MirrorMutation(
         blmin=closest_distances_generator(parent.numbers, 0.5),
-        n_top=n_top,
         reflect=reflect,
         use_tags=False,
         rng=np.random.default_rng(42),

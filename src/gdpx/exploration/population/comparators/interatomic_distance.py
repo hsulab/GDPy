@@ -43,13 +43,10 @@ class InteratomicDistanceComparator:
 
     """
 
-    def __init__(self, n_top=None, pair_cor_cum_diff=0.015, pair_cor_max=0.7, dE=0.02, mic=False, n_jobs=1):
+    def __init__(self, pair_cor_cum_diff=0.015, pair_cor_max=0.7, dE=0.02, mic=False, n_jobs=1):
         """
 
         Args:
-            n_top: The number of atoms being optimized by the GA.
-                Default 0 - meaning all atoms.
-
             pair_cor_cum_diff: The limit in eq. 2 of the letter.
             pair_cor_max: The limit in eq. 3 of the letter
             dE: The limit of eq. 1 of the letter
@@ -60,7 +57,6 @@ class InteratomicDistanceComparator:
         self.pair_cor_cum_diff = pair_cor_cum_diff
         self.pair_cor_max = pair_cor_max
         self.dE = dE
-        self.n_top = n_top or 0
         self.mic = mic
 
         self.n_jobs = n_jobs
@@ -117,9 +113,7 @@ class InteratomicDistanceComparator:
             return False
 
         # then we check the structure
-        a1top = a1[-self.n_top :]
-        a2top = a2[-self.n_top :]
-        cum_diff, max_diff = self.__compare_structure__(a1top, a2top)  # type: ignore
+        cum_diff, max_diff = self.__compare_structure__(a1, a2)
 
         return cum_diff < self.pair_cor_cum_diff and max_diff < self.pair_cor_max
 

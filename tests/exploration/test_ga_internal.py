@@ -35,12 +35,11 @@ def test_named_random_streams_are_order_independent_and_restorable():
 
 
 def test_rattle_uses_generator_and_preserves_valid_geometry():
-    parent = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
+    parent = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]], tags=[1, 2])
     parent.info = {"confid": 1, "data": {}, "key_value_pairs": {}}
     minimum_distances = closest_distances_generator([29], 0.7)
     mutation = RattleMutation(
         minimum_distances,
-        n_top=2,
         rattle_strength=0.2,
         rattle_prop=1.0,
         rng=np.random.default_rng(4),

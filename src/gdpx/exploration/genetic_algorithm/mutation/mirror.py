@@ -19,7 +19,6 @@ class MirrorMutation(OffspringCreator):
     def __init__(
         self,
         blmin,
-        n_top,
         reflect=False,
         use_tags=False,
         rng=None,
@@ -27,11 +26,11 @@ class MirrorMutation(OffspringCreator):
     ):
         """Initialise the mutation.
 
+        Mobile atoms are selected by tag != 0.
+
         Args:
             blmin: Dictionary defining the minimum allowed
                 distance between atoms.
-
-            n_top: Number of atoms the GA optimizes.
 
             reflect: Defines if the mirrored half is also reflected
                 perpendicular to the mirroring plane.
@@ -46,7 +45,6 @@ class MirrorMutation(OffspringCreator):
         self.min_inputs = 1
 
         self.blmin = blmin
-        self.n_top = n_top
         self.reflect = reflect
 
         self.use_tags = use_tags
@@ -73,11 +71,9 @@ class MirrorMutation(OffspringCreator):
         reflect = self.reflect
         tc = True
 
-        slab = atoms[0 : len(atoms) - self.n_top]
-        assert isinstance(slab, Atoms)
-
-        top = atoms[len(atoms) - self.n_top : len(atoms)]
-        assert isinstance(top, Atoms)
+        slab, top = atoms[atoms.get_tags() == 0], atoms[atoms.get_tags() != 0]
+        if not len(top):
+            return None
 
         num = top.numbers
         unique_types = list(set(num))

@@ -93,9 +93,6 @@ class PeriodicCutAndSpliceCrossover(OffspringCreator):
         Any included atoms (e.g. representing an underlying slab)
         are copied to these new structures.
 
-    n_top: int
-        The number of atoms to optimize
-
     blmin: dict
         Dictionary with minimal interatomic distances.
         Note: when preserving molecular identity (see use_tags),
@@ -147,14 +144,13 @@ class PeriodicCutAndSpliceCrossover(OffspringCreator):
     supports_fragment_preservation = True
     fragment_mode_configurable = True
 
-    def __init__(self, slab, n_top, blmin, number_of_variable_cell_vectors=0,
+    def __init__(self, slab, blmin, number_of_variable_cell_vectors=0,
                  p1=1, p2=0.05, minfrac=None, cellbounds=None,
                  test_dist_to_slab=True, use_tags=False, rng=None,
                  verbose=False):
 
         OffspringCreator.__init__(self, verbose, rng=rng)
         self.slab = slab
-        self.n_top = n_top
         self.blmin = blmin
         assert number_of_variable_cell_vectors in range(4)
         self.number_of_variable_cell_vectors = number_of_variable_cell_vectors
@@ -210,16 +206,11 @@ class PeriodicCutAndSpliceCrossover(OffspringCreator):
     def cross(self, a1, a2):
         """Crosses the two atoms objects and returns one"""
 
-        if len(a1) != len(self.slab) + self.n_top:
-            raise ValueError('Wrong size of structure to optimize')
-        if len(a1) != len(a2):
-            raise ValueError('The two structures do not have the same length')
-
-        N = self.n_top
-
-        # Only consider the atoms to optimize
-        a1 = a1[len(a1) - N: len(a1)]
-        a2 = a2[len(a2) - N: len(a2)]
+        # Tags define the mobile set independently of array ordering.
+        a1 = a1[a1.get_tags() != 0]
+        a2 = a2[a2.get_tags() != 0]
+        if not len(a1) or len(a1) != len(a2):
+            raise ValueError('Parents must have equal, nonempty mobile sets (tag != 0).')
 
         if not np.array_equal(a1.numbers, a2.numbers):
             err = 'Trying to pair two structures with different stoichiometry'
@@ -483,6 +474,6 @@ class PeriodicCutAndSpliceCrossover(OffspringCreator):
         newpos = np.reshape(newpos, (N, 3))
         num = a1.get_atomic_numbers()
         child = Atoms(numbers=num, positions=newpos, pbc=pbc, cell=cell,
-                      tags=tags)
+                      tags=a1.get_tags())
         child.wrap()
         return child

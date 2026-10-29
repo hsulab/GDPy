@@ -88,9 +88,9 @@ def test_periodic_cut_splice_matches_ase_ga(use_tags, seed):
         info={"confid": 2},
     )
     minimum_distances = closest_distances_generator(first.numbers, 0.5)
-    parameters = dict(slab=slab, n_top=4, blmin=minimum_distances, use_tags=use_tags)
+    parameters = dict(slab=slab, blmin=minimum_distances, use_tags=use_tags)
     gdpx = PeriodicCutAndSpliceCrossover(**parameters, rng=GeneratorAdapter(seed))
-    ase = ase_pairing.CutAndSplicePairing(**parameters, rng=GeneratorAdapter(seed))
+    ase = ase_pairing.CutAndSplicePairing(n_top=4, **parameters, rng=GeneratorAdapter(seed))
 
     gdpx_child, gdpx_description = gdpx.get_new_individual([first.copy(), second.copy()])
     ase_child, ase_description = ase.get_new_individual([first.copy(), second.copy()])
@@ -99,5 +99,5 @@ def test_periodic_cut_splice_matches_ase_ga(use_tags, seed):
     assert (gdpx_child is None) == (ase_child is None)
     if gdpx_child is not None:
         np.testing.assert_array_equal(gdpx_child.numbers, ase_child.numbers)
-        np.testing.assert_array_equal(gdpx_child.get_tags(), ase_child.get_tags())
+        np.testing.assert_array_equal(gdpx_child.get_tags(), first.get_tags())
         np.testing.assert_allclose(gdpx_child.positions, ase_child.positions, atol=0.0, rtol=0.0)

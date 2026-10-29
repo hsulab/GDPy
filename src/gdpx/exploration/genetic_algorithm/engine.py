@@ -714,8 +714,6 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
 
         specific_params: dict[str, Any] = dict(
             slab=self.da.get_substrate(),
-            # n_top=len(self.da.get_atom_numbers_to_optimize()),
-            n_top=0,  # We will determine `n_top` on-the-fly when crossover and mutation.
             used_modes_file=self.directory / self.CALC_DIRNAME / "used_modes.json",  # SoftMutation
             pbc=self.periodic,
             mic=self.periodic,

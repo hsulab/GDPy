@@ -294,10 +294,6 @@ class GeneticGenerationManager:
         mutated_structures = list(candidate_groups.get("mutated", []))
         completion_structures = list(candidate_groups.get("completion", []))
 
-        # We need adjust n_top for the variable composition search.
-        num_atoms_substrate = database.get_param("num_atoms_substrate")
-        assert isinstance(num_atoms_substrate, int)
-
         plan = database.get_generation_plan(curr_gen)
         if plan is None:
             plan = {
@@ -328,7 +324,6 @@ class GeneticGenerationManager:
                         curr_gen,
                         population,
                         operators,
-                        num_atoms_substrate,
                     )
                     if atoms is not None:
                         self.config.validate_candidate(atoms, "reproduction")
@@ -429,7 +424,6 @@ class GeneticGenerationManager:
         curr_gen: int,
         population,
         operators: dict,
-        num_atoms_substrate: int,
     ) -> Optional[Atoms]:
         """Reproduce a structure from the current population.
 
@@ -470,13 +464,12 @@ class GeneticGenerationManager:
             if parent is None:
                 return None
             parents = [parent]
-        natoms_p0 = len(parents[0])
 
         parents = [parent.copy() for parent in parents]
         for parent in parents:
             parent.info = copy.deepcopy(parent.info)
 
-        # HACK: We need adjust n_top of some operators for comptability.
+        # Operators select mobile atoms by tags; retain substrate geometry policy.
         prev_substrate = None
         curr_substrate = None
         if self.substrate_dtol > 0.0:
@@ -484,23 +477,10 @@ class GeneticGenerationManager:
             substrate_indices = [i for i, tag in enumerate(parents[0].get_tags()) if tag == 0]
             curr_substrate = copy.deepcopy(parents[0][substrate_indices])
 
-        curr_ntop = natoms_p0 - num_atoms_substrate
-        if hasattr(pairing, "n_top"):
-            prev_ntop = pairing.n_top
-            self._print(f"  pairing  {prev_ntop =} -> {curr_ntop =}")
-            pairing.n_top = curr_ntop
-            assert natoms_p0 == pairing.n_top + num_atoms_substrate
-        else:
-            prev_ntop = curr_ntop
-
         if hasattr(pairing, "slab") and curr_substrate is not None:
             pairing.slab = curr_substrate
 
         for mutation in mutations.oplist:
-            if hasattr(mutation, "n_top"):
-                self._print(f"  mutation  {mutation.n_top =} -> {curr_ntop =}")
-                mutation.n_top = curr_ntop
-                assert natoms_p0 == mutation.n_top + num_atoms_substrate
             if hasattr(mutation, "slab") and curr_substrate is not None:
                 mutation.slab = curr_substrate
 
@@ -573,16 +553,10 @@ class GeneticGenerationManager:
         else:
             ...  # Reproduce failed.
 
-        # restorre n_top, custom mutations should not have n_top...
-        if hasattr(pairing, "n_top"):
-            pairing.n_top = prev_ntop
-
         if hasattr(pairing, "slab") and prev_substrate is not None:
             pairing.slab = prev_substrate
 
         for mutation in mutations.oplist:
-            if hasattr(mutation, "n_top"):
-                mutation.n_top = prev_ntop
             if hasattr(mutation, "slab") and prev_substrate is not None:
                 mutation.slab = prev_substrate
 
