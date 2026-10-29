@@ -112,6 +112,11 @@ uses pairing participation; BH does not. Equal scores receive equal base fitness
 before history weighting. Optional {doc}`Thanos rules <population/thanos>`
 under `system.thanos` exclude candidates from the population.
 
+Structural comparators use only atoms with nonzero tags. An optional
+`system.comparator.group_expression` narrows that set; tag-zero substrate atoms
+remain excluded even if the expression selects them. Energy gates use the
+complete structure. See {doc}`operators/comparators/index` for configuration.
+
 GA uses `strategy.reproduction`, `strategy.mutation`, and
 `strategy.completion`. BH requires only `generation.total_size`; its move
 operators and `steps_per_chain` define the trials along each chain. Every evaluated
