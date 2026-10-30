@@ -21,6 +21,21 @@ def copper():
     return Atoms("Cu2", positions=[[3, 3, 3], [5.5, 3, 3]], cell=[12] * 3)
 
 
+@pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo",
+                                  "hybrid_monte_carlo", "hybrid_biased_monte_carlo"])
+@pytest.mark.parametrize("worker_kind", ["single", "batch"])
+def test_sampling_preserves_dispatch_worker_on_restore(tmp_path, method, worker_kind):
+    config = sampling_config(method)
+    config["dispatch"] = {"worker": worker_kind}
+    config["executor"]["parameters"]["stop"]["steps"] = 0
+    plan = prepare_compute(config, [copper()], tmp_path)
+    assert orchestrate_compute(plan).state == "finished"
+    trajectory = tmp_path / plan.workers[0].batches[0].tasks[0].workdir / "mc.xyz"
+    before = trajectory.read_bytes()
+    assert orchestrate_compute(plan).state == "finished"
+    assert trajectory.read_bytes() == before
+
+
 @pytest.mark.parametrize("method", ["monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo"])
 @pytest.mark.parametrize("steps,period,expected", [(0, 10, 1), (3, 10, 2), (3, 2, 3)])
 def test_multiple_chains_sparse_output_and_collection(tmp_path, method, steps, period, expected):

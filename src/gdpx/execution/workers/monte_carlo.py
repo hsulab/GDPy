@@ -13,6 +13,13 @@ class MonteCarloWorker(DriverBasedWorker):
         super().__init__(runtime, **kwargs)
         self.scheduler = DirectScheduler()
 
+    def as_dict(self) -> dict:
+        params = super().as_dict()
+        # Sampling uses this worker for both dispatch kinds. Preserve the
+        # configured kind so frozen runtimes still match their compute plan.
+        params["dispatch"]["worker"] = self.runtime.config.dispatch.worker
+        return params
+
     def _advance(self, batch):
         chains = []
         for atoms, name, seed in zip(batch[4], batch[1], batch[3]):
