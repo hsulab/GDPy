@@ -165,10 +165,17 @@ class PopulationBasedExploration(BaseExploration):
         directory.mkdir(parents=True, exist_ok=True)
         # Use a stable file-backed builder so dispatched searches can serialise it.
         import hashlib
+        import tempfile
         path = directory / (hashlib.sha256(name.encode()).hexdigest() + ".xyz")
-        temporary = path.with_suffix(".tmp.xyz")
-        write(temporary, frames, format="extxyz")
-        temporary.replace(path)
+        with tempfile.NamedTemporaryFile(mode="w", dir=directory, prefix=path.stem + ".",
+                                         suffix=".tmp.xyz", delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                write(stream, frames, format="extxyz")
+                stream.close()
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
         builder = DirectBuilder(frames=str(path.resolve()))
         builder.rng = self.random_streams.get(f"builder/{name}")
         self.builders[name] = builder

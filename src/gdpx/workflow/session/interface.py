@@ -7,13 +7,20 @@ import pathlib
 
 from gdpx.workflow.compiler import CompiledWorkflow, compile_workflow
 from gdpx.workflow.configuration import WorkflowSpec
+from gdpx.workflow.locking import workflow_lock
 
 
 def run_workflow_spec(
     spec: WorkflowSpec,
     directory: str | pathlib.Path = ".",
 ) -> bool:
-    """Compile and run one workflow specification."""
+    """Compile and run one workflow specification with exclusive ownership."""
+    with workflow_lock(pathlib.Path(directory) / spec.source.stem):
+        return _run_workflow_spec(spec, directory)
+
+
+def _run_workflow_spec(spec: WorkflowSpec, directory) -> bool:
+    """Execute while the caller holds the workflow directory lock."""
     directory = pathlib.Path(directory)
     run_directory = directory / spec.source.stem
     settings = spec.settings

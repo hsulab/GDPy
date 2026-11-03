@@ -69,6 +69,33 @@ def test_binding_keeps_other_builders_and_allocations(tmp_path):
         engine.bind_initial_builder('missing', candidates, tmp_path)
 
 
+def test_concurrent_builder_binding_uses_distinct_temporary_files(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    import ase.io
+
+    options = search_options(tmp_path)
+    engines = [ExplorationVariable(**options).value for _ in range(2)]
+    candidates = [Atoms('Cu2', positions=[[4, 5, 5], [6.2, 5, 5]], cell=[10]*3, pbc=True)]
+    barrier = Barrier(2)
+    original_write = ase.io.write
+    def overlapping_write(*args, **kwargs):
+        original_write(*args, **kwargs)
+        barrier.wait(timeout=10)
+    monkeypatch.setattr(ase.io, 'write', overlapping_write)
+    directory = tmp_path / 'bound'
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(engine.bind_initial_builder, 'init', candidates, directory)
+                   for engine in engines]
+        for future in futures:
+            future.result(timeout=15)
+    assert len(list(directory.glob('*.xyz'))) == 1
+    assert not list(directory.glob('*.tmp.xyz'))
+    frames = ase.io.read(next(directory.glob('*.xyz')), ':')
+    assert len(frames) == 1
+    np.testing.assert_allclose(frames[0].positions, candidates[0].positions)
+
+
 def test_repeat_sa_uses_selected_candidates_and_resumes(tmp_path, monkeypatch):
     from gdpx.workflow.nodes import data, driver, selector, runtime
     from gdpx.workflow.session.repeat import RepeatSession
