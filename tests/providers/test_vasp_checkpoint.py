@@ -51,3 +51,42 @@ class TestVaspCheckpoint(unittest.TestCase):
             )
             driver = VaspDriver(Vasp(), {"task": "spc"}, directory=directory)
             self.assertTrue(driver._verify_checkpoint())
+
+
+    def test_incomplete_outcar_is_unfinished(self):
+        from ase.io import ParseError
+        from gdpx.providers.vasp import driver as module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for name in ("vasprun.xml", "OUTCAR", "OSZICAR"):
+                (directory / name).write_text("interrupted output")
+            atoms = Atoms("H")
+            driver = VaspDriver(Vasp(), {"task": "spc"}, directory=directory)
+
+            def read_output(source, *args, **kwargs):
+                if kwargs.get("format") == "vasp-out":
+                    raise ParseError("Incomplete OUTCAR")
+                return [atoms]
+
+            with patch.object(module, "read", side_effect=read_output), patch.object(
+                module, "read_outcar_scf", return_value={"ispin": 2}
+            ):
+                self.assertEqual(driver._read_a_single_trajectory(directory), [])
+                self.assertFalse(driver.read_convergence())
+            self.assertEqual((directory / "OUTCAR").read_text(), "interrupted output")
+
+    def test_other_outcar_parse_errors_are_not_hidden(self):
+        from ase.io import ParseError
+        from gdpx.providers.vasp import driver as module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for name in ("vasprun.xml", "OUTCAR", "OSZICAR"):
+                (directory / name).write_text("output")
+            driver = VaspDriver(Vasp(), {"task": "spc"}, directory=directory)
+            with patch.object(
+                module, "read", side_effect=[[Atoms("H")], ParseError("Unexpected corruption")]
+            ), patch.object(module, "read_outcar_scf", return_value={"ispin": 2}):
+                with self.assertRaisesRegex(ParseError, "Unexpected corruption"):
+                    driver._read_a_single_trajectory(directory)

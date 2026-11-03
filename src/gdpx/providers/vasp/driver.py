@@ -10,7 +10,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.vasp import Vasp
 from ase.geometry import find_mic
-from ase.io import read, write
+from ase.io import ParseError, read, write
 
 from .backend import read_oszicar, read_outcar_scf, read_report, write_vasp
 from gdpx.data.extatoms import ScfErrAtoms
@@ -679,7 +679,16 @@ class VaspDriver(BaseDriver):
                 assert "ispin" in vasp_params_from_outcar, "OUTCAR must have ISPIN information."
                 if vasp_params_from_outcar["ispin"] == 2:
                     outcar_fobj.seek(0)
-                    outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
+                    try:
+                        outcar_frames = read(outcar_fobj, index=":", format="vasp-out")
+                    except ParseError as exc:
+                        outcar_fobj.close()
+                        if oszicar_fobj is not None:
+                            oszicar_fobj.close()
+                        if str(exc) != "Incomplete OUTCAR":
+                            raise
+                        self._print(f"Incomplete OUTCAR at `{wdir}`; calculation is unfinished.")
+                        return []
                     num_outcar_frames = len(outcar_frames)
                     if num_frames != num_outcar_frames:
                         self._print(f"Find vasprun {num_frames} != outcar {num_outcar_frames}.")
