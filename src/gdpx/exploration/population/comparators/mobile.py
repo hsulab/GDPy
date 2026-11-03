@@ -8,7 +8,7 @@ from gdpx.structures.groups.group import evaluate_group_expression
 
 
 class MobileComparator(BaseComparator):
-    """Compare tag != 0 atoms, optionally narrowed by an original-index group.
+    """Compare nonzero-tag atoms, or all atoms when legacy inputs lack tags.
 
     Selected copies and their fingerprints are owned by this comparator. Energy
     gates use complete candidate energies, never a subset energy calculation.
@@ -22,7 +22,9 @@ class MobileComparator(BaseComparator):
 
     def _select(self, atoms):
         selected = set(evaluate_group_expression(atoms, self.group_expression))
-        indices = [i for i, tag in enumerate(atoms.get_tags()) if tag != 0 and i in selected]
+        # Missing tags are legacy input, not an explicitly empty mobile group.
+        tags = atoms.get_tags() if atoms.has("tags") else np.ones(len(atoms), dtype=int)
+        indices = [i for i, tag in enumerate(tags) if tag != 0 and i in selected]
         if not indices:
             raise ValueError("Population comparison selected no mobile atoms (tag != 0).")
         candidate = atoms[indices]

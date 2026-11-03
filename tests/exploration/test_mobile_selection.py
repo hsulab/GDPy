@@ -94,3 +94,21 @@ def test_mutations_select_nonzero_tags_without_engine_counts(mutation_type):
     assert sorted(child.get_tags()) == [0, 0, 1, 2]
     np.testing.assert_allclose(child[child.get_tags() == 0].positions,
                                parent[parent.get_tags() == 0].positions)
+
+
+def test_legacy_untagged_comparison_and_explicit_zero_tags():
+    first, second = candidate(), candidate()
+    del first.arrays["tags"]
+    del second.arrays["tags"]
+    comparator = create_population_comparator(dict(method="atoms"))
+    assert comparator.looks_like(first, second)
+    second.positions[0] += [1, 0, 0]
+    assert not comparator.looks_like(first, second)
+    selected = create_population_comparator(dict(method="atoms", group_expression="`index 1 3`"))
+    assert selected.looks_like(first, second)
+    comparator._precompute_fingerprint([first])
+    assert not first.has("tags")
+    comparator._delete_fingerprint([first])
+    first.set_tags([0] * len(first))
+    with pytest.raises(ValueError, match="no mobile atoms"):
+        comparator.looks_like(first, second)

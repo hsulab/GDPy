@@ -202,3 +202,38 @@ def test_minimum_runtime_uses_own_potential_for_every_generation(search):
 def test_minimum_runtime_rejects_unsupported_configuration(search, overrides, message):
     with pytest.raises(ValueError, match=message):
         with_minimum_runtime(search, **overrides)
+
+
+@pytest.mark.parametrize("tags", [None, [0, 7]])
+def test_candidate_tags_survive_backend_output_and_restart(search, monkeypatch, tags):
+    import numpy as np
+    from gdpx.execution.workers.drive import DriverBasedWorker
+
+    obj = search()
+    seed_path = obj.directory.parent / "seed.xyz"
+    seed = read(seed_path)
+    if tags is not None:
+        seed.set_tags(tags)
+        write(seed_path, seed)
+    expected = [1, 2] if tags is None else tags
+    retrieve = DriverBasedWorker.retrieve
+
+    def without_tags(worker, *args, **kwargs):
+        trajectories = retrieve(worker, *args, **kwargs)
+        for trajectory in trajectories:
+            for frame in trajectory:
+                frame.arrays.pop("tags", None)
+        return trajectories
+
+    monkeypatch.setattr(DriverBasedWorker, "retrieve", without_tags)
+    obj.run()
+    search().run()
+    paths = [obj.directory / "gen0/inputs.xyz",
+             obj.directory / "gen1/inputs.xyz",
+             obj.directory / "gen1/sel/selected.xyz",
+             obj.directory / "results/all_candidates.xyz"]
+    for path in paths:
+        for frame in read(path, ":"):
+            np.testing.assert_array_equal(frame.get_tags(), expected)
+    for frame in obj.get_minimised_candidates():
+        np.testing.assert_array_equal(frame.get_tags(), expected)

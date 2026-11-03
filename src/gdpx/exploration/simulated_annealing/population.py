@@ -154,6 +154,12 @@ class PopulationAnnealing(PopulationBasedExploration):
         worker.skip_failed_candidates = True
         return worker
 
+    @staticmethod
+    def _ensure_candidate_tags(atoms):
+        """Give untagged candidates independent mobile atoms; retain explicit tags."""
+        if not atoms.has("tags"):
+            atoms.set_tags(np.arange(1, len(atoms) + 1))
+
     def _evaluate_stage(self, worker, frames, seeds, indices, state, plan, stage):
         if not frames:
             return {}
@@ -176,6 +182,15 @@ class PopulationAnnealing(PopulationBasedExploration):
             name = atoms.info["wdir"]
             if name not in expected or name in by_name or name in failed:
                 raise RuntimeError(f"Unexpected or duplicate SA {stage} result: {name}.")
+            # Restore arrays omitted by backends without changing legacy
+            # input fingerprints or forcing cached calculations to run again.
+            source = frames[int(name[4:])]
+            tags = (source.get_tags() if source.has("tags")
+                    else np.arange(1, len(source) + 1))
+            for frame in trajectory:
+                if not np.array_equal(frame.numbers, source.numbers):
+                    raise RuntimeError(f"SA {stage} changed candidate atom identity: {name}.")
+                frame.set_tags(tags)
             by_name[name] = trajectory
         if set(by_name) | set(failed) != expected:
             raise RuntimeError(f"Missing or duplicate SA {stage} results.")
@@ -270,6 +285,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                 frames = ([database.get_one_candidate_by_confid(p) for p in plan["parents"]]
                           if generation else self.population_config._prepare_initial_population(self.builders))
                 for frame in frames:
+                    self._ensure_candidate_tags(frame)
                     frame.calc = None
                     frame.info = {}
                     if "momenta" in frame.arrays:
