@@ -99,6 +99,7 @@ def test_failed_rerun_is_not_complete(tmp_path):
         raise RuntimeError("force evaluation failed")
 
     calc.calculate = fail
+    driver.setting.resume = False
     with pytest.raises(RuntimeError, match="force evaluation failed"):
         driver.run(Atoms("Cu"))
     assert not driver.read_convergence()
@@ -163,3 +164,125 @@ def test_unwrapped_calculator_is_finalized(tmp_path):
     driver = AseFrequencyDriver(InteractiveHarmonic(), {}, directory=tmp_path)
     driver.run(Atoms("Cu"))
     assert events == ["finalize"]
+
+
+class InterruptibleHarmonic(HarmonicCalculator):
+    def __init__(self, fail_after=None):
+        super().__init__()
+        self.fail_after = fail_after
+
+    def calculate(self, *args, **kwargs):
+        if self.fail_after is not None and len(self.evaluated_positions) >= self.fail_after:
+            raise RuntimeError("interrupted")
+        super().calculate(*args, **kwargs)
+
+
+def test_interrupted_frequency_resumes_valid_forces(tmp_path):
+    from ase.io.jsonio import decode
+    atoms = Atoms("Cu")
+    calc = InterruptibleHarmonic(fail_after=3)
+    driver = AseFrequencyDriver(calc, {}, directory=tmp_path)
+    with pytest.raises(RuntimeError, match="interrupted"):
+        driver.run(atoms)
+    assert not driver.read_convergence()
+    valid = {}
+    for path in (tmp_path / "vibrations").glob("cache.*.json"):
+        if path.stat().st_size:
+            valid[path.name] = path.read_bytes()
+    assert len(valid) == 3
+    # A new process/calculator must retain the same cache identity.
+    calc = InterruptibleHarmonic()
+    driver = AseFrequencyDriver(calc, {}, directory=tmp_path)
+    driver.run(atoms)
+    assert driver.read_convergence()
+    # Four missing force calls, plus the reference trajectory evaluation.
+    assert len(calc.evaluated_positions) == 5
+    for name, content in valid.items():
+        assert (tmp_path / "vibrations" / name).read_bytes() == content
+    for path in (tmp_path / "vibrations").glob("cache.*.json"):
+        assert np.asarray(decode(path.read_text())["forces"]).shape == (1, 3)
+    np.testing.assert_allclose(json.loads((tmp_path / "vibrations.json").read_text())[
+        "hessian_eV_angstrom2"], 2 * np.eye(3))
+
+
+@pytest.mark.parametrize("content", ["", "{", "null", "{}", '{"forces": [[1, 2]]}',
+                                     '{"forces": [[NaN, 0, 0]]}'])
+def test_invalid_force_cache_is_recomputed(tmp_path, content):
+    atoms = Atoms("Cu")
+    driver = AseFrequencyDriver(HarmonicCalculator(), {}, directory=tmp_path)
+    driver.run(atoms)
+    (tmp_path / "vibrations/cache.0x-.json").write_text(content)
+    calc = HarmonicCalculator()
+    driver = AseFrequencyDriver(calc, {}, directory=tmp_path)
+    driver.run(atoms)
+    assert len(calc.evaluated_positions) == 2
+    assert driver.read_convergence()
+
+
+@pytest.mark.parametrize("change", ["delta", "nfree", "indices", "calculator", "cell",
+                                   "constraints", "masses", "mixer"])
+def test_changed_identity_recomputes_all_forces(tmp_path, change):
+    from gdpx.providers.ase.backend import EnhancedCalculator
+    atoms = Atoms("Cu2", positions=[[0, 0, 0], [2, 0, 0]], cell=[8, 8, 8])
+    calc = HarmonicCalculator()
+    params = {"indices": [0]}
+    driver = AseFrequencyDriver(calc, params, directory=tmp_path)
+    driver.run(atoms)
+    calc = HarmonicCalculator()
+    if change == "delta":
+        params["maxstep"] = 0.02
+    elif change == "nfree":
+        params["nfree"] = 4
+    elif change == "indices":
+        params["indices"] = [1]
+    elif change == "calculator":
+        calc.parameters["test_setting"] = 1
+    elif change == "cell":
+        atoms.cell[0, 0] += 1
+    elif change == "constraints":
+        atoms.set_constraint(FixAtoms(indices=[1]))
+    elif change == "masses":
+        atoms.set_masses([64, 64])
+    elif change == "mixer":
+        calc = EnhancedCalculator([calc, HarmonicCalculator()], weights=[1, 0.5])
+    driver = AseFrequencyDriver(calc, params, directory=tmp_path)
+    driver.run(atoms)
+    leaf = calc.mixer.calcs[0] if change == "mixer" else calc
+    assert len(leaf.evaluated_positions) == 3 * params.get("nfree", 2) + 2
+
+
+def test_mixer_child_parameters_invalidate_cache(tmp_path):
+    from gdpx.providers.ase.backend import EnhancedCalculator
+    atoms = Atoms("Cu")
+    first, second = HarmonicCalculator(), HarmonicCalculator()
+    calc = EnhancedCalculator([first, second], weights=[1, 0.5])
+    AseFrequencyDriver(calc, {}, directory=tmp_path).run(atoms)
+    first.evaluated_positions.clear()
+    second.parameters["changed"] = True
+    AseFrequencyDriver(calc, {}, directory=tmp_path).run(atoms)
+    assert len(first.evaluated_positions) == 8
+
+
+def test_legacy_cache_requires_explicit_fresh_run(tmp_path):
+    atoms = Atoms("Cu")
+    AseFrequencyDriver(HarmonicCalculator(), {}, directory=tmp_path).run(atoms)
+    (tmp_path / "vibrations.restart.json").unlink()
+    original = (tmp_path / "vibrations/cache.eq.json").read_bytes()
+    with pytest.raises(RuntimeError, match="no valid restart manifest"):
+        AseFrequencyDriver(HarmonicCalculator(), {}, directory=tmp_path).run(atoms)
+    assert (tmp_path / "vibrations/cache.eq.json").read_bytes() == original
+    calc = HarmonicCalculator()
+    AseFrequencyDriver(calc, {"resume": False}, directory=tmp_path).run(atoms)
+    assert len(calc.evaluated_positions) == 8
+
+
+def test_input_file_change_invalidates_cache(tmp_path):
+    input_file = tmp_path / "model.dat"
+    input_file.write_text("first")
+    calc = HarmonicCalculator()
+    calc.parameters["model"] = str(input_file)
+    AseFrequencyDriver(calc, {}, directory=tmp_path).run(Atoms("Cu"))
+    calc.evaluated_positions.clear()
+    input_file.write_text("second")
+    AseFrequencyDriver(calc, {}, directory=tmp_path).run(Atoms("Cu"))
+    assert len(calc.evaluated_positions) == 8
