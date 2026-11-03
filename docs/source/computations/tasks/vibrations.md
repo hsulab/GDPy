@@ -45,8 +45,36 @@ energy, Hessian, and modes), and the ASE force cache in `vibrations/`.
 Imaginary components are stored separately in the JSON; `modes` has shape
 `(3 * selected_atoms, total_atoms, 3)` with zeros outside the selected group.
 The collected trajectory contains the undisplaced structure and is marked
-complete only after the spectrum is written. An explicit executor rerun
-recomputes all displacements; interrupted force caches are not resumed.
+complete only after the spectrum is written.
+
+### Resuming interrupted ASE vibrations
+
+The default `setup.resume: true` reuses completed force evaluations when
+`vibrations.restart.json` matches the input geometry (including cell, species,
+masses, charges and magnetic moments), constraints, selected indices,
+displacement size, stencil, and calculator parameters. Nested mixer calculators
+and their weights are included. Regular input files directly referenced by
+calculator parameters are fingerprinted by content. External resources not
+represented in those parameters (for example a pseudopotential directory's
+contents or an executable replaced in place) must be kept unchanged; use a
+fresh run if they change.
+
+Empty, malformed, nonfinite, or incorrectly shaped force-cache entries are
+removed and recalculated. Valid entries are retained. Changing the recorded
+inputs invalidates the cache and recomputes all displacements.
+Set `setup.resume: false` to explicitly recompute everything.
+
+Caches produced before restart metadata was introduced are preserved but
+rejected for automatic reuse: their original settings cannot be verified from
+the force cache alone. They require a separately verified provenance migration,
+or an explicit fresh run. Do not create a manifest from current inputs alone
+and assume this validates an older cache.
+
+Only run one executor for a given calculation directory at a time, and wait
+for the previous scheduler job to stop before resubmitting. Restart support
+does not itself submit or retry scheduler jobs. It resumes complete displacement
+force evaluations, not an interrupted electronic SCF calculation. Completion
+is still recorded only after every required force and the spectrum are saved.
 
 ## VASP finite differences
 
