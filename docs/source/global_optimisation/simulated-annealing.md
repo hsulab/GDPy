@@ -30,6 +30,21 @@ Older minima remain eligible, so an unsuccessful generation does not discard
 the best structures. This initial version uses supplied builders for generation
 0 only; later generations restart from selected minima.
 
+## Candidate tags
+
+SA preserves explicit ASE tags and restores them on MD and minimisation
+results when the backend omits them. Newly generated untagged candidates
+receive positive tags `1, ..., N`, treating each atom independently.
+Explicit tag 0 atoms are excluded from structural population comparisons.
+Executor constraints such as `zbot 48` control motion independently and
+do not automatically assign substrate tags.
+
+Legacy untagged checkpoints remain readable: comparison includes all selected
+atoms when the tags array is absent. Explicit all-zero tags still raise an
+empty-mobile-group error. Existing saved inputs are not rewritten, allowing
+cached calculations to be reused; retrieved SA results receive tags before
+snapshot selection and candidate ingestion.
+
 ## Examples
 
 ### Complete minimal input
