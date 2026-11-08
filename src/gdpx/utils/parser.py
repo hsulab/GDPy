@@ -12,8 +12,14 @@ import yaml
 def parse_input_file(
     input_fpath: Any,
     write_json: bool = False,  # write readin dict to check if alright
+    *,
+    required: bool = True,
 ) -> dict:
-    """"""
+    """Load configuration, raising for missing explicit input files.
+
+    Recursive values are probed with required=False because strings inside
+    configurations may be literal values or paths to future output files.
+    """
     input_dict = None
 
     # Check input type
@@ -44,19 +50,20 @@ def parse_input_file(
             else:
                 ...
         except FileNotFoundError:
-            # There is json or yaml in the string but it is not a file though.
+            if required:
+                raise
             input_dict = None
 
     # Recursively read internal json or yaml files
     if input_dict is not None:
         if isinstance(input_dict, dict):
             for key, value in input_dict.items():
-                key_dict = parse_input_file(value, write_json=False)
+                key_dict = parse_input_file(value, write_json=False, required=False)
                 if key_dict is not None:
                     input_dict[key] = key_dict
         elif isinstance(input_dict, list):
             for i, data in enumerate(input_dict):
-                new_data = parse_input_file(data, write_json=False)
+                new_data = parse_input_file(data, write_json=False, required=False)
                 if new_data is not None:
                     input_dict[i] = new_data
         else:
