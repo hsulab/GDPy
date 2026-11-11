@@ -1,5 +1,25 @@
 {% extends "!layout.html" %}
 
+{% block content %}
+  <div class="docs-layout">
+    <div class="docs-article">
+      {% if display_toc %}
+        <details class="docs-mobile-toc">
+          <summary>{{ _('On this page') }}</summary>
+          <nav aria-label="{{ _('On this page') }}">{{ toc }}</nav>
+        </details>
+      {% endif %}
+      {{ super() }}
+    </div>
+    {% if display_toc %}
+      <aside class="docs-page-toc" aria-labelledby="docs-page-toc-title">
+        <p id="docs-page-toc-title">{{ _('On this page') }}</p>
+        <nav aria-label="{{ _('On this page') }}">{{ toc }}</nav>
+      </aside>
+    {% endif %}
+  </div>
+{% endblock %}
+
 {% block menu %}
   {# Keep Sphinx-generated links and active-page state. Group the exploration
      captions into a primary section with two secondary, non-clickable dividers. #}

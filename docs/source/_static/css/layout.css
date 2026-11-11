@@ -1,0 +1,97 @@
+/* Three columns: the theme's global navigation, article, and local outline. */
+.wy-nav-content {
+  max-width: 1280px;
+}
+
+.docs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: start;
+  gap: 40px;
+}
+
+.docs-article {
+  min-width: 0;
+}
+
+.docs-page-toc {
+  position: sticky;
+  top: 2rem;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.docs-page-toc > p {
+  color: #555;
+  font-size: inherit;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.docs-page-toc ul,
+.docs-mobile-toc ul {
+  list-style: none;
+  margin: 0;
+}
+
+.docs-page-toc ul ul,
+.docs-mobile-toc ul ul {
+  margin-left: 0.85rem;
+}
+
+.docs-page-toc a {
+  display: block;
+  border-left: 1px solid #ddd;
+  padding: 0.3rem 0.75rem;
+  color: #555;
+}
+
+.docs-page-toc a:hover,
+.docs-page-toc a:focus-visible {
+  color: #2980b9;
+  border-left-color: #2980b9;
+}
+
+.docs-mobile-toc {
+  display: none;
+}
+
+/* Keep the theme's mobile navigation and offer a collapsible local outline. */
+@media (max-width: 1199px) {
+  .wy-nav-content {
+    max-width: 900px;
+  }
+
+  .docs-layout {
+    display: block;
+  }
+
+  .docs-page-toc {
+    display: none;
+  }
+
+  .docs-mobile-toc {
+    display: block;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    font-size: 0.85rem;
+  }
+
+  .docs-mobile-toc summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .docs-mobile-toc nav {
+    margin-top: 0.75rem;
+  }
+
+  .docs-mobile-toc a {
+    display: block;
+    padding: 0.25rem 0;
+  }
+}
