@@ -1,9 +1,0 @@
-/* Furo supplies distinct light/dark values through html_theme_options. */
-.sidebar-tree .nav-command {
-  color: var(--color-nav-command);
-  font-weight: 700;
-}
-
-.sidebar-tree .nav-secondary-caption {
-  color: var(--color-nav-secondary);
-}

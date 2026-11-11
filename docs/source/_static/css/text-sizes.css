@@ -1,0 +1,4 @@
+/* Size article text independently of Furo's navigation columns. */
+article[role="main"] {
+  font-size: 1rem;
+}
