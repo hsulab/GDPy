@@ -67,6 +67,9 @@ exclude_patterns = ['_static/**', '_templates/**']
 html_theme = "furo"
 html_theme_options = {
     "light_css_variables": {
+        "font-stack": '"JetBrainsMono NF", monospace',
+        "font-stack--headings": '"JetBrainsMono NF", monospace',
+        "font-stack--monospace": '"JetBrainsMono NF", monospace',
         "sidebar-item-font-size": "0.875rem",
         "sidebar-caption-font-size": "0.875rem",
         "sidebar-search-input-font-size": "0.875rem",
@@ -84,5 +87,5 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-html_css_files = ['css/text-sizes.css']
+html_css_files = ['css/fonts.css', 'css/text-sizes.css']
 html_js_files = ['js/sidebar-scroll.js']
