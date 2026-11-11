@@ -126,7 +126,17 @@ separate environment rather than adding `mace` to the command above.
 :::
 
 Install individual providers with `python -m pip install '.[mace]'`, replacing
-`mace` with the extra you need. See the provider pages for other backends and
+`mace` with the extra you need. For MACE on Linux with CUDA 12.8, run this from
+the repository root in a separate environment:
+
+```shell
+python -m pip install '.[mace]' 'torch==2.11.0+cu128' --extra-index-url https://download.pytorch.org/whl/cu128
+```
+
+The explicit PyTorch version selects the CUDA 12.8 build. Add `-e` for an
+editable installation. Use the standard installation above on macOS.
+
+See the provider pages for other backends and
 training setup: {doc}`potentials/deepmd`, {doc}`potentials/mace`,
 {doc}`potentials/mattersim`, {doc}`potentials/reann`, and {doc}`potentials/tace`.
 

@@ -12,6 +12,16 @@ From the repository root:
 python -m pip install -e '.[mace]'
 ```
 
+For Linux with CUDA 12.8, use this command instead, in a separate environment
+from providers with conflicting dependencies:
+
+```shell
+python -m pip install -e '.[mace]' 'torch==2.11.0+cu128' --extra-index-url https://download.pytorch.org/whl/cu128
+```
+
+The explicit PyTorch version selects the CUDA 12.8 build. On macOS, use the
+standard installation command above.
+
 The extra installs `mace-torch` and PyTorch for inference and training,
 including `mace_run_train`. See {doc}`../installation` for CPU/GPU setup,
 verification, and dependency conflicts with other providers.
