@@ -73,7 +73,7 @@ class SimulatedAnnealing(BaseExploration):
             "recipe": {"random_seed": self.random_seed, "builder": self.builder.as_dict(),
                        **({"annealing": self.annealing} if self.annealing is not None
                           else {"temperatures": self.temperatures})},
-            "runtime": self.worker.as_dict(),
+            "runtime": self.runtime_as_dict(),
         })
 
     def _signature(self):

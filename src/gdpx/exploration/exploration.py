@@ -3,7 +3,9 @@
 
 
 import abc
+import copy
 import logging
+import pathlib
 
 from gdpx.core.component import BaseComponent
 from gdpx.execution.service import ExecutionWorker, WorkerExecutionService
@@ -14,6 +16,47 @@ class BaseExploration(BaseComponent):
 
     #: Name of the exploration.
     name: str = "exploration"
+
+    _pending_runtime = None
+
+    def register_runtime(self, runtime) -> None:
+        """Keep a serializable runtime without loading execution providers.
+
+        Scheduled explorations only need this configuration on the submission
+        host. Worker construction and algorithm-specific runtime validation
+        happen in the process that executes the exploration.
+        """
+        from gdpx.providers.configuration import RuntimeConfig
+
+        config = runtime if isinstance(runtime, RuntimeConfig) else RuntimeConfig.from_mapping(runtime)
+        parameters = config.to_dict()
+        potential = parameters["potential"].get("parameters", {})
+        # Preserve model aliases, but anchor existing local checkpoints before
+        # the scheduler changes into the exploration output directory.
+        def model_path(value):
+            if isinstance(value, (str, pathlib.Path)) and pathlib.Path(value).is_file():
+                return str(pathlib.Path(value).resolve())
+            return value
+
+        if "model" in potential:
+            model = potential["model"]
+            potential["model"] = ([model_path(item) for item in model]
+                                  if isinstance(model, list) else model_path(model))
+        self._pending_runtime = parameters
+
+    def materialize_worker(self) -> None:
+        """Bind a deferred runtime once execution starts."""
+        if self._pending_runtime is not None:
+            from gdpx.execution.factory import create_worker
+
+            self.register_worker(create_worker(self._pending_runtime))
+            self._pending_runtime = None
+
+    def runtime_as_dict(self):
+        """Serialize a deferred or already constructed calculation worker."""
+        if self._pending_runtime is not None:
+            return copy.deepcopy(self._pending_runtime)
+        return self.worker.as_dict()
 
     @abc.abstractmethod
     def read_convergence(self) -> bool: ...

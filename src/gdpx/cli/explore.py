@@ -63,7 +63,10 @@ def run_exploration(
 
         for curr_exploration in exploration:
             if hasattr(curr_exploration, "register_worker"):
-                curr_exploration.register_worker(create_worker(runtime_params))
+                if not spawn and (not scheduler.is_direct or scheduler.transport_name != "local"):
+                    curr_exploration.register_runtime(runtime_params)
+                else:
+                    curr_exploration.register_worker(create_worker(runtime_params))
 
         num_explorations = len(exploration)
         if spawn:  # Run exploration in commandline as input files are prepared by worker

@@ -196,5 +196,5 @@ class PopulationBasedExploration(BaseExploration):
         return dict(
             method="global_optimisation", random_seed=self.random_seed,
             system=system, strategy=strategy, **result,
-            runtime=copy.deepcopy(self.worker.as_dict()),
+            runtime=copy.deepcopy(self.runtime_as_dict()),
         )

@@ -31,6 +31,8 @@ tracks its progress.
 def run_exploration_in_commandline(wdir, exploration, timewait: Optional[float] = None, print_func=print) -> None:
     """"""
     exploration.directory = wdir
+    if hasattr(exploration, "materialize_worker"):
+        exploration.materialize_worker()
     if timewait is not None:
         for _ in range(1000):
             exploration.run()

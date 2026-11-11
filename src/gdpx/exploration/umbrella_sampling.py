@@ -145,7 +145,7 @@ class UmbrellaSampling(BaseExploration):
                 "replicas": self.replicas,
                 "equilibration_steps": self.equilibration_steps,
             },
-            "runtime": self.worker.as_dict(),
+            "runtime": self.runtime_as_dict(),
         }
 
     def _config_digest(self):
