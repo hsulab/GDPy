@@ -20,7 +20,7 @@ def search_options(tmp_path):
     seed = tmp_path / 'seed.xyz'
     write(seed, Atoms('Cu2', positions=[[4, 5, 5], [6.4, 5, 5]], cell=[10]*3, pbc=True))
     options['system']['builders']['init']['fname'] = str(seed)
-    options['strategy']['minimisation']['runtime']['executor']['parameters']['stop']['steps'] = 20
+    options['strategy']['minimisation']['executor']['parameters']['stop']['steps'] = 20
     return options
 
 

@@ -23,8 +23,8 @@ def search(tmp_path):
         initial={"total_size": 1, "builder_allocations": [{"builder": "init", "size": 1}]},
         generation={"total_size": 2}), strategy=dict(
         method="simulated_annealing", temperatures=[[600, 300]], minimisation={
-            "runtime": {"executor": {"provider": "ase", "method": "min", "parameters": {
-                "stop": {"steps": 100, "fmax": .1}}}}}))
+            "executor": {"provider": "ase", "method": "min", "parameters": {
+                "stop": {"steps": 100, "fmax": .1}}}}))
     runtime = dict(potential={"provider": "emt"}, executor=dict(
         provider="ase", method="md", parameters=dict(
             setup={"ensemble": {"method": "nvt", "temperature": 600}, "timestep": .1, "velocities": {"remove_rotation": False},
@@ -130,8 +130,8 @@ def test_rejects_old_minimisation_shape(search):
     obj = search()
     recipe = obj.as_dict()
     runtime = recipe.pop("runtime")
-    recipe["strategy"]["minimisation"] = {"executor": recipe["strategy"]["minimisation"]["runtime"]["executor"]}
-    with pytest.raises(ValueError, match="requires runtime"):
+    recipe["strategy"]["minimisation"] = {"runtime": recipe["strategy"]["minimisation"]}
+    with pytest.raises(ValueError, match="Remove the strategy.minimisation.runtime wrapper"):
         create_exploration(recipe)
 
 
@@ -146,7 +146,7 @@ def with_minimum_runtime(search, **overrides):
     obj = search()
     recipe = obj.as_dict()
     md_runtime = recipe.pop("runtime")
-    recipe["strategy"]["minimisation"]["runtime"].update(overrides)
+    recipe["strategy"]["minimisation"].update(overrides)
     rebuilt = create_exploration(recipe)
     rebuilt.directory = obj.directory
     rebuilt.register_worker(create_worker(md_runtime))
@@ -159,7 +159,7 @@ def test_minimum_runtime_inherits_potential_and_overrides_dispatch(search):
     md_runtime = recipe.pop("runtime")
     md_runtime["dispatch"].update(batch_size=7, retain_info=True)
     md_runtime["scheduler"] = {"provider": "slurm"}
-    recipe["strategy"]["minimisation"]["runtime"]["dispatch"] = {"batch_size": 2}
+    recipe["strategy"]["minimisation"]["dispatch"] = {"batch_size": 2}
     original = copy.deepcopy((recipe, md_runtime))
     rebuilt = create_exploration(recipe)
     rebuilt.register_worker(create_worker(md_runtime))

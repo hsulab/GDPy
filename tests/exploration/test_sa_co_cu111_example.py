@@ -21,7 +21,7 @@ EXAMPLES = ROOT / "examples/global_optimisation/explorations/simulated_annealing
 def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
     monkeypatch.chdir(EXAMPLES)
     config = yaml.safe_load((EXAMPLES / "co_cu111.yaml").read_text())
-    runtime = yaml.safe_load((EXAMPLES / "../../runtimes/dpa4c_mini_md.yaml").read_text())
+    runtime = yaml.safe_load((EXAMPLES / "../../runtimes/dpa4c_mini_sa.yaml").read_text())
     assert "runtime" not in config
     assert runtime["potential"] == {
         "provider": "deepmd", "backend": "ase",
@@ -39,7 +39,7 @@ def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
     assert substrate.pbc.all()
     assert original.pbc.tolist() == [True, True, False]
     md = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-    minimum = resolve_executor_parameters(config["strategy"]["minimisation"]["runtime"]["executor"]["parameters"], "min")
+    minimum = resolve_executor_parameters(config["strategy"]["minimisation"]["executor"]["parameters"], "min")
     for atoms in frames:
         assert atoms.get_chemical_formula() == "CCu12O"
         assert atoms.pbc.all()
@@ -58,16 +58,13 @@ def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
             assert sorted(fixed) == bottom
     assert md["steps"] == 1000 and md["timestep"] == .5
     assert md["controller"]["name"] == "langevin"
-    assert config["strategy"]["annealing"] == {
-        "start_temperature": 600., "final_temperature": 100., "schedule": "linear",
-    }
+    assert config["strategy"]["temperatures"] == [[600, 100], [450, 100], [300, 100]]
     # Substitute only the potential: exercise real executor registration without
     # requiring weights or claiming DPA4C inference has been validated.
     local_runtime = copy.deepcopy(runtime)
     local_runtime["potential"] = {"provider": "emt"}
     engine.register_worker(create_worker(local_runtime))
-    cooling = engine._cooling(1, frames, 73)
-    worker = cooling.get_workers()[0]
+    worker = engine._cooling(1, frames, 73)
     cooling_params = resolve_executor_parameters(worker.as_dict()["executor"]["parameters"], "md")
     assert cooling_params["temp"] == 600. and cooling_params["tend"] == 100.
     assert cooling_params["constraint"] == md["constraint"]
@@ -87,7 +84,7 @@ def test_co_cu111_documented_command(tmp_path, monkeypatch):
                         lambda params, wait, directory, runtime, **kwargs: calls.append((params, runtime)))
     monkeypatch.setattr(sys, "argv", [
         "gdp", "-d", str(tmp_path), "--log", "",
-        "--runtime", "../../runtimes/dpa4c_mini_md.yaml",
+        "--runtime", "../../runtimes/dpa4c_mini_sa.yaml",
         "explore", "co_cu111.yaml",
     ])
     assert main.main() is None
@@ -97,7 +94,7 @@ def test_co_cu111_documented_command(tmp_path, monkeypatch):
     guide = ROOT / "docs/source/global_optimisation/examples/co-cu111.md"
     text = guide.read_text()
     for source in ("explorations/simulated_annealing/co_cu111.yaml",
-                   "runtimes/dpa4c_mini_md.yaml"):
+                   "runtimes/dpa4c_mini_sa.yaml"):
         relative = f"../../../../examples/global_optimisation/{source}"
         assert f"{{literalinclude}} {relative}" in text
         assert (guide.parent / relative).is_file()

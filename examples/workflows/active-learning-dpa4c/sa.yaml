@@ -67,24 +67,24 @@ resources:
           - [600, 300]
         convergence:
           generation: 1
+        # Per MD trajectory: every second SAVED frame plus the endpoint.
+        selection:
+          method: interval
+          period: 2
+          include_last: true
+          group_by: "axis 0"
         minimisation:
-          # Per MD trajectory: every second SAVED frame plus the endpoint.
-          selector:
-            method: interval
-            period: 2
-            include_last: true
-          runtime:
-            # Inherit the current iteration's MD committee potential.
-            executor:
-              provider: ase
-              method: min
-              parameters:
-                stop:
-                  steps: 100
-                  fmax: 0.1
-                output:
-                  trajectory:
-                    period: 5
+          # Inherit the current iteration's MD committee potential.
+          executor:
+            provider: ase
+            method: min
+            parameters:
+              stop:
+                steps: 100
+                fmax: 0.1
+              output:
+                trajectory:
+                  period: 5
 
   md:
     __type__: executor

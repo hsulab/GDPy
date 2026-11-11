@@ -78,7 +78,7 @@ def test_sa_branches_extract_select_and_label_independently(tmp_path):
     write(seed, Atoms('Cu2', positions=[[4, 5, 5], [6.4, 5, 5]], cell=[10]*3, pbc=True))
     search = copy.deepcopy(dict(spec.resources['search'].options))
     search['system']['builders']['init']['fname'] = str(seed)
-    search['strategy']['minimisation']['runtime']['executor']['parameters']['stop']['steps'] = 20
+    search['strategy']['minimisation']['executor']['parameters']['stop']['steps'] = 20
     md = copy.deepcopy(dict(spec.resources['md'].options))
     md['parameters']['stop']['steps'] = 2
     md['parameters']['output']['trajectory']['period'] = 1

@@ -39,13 +39,12 @@ strategy:
     indices: "-1"
     group_by: "axis 0"
   minimisation:
-    runtime:
-      executor:
-        provider: ase
-        method: min
-        parameters:
-          setup:
-            constraint: '`zbot 60`'
-          stop:
-            steps: 20
-            fmax: 0.1
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        setup:
+          constraint: '`zbot 60`'
+        stop:
+          steps: 20
+          fmax: 0.1

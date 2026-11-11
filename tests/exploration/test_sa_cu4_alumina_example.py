@@ -34,7 +34,7 @@ def test_cu4_alumina_sa_example(tmp_path, monkeypatch):
     assert engine.convergence == {"generation": 2}
     substrate = read(recipe["system"]["builders"]["init"]["substrates"])
     md = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-    minimum = resolve_executor_parameters(recipe["strategy"]["minimisation"]["runtime"]["executor"]["parameters"], "min")
+    minimum = resolve_executor_parameters(recipe["strategy"]["minimisation"]["executor"]["parameters"], "min")
     for atoms in frames:
         assert atoms.get_chemical_formula() == "Al72Cu4O108"
         assert atoms.pbc.all()

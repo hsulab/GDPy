@@ -50,21 +50,19 @@ class PopulationAnnealing(PopulationBasedExploration):
         if generation != len(temperatures):
             raise ValueError("SA requires one temperature range per generation (excluding initial generation 0).")
         definition = strategy.get("minimisation")
-        if not isinstance(definition, Mapping) or "runtime" not in definition:
-            raise ValueError("SA strategy.minimisation requires runtime.")
+        if not isinstance(definition, Mapping):
+            raise ValueError("SA strategy.minimisation must be a runtime mapping.")
+        if "runtime" in definition:
+            raise ValueError("Remove the strategy.minimisation.runtime wrapper; put runtime fields directly under strategy.minimisation.")
         if "selector" in definition:
             raise ValueError("Move strategy.minimisation.selector to strategy.selection.")
-        if set(definition) - {"runtime"}:
-            raise ValueError("SA minimisation accepts only runtime.")
         selector_config = copy.deepcopy(strategy.get("selection", {
             "method": "locate", "indices": "-1", "group_by": "axis 0"}))
         create_selector(selector_config)  # Validate before any calculations are submitted.
-        if not isinstance(definition["runtime"], Mapping):
-            raise ValueError("SA minimisation.runtime must be a runtime mapping.")
-        minimum_runtime = copy.deepcopy(dict(definition["runtime"]))
+        minimum_runtime = copy.deepcopy(dict(definition))
         minimisation = child_executor(minimum_runtime.get("executor"))
         if "scheduler" in minimisation:
-            raise ValueError("Move the minimisation scheduler to minimisation.runtime.scheduler.")
+            raise ValueError("Move the minimisation scheduler to minimisation.scheduler.")
         minimum_runtime["executor"] = minimisation
         if minimisation["method"] != "min":
             raise ValueError("SA strategy.minimisation requires method: min.")
@@ -76,7 +74,7 @@ class PopulationAnnealing(PopulationBasedExploration):
             raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
         strategy = copy.deepcopy(strategy)
         strategy["selection"] = selector_config
-        strategy["minimisation"] = {"runtime": minimum_runtime}
+        strategy["minimisation"] = minimum_runtime
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -109,12 +107,12 @@ class PopulationAnnealing(PopulationBasedExploration):
         create_worker(self._minimum_runtime())
 
     def _minimum_runtime(self):
-        definition = copy.deepcopy(self.strategy_config["minimisation"]["runtime"])
+        definition = copy.deepcopy(self.strategy_config["minimisation"])
         md_runtime = self.worker.as_dict()
         definition.setdefault("potential", md_runtime["potential"])
         dispatch = definition.get("dispatch", {})
         if not isinstance(dispatch, Mapping):
-            raise ValueError("SA minimisation.runtime.dispatch must be a mapping.")
+            raise ValueError("SA minimisation.dispatch must be a mapping.")
         definition["dispatch"] = {**md_runtime["dispatch"], "worker": "batch", **dispatch}
         runtime = RuntimeConfig.from_mapping(definition)
         if runtime.modifiers or runtime.dispatch.share_workdir:

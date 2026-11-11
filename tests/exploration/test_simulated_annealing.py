@@ -42,8 +42,8 @@ def test_population_requires_valid_minimisation(fmax):
     from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
     with pytest.raises(ValueError, match="positive stop.steps and stop.fmax"):
         PopulationAnnealing(None, {"method": "simulated_annealing", "temperatures": [[600, 300]],
-            "minimisation": {"runtime": {"executor": {"provider": "ase", "method": "min",
-                             "parameters": {"stop": {"steps": 10, "fmax": fmax}}}}}})
+            "minimisation": {"executor": {"provider": "ase", "method": "min",
+                             "parameters": {"stop": {"steps": 10, "fmax": fmax}}}}})
 
 
 def engine(path):
@@ -107,7 +107,7 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     md["stop"]["steps"] = 1
     md["output"]["trajectory"]["period"] = 1
     md["setup"]["ensemble"]["temperature"] = 600.
-    config["strategy"]["minimisation"]["runtime"]["executor"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
+    config["strategy"]["minimisation"]["executor"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
     config["strategy"]["temperatures"] = [[600., 300.], [450., 200.]]
     config["strategy"]["convergence"]["generation"] = 2
     config["system"]["generation"]["total_size"] = 2
@@ -206,12 +206,12 @@ def test_evolution_uses_objective_and_parent_links(tmp_path, monkeypatch):
     write_results(tmp_path, candidates, [candidates[1]], "formation_energy")
     assert not (tmp_path / "population.xyz").exists()
     assert len(read(tmp_path / "all_candidates.xyz", ":")) == 3
-    assert ax.get_ylabel() == "Formation energy [eV]"
-    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[0, -2], [1, -3], [2, -1]])
-    np.testing.assert_allclose(ax.collections[1].get_offsets(), [[1, -3]])
-    np.testing.assert_allclose(ax.lines[0].get_xydata(), [[0, -2], [1, -3]])
-    np.testing.assert_allclose(ax.lines[1].get_xydata(), [[0, -2], [2, -1]])
-    np.testing.assert_allclose(ax.lines[2].get_ydata(), [-2, -3, -3])
+    assert ax.get_ylabel() == "Relative formation energy [eV] (generation 0 minimum = 0)"
+    np.testing.assert_allclose(ax.collections[0].get_offsets(), [[0, 0], [1, -1], [2, 1]])
+    np.testing.assert_allclose(ax.collections[1].get_offsets(), [[1, -1]])
+    np.testing.assert_allclose(ax.lines[0].get_xydata(), [[0, 0], [1, -1]])
+    np.testing.assert_allclose(ax.lines[1].get_xydata(), [[0, 0], [2, 1]])
+    np.testing.assert_allclose(ax.lines[2].get_ydata(), [0, -1, -1])
     assert not plt.fignum_exists(fig.number)
 
 
@@ -252,8 +252,8 @@ def test_linear_ramp_targets(tmp_path, monkeypatch, thermostat):
 def test_population_rejects_invalid_generation_temperatures(temperatures, generations):
     from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
     strategy = {"method": "simulated_annealing", "temperatures": temperatures,
-                "minimisation": {"runtime": {"executor": {"provider": "ase", "method": "min",
-                                 "parameters": {"stop": {"steps": 100, "fmax": .1}}}}}}
+                "minimisation": {"executor": {"provider": "ase", "method": "min",
+                                 "parameters": {"stop": {"steps": 100, "fmax": .1}}}}}
     with pytest.raises(ValueError, match="temperature"):
         PopulationAnnealing(None, strategy, convergence={"generation": generations})
 
@@ -281,7 +281,7 @@ def test_population_defaults_generation_count_and_preserves_surface(monkeypatch)
     assert minimum["potential"] == engine.worker.runtime.config.potential.to_dict()
     assert minimum["executor"]["method"] == "min"
     assert runtime == original
-    recipe["strategy"]["minimisation"]["runtime"]["executor"]["potential"] = {"provider": "emt"}
+    recipe["strategy"]["minimisation"]["executor"]["potential"] = {"provider": "emt"}
     with pytest.raises(ValueError, match="Unknown executor fields"):
         create_exploration(recipe)
 
@@ -297,7 +297,7 @@ def test_population_pending_generation_resumes(tmp_path, monkeypatch, stage):
     recipe = yaml.safe_load(Path("cu8.yaml").read_text())
     recipe["strategy"]["temperatures"] = [[450, 150]]
     recipe["strategy"]["convergence"] = {"generation": 1}
-    recipe["strategy"]["minimisation"]["runtime"]["executor"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
+    recipe["strategy"]["minimisation"]["executor"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
     recipe["system"]["generation"]["total_size"] = 1
     runtime = yaml.safe_load((root / "runtimes/emt_sa.yaml").read_text())
     runtime["executor"]["parameters"]["stop"]["steps"] = 1
