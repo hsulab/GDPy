@@ -58,7 +58,7 @@ def resolve_monte_carlo_system(setup, operators, method_name="monte_carlo"):
     for operator in resolved_operators:
         if "temperature" in operator or "chempots" in operator:
             raise ValueError(
-                "Move operator temperature and chempots to parameters.ensemble."
+                "Move operator temperature and chempots to parameters.setup.ensemble."
             )
         if method_name != "biased_monte_carlo" and operator.get("skip_distance_check", True) is not True:
             raise ValueError(
@@ -95,7 +95,7 @@ def resolve_monte_carlo_system(setup, operators, method_name="monte_carlo"):
             if missing:
                 raise ValueError(f"Missing chemical potentials for: {', '.join(missing)}.")
             if "chempot_0" in reaction:
-                raise ValueError("Move reaction.chempot_0 to parameters.ensemble.chemical_potentials.")
+                raise ValueError("Move reaction.chempot_0 to parameters.setup.ensemble.chemical_potentials.")
             reaction["chempot_0"] = [chemical_potentials[particle] for particle in reaction_particles]
 
     return resolved_operators, copy.deepcopy(dict(ensemble))

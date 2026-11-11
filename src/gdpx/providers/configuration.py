@@ -13,20 +13,32 @@ from .specs import ModifierSpec, PotentialSpec, freeze, thaw
 
 SCHEMA_VERSION = 4
 EXECUTOR_PARAMETER_SECTIONS = frozenset({"setup", "output", "stop"})
-EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed", "ensemble"})
+EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
 
 
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
     """Translate structured public executor parameters for existing providers."""
     data = copy.deepcopy(thaw(parameters))
+    if "ensemble" in data and (
+        EXECUTOR_PARAMETER_SECTIONS.intersection(data)
+        or isinstance(data["ensemble"], Mapping)
+        or method in {"monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo", "hybrid_biased_monte_carlo"}
+    ):
+        raise ProviderConfigurationError("Move parameters.ensemble to parameters.setup.ensemble.")
     if method in {"hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
         setup = data.pop("setup", None)
-        if not isinstance(setup, list) or not setup:
-            raise ProviderConfigurationError(f"{method} requires a nonempty parameters.setup list; migrate old cycle inputs.")
-        ensemble = resolve_ensemble(data.pop("ensemble", None), method)
+        if not isinstance(setup, Mapping):
+            raise ProviderConfigurationError(f"{method} requires a parameters.setup mapping with ensemble and stages.")
+        extra = set(setup) - {"ensemble", "stages"}
+        if extra:
+            raise ProviderConfigurationError(f"Unsupported hybrid setup fields: {', '.join(sorted(extra))}.")
+        stages = setup.get("stages")
+        if not isinstance(stages, list) or not stages:
+            raise ProviderConfigurationError(f"{method} requires a nonempty parameters.setup.stages list.")
+        ensemble = resolve_ensemble(setup.get("ensemble"), method)
         resolved = resolve_executor_parameters({**data, "setup": {}}, None)
         resolved["ensemble"] = ensemble
-        resolved["setup"] = setup
+        resolved["stages"] = copy.deepcopy(stages)
         return resolved
     sections = EXECUTOR_PARAMETER_SECTIONS.intersection(data)
     if not sections and not isinstance(data.get("ensemble"), Mapping) and method not in {"monte_carlo", "biased_monte_carlo"}:
@@ -54,9 +66,8 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
             )
         resolved.update(copy.deepcopy(dict(values)))
 
-    ensemble = data.get("ensemble")
-    if "ensemble" in data:
-        ensemble = resolve_ensemble(ensemble, method)
+    if "ensemble" in setup:
+        ensemble = resolve_ensemble(setup.pop("ensemble"), method)
         if method == "md":
             merge({"ensemble": ensemble["method"]}, "ensemble")
             merge({internal: ensemble[public] for public, internal in
@@ -64,10 +75,8 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
         else:
             merge({"ensemble": ensemble}, "ensemble")
     elif method in {"monte_carlo", "biased_monte_carlo"}:
-        raise ProviderConfigurationError(f"{method} requires parameters.ensemble.")
+        raise ProviderConfigurationError(f"{method} requires parameters.setup.ensemble.")
     merge({"random_seed": data["random_seed"]} if "random_seed" in data else {}, "parameters")
-    if "ensemble" in setup:
-        raise ProviderConfigurationError("Move setup.ensemble to parameters.ensemble using a mapping.")
 
     velocities = setup.pop("velocities", None)
     regulator = setup.pop("regulator", None)
@@ -110,7 +119,7 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
         name = choice.pop("name", None)
         parameters_ = choice.pop("parameters", {})
         if label == "regulator" and "targets" in choice:
-            raise ProviderConfigurationError("Move regulator.targets to parameters.ensemble.")
+            raise ProviderConfigurationError("Move regulator.targets to parameters.setup.ensemble.")
         if not isinstance(name, str) or not name:
             raise ProviderConfigurationError(f"Executor setup.{label}.name must be a nonempty string.")
         if not isinstance(parameters_, Mapping):
@@ -534,14 +543,14 @@ def _component(value: Any, label: str, *, require_method: bool = False) -> Compo
         resolve_executor_parameters(parameters, method)
         if provider == "native" and method in {"monte_carlo", "biased_monte_carlo", "hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
             setup = parameters.get("setup", {})
-            if isinstance(setup, list):
-                ensemble = resolve_ensemble(parameters.get("ensemble"), method)
+            if method in {"hybrid_monte_carlo", "hybrid_biased_monte_carlo"}:
+                ensemble = resolve_ensemble(setup.get("ensemble"), method)
                 children = []
-                for item in setup:
+                for item in setup["stages"]:
                     normalized = child_executor(inherit_ensemble(item, ensemble))
-                    normalized["parameters"].pop("ensemble")
+                    normalized["parameters"]["setup"].pop("ensemble")
                     children.append(normalized)
-                parameters["setup"] = children
+                parameters["setup"]["stages"] = children
             elif isinstance(setup, Mapping):
                 for legacy in ("executor", "evaluator"):
                     if legacy in setup:

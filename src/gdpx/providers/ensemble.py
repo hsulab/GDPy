@@ -18,11 +18,11 @@ SUPPORTED_ENSEMBLES = {
 def resolve_ensemble(value, method):
     """Validate thermodynamic fields and the executor's supported ensembles."""
     if not isinstance(value, Mapping):
-        raise ProviderConfigurationError("parameters.ensemble must be a mapping with method.")
+        raise ProviderConfigurationError("parameters.setup.ensemble must be a mapping with method.")
     result = copy.deepcopy(dict(value))
     name = result.get("method")
     if not isinstance(name, str) or name not in {"nve", "nvt", "npt", "uvt", "suvt"}:
-        raise ProviderConfigurationError("parameters.ensemble.method must be nve, nvt, npt, uvt, or suvt.")
+        raise ProviderConfigurationError("parameters.setup.ensemble.method must be nve, nvt, npt, uvt, or suvt.")
     if name not in SUPPORTED_ENSEMBLES.get(method, set()):
         raise ProviderConfigurationError(f"{method} does not support the {name} ensemble.")
     required = {"method"}
@@ -64,11 +64,11 @@ def inherit_ensemble(definition, ensemble):
     if not isinstance(setup, Mapping):
         raise ProviderConfigurationError("HMC child setup must be a mapping.")
     if "ensemble" in params or "ensemble" in setup:
-        raise ProviderConfigurationError("HMC children inherit parameters.ensemble; define it only on the parent.")
+        raise ProviderConfigurationError("HMC children inherit parameters.setup.ensemble; define it only on the parent.")
     if {"tend", "pend"}.intersection(setup) or {"tend", "pend"}.intersection(params):
         raise ProviderConfigurationError("HMC children cannot override the parent ensemble with temperature or pressure ramps.")
     inherited = copy.deepcopy(ensemble)
     if child.get("method") == "md" and ensemble["method"] in {"uvt", "suvt"}:
         inherited = {"method": "nvt", "temperature": ensemble["temperature"]}
-    params["ensemble"] = inherited
+    params.setdefault("setup", {})["ensemble"] = inherited
     return child

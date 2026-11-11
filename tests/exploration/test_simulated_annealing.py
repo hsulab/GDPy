@@ -56,8 +56,7 @@ def engine(path):
     obj.register_worker(create_worker(dict(
         potential=dict(provider="emt"),
         executor=dict(provider="ase", method="md", parameters=dict(
-            ensemble=dict(method="nvt", temperature=900.),
-            setup=dict(timestep=.1,
+            setup=dict(ensemble=dict(method="nvt", temperature=900.), timestep=.1,
                        velocities=dict(initialize="always", remove_rotation=False),
                        regulator=dict(name="berendsen",
                                       parameters=dict(Tdamp=10.))),
@@ -107,7 +106,7 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     md = runtime["executor"]["parameters"]
     md["stop"]["steps"] = 1
     md["output"]["trajectory"]["period"] = 1
-    md["ensemble"]["temperature"] = 600.
+    md["setup"]["ensemble"]["temperature"] = 600.
     config["strategy"]["minimisation"]["runtime"]["executor"]["parameters"]["stop"] = dict(steps=100, fmax=.1)
     config["strategy"]["temperatures"] = [[600., 300.], [450., 200.]]
     config["strategy"]["convergence"]["generation"] = 2

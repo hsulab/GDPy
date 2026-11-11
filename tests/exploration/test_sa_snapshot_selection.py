@@ -27,8 +27,7 @@ def search(tmp_path):
                 "stop": {"steps": 100, "fmax": .1}}}}}))
     runtime = dict(potential={"provider": "emt"}, executor=dict(
         provider="ase", method="md", parameters=dict(
-            ensemble={"method": "nvt", "temperature": 600},
-            setup={"timestep": .1, "velocities": {"remove_rotation": False},
+            setup={"ensemble": {"method": "nvt", "temperature": 600}, "timestep": .1, "velocities": {"remove_rotation": False},
                    "regulator": {"name": "berendsen", "parameters": {"Tdamp": 10}}},
             stop={"steps": 4}, output={"trajectory": {"period": 1}})))
 

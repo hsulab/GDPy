@@ -21,7 +21,7 @@ def test_single_biased_gcmc_mattersim(tmp_path):
     }
     config["dispatch"] = {"worker": "single"}
     params = config["executor"]["parameters"]
-    params["ensemble"] = {
+    params["setup"]["ensemble"] = {
         "method": "uvt", "temperature": 333.0, "chemical_potentials": {"Cu": -4.0},
     }
     params["setup"]["operators"] = [{

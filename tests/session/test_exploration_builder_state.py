@@ -117,8 +117,7 @@ def test_repeat_sa_uses_selected_candidates_and_resumes(tmp_path, monkeypatch):
             'runtime': {'__type__': 'runtime', 'options': {
                 'potential': {'provider': 'emt'},
                 'executor': {'provider': 'ase', 'method': 'md', 'parameters': {
-                    'ensemble': {'method': 'nvt', 'temperature': 600.},
-                    'setup': {'timestep': 0.5, 'regulator': {'name': 'langevin', 'parameters': {'friction': 0.01}}},
+                    'setup': {"ensemble": {'method': 'nvt', 'temperature': 600.}, 'timestep': 0.5, 'regulator': {'name': 'langevin', 'parameters': {'friction': 0.01}}},
                     'stop': {'steps': 2}, 'output': {'trajectory': {'period': 1}}}}}},
             'selector': {'__type__': 'selector', 'options': {'selection': {'method': 'locate', 'indices': '-1'}}}},
         'steps': {

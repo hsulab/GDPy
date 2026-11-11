@@ -35,23 +35,23 @@ def test_ensemble_is_inherited_by_md_and_biased_mc(ensemble):
     settings = {'method': ensemble, 'temperature': 900.}
     if ensemble != 'nvt':
         settings['chemical_potentials'] = {'Cu': -3.}
-    config['executor']['parameters']['ensemble'] = settings
+    config['executor']['parameters']['setup']['ensemble'] = settings
     children = resolve_runtime(config).executor.children
-    assert children[0].config.executor.parameters['ensemble']['method'] == 'nvt'
-    assert children[1].config.executor.parameters['ensemble']['method'] == ensemble
+    assert children[0].config.executor.parameters['setup']['ensemble']['method'] == 'nvt'
+    assert children[1].config.executor.parameters['setup']['ensemble']['method'] == ensemble
 
 
 @pytest.mark.parametrize('stage,method', [(0, 'min'), (1, 'monte_carlo')])
 def test_rejects_wrong_stage_methods(stage, method):
     config = sampling_config('hybrid_biased_monte_carlo')
-    config['executor']['parameters']['setup'][stage]['method'] = method
+    config['executor']['parameters']['setup']['stages'][stage]['method'] = method
     with pytest.raises(ValueError):
         resolve_runtime(config)
 
 
 def test_requires_biased_mc_minimisation_limits():
     config = sampling_config('hybrid_biased_monte_carlo')
-    del config['executor']['parameters']['setup'][1]['parameters']['setup']['evaluation']['stop']
+    del config['executor']['parameters']['setup']['stages'][1]['parameters']['setup']['evaluation']['stop']
     with pytest.raises(ValueError, match='minimisation requires'):
         resolve_runtime(config)
 

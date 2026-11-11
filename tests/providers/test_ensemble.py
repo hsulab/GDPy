@@ -14,7 +14,7 @@ from gdpx.providers.ensemble import resolve_ensemble
      {"ensemble": "npt", "temp": 600, "press": 2}),
 ])
 def test_md_ensemble_translation(ensemble, expected):
-    source = {"ensemble": ensemble, "setup": {}, "stop": {"steps": 4}}
+    source = {"setup": {"ensemble": ensemble}, "stop": {"steps": 4}}
     if ensemble["method"] != "nve":
         source["setup"]["regulator"] = {"name": "berendsen", "parameters": {"Tdamp": 100}}
     original = copy.deepcopy(source)
@@ -55,23 +55,23 @@ def test_invalid_chemical_potentials(chemicals):
 ])
 def test_duplicate_or_legacy_md_targets_rejected(setup):
     with pytest.raises(ValueError):
-        resolve_executor_parameters({"ensemble": {"method": "nvt", "temperature": 300}, "setup": setup}, "md")
+        resolve_executor_parameters({"setup": {"ensemble": {"method": "nvt", "temperature": 300}, **setup}}, "md")
 
 
 def test_nve_initial_velocity_temperature_is_separate():
-    params = resolve_executor_parameters({"ensemble": {"method": "nve"},
-        "setup": {"velocities": {"temperature": 300}}}, "md")
+    params = resolve_executor_parameters({
+        "setup": {"ensemble": {"method": "nve"}, "velocities": {"temperature": 300}}}, "md")
     assert params["ensemble"] == "nve" and params["temp"] == 300
 
 
 @pytest.mark.parametrize("method", ["uvt", "suvt"])
 def test_md_rejects_particle_exchange_ensembles(method):
     with pytest.raises(ValueError, match="does not support"):
-        resolve_executor_parameters({"ensemble": {"method": method, "temperature": 300,
-            "chemical_potentials": {"Cu": 0}}, "setup": {}}, "md")
+        resolve_executor_parameters({"setup": {"ensemble": {"method": method, "temperature": 300,
+            "chemical_potentials": {"Cu": 0}}}}, "md")
 
 
-@pytest.mark.parametrize("parameters", [{}, {"ensemble": None}, {"ensemble": "nvt"}])
+@pytest.mark.parametrize("parameters", [{}, {"setup": {}}, {"setup": {"ensemble": None}}, {"setup": {"ensemble": "nvt"}}])
 def test_mc_requires_ensemble_mapping(parameters):
     with pytest.raises(ValueError, match="ensemble"):
         resolve_executor_parameters(parameters, "monte_carlo")
@@ -79,4 +79,13 @@ def test_mc_requires_ensemble_mapping(parameters):
 
 def test_md_rejects_explicit_null_ensemble():
     with pytest.raises(ValueError, match="ensemble"):
-        resolve_executor_parameters({"ensemble": None, "setup": {}}, "md")
+        resolve_executor_parameters({"setup": {"ensemble": None}}, "md")
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_old_structured_md_ensemble_requires_migration(structured):
+    parameters = {"ensemble": {"method": "nve"}}
+    if structured:
+        parameters["setup"] = {}
+    with pytest.raises(ValueError, match="Move parameters.ensemble to parameters.setup.ensemble"):
+        resolve_executor_parameters(parameters, "md")

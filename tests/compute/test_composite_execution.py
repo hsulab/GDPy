@@ -55,9 +55,9 @@ def test_interrupted_boundary_matches_uninterrupted(tmp_path, monkeypatch, metho
 def test_repeated_children_have_distinct_state_and_handoff(tmp_path):
     config = sampling_config("hybrid_monte_carlo")
     params = config["executor"]["parameters"]
-    params["setup"] *= 2
+    params["setup"]["stages"] *= 2
     # Preserve meaningful tags and incoming velocities across MC boundaries.
-    for child in params["setup"]:
+    for child in params["setup"]["stages"]:
         if child["method"] == "monte_carlo":
             child["parameters"]["setup"]["ignore_atoms_tags"] = False
     initial = copper()
@@ -93,7 +93,7 @@ def test_repeated_children_have_distinct_state_and_handoff(tmp_path):
                                          ("modifiers", []), ("runtime", {}), ("dispatch", {})])
 def test_child_cannot_override_surface_or_dispatch(field, value):
     config = sampling_config("hybrid_monte_carlo")
-    config["executor"]["parameters"]["setup"][0][field] = value
+    config["executor"]["parameters"]["setup"]["stages"][0][field] = value
     with pytest.raises(ValueError, match="Unknown executor fields"):
         resolve_runtime(config)
 
@@ -111,9 +111,9 @@ def test_native_migration_default_and_single_point_override():
 
 def test_composite_broadcast_and_child_schedulers():
     config = sampling_config("hybrid_monte_carlo")
-    config["executor"]["broadcast"] = {"ensemble.temperature": [300, 600]}
+    config["executor"]["broadcast"] = {"setup.ensemble.temperature": [300, 600]}
     config["scheduler"] = {"provider": "slurm"}
-    config["executor"]["parameters"]["setup"][0]["scheduler"] = {"provider": "pbs"}
+    config["executor"]["parameters"]["setup"]["stages"][0]["scheduler"] = {"provider": "pbs"}
     variants = expand_runtime_configs(config)
     runtimes = [resolve_runtime(item) for item in variants]
     assert [r.executor.children[1].executor.operators[0].temperature for r in runtimes] == [300, 600]
@@ -128,8 +128,8 @@ def test_composite_broadcast_and_child_schedulers():
 @pytest.mark.parametrize("change", [
     lambda p: p.update(steps=3),
     lambda p: p["setup"].update(steps=3),
-    lambda p: p.pop("ensemble"),
-    lambda p: p["ensemble"].update(method="bad"),
+    lambda p: p["setup"].pop("ensemble"),
+    lambda p: p["setup"]["ensemble"].update(method="bad"),
     lambda p: p["setup"]["operators"][0].update(temperature=1),
     lambda p: p["setup"]["operators"][0].update(skip_distance_check=False),
     lambda p: p["setup"].update(evaluation=None),
@@ -172,7 +172,7 @@ def test_different_execution_providers_share_surface_and_modifiers():
     manager.register(replace(ASE_PROVIDER, name="alternate_ase"))
     manager.register(Provider("test_bias", capabilities={CapabilityKind.MODIFIER: {"default": BiasFactory()}}))
     config = sampling_config("hybrid_monte_carlo")
-    config["executor"]["parameters"]["setup"][0]["provider"] = "alternate_ase"
+    config["executor"]["parameters"]["setup"]["stages"][0]["provider"] = "alternate_ase"
     config["modifiers"] = [{"provider": "test_bias"}]
     original = copy.deepcopy(config)
     runtime = resolve_runtime(config, providers=manager)

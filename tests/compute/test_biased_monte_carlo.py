@@ -78,9 +78,9 @@ def test_evaluator_cannot_override_surface(field):
 def test_shared_ensemble_and_explicit_provider(ensemble):
     source = config()
     params = source["executor"]["parameters"]
-    params["ensemble"]["method"] = ensemble
+    params["setup"]["ensemble"]["method"] = ensemble
     if ensemble != "nvt":
-        params["ensemble"]["chemical_potentials"] = {"Cu": 0., "Ni": .2}
+        params["setup"]["ensemble"]["chemical_potentials"] = {"Cu": 0., "Ni": .2}
         params["setup"]["operators"] = [{"method": "swap_type", "particles": ["Cu", "Ni"]}]
     params["setup"]["evaluation"].update(provider="ase")
     runtime = resolve_runtime(source)
@@ -93,15 +93,15 @@ def test_hmc_and_conventional_mc_keep_restrictions():
     for method in ("monte_carlo", "hybrid_monte_carlo"):
         source = sampling_config(method)
         params = source["executor"]["parameters"]
-        mc = params["setup"][1]["parameters"] if method == "hybrid_monte_carlo" else params
+        mc = params["setup"]["stages"][1]["parameters"] if method == "hybrid_monte_carlo" else params
         mc["setup"]["operators"][0]["skip_distance_check"] = False
         with pytest.raises(ValueError, match="skip_distance_check"):
             resolve_runtime(source)
     source = sampling_config("hybrid_monte_carlo")
     child = config()["executor"]
-    child["parameters"].pop("ensemble")
-    source["executor"]["parameters"]["setup"][1] = child
-    with pytest.raises(ValueError, match="conventional Monte Carlo children only"):
+    child["parameters"]["setup"].pop("ensemble")
+    source["executor"]["parameters"]["setup"]["stages"][1] = child
+    with pytest.raises(ValueError, match="setup.stages requires MD and monte_carlo children only"):
         resolve_runtime(source)
     with pytest.raises(ValueError, match="moved to gdp compute"):
         create_exploration({"method": "biased_monte_carlo"})
