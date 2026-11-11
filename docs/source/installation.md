@@ -21,10 +21,11 @@ conda activate gdpx
 
 ## Install from source
 
-Clone the repository and enter its root directory:
+We recommend the `dev` branch when installing from source. Clone that branch
+and enter the repository's root directory:
 
 ```shell
-git clone https://github.com/hsulab/GDPy.git
+git clone --branch dev https://github.com/hsulab/GDPy.git
 cd GDPy
 ```
 
@@ -34,6 +35,17 @@ effect without reinstalling:
 ```shell
 python -m pip install -e .
 ```
+
+To update an editable installation, run this from the repository root:
+
+```shell
+git pull
+```
+
+Source changes take effect without reinstalling. If dependencies or package
+metadata have changed, rerun your pip installation command with the same extras.
+For a non-editable installation, rerun the pip installation command after every
+pull.
 
 ## CPU-only installation
 
