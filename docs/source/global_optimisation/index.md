@@ -8,6 +8,7 @@ system.
 ```{toctree}
 :maxdepth: 4
 :titlesonly:
+:hidden:
 
 overview
 examples/index
