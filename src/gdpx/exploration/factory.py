@@ -17,6 +17,38 @@ RECIPE_METHODS = {
 }
 
 
+def validate_exploration_runtime(exploration, runtime):
+    """Reject incompatible input combinations before constructing providers."""
+    method = exploration.get("method")
+    strategy = exploration.get("strategy", {})
+    annealing = method == "simulated_annealing" or (
+        method == "global_optimisation" and isinstance(strategy, Mapping)
+        and strategy.get("method") == "simulated_annealing"
+    )
+    if not annealing:
+        return
+    from gdpx.providers.configuration import RuntimeConfig, resolve_executor_parameters
+
+    runtimes = runtime if isinstance(runtime, (list, tuple)) else [runtime]
+    for item in runtimes:
+        if isinstance(item, RuntimeConfig):
+            item = item.to_dict()
+        if not isinstance(item, Mapping):
+            continue  # Leave malformed runtime diagnostics to the runtime parser.
+        executor = item.get("executor", {})
+        if not isinstance(executor, Mapping) or executor.get("provider") != "ase":
+            continue
+        parameters = resolve_executor_parameters(executor.get("parameters", {}), executor.get("method"))
+        controller = parameters.get("controller", {})
+        if isinstance(controller, Mapping) and controller.get("name") == "nose_hoover_chain":
+            raise ValueError(
+                "ASE nose_hoover_chain is not supported for simulated annealing: "
+                "its integrator lacks set_temperature, which annealing requires. "
+                "Choose an ASE regulator that supports temperature changes, such as "
+                "langevin or berendsen, or use a LAMMPS MD executor."
+            )
+
+
 def _recipe_parameters(method: str, parameters: dict) -> dict:
     """Return constructor parameters from the public recipe envelope."""
     if method not in RECIPE_METHODS:

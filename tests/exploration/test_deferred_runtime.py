@@ -37,7 +37,7 @@ def test_slurm_defers_model_loading_through_submission_and_resume(tmp_path, monk
             "potential": {"provider": "mace", "parameters": {"model": "./model.pt"}},
             "executor": {"provider": "ase", "method": "md", "parameters": {
                 "setup": {"ensemble": {"method": "nvt", "temperature": 600},
-                          "regulator": {"name": "nose_hoover_chain"}},
+                          "regulator": {"name": "berendsen"}},
                 "stop": {"steps": 1}}},
         },
         "scheduler": {"provider": "slurm"},

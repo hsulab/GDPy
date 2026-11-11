@@ -8,6 +8,7 @@ from typing import Optional, Union
 from gdpx import config
 from gdpx.exploration.output import exploration_output
 from gdpx.exploration.layout import exploration_layout, reject_legacy_layout
+from gdpx.exploration.factory import validate_exploration_runtime
 from gdpx.workflow.factory import create_exploration
 from gdpx.execution.schedulers.factory import canonicalise_scheduler
 from gdpx.execution.factory import create_worker
@@ -47,6 +48,8 @@ def run_exploration(
         runtime_params = runtime if runtime is not None else embedded_runtime
         if runtime_params is None:
             raise RuntimeError("Exploration requires a runtime.")
+
+        validate_exploration_runtime(exp_params, runtime_params)
 
         # Pop scheduler as exploration does not have it as an argument
         scheduler_params = exp_params.pop("scheduler", {})
