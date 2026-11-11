@@ -1,4 +1,4 @@
-# basin hopping (bh)
+# basin hopping
 
 Examples keep search recipes in
 `examples/global_optimisation/explorations/basin_hopping/` and reusable
