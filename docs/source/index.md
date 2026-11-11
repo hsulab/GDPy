@@ -120,18 +120,11 @@ command: gdp explore <explorations/index>
 ```
 
 ```{toctree}
-:caption: 'global optimisation:'
-:maxdepth: 4
+:maxdepth: 5
 :titlesonly:
 :hidden:
 
-overview <global_optimisation/index>
-examples <global_optimisation/examples/index>
-global_optimisation/genetic-algorithm
-global_optimisation/basin_hopping
-simulated annealing <global_optimisation/simulated-annealing>
-global_optimisation/population
-global_optimisation/output
+global_optimisation/index
 ```
 
 ```{toctree}
