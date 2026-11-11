@@ -84,8 +84,8 @@ for the shared configuration and a runnable demo using either a separate
 Use {doc}`genetic algorithms <../global_optimisation/genetic-algorithm>` or
 {doc}`basin hopping <../global_optimisation/basin_hopping>` to search for low-energy
 structures. These methods share {doc}`population configuration
-<../global_optimisation/population>` and {doc}`output conventions
-<../global_optimisation/output>`. The older {doc}`GA configuration discussion
+<../global_optimisation/population>` and {ref}`output conventions
+<exploration-output-layout>`. The older {doc}`GA configuration discussion
 <ga>` remains available as supplementary material.
 
 ```{toctree}
