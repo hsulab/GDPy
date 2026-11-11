@@ -194,6 +194,30 @@ def test_minimum_runtime_uses_own_potential_for_every_generation(search):
     assert rebuilt._minimum_runtime() == obj._minimum_runtime()
 
 
+@pytest.mark.parametrize("executor,explicit,expected", [
+    ("ase", False, "ase"),
+    ("lammps", False, None),
+    ("lammps", True, "lammps"),
+])
+def test_minimum_runtime_selects_backend_for_its_executor(search, monkeypatch, executor, explicit, expected):
+    obj = search()
+    md_runtime = obj.worker.as_dict()
+    md_runtime["potential"] = {
+        "provider": "mace", "backend": "ase", "parameters": {"model": "/models/mace.model"}}
+    original = copy.deepcopy(md_runtime)
+    monkeypatch.setattr(obj.worker, "as_dict", lambda: md_runtime)
+    minimum = obj.strategy_config["minimisation"]
+    minimum["executor"]["provider"] = executor
+    if explicit:
+        minimum["potential"] = {**copy.deepcopy(md_runtime["potential"]), "backend": "lammps"}
+
+    resolved = obj._minimum_runtime()["potential"]
+    assert resolved.get("backend") == expected
+    assert resolved["provider"] == "mace"
+    assert resolved["parameters"] == original["potential"]["parameters"]
+    assert md_runtime == original
+
+
 @pytest.mark.parametrize("overrides,message", [
     ({"dispatch": {"share_workdir": True}}, "separate candidate directories"),
     ({"dispatch": {"worker": "single"}}, "dispatch.worker: batch"),

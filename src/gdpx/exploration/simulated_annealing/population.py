@@ -109,7 +109,13 @@ class PopulationAnnealing(PopulationBasedExploration):
     def _minimum_runtime(self):
         definition = copy.deepcopy(self.strategy_config["minimisation"])
         md_runtime = self.worker.as_dict()
-        definition.setdefault("potential", md_runtime["potential"])
+        if "potential" not in definition:
+            potential = copy.deepcopy(md_runtime["potential"])
+            if definition["executor"]["provider"] != md_runtime["executor"]["provider"]:
+                # The resolved MD backend belongs to its executor. Let the
+                # minimisation executor select its own compatible backend.
+                potential.pop("backend", None)
+            definition["potential"] = potential
         dispatch = definition.get("dispatch", {})
         if not isinstance(dispatch, Mapping):
             raise ValueError("SA minimisation.dispatch must be a mapping.")
