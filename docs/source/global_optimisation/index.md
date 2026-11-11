@@ -11,10 +11,10 @@ system.
 :hidden:
 
 overview
+population
 examples/index
 genetic-algorithm
 basin_hopping
 simulated-annealing
-population
 output
 ```
