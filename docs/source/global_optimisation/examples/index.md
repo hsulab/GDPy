@@ -42,7 +42,7 @@ surface study.
 | Bulk | {ref}`Cu₄ <ga-bulk-example>` | GA | EMT |
 | Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | GA | MatterSim |
 | Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | GA | MatterSim; variable composition |
-| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | GA, BH | User-selected |
+| Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | GA, BH, SA | User-selected; {ref}`short DPA4C-mini SA <sa-supported-nanoparticle-example>` |
 | Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | GA | MatterSim; random and site-insertion builders |
 | Interface | {ref}`Water/TiO₂(101) <bh-tio2-water-rotation>` | BH | xreac; rotations and {ref}`bond changes <bh-tio2-water-bond-change>` |
 | Interface | {ref}`CO/Cu(111) <co-cu111-example>` | SA | DPA4C |

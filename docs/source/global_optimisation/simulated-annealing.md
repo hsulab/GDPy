@@ -144,6 +144,8 @@ same command to resume the search.
 The central {doc}`examples catalogue <examples/index>` groups recipes by physical
 system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
 {ref}`CO adsorption on Cu(111) <co-cu111-example>` for a DPA4C surface search.
+The {ref}`Cu₄/alumina example <sa-supported-nanoparticle-example>` uses DPA4C-mini
+with two short cooling generations of four trajectories each.
 
 ## Configuration and parallel execution
 

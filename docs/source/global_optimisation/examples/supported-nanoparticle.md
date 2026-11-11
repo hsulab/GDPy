@@ -3,8 +3,8 @@
 # Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001) supported cluster
 
 Search for low-energy Cu₄ clusters on α-Al₂O₃(0001), the basal surface
-corresponding to `(111)` in the rhombohedral setting. Both the genetic
-algorithm (GA) and basin-hopping (BH) recipes below generate random Cu
+corresponding to `(111)` in the rhombohedral setting. The genetic algorithm
+(GA), basin-hopping (BH), and simulated annealing (SA) recipes generate random Cu
 clusters above the same substrate. Supply a runtime with a potential suitable
 for Cu, Al, O, and their interfaces; the exploration inputs are independent
 of the model. See the {doc}`potential guides <../../potentials/index>` for
@@ -145,6 +145,60 @@ kernels and change the potential parameters to `device: cuda`,
 Compilation adds first-evaluation overhead. The supplied CPU configuration
 also runs on machines without CUDA. The CPU estimate above indicates that
 this checkpoint is costly for this example on the measured hardware.
+
+(sa-supported-nanoparticle-example)=
+
+## Simulated annealing with DPA4C-mini
+
+This short example starts with four random Cu₄/support configurations and
+minimises them in generation 0. Two cooling generations then run four MD
+trajectories each: 600 → 100 K followed by 450 → 100 K. Each trajectory has
+200 steps at 0.5 fs (100 fs), with frames saved every 20 steps. Selection takes
+the final saved frame of each trajectory for minimisation. The population
+retains up to four distinct minima.
+
+```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/cu4_alumina111.yaml
+:language: yaml
+```
+
+Use this dedicated runtime with a device-compatible DPA4C-mini export at
+`models/dpa4c-mini.pt2` under the repository root. See
+{ref}`the DeepMD model preparation instructions <bh-supported-nanoparticle-dpa4-example>`.
+The minimisation stage inherits the same potential. Both stages fix the
+bottom 60 substrate atoms.
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/dpa4c_mini_cu4_alumina_sa.yaml
+:language: yaml
+```
+
+Run from the SA example folder:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/simulated_annealing
+OMP_NUM_THREADS=1 gdp -d ./run-cu4-alumina111-sa \
+    --runtime ../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml explore \
+    ./cu4_alumina111.yaml
+```
+
+A full local macOS CPU run completed in **85.02 seconds** with
+`OMP_NUM_THREADS=1`, using a scalar CPU export of
+`DPA4C-Mini-OMat24-v20260819.pt` in the `gdp3` environment. This wall time includes
+CLI startup, model loading, structure generation, calculations, and result
+writing; model export/compilation was performed separately. All eight 200-step
+MD trajectories and twelve capped minimisations completed without failures.
+The stage timings were 10.4 seconds for initial relaxation, 27.9 and 27.8 seconds
+for the two MD batches, and 7.8 and 7.0 seconds for their endpoint relaxations.
+This meets the **1–2 minute** demonstration target on the tested machine;
+hardware, export settings, and model-loading overhead affect other runs.
+
+Each of the twelve minimisations is capped at 20 steps with `fmax: 0.1` eV/Å.
+These short trajectories and capped relaxations demonstrate the search flow;
+they do not establish converged minima or adequate sampling. Increase both
+budgets for a production search.
+
+Inspect `results/all_candidates.xyz` and `results/pop.png` for the minima and
+energy history, and `gen1/sel/selection.json` and `gen2/sel/selection.json`
+for the endpoint provenance. Repeating the command resumes the same run.
 
 The compact populations and short search budgets demonstrate the workflow.
 Converge the slab thickness, surface area, vacuum, relaxation budget, and search
