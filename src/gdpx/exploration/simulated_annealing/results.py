@@ -24,6 +24,14 @@ def write_results(directory, candidates, population, objective):
             nodes[atoms.info["confid"]] = (
                 pairs["generation"], target, atoms.info.get("data", {}).get("parents", []))
 
+    initial_targets = [target for generation, target, _ in nodes.values() if generation == 0]
+    label = f"{objective.replace('_', ' ').capitalize()} [eV]"
+    if initial_targets:
+        reference = min(initial_targets)
+        nodes = {identifier: (generation, target - reference, parents)
+                 for identifier, (generation, target, parents) in nodes.items()}
+        label = f"Relative {objective.replace('_', ' ')} [eV] (generation 0 minimum = 0)"
+
     fig, ax = plt.subplots(figsize=(12, 8))
     try:
         for generation, target, parents in nodes.values():
@@ -46,7 +54,7 @@ def write_results(directory, candidates, population, objective):
             ax.step(generations, np.minimum.accumulate(minima), where="post",
                     color="black", linestyle="--", label="Best evaluated so far")
         ax.set(title="SA Candidate Evolution", xlabel="Generation",
-               ylabel=f"{objective.replace('_', ' ').capitalize()} [eV]")
+               ylabel=label)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend()
         fig.savefig(directory / "pop.png", bbox_inches="tight")
