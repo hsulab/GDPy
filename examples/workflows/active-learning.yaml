@@ -72,10 +72,10 @@ resources:
       provider: lammps
       method: md
       parameters:
-        ensemble:
-          method: nvt
-          temperature: 300
         setup:
+          ensemble:
+            method: nvt
+            temperature: 300
           timestep: 1.0
           constraint: '`zbot 48`'
           velocities:
@@ -90,7 +90,7 @@ resources:
         stop:
           steps: 1000000
       broadcast:
-        ensemble.temperature: [300, 400, 500, 600]
+        setup.ensemble.temperature: [300, 400, 500, 600]
 
   scheduler_1h_gpu:
     __type__: scheduler

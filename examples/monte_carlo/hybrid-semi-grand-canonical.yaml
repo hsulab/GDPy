@@ -4,44 +4,45 @@ executor:
   provider: native
   method: hybrid_monte_carlo
   parameters:
-    ensemble:
-      method: suvt
-      temperature: 1200.0
-      chemical_potentials:
-        Cu: 0.0
-        Ni: 0.0
     random_seed: 1112
     setup:
-    - provider: ase
-      method: md
-      parameters:
-        random_seed: 7
-        setup:
-          timestep: 1.0
-          velocities:
-            seed: 7
-            remove_rotation: false
-          regulator:
-            name: langevin
-            parameters:
-              friction: 0.01
-        output:
-          trajectory:
-            period: 5
-        stop:
-          steps: 20
-    - provider: native
-      method: monte_carlo
-      parameters:
-        setup:
-          operators:
-          - method: swap_type
-            particles:
-            - Cu
-            - Ni
-            max_random_attempts: 1
-        stop:
-          steps: 5
+      ensemble:
+        method: suvt
+        temperature: 1200.0
+        chemical_potentials:
+          Cu: 0.0
+          Ni: 0.0
+      stages:
+        - provider: ase
+          method: md
+          parameters:
+            random_seed: 7
+            setup:
+              timestep: 1.0
+              velocities:
+                seed: 7
+                remove_rotation: false
+              regulator:
+                name: langevin
+                parameters:
+                  friction: 0.01
+            output:
+              trajectory:
+                period: 5
+            stop:
+              steps: 20
+        - provider: native
+          method: monte_carlo
+          parameters:
+            setup:
+              operators:
+              - method: swap_type
+                particles:
+                - Cu
+                - Ni
+                max_random_attempts: 1
+            stop:
+              steps: 5
     output:
       trajectory:
         period: 1

@@ -20,7 +20,7 @@ not a Hamiltonian Monte Carlo sampler. The {ref}`MC sampling limitations
 
 See the {ref}`MC operator reference <sampling-operators>` for available moves and
 their configuration, particle selection, and acceptance rules.
-Declare `parameters.ensemble` once on the HMC parent. Children inherit it,
+Declare `parameters.setup.ensemble` once on the HMC parent. Children inherit it,
 along with the outer potential and modifiers. HMC supports `nvt`, `uvt`, and
 `suvt`. For `uvt` and `suvt`, MD runs NVT at the inherited temperature and
 current composition; MC handles particle exchange or species changes. Child
@@ -61,7 +61,7 @@ hmc/examples/index
 Run `gdp compute INPUT --runtime hybrid.yaml` with `executor.provider: native`
 and `executor.method: hybrid_monte_carlo`. Each input starts an independent chain.
 
-`executor.parameters.setup` is an ordered **list of executor definitions**.
+`executor.parameters.setup.stages` is an ordered **list of executor definitions**.
 Each child has `provider`, `method`, `parameters`, and an optional `scheduler`.
 Include at least one MD child and one `native/monte_carlo` child. Repeated stages
 are supported. Potential, modifiers, complete runtimes, and dispatch settings
@@ -71,7 +71,7 @@ cannot be overridden in children.
 - Standard MC owns its operators, evaluator, and proposal count.
   Its `parameters.stop.steps` counts MC proposals. Evaluation defaults to ASE
   single-point calculation; use its optional `setup.evaluation` to override it.
-- The parent `parameters.stop.steps` counts full passes through the setup list.
+- The parent `parameters.stop.steps` counts full passes through the stages list.
   Parent early stopping is checked after a complete cycle. An early-stopped
   child completes its invocation and passes its endpoint to the next child.
 
@@ -114,5 +114,5 @@ are always included, including with sparse trajectory output. Collected chain
 endpoints appear in `results/end_frames.xyz`.
 
 Resume with the same command, directory, and inputs. Changed inputs or old
-`gdpx`/`setup.cycle` runs require a new directory. Move the ensemble to parent `parameters.ensemble`, keep operators in the
-standard MC child, and list children directly in `setup`.
+`gdpx`/`setup.cycle` runs require a new directory. Move the ensemble to parent `parameters.setup.ensemble`, keep operators in the
+standard MC child, and list children under `setup.stages`.

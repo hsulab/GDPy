@@ -7,65 +7,66 @@ executor:
   provider: native
   method: hybrid_monte_carlo
   parameters:
-    ensemble:
-      method: uvt
-      temperature: 600.0
-      chemical_potentials:
-        O: -2.0
     random_seed: 2033
     setup:
-    - provider: ase
-      method: md
-      parameters:
-        random_seed: 2026
-        setup:
-          timestep: 0.25
-          constraint: '`zbot 4`'
-          velocities:
-            seed: 2026
-            remove_rotation: false
-          regulator:
-            name: langevin
-            parameters:
-              friction: 0.01
-        output:
-          trajectory:
-            period: 5
-        stop:
-          steps: 40
-    - provider: native
-      method: monte_carlo
-      parameters:
-        setup:
-          operators:
-          - method: exchange
-            particles:
-            - O
-            region:
-              method: lattice
-              origin:
-              - 0.0
-              - 0.0
-              - 6.7
-              cell:
-              - - 5.11238203
-                - 0.0
-                - 0.0
-              - - 0.0
-                - 4.42745271
-                - 0.0
-              - - 0.0
-                - 0.0
-                - 4.5
-            max_random_attempts: 1
-          executor:
-            provider: ase
-            method: spc
-            parameters:
-              setup:
-                constraint: '`zbot 4`'
-        stop:
-          steps: 3
+      ensemble:
+        method: uvt
+        temperature: 600.0
+        chemical_potentials:
+          O: -2.0
+      stages:
+        - provider: ase
+          method: md
+          parameters:
+            random_seed: 2026
+            setup:
+              timestep: 0.25
+              constraint: '`zbot 4`'
+              velocities:
+                seed: 2026
+                remove_rotation: false
+              regulator:
+                name: langevin
+                parameters:
+                  friction: 0.01
+            output:
+              trajectory:
+                period: 5
+            stop:
+              steps: 40
+        - provider: native
+          method: monte_carlo
+          parameters:
+            setup:
+              operators:
+              - method: exchange
+                particles:
+                - O
+                region:
+                  method: lattice
+                  origin:
+                  - 0.0
+                  - 0.0
+                  - 6.7
+                  cell:
+                  - - 5.11238203
+                    - 0.0
+                    - 0.0
+                  - - 0.0
+                    - 4.42745271
+                    - 0.0
+                  - - 0.0
+                    - 0.0
+                    - 4.5
+                max_random_attempts: 1
+              executor:
+                provider: ase
+                method: spc
+                parameters:
+                  setup:
+                    constraint: '`zbot 4`'
+            stop:
+              steps: 3
     output:
       trajectory:
         period: 1

@@ -1,7 +1,7 @@
 # Ensembles
 
 Standard MC, biased MC, HMC, and hybrid biased MC define thermodynamic settings under
-`executor.parameters.ensemble`, using the same mapping format as
+`executor.parameters.setup.ensemble`, using the same mapping format as
 {doc}`MD <../molecular-dynamics/ensembles>`.
 
 | Method | Required fields | Allowed changes |
@@ -16,7 +16,7 @@ determine which changes are proposed. See the {ref}`MC sampling limitations
 <monte-carlo>` for the limitations of individual proposals and the
 {doc}`HMC guide <hmc>` for its MD/MC acceptance behavior.
 
-The fragments below belong under `executor.parameters`.
+The fragments below belong under `executor.parameters.setup`.
 
 ## NVT
 
@@ -73,15 +73,15 @@ search with per-operator acceptance settings.
 
 ## HMC inheritance
 
-Declare `parameters.ensemble` only on the HMC parent. Keep the MD and MC
-executors in the ordered `parameters.setup` list. For NVT, both children use
+Declare `parameters.setup.ensemble` only on the HMC parent. Keep the MD and MC
+executors in the ordered `parameters.setup.stages` list. For NVT, both children use
 the parent temperature. For UVT and SUVT, MD runs NVT at the current composition
 and shared temperature; MC handles particle exchange or species changes.
 
 Children cannot redeclare the ensemble, add regulator targets, or introduce
 temperature/pressure ramps. MD retains its own timestep and regulator algorithm;
 MC retains its own operators and proposal count. The potential is shared.
-A parent broadcast at `ensemble.temperature` changes MD and MC together.
+A parent broadcast at `setup.ensemble.temperature` changes MD and MC together.
 See the {doc}`complete HMC input <hmc>`.
 
 ## Biased Monte Carlo

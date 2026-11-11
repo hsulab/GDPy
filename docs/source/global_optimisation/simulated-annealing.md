@@ -110,10 +110,10 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 600.0
     setup:
+      ensemble:
+        method: nvt
+        temperature: 600.0
       timestep: 1.0
       velocities:
         initialize: if_missing

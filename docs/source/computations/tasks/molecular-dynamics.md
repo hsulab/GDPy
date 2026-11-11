@@ -23,11 +23,11 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     random_seed: 7
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       timestep: 1.0
       velocities:
         initialize: if_missing
@@ -66,10 +66,10 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       timestep: 1.0
       regulator:
         name: berendsen
@@ -80,7 +80,7 @@ executor:
     stop:
       steps: 100
   broadcast:
-    ensemble.temperature: [300, 600, 900]
+    setup.ensemble.temperature: [300, 600, 900]
 ```
 
 This creates three workers in `w0`, `w1`, and `w2`. Lists that are not named

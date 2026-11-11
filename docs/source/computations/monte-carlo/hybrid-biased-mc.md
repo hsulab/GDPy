@@ -8,7 +8,7 @@ and restart machinery as {doc}`hybrid Monte Carlo <hmc>`, but its MC children
 are `native/biased_monte_carlo`. MD remains molecular dynamics; each MC proposal
 is minimised before the acceptance decision.
 
-The setup list must contain at least one `md` stage and one
+The `setup.stages` list must contain at least one `md` stage and one
 `biased_monte_carlo` stage. Repeated stages are supported. Each biased MC stage
 configures its minimiser through `parameters.setup.evaluation`, including
 positive `stop.steps` and `stop.fmax`. The evaluator defaults to ASE `min`.

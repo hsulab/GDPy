@@ -8,7 +8,7 @@ Rearrange two particle types while preserving their total counts.
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC set
-temperature under `parameters.ensemble`; basin hopping adds it to
+temperature under `parameters.setup.ensemble`; basin hopping adds it to
 the operator:
 
 ```yaml

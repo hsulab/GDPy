@@ -11,10 +11,10 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       timestep: 1.0
       regulator:
         name: berendsen
@@ -22,7 +22,7 @@ executor:
     stop:
       steps: 1000
   broadcast:
-    ensemble.temperature: [300, 600, 900]
+    setup.ensemble.temperature: [300, 600, 900]
 ```
 
 With `worker: batch`, compatible runtimes are batched automatically. For one
@@ -115,16 +115,16 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       regulator:
         name: berendsen
         parameters:
           Tdamp: 50.0
   broadcast:
-    ensemble.temperature: [300, 600]
+    setup.ensemble.temperature: [300, 600]
     setup.regulator.parameters.Tdamp: [50.0, 100.0]
 ```
 

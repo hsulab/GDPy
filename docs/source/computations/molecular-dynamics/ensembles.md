@@ -1,6 +1,6 @@
 # Ensembles
 
-MD defines its ensemble under `executor.parameters.ensemble`. The regulator
+MD defines its ensemble under `executor.parameters.setup.ensemble`. The regulator
 selects the thermostat or barostat algorithm; its numerical parameters belong
 under `setup.regulator.parameters`.
 
@@ -24,9 +24,9 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nve
     setup:
+      ensemble:
+        method: nve
       timestep: 1.0
       velocities:
         temperature: 300
@@ -46,10 +46,10 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       timestep: 1.0
       regulator:
         name: langevin
@@ -73,11 +73,11 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: npt
-      temperature: 300
-      pressure: 1.0
     setup:
+      ensemble:
+        method: npt
+        temperature: 300
+        pressure: 1.0
       timestep: 1.0
       velocities:
         initialize: if_missing
@@ -105,7 +105,7 @@ is corrected. The linked MD demo uses NVT.
 
 ## Temperature sweeps
 
-Use `executor.broadcast` with `ensemble.temperature` to run independent
+Use `executor.broadcast` with `setup.ensemble.temperature` to run independent
 trajectories at several temperatures. See {doc}`../runtime-broadcast` for
 complete examples. For cooling trajectories managed by structure search,
 see {doc}`simulated annealing <../../global_optimisation/simulated-annealing>`.

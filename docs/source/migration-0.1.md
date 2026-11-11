@@ -229,13 +229,15 @@ MC and hybrid MC are no longer exploration methods. Invoke
 independent chain. There is no compatibility adapter for old inputs or runs.
 
 - Move `system.builder` to compute's positional structure/builder inputs.
-- Move `system.ensemble` to `executor.parameters.ensemble`. For HMC, declare it
+- Move existing `parameters.ensemble` to `parameters.setup.ensemble`, and
+  update broadcast paths to `setup.ensemble.temperature`.
+- Move `system.ensemble` to `executor.parameters.setup.ensemble`. For HMC, declare it
   on the parent only. Move `system.ignore_atoms_tags` and `strategy.operators`
   to `executor.parameters.setup` (the standard MC child for HMC).
 - Define potential and modifiers once on the outer runtime. MC uses ASE `spc`
   by default; optional `setup.evaluation` customizes evaluation.
-- For HMC, make `setup` an ordered list of MD and `native/monte_carlo`
-  executor definitions. Move operators and proposal limits into
+- For HMC, make `setup` a mapping containing `ensemble` and `stages`.
+  Put the ordered MD and `native/monte_carlo` executor definitions under `setup.stages`. Move operators and proposal limits into
   the MC child. Remove `setup.cycle`, nested runtimes, and `setup.evaluator`.
 - Move `strategy.convergence` to `executor.parameters.stop`; move output and
   checkpoint periods to `executor.parameters.output.trajectory.period` and
@@ -268,11 +270,11 @@ Its inputs and checkpoints require migration and a fresh run directory.
 
 ## Unified MD and Monte Carlo ensembles
 
-MD, MC, and HMC now share a `parameters.ensemble` mapping. Move MD's
-`setup.ensemble` into its `method` field and `setup.regulator.targets` into
+MD, MC, and HMC now share a `parameters.setup.ensemble` mapping. Move an existing
+`parameters.ensemble` mapping under `setup`. For older MD inputs, convert the
+ensemble string to `setup.ensemble.method` and move `setup.regulator.targets` to
 `temperature` and `pressure` alongside `method`. The regulator keeps only
-`name` and algorithm `parameters`. Move MC's `setup.ensemble` to
-`parameters.ensemble` and rename `canonical` to `nvt`, `grand_canonical` to
+`name` and algorithm `parameters`. For MC, rename `canonical` to `nvt`, `grand_canonical` to
 `uvt`, and `semi_grand_canonical` to `suvt`. The `custom` ensemble is removed;
 use basin hopping for structure search with per-operator acceptance settings.
 
@@ -280,7 +282,7 @@ For HMC, declare the ensemble only on the parent and remove ensemble declaration
 and regulator targets from children. MD inherits `nvt` for `uvt`/`suvt` parent
 ensembles, with the shared temperature. Children cannot override the ensemble
 or add temperature/pressure ramps. Change temperature broadcast paths to
-`ensemble.temperature`. Use a new run directory for migrated inputs.
+`setup.ensemble.temperature`. Use a new run directory for migrated inputs.
 
 ### Flat MC evaluation settings
 

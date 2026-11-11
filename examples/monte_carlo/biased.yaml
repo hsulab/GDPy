@@ -5,10 +5,10 @@ executor:
   method: biased_monte_carlo
   parameters:
     random_seed: 1112
-    ensemble:
-      method: nvt
-      temperature: 600.0
     setup:
+      ensemble:
+        method: nvt
+        temperature: 600.0
       evaluation:
         optimizer:
           name: bfgs

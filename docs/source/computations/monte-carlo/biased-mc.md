@@ -72,7 +72,7 @@ directly under `evaluation`; provider-specific setup fields need no wrapper.
 
 ## Ensembles and filters
 
-Use the shared `parameters.ensemble` mapping with `nvt`, `uvt`, or `suvt`.
+Use the shared `parameters.setup.ensemble` mapping with `nvt`, `uvt`, or `suvt`.
 Temperature and chemical potentials supply the existing operator acceptance
 rules; they do not restore equilibrium sampling after minimisation. The same
 operator/ensemble restrictions apply as in {doc}`ensembles`: species changes

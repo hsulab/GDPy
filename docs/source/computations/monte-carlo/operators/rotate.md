@@ -14,7 +14,7 @@ adsorbate orientations while retaining the molecule's internal geometry.
 ```
 
 Place this under `setup.operators`. Preset MC/HMC put temperature under
-`parameters.ensemble`; BH puts it on the operator.
+`parameters.setup.ensemble`; BH puts it on the operator.
 
 | Setting | Meaning | Default |
 | --- | --- | --- |

@@ -4,11 +4,11 @@ executor:
   provider: ase
   method: md
   parameters:
-    ensemble:
-      method: nvt
-      temperature: 300
     random_seed: 7
     setup:
+      ensemble:
+        method: nvt
+        temperature: 300
       timestep: 1.0
       velocities:
         initialize: if_missing

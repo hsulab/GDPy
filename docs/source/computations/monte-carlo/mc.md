@@ -6,8 +6,8 @@ Standard Monte Carlo (MC) proposes structural changes and accepts or rejects the
 single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
 with `executor.provider: native` and `executor.method: monte_carlo`.
 Each input structure starts an independent chain. Settings below are relative to
-`executor.parameters`: `ensemble` defines the thermodynamic settings;
-`setup` contains operators and the optional evaluator;
+`executor.parameters`: `setup` contains the thermodynamic `ensemble`,
+operators, and the optional evaluator;
 `output` controls output cadence; `stop` controls the step budget and early stopping.
 MC defaults to an ASE single-point evaluator using the outer potential and
 modifiers. Optional `setup.evaluation` accepts `provider` (default `ase`),
@@ -64,17 +64,17 @@ qualifies. These implementations need separate detailed-balance validation
 before quantitative equilibrium use. Preset ensemble checks alone do not
 establish that validation.
 
-Define thermodynamic settings once under `parameters.ensemble`:
+Define thermodynamic settings once under `parameters.setup.ensemble`:
 
 ```yaml
 parameters:
-  ensemble:
-    method: suvt
-    temperature: 600.0
-    chemical_potentials:
-      Cu: 0.0
-      Ni: 0.2
   setup:
+    ensemble:
+      method: suvt
+      temperature: 600.0
+      chemical_potentials:
+        Cu: 0.0
+        Ni: 0.2
     operators:
       - method: swap_type
         particles: [Cu, Ni]
@@ -108,7 +108,7 @@ mc/examples/index
 
 `probability` is a relative operator-selection weight; the weights are
 normalised automatically. Preset ensembles define temperature and chemical
-potentials once under `parameters.ensemble`. Use consistent regions when combining moves and exchange; see
+potentials once under `parameters.setup.ensemble`. Use consistent regions when combining moves and exchange; see
 {ref}`region-definitions` for region definitions.
 
 Standard MC automatically disables proposal distance checks for all three
