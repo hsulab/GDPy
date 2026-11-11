@@ -155,6 +155,8 @@ class RandomStructureImprovedModifier(StructureModifier):
         self.covalent_ratio = covalent_ratio
         self.restraints = parse_restraints(restraints, covalent_ratio=covalent_ratio)
 
+        # Keep the serialised bounds and caller/default list unchanged.
+        molecular_distances = list(molecular_distances)
         if molecular_distances[0] is None:
             molecular_distances[0] = -np.inf
         if molecular_distances[1] is None:
