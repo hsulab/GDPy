@@ -104,14 +104,13 @@ strategy:
   convergence:
     generation: 1
   minimisation:
-    runtime:
-      executor:
-        provider: ase
-        method: min
-        parameters:
-          stop:
-            steps: 1000
-            fmax: 0.05
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
 ```
 
 `runtime.yaml`:
@@ -173,14 +172,13 @@ strategy:
     - [900, 200]
     - [600, 100]
   minimisation:
-    runtime:
-      executor:
-        provider: ase
-        method: min
-        parameters:
-          stop:
-            steps: 1000
-            fmax: 0.05
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
   convergence:
     generation: 3
 ```
@@ -201,19 +199,19 @@ NVT or NPT dynamics with a driver and thermostat that support temperature ramps.
 Omit runtime `tend`: the exploration supplies it from each pair. The MD
 `stop.steps` controls the number of integration steps over which cooling occurs.
 
-`strategy.minimisation.runtime` supplies a minimisation runtime. Its `executor`
-must use `method: min`, with positive `parameters.stop.steps` and
+`strategy.minimisation` directly defines the minimisation runtime, without a
+`runtime` wrapper. Its `executor` must use `method: min`, with positive `parameters.stop.steps` and
 `parameters.stop.fmax`. The optional `strategy.selection` determines which MD
 snapshots enter this minimisation stage.
 
-Omit `runtime.potential` to inherit the MD potential, or supply a complete
+Omit `minimisation.potential` to inherit the MD potential, or supply a complete
 potential definition to override it. The minimisation runtime evaluates both
 generation 0 and all selected snapshots, so population ranking always uses
 its energy surface. The MD runtime remains unchanged.
 
-Put minimisation scheduling settings in `runtime.scheduler`; the default is
+Put minimisation scheduling settings in `minimisation.scheduler`; the default is
 direct execution, independent of the MD scheduler. Dispatch settings inherit
-from the MD runtime and can be overridden through `runtime.dispatch`.
+from the MD runtime and can be overridden through `minimisation.dispatch`.
 Minimisation uses the batch worker with separate candidate directories;
 `dispatch.worker: single` and `dispatch.share_workdir: true` are unsupported.
 Modifiers remain unsupported for both runtimes.
@@ -224,20 +222,19 @@ runtime (alongside its required executor):
 
 ```yaml
 minimisation:
-  runtime:
-    potential:
-      provider: emt
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
-    scheduler:
-      provider: direct
-    dispatch:
-      batch_size: 4
+  potential:
+    provider: emt
+  executor:
+    provider: ase
+    method: min
+    parameters:
+      stop:
+        steps: 1000
+        fmax: 0.05
+  scheduler:
+    provider: direct
+  dispatch:
+    batch_size: 4
 ```
 
 ### Snapshot selection
@@ -268,14 +265,13 @@ strategy:
     include_last: true
     group_by: "axis 0"
   minimisation:
-    runtime:
-      executor:
-        provider: ase
-        method: min
-        parameters:
-          stop:
-            steps: 1000
-            fmax: 0.05
+    executor:
+      provider: ase
+      method: min
+      parameters:
+        stop:
+          steps: 1000
+          fmax: 0.05
 ```
 
 Use `selection: {method: locate, indices: ":"}` for every saved snapshot.
@@ -349,9 +345,9 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
-Move older `strategy.minimisation.executor` to
-`strategy.minimisation.runtime.executor`, and any executor-level scheduler to
-`strategy.minimisation.runtime.scheduler`. Omit `runtime.potential` to retain
+Remove the older `strategy.minimisation.runtime` wrapper: put `executor`,
+`potential`, `dispatch`, and `scheduler` directly under `strategy.minimisation`.
+Move any executor-level scheduler to `strategy.minimisation.scheduler`. Omit `minimisation.potential` to retain
 the inherited MD potential. Older population SA checkpoints require a fresh
 directory for the snapshot-selection format.
 Changes to the configuration require a fresh directory.
