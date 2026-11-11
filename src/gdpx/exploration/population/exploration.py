@@ -19,7 +19,7 @@ def validate_strategy(strategy, method=None):
     allowed = {
         "genetic_algorithm": {"operators", "reproduction", "mutation", "completion", "substrate"},
         "basin_hopping": {"operators", "steps_per_chain", "selection"},
-        "simulated_annealing": {"temperatures", "minimisation"},
+        "simulated_annealing": {"temperatures", "selection", "minimisation"},
     }
     if not isinstance(selected, str) or selected not in allowed:
         raise ValueError("strategy.method must be genetic_algorithm, basin_hopping, or simulated_annealing.")

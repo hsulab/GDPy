@@ -51,10 +51,13 @@ class PopulationAnnealing(PopulationBasedExploration):
             raise ValueError("SA requires one temperature range per generation (excluding initial generation 0).")
         definition = strategy.get("minimisation")
         if not isinstance(definition, Mapping) or "runtime" not in definition:
-            raise ValueError("SA strategy.minimisation requires runtime and an optional selector.")
-        if set(definition) - {"runtime", "selector"}:
-            raise ValueError("SA minimisation accepts only runtime and selector.")
-        selector_config = copy.deepcopy(definition.get("selector", {"method": "locate", "indices": "-1"}))
+            raise ValueError("SA strategy.minimisation requires runtime.")
+        if "selector" in definition:
+            raise ValueError("Move strategy.minimisation.selector to strategy.selection.")
+        if set(definition) - {"runtime"}:
+            raise ValueError("SA minimisation accepts only runtime.")
+        selector_config = copy.deepcopy(strategy.get("selection", {
+            "method": "locate", "indices": "-1", "group_by": "axis 0"}))
         create_selector(selector_config)  # Validate before any calculations are submitted.
         if not isinstance(definition["runtime"], Mapping):
             raise ValueError("SA minimisation.runtime must be a runtime mapping.")
@@ -72,7 +75,8 @@ class PopulationAnnealing(PopulationBasedExploration):
                 or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
             raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
         strategy = copy.deepcopy(strategy)
-        strategy["minimisation"] = {"runtime": minimum_runtime, "selector": selector_config}
+        strategy["selection"] = selector_config
+        strategy["minimisation"] = {"runtime": minimum_runtime}
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -225,22 +229,24 @@ class PopulationAnnealing(PopulationBasedExploration):
                 raise RuntimeError("SA selected structures do not match selection.json.")
             return frames, records
         frames, records = [], []
-        for replica, trajectory in sorted(trajectories.items()):
-            selector = create_selector(copy.deepcopy(self.strategy_config["minimisation"]["selector"]))
-            selector.directory = directory / f"replica{replica}"
+        replicas = sorted(replica for replica, trajectory in trajectories.items() if trajectory)
+        if replicas:
+            selector = create_selector(copy.deepcopy(self.strategy_config["selection"]))
+            selector.directory = directory
             # Composed selectors own child RNGs; seed those as well so a
             # selection interrupted before its cache is written is reproducible.
             pending = [selector]
-            seed_rng = np.random.default_rng(np.random.SeedSequence([plan["seed"], replica]))
+            seed_rng = np.random.default_rng(np.random.SeedSequence([plan["seed"]]))
             while pending:
                 component = pending.pop(0)
                 component.set_rng(seed=int(seed_rng.integers(0, 2**31 - 1)))
                 pending.extend(getattr(component, "selectors", []))
-            data = AtomsNDArray(trajectory)
+            data = AtomsNDArray([trajectories[replica] for replica in replicas])
             selector.select(data)
-            for (frame_index,) in np.argwhere(data.markers):
+            for trajectory_index, frame_index in np.argwhere(data.markers):
+                replica = replicas[int(trajectory_index)]
                 frame_index = int(frame_index)
-                source = trajectory[frame_index]
+                source = trajectories[replica][frame_index]
                 record = dict(replica=replica, frame_index=frame_index,
                               parent=plan["parents"][replica],
                               md_step=int(source.info.get("step", -1)))

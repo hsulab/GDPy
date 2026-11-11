@@ -9,6 +9,7 @@ import numpy as np
 from gdpx.data.array import AtomsNDArray
 
 from .selector import BaseSelector
+from .clustering import group_structures
 
 
 def convert_string_to_indices(indstr: str, length: int, convention="py"):
@@ -72,9 +73,11 @@ class LocateSelector(BaseSelector):
         # This is similar to np.take_along_axis
         if data.ndim > 0:
             # Group markers by axis
-            # TODO: The group behaviour below is not consistent with others.
+            # Preserve legacy integer axes; named grouping uses the shared API.
             axis = self.group_by
-            if axis is not None:
+            if isinstance(axis, str) or axis is None:
+                marker_groups = group_structures(data, group_by=axis)
+            else:
                 if axis < 0:
                     axis = data.ndim + axis
 
@@ -91,9 +94,6 @@ class LocateSelector(BaseSelector):
                         marker_groups[k].extend(list(v))
                     else:
                         marker_groups[k] = list(v)
-            else:
-                markers_coords = np.argwhere(data.markers)
-                marker_groups = dict(all=markers_coords)
             # Get selected markers
             selected_markers = []
             for k, v in marker_groups.items():

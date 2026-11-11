@@ -34,7 +34,7 @@ def search(tmp_path):
     def construct(selector=None):
         config = copy.deepcopy(recipe)
         if selector is not None:
-            config["strategy"]["minimisation"]["selector"] = selector
+            config["strategy"]["selection"] = selector
         obj = create_exploration(config)
         obj.directory = tmp_path / "run"
         obj.register_worker(create_worker(copy.deepcopy(runtime)))
@@ -50,6 +50,8 @@ def search(tmp_path):
     ({"method": "locate", "indices": "99"}, []),
 ])
 def test_selects_per_trajectory_and_records_minima(search, selector, expected):
+    if selector is not None:
+        selector = dict(selector, group_by="axis 0")
     obj = search(selector)
     obj.run()
     root = obj.directory
@@ -100,7 +102,7 @@ def test_restart_reuses_selection_after_partial_ingestion(search, monkeypatch, s
     assert resumed.read_convergence()
     assert (obj.directory / "gen1/sel/selected.xyz").read_bytes() == saved
     rows = list(GlobalOptimisationDatabase(obj.directory / "candidates.db").connection.select(relaxed=1))
-    assert len(rows) == 5
+    assert len(rows) == 3
 
 
 def test_failed_snapshot_does_not_discard_siblings(search, monkeypatch):
@@ -114,7 +116,7 @@ def test_failed_snapshot_does_not_discard_siblings(search, monkeypatch):
             raise CalculationFailed("one snapshot failed")
         return original(driver, *args, **kwargs)
     monkeypatch.setattr(AseDriver, "_irun", fail)
-    obj = search({"method": "locate", "indices": "1 3"})
+    obj = search({"method": "locate", "indices": "1 3", "group_by": "axis 0"})
     obj.run()
     obj.run()
     assert len(attempts) == 1
@@ -236,3 +238,47 @@ def test_candidate_tags_survive_backend_output_and_restart(search, monkeypatch, 
             np.testing.assert_array_equal(frame.get_tags(), expected)
     for frame in obj.get_minimised_candidates():
         np.testing.assert_array_equal(frame.get_tags(), expected)
+
+
+@pytest.mark.parametrize("selection,expected", [
+    ({"method": "locate", "indices": "1 -1"}, [(2, 1), (7, 2)]),
+    ({"method": "locate", "indices": "-1", "group_by": "axis 0"}, [(2, 1), (7, 2)]),
+    ({"method": "locate", "indices": ":"},
+     [(2, 0), (2, 1), (7, 0), (7, 1), (7, 2)]),
+    ([{"method": "locate", "indices": "-1", "group_by": "axis 0"},
+      {"method": "locate", "indices": "0"}], [(2, 1)]),
+])
+def test_generation_selection_preserves_ragged_trajectory_provenance(search, selection, expected):
+    obj = search(selection)
+    trajectories = {7: [Atoms("Cu") for _ in range(3)],
+                    2: [Atoms("Cu") for _ in range(2)]}
+    plan = {"seed": 13, "parents": list(range(10, 18))}
+    frames, records = obj._select_snapshots(1, trajectories, plan)
+    assert [(r["replica"], r["frame_index"]) for r in records] == expected
+    assert [r["parent"] for r in records] == [plan["parents"][r] for r, _ in expected]
+    assert len(frames) == len(expected)
+    assert all(r["md_step"] == -1 for r in records)
+
+
+@pytest.mark.parametrize("group_by,number", [(None, 2), ("axis 0", 4)])
+def test_random_selection_scope(search, group_by, number):
+    obj = search({"method": "random", "number": 2, "group_by": group_by})
+    trajectories = {i: [Atoms("Cu") for _ in range(3)] for i in range(2)}
+    frames, records = obj._select_snapshots(1, trajectories, {"seed": 13, "parents": [0, 1]})
+    assert len(frames) == len(records) == number
+    if group_by is not None:
+        assert [r["replica"] for r in records] == [0, 0, 1, 1]
+
+
+def test_selection_with_no_successful_trajectories(search):
+    obj = search()
+    assert obj._select_snapshots(1, {}, {"seed": 13, "parents": []}) == ([], [])
+    assert obj._select_snapshots(1, {}, {}) == ([], [])
+
+
+def test_rejects_nested_selector_with_migration_message(search):
+    recipe = search().as_dict()
+    recipe.pop("runtime")
+    recipe["strategy"]["minimisation"]["selector"] = {"method": "random"}
+    with pytest.raises(ValueError, match=r"Move strategy.minimisation.selector to strategy.selection"):
+        create_exploration(recipe)
