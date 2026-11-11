@@ -30,7 +30,7 @@ input structure, these temperatures use `cand0`, `cand1`, and `cand2` under the
 run directory. In a workflow, a `compute` step accepts the resulting runtime
 collection directly.
 
-### Extract and select a temperature
+## Extract and select a temperature
 
 Workflow `compute` and `extract` restore results as
 `[variant, input structure, trajectory frame]`, even when several variants
