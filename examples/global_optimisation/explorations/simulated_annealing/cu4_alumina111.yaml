@@ -1,0 +1,51 @@
+# Short Cu4/alpha-Al2O3(0001) demonstration: four initial structures,
+# then two cooling generations with four trajectories each.
+method: global_optimisation
+random_seed: 53
+system:
+  periodic: true
+  preserve_fragments: false
+  retained_size: 4
+  comparator:
+    method: interatomic_distance
+  builders:
+    init:
+      method: random_structure_improved
+      substrates: ../../assets/alpha_alumina111_ortho.xyz
+      composition:
+        Cu: 4
+      region:
+        method: sphere
+        origin: [7.1385, 8.2428, 10.0]
+        radius: 1.8
+      covalent_ratio: [0.6, 2.0]
+  initial:
+    total_size: 4
+    builder_allocations:
+      - builder: init
+        size: 4
+  generation:
+    total_size: 4
+strategy:
+  method: simulated_annealing
+  convergence:
+    generation: 2
+  temperatures:
+    - [600, 100]
+    - [450, 100]
+  # This is also the default: minimise each trajectory's final saved frame.
+  selection:
+    method: locate
+    indices: "-1"
+    group_by: "axis 0"
+  minimisation:
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          setup:
+            constraint: '`zbot 60`'
+          stop:
+            steps: 20
+            fmax: 0.1

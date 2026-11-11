@@ -1,0 +1,28 @@
+potential:
+  provider: deepmd
+  backend: ase
+  parameters:
+    # Export DPA4C-mini for the execution device; see the DeepMD guide.
+    model: ../../../../models/dpa4c-mini.pt2
+executor:
+  provider: ase
+  method: md
+  parameters:
+    setup:
+      ensemble:
+        method: nvt
+        temperature: 600.0
+      timestep: 0.5
+      constraint: '`zbot 60`'
+      velocities:
+        initialize: if_missing
+        remove_rotation: false
+      regulator:
+        name: langevin
+        parameters:
+          friction: 0.01
+    stop:
+      steps: 200
+    output:
+      trajectory:
+        period: 20
