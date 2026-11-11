@@ -188,7 +188,8 @@ Omit runtime `tend`: the exploration supplies it from each pair. The MD
 
 `strategy.minimisation.runtime` supplies a minimisation runtime. Its `executor`
 must use `method: min`, with positive `parameters.stop.steps` and
-`parameters.stop.fmax`. The optional `selector` remains alongside `runtime`.
+`parameters.stop.fmax`. The optional `strategy.selection` determines which MD
+snapshots enter this minimisation stage.
 
 Omit `runtime.potential` to inherit the MD potential, or supply a complete
 potential definition to override it. The minimisation runtime evaluates both
@@ -226,42 +227,61 @@ minimisation:
 
 ### Snapshot selection
 
-`strategy.minimisation.selector` is optional. Omitting it instantiates the
-ordinary `locate` selector with `indices: "-1"`, selecting the last saved snapshot
-of each successful cooling trajectory. Generation 0 bypasses selection and
-minimises all initial structures.
+`strategy.selection` is optional and sits alongside `strategy.minimisation`.
+Omitting it uses `{method: locate, indices: "-1", group_by: "axis 0"}`, selecting
+the last saved snapshot of each successful cooling trajectory. Generation 0
+bypasses selection and minimises all initial structures.
+
+Selection receives all successful trajectories together as a
+`[trajectory, frame]` array. The selector's `group_by` determines its scope:
+omit it or use `null` to select across the whole generation; use `"axis 0"` to
+select separately within each trajectory. Thus a random selector with `number: 5`
+requests five frames total without grouping, or five per trajectory with
+`group_by: "axis 0"` (subject to the selector's available-frame rules).
 
 Use the existing {doc}`selectors <../selections/index>` to select other snapshots.
-For example, minimise every second saved snapshot and include the endpoint:
+For example, minimise every second saved snapshot of each trajectory and include
+its endpoint:
 
 ```yaml
-minimisation:
-  selector:
+strategy:
+  method: simulated_annealing
+  temperatures: [[600, 300]]
+  selection:
     method: interval
     period: 2
     include_last: true
-  runtime:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+    group_by: "axis 0"
+  minimisation:
+    runtime:
+      executor:
+        provider: ase
+        method: min
+        parameters:
+          stop:
+            steps: 1000
+            fmax: 0.05
 ```
 
-Use `selector: {method: locate, indices: ":"}` for every saved snapshot, or
-`selector: {method: locate, indices: "0 5 -1"}` for specific saved-frame indices.
-Indices are zero-based; `-1` selects the last frame. Selection operates separately
-on each successful trajectory, including its saved initial frame when requested.
+Use `selection: {method: locate, indices: ":"}` for every saved snapshot.
+For specific indices within each trajectory, use
+`selection: {method: locate, indices: "0 5 -1", group_by: "axis 0"}`.
+Without grouping, indices address the combined frames ordered by replica and
+then frame index. Indices are zero-based; `-1` selects the last frame in each
+group. A list of selector definitions composes successive selections over the
+same batch; each selector can set its own grouping.
+
 The MD runtime's trajectory output period determines which snapshots exist;
-selection does not recover unsaved integration steps.
+selection does not recover unsaved integration steps. The saved initial frame
+is available when requested. Move older `strategy.minimisation.selector`
+configurations to `strategy.selection`, adding `group_by: "axis 0"` to retain
+per-trajectory selection. Use a new run directory when migrating.
 
 Both default and explicit selectors write `genN/sel/selected.xyz` and
 `genN/sel/selection.json` before minimisation. The manifest maps each selected
 structure, in file order, to its parent, original replica, frame index, and MD
-step (`-1` when unavailable). Per-trajectory selector caches are stored under
-`genN/sel/replicaN/`. Selection uses reproducible search-derived random seeds.
+step (`-1` when unavailable). Selector caches are stored under
+`genN/sel/`. Selection uses reproducible search-derived random seeds.
 Restart reuses the saved structures and manifest without rerunning selection.
 
 All selected snapshots are minimised as one batch. A failed minimisation drops

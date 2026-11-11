@@ -94,7 +94,7 @@ separately. The latter includes both generation-0 relaxation and minimisations
 of selected MD snapshots. `md_trajectories` and `min_trajectories` extract each
 source separately, including intermediate minimisation frames. No worker
 methods are mixed before selection. The population comparator does not filter
-these trajectories; SA's `minimisation.selector` only controls which MD frames
+these trajectories; SA's `strategy.selection` only controls which MD frames
 are relaxed. The default `sample.minimised_candidates` head contains all successful final
 minima as structures, including duplicates; it does not contain workers.
 
