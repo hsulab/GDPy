@@ -11,24 +11,22 @@ if ! [[ "$port" =~ ^[0-9]+$ ]] || ((port < 1 || port > 65535)); then
     exit 2
 fi
 
-if ! command -v conda >/dev/null 2>&1; then
-    echo "conda is required to run the documentation server" >&2
+if ! command -v python >/dev/null 2>&1; then
+    echo "Activate a Python environment before running the documentation server." >&2
     exit 1
 fi
 
-if ! conda run -n catorch3 python -c "import myst_parser, sphinx, sphinx_autobuild, sphinx_copybutton, sphinx_rtd_theme" >/dev/null 2>&1; then
-    echo "The catorch3 environment is missing the documentation dependencies." >&2
+if ! python -c "import myst_parser, sphinx, sphinx_autobuild, sphinx_copybutton, sphinx_rtd_theme" >/dev/null 2>&1; then
+    echo "The active Python environment is missing the documentation dependencies." >&2
     echo "Install them once with:" >&2
-    echo "  conda run -n catorch3 python -m pip install -r $docs_dir/requirements.txt" >&2
+    echo "  python -m pip install -r \"$docs_dir/requirements.txt\"" >&2
     exit 1
 fi
 
-conda run --no-capture-output -n catorch3 \
-    make -C "$docs_dir" clean
+python -m sphinx -M clean "$docs_dir/source" "$docs_dir/build"
 
 echo "Serving gdpx documentation with live reload at http://127.0.0.1:$port"
-exec conda run --no-capture-output -n catorch3 \
-    sphinx-autobuild \
+exec python -m sphinx_autobuild \
     --host 127.0.0.1 \
     --port "$port" \
     -a \
