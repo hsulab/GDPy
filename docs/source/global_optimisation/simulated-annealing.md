@@ -333,7 +333,9 @@ jobs remain pending and are not treated as failed candidates.
   and candidates not retained.
 - `results/pop.png`: candidate objective versus generation, with parent–child
   links, the best evaluated objective so far, and the final retained population
-  highlighted. Generation 0 contains the minimised initial structures.
+  highlighted. Values are relative to the lowest objective in generation 0,
+  which contains the minimised initial structures. Negative values indicate
+  improvements over that reference; exported structure energies are unchanged.
 - `gen0/min/`: initial evaluations.
 - `genN/sim/`: MD cooling trajectories over generation N’s temperature range.
 - `genN/sel/`: selected snapshots, provenance manifest, and selector caches.
