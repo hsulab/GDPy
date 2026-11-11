@@ -16,7 +16,7 @@ if ! command -v python >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! python -c "import myst_parser, sphinx, sphinx_autobuild, sphinx_copybutton, sphinx_rtd_theme" >/dev/null 2>&1; then
+if ! python -c "import myst_parser, sphinx, sphinx_autobuild, sphinx_copybutton, furo" >/dev/null 2>&1; then
     echo "The active Python environment is missing the documentation dependencies." >&2
     echo "Install them once with:" >&2
     echo "  python -m pip install -r \"$docs_dir/requirements.txt\"" >&2

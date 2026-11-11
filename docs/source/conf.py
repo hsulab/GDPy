@@ -67,13 +67,37 @@ exclude_patterns = ['_static/**', '_templates/**']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 html_theme_options = {
-    "titles_only": True,
+    "light_css_variables": {
+        "font-stack": '"gdpx JetBrains Mono", monospace',
+        "font-stack--headings": '"gdpx JetBrains Mono", monospace',
+        "font-stack--monospace": '"gdpx JetBrains Mono", monospace',
+        "sidebar-item-font-size": "0.875rem",
+        "sidebar-caption-font-size": "0.875rem",
+        "sidebar-search-input-font-size": "0.875rem",
+        "sidebar-item-line-height": "1.4rem",
+        "sidebar-item-spacing-vertical": "0.25rem",
+        "sidebar-caption-space-above": "0.75rem",
+        "sidebar-tree-space-above": "0.75rem",
+        "toc-font-size": "1rem",
+        "toc-font-size--mobile": "1rem",
+        "toc-title-font-size": "1rem",
+        "code-font-size": "0.875rem",
+        "admonition-font-size": "0.875rem",
+        "admonition-title-font-size": "0.875rem",
+        "api-font-size": "0.875rem",
+        "color-nav-command": "#246653",
+        "color-nav-secondary": "#985715",
+    },
+    "dark_css_variables": {
+        "color-nav-command": "#8fd3c1",
+        "color-nav-secondary": "#f0ad66",
+    },
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-html_css_files = ['css/typography.css', 'css/navigation.css', 'css/layout.css']
+html_css_files = ['css/typography.css', 'css/navigation.css']

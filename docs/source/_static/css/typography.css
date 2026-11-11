@@ -31,45 +31,9 @@
   font-display: swap;
 }
 
-:root {
-  --docs-font: "gdpx JetBrains Mono", monospace;
-}
+/* Font stacks are configured with Furo CSS variables in conf.py. */
 
-body,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-legend,
-.rst-content .toctree-wrapper > p.caption,
-.rst-content .sidebar .sidebar-title,
-.rst-content .admonition-title,
-.rst-versions,
-.btn,
-button,
-input[type],
-select,
-textarea {
-  font-family: var(--docs-font);
+/* Keep article text compact independently of the two navigation columns. */
+article[role="main"] {
+  font-size: 0.875rem;
 }
-
-code,
-kbd,
-pre,
-samp,
-.rst-content code,
-.rst-content tt,
-.rst-content kbd,
-.rst-content pre,
-.rst-content samp,
-.rst-content pre.literal-block,
-.rst-content .linenodiv pre,
-.rst-content div[class^="highlight"] pre,
-footer span.commit code,
-footer span.commit tt {
-  font-family: var(--docs-font);
-}
-
-/* Theme icons and MathJax retain their own fonts. */
