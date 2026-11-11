@@ -1,4 +1,4 @@
-# Canonical: displacements in periodic Cu
+# canonical: displacements in periodic cu
 
 The initial structure is a 32-atom FCC Cu supercell with a fixed 7.2 Å cubic
 cell. Only Cu positions change; the cell and Cu count remain constant.
@@ -14,7 +14,7 @@ $\Delta E = E_\mathrm{trial} - E_\mathrm{current}$.
 keeps the demonstration near the initial lattice. No volume-changing move is
 used: setting an operator's `pressure` does not turn this into NPT sampling.
 
-## Run
+## run
 
 Run the complete sampling runtime from the repository root:
 

@@ -4,11 +4,11 @@
 
 The `lasp` provider loads LASP neural-network potential files.
 
-## Requirements
+## requirements
 
 Provide the LASP executable and trained potential files for every element in the calculation.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ Provide the LASP executable and trained potential files for every element in the
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### lasp + lasp
 
@@ -50,7 +50,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 `model` accepts a path or list of existing files. When the number of models
 matches `type_list`, gdpx maps files to elements in that order. Otherwise the

@@ -57,7 +57,7 @@ Population supplies `mic` from `system.periodic`; do not set it in the
 comparator mapping. No alignment is performed. This replaces
 `cartesian_coordinate` and `permutation_rmsd` without presets.
 
-## Combining energy and structure
+## combining energy and structure
 
 `CombinedComparator` accepts a nonempty list of independent comparators and
 requires every criterion to consider a pair similar (AND semantics):

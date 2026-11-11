@@ -27,7 +27,7 @@ the xy cell area times `zmax - zmin`. Direct Python use requires
 was supplied. Membership uses the cell and PBC flags of the structure being
 checked, independently of an explicit sampling cell.
 
-## Wrapping
+## wrapping
 
 `wrap` is a surface-region option, applied consistently to direct atom membership,
 group-expression membership, tagged particle centers, and Thanos checks:

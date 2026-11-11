@@ -1,6 +1,6 @@
 # mace
 
-## Installation
+## installation
 
 Install the MACE inference and training package from the repository root:
 
@@ -12,7 +12,7 @@ This installs `mace-torch`, including the `mace_run_train` executable. Set
 `trainer.command: mace_run_train` as shown below. See {doc}`../potentials/mace`
 for CPU and GPU installation options.
 
-## Configuration
+## configuration
 
 **gdp** writes `./_train.xyz` and `./_test.xyz` into the training directory based on
 `dataset` and generates a command line based on `trainer`.

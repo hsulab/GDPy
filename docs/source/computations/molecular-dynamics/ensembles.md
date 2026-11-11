@@ -1,4 +1,4 @@
-# Ensembles
+# ensembles
 
 MD defines its ensemble under `executor.parameters.setup.ensemble`. The regulator
 selects the thermostat or barostat algorithm; its numerical parameters belong
@@ -17,7 +17,7 @@ species exchange, including HMC inheritance.
 
 The examples below are executor fragments for a runtime with one potential.
 
-## NVE
+## nve
 
 ```yaml
 executor:
@@ -39,7 +39,7 @@ Omit the regulator for NVE. `setup.velocities.temperature` sets the initial
 velocity distribution; it is not a thermostat target. Existing nonzero
 velocities are retained with `initialize: if_missing`. ASE uses velocity Verlet.
 
-## NVT
+## nvt
 
 ```yaml
 executor:
@@ -64,7 +64,7 @@ its algorithm name and parameters, without a separate `targets` mapping.
 Supported regulator algorithms depend on the executor provider. The
 {doc}`MD demo <../tasks/molecular-dynamics>` uses ASE Berendsen dynamics.
 
-## NPT
+## npt
 
 The registered ASE NPT configuration has this shape:
 
@@ -103,7 +103,7 @@ interface, but should not be used for quantitative NPT work until that adapter
 is corrected. The linked MD demo uses NVT.
 
 
-## Temperature sweeps
+## temperature sweeps
 
 Use `executor.broadcast` with `setup.ensemble.temperature` to run independent
 trajectories at several temperatures. See {doc}`../runtime-broadcast` for

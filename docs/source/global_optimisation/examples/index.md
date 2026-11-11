@@ -2,7 +2,7 @@
 (ga-examples)=
 (bh-examples)=
 
-# Examples
+# examples
 
 Choose a physical system, then a search method. Each system guide introduces
 its geometry and shared setup once, followed by the available genetic algorithm

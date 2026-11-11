@@ -5,7 +5,7 @@
 Insert or remove particles using an estimated unoccupied volume in the
 acceptance factor.
 
-## Configuration
+## configuration
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC read
@@ -21,7 +21,7 @@ basin hopping adds them to the operator:
     radius: 3.0
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ basin hopping adds them to the operator:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 When eligible particles are present, insertion and removal are selected with
 equal probability. With none present, insertion is forced. Removal selects one
@@ -60,7 +60,7 @@ Acceptance otherwise includes the same energy, chemical-potential, particle-coun
 and temperature factors as ordinary exchange. Initial builder composition ranges
 do not limit subsequent insertions or removals.
 
-## Equilibrium-sampling limitation
+## equilibrium-sampling limitation
 
 Replacing the geometric volume with an estimated empty volume does not by
 itself correct the proposal probability: insertion still uses the ordinary

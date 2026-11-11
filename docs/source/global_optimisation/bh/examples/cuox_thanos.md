@@ -1,6 +1,6 @@
 (bh-cuox-thanos-example)=
 
-# Cu<sub>4</sub>O<sub>4</sub> cluster with O–O extinction
+# cu<sub>4</sub>o<sub>4</sub> cluster with o–o extinction
 
 This example exercises Thanos on a gas-phase Cu₄O₄ cluster using MatterSim.
 The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell, avoiding
@@ -14,7 +14,7 @@ The example deliberately **allows O–O bonds to form before extinction**. There
 is no O–O prohibition in the builder or move. The ordinary move distance check
 prevents severe overlap; Thanos applies its separate rule after minimization.
 
-## Input
+## input
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml
 :language: yaml
@@ -43,7 +43,7 @@ then terminate its chain. It is an acceptance parameter, not a physical cluster
 temperature. Lower it for a production search; then an O–O trial may be rejected
 without terminating the current chain.
 
-## Run and verify
+## run and verify
 
 Install MatterSim following {ref}`potential-mattersim`. The example uses the
 1M checkpoint and was verified on CPU; its first use may download the model. From the example folder indicated below, run:

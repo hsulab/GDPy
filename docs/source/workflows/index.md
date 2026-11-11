@@ -30,7 +30,7 @@ validate
 correct
 ```
 
-## Complete example
+## complete example
 
 This workflow reads structures, relaxes them with EMT, and extracts the
 trajectories:
@@ -96,7 +96,7 @@ other resources, and workflow targets must be steps.
 The run is stored under `<directory>/<workflow-file-stem>`. Select another root
 with the global option `gdp -d PATH workflow run workflow.yaml`.
 
-## Parameters and profiles
+## parameters and profiles
 
 Use an exact `{$param: name}` value to insert a declared parameter while
 preserving its type. Override declared parameters from the command line with
@@ -128,7 +128,7 @@ profiles:
             steps: 500
 ```
 
-## Includes and external values
+## includes and external values
 
 Split a workflow into reusable YAML fragments with `includes`. Paths are
 resolved relative to the file that declares them, and duplicate names are an
@@ -144,7 +144,7 @@ An exact `{$file: path.yaml}` value loads YAML or JSON from a separate file.
 Its path is likewise relative to the declaring file. Includes combine workflow
 sections; `$file` inserts the loaded value at its location.
 
-## Execution modes
+## execution modes
 
 `mode: once` is the default and executes the dependency graph one time.
 `mode: repeat` executes the same graph repeatedly, up to `max_iterations`.
@@ -211,7 +211,7 @@ workflows, the target is typically the final validation or training step, and
 all exploration, selection, labeling, and training dependencies are reached
 through its `inputs` graph.
 
-## Loop-carried state
+## loop-carried state
 
 Declare values that change between repeat iterations under top-level `state`.
 Each value names a static initial resource and the step output committed for the
@@ -288,7 +288,7 @@ It bootstraps two models on 24 EMT-labeled Cu₃Au₁ structures, samples with D
 selects frames by force uncertainty, labels them with EMT, and retrains on the
 cumulative dataset.
 
-## Migrating older session files
+## migrating older session files
 
 The previous session format is not loaded implicitly. Rename `variables` to
 `resources` and `operations` to `steps`, rename each node's `type` to

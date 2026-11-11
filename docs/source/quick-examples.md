@@ -18,7 +18,7 @@ documentation. Smaller configuration snippets, such as individual potential,
 builder, selector, and scheduler configurations, remain in their respective
 reference guides.
 
-## Compute
+## compute
 
 The introductory demo and the first four task examples use ASE's bundled EMT
 potential and require no model download. Generate the shared task structures as
@@ -36,7 +36,7 @@ described in the {doc}`task examples overview <computations/tasks/index>`.
 | {ref}`User system <compute-dimer-example>` | user defined | Local saddle-point search configuration |
 | {ref}`User system <compute-vibrations-example>` | user defined | Native finite-difference frequency tasks |
 
-## Monte Carlo
+## monte carlo
 
 | Example | System | Focus |
 | --- | --- | --- |
@@ -48,13 +48,13 @@ described in the {doc}`task examples overview <computations/tasks/index>`.
 See the {ref}`Monte Carlo guide <monte-carlo>` for proposal rules, outputs,
 restart behavior, and sampling limitations.
 
-## Rare-event sampling
+## rare-event sampling
 
 | Example | System | Focus |
 | --- | --- | --- |
 | {doc}`H2O/Ni(111) <explorations/umbrella-sampling>` | surface | Distance-window replicas for active-learning candidate generation |
 
-## Hybrid Monte Carlo
+## hybrid monte carlo
 
 | Example | System | Focus |
 | --- | --- | --- |
@@ -65,7 +65,7 @@ restart behavior, and sampling limitations.
 See the {ref}`Hybrid Monte Carlo guide <hybrid-monte-carlo>` for cycle settings,
 runtime roles, outputs, and restart behavior.
 
-## Genetic algorithm
+## genetic algorithm
 
 | Example | System | Focus |
 | --- | --- | --- |

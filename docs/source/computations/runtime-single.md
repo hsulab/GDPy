@@ -13,7 +13,7 @@ a potential that supplies stress.
 See {doc}`../groups-and-constraints` for selecting atoms with `group` and
 freezing them with `executor.parameters.setup.constraint`.
 
-## Provider compatibility
+## provider compatibility
 
 | Potential provider | Executor provider |
 | --- | --- |
@@ -41,7 +41,7 @@ Transition-state executors have two shapes: `dimer` consumes one replica,
 while `neb` consumes endpoints or an ordered image sequence. See
 {doc}`tasks/transition-states` for configurations.
 
-## Native and LAMMPS execution
+## native and lammps execution
 
 With `executor.provider: vasp`, gdpx defaults to the native `vasp` backend.
 With `executor.provider: ase`, VASP defaults to `potential.backend: interactive`.
@@ -60,7 +60,7 @@ uses `metal` units and writes model-deviation output for a committee. MACE uses
 ReaxFF uses `real` units and `charge` atom style, and adds `qeq/reax` charge
 equilibration.
 
-## Modifiers
+## modifiers
 
 Put a restraint or correction in `modifiers` alongside the physical potential:
 

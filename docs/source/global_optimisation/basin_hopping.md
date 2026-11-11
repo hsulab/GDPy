@@ -1,4 +1,4 @@
-# Basin hopping (BH)
+# basin hopping (bh)
 
 Examples keep search recipes in
 `examples/global_optimisation/explorations/basin_hopping/` and reusable
@@ -45,7 +45,7 @@ exploration, EMT relaxation runtime, and run command.
 
 See {ref}`exploration-output-layout` for output directories and restart metadata.
 
-## Chain-start selection
+## chain-start selection
 
 ```yaml
 strategy:
@@ -69,7 +69,7 @@ Already checkpointed starts are reused on resume. The new default can change
 future selections for the same seed; use `replace: true` to retain the previous
 sampling policy, and resume with the same configuration for reproducibility.
 
-## Acceptance and population ranking
+## acceptance and population ranking
 
 Operators use the shared {ref}`bh-operators` reference. The population's
 ranking objective is separate from the chain acceptance rule. Keep exchange
@@ -77,7 +77,7 @@ ranking objective is separate from the chain acceptance rule. Keep exchange
 formation-energy ranking. BH owns population selection and search objectives;
 its population is not an equilibrium sample.
 
-## Batched rounds and execution
+## batched rounds and execution
 
 BH advances chains in rounds: one proposal per chain, one batch of valid trials,
 then acceptance after every trial result is available. Invalid proposals consume
@@ -94,7 +94,7 @@ accepted candidate (`data.parents`), and starting parent. Invalid proposals have
 no evaluated result and create no candidate record. Results excluded by extinction
 rules remain stored but are ineligible for selection.
 
-## Extinction and replacement chains
+## extinction and replacement chains
 
 Configure extinction rules with `system.thanos`. Every evaluated
 trial receives an extinction flag after its MC acceptance decision, and remains
@@ -126,9 +126,9 @@ available in the database and worker outputs.
 
 See {ref}`bh-operator-logs` for operator setup output and detailed proposal logs.
 
-## Execution and checkpoints
+## execution and checkpoints
 
-### Generation output
+### generation output
 
 BH prints a scrolling, bordered block for each generation in the terminal and
 `gdp.out`. Every line, including borders, has the standard logging timestamp
@@ -162,7 +162,7 @@ so redirected and scheduler logs retain the same readable structure.
 
 (bh-operator-logs)=
 
-### Setup output and move logs
+### setup output and move logs
 
 Each BH invocation prints a compact setup box with operator indices and names,
 normalized selection probabilities, particles, temperatures, and move-specific
@@ -190,7 +190,7 @@ authoritative scientific history. These logs survive checkpoint cleanup.
 Logging uses existing results and scalar metadata: it does not copy atoms,
 evaluate calculators, or consume random numbers.
 
-### Runtime and restart files
+### runtime and restart files
 
 Top-level `scheduler` places the exploration loop. Top-level `runtime` defines
 its calculation worker; `runtime.scheduler` places the expensive calculations.
@@ -222,7 +222,7 @@ in-progress generation with this implementation. Completed history remains
 readable; minima from older worker outputs are not backfilled automatically. Round ordering also changes trajectories for old
 random seeds; new runs are reproducible across restart boundaries.
 
-## History figures
+## history figures
 
 Completed runs write compact 1200 × 600 PNGs to `results/history/`.
 `gen0001.png` combines all initial (generation 0) candidates with generation 1.

@@ -4,11 +4,11 @@
 
 The `vasp` provider configures VASP electronic settings and pseudopotentials.
 
-## Requirements
+## requirements
 
 Provide a VASP executable, pseudopotential directory, and INCAR. The ASE interface additionally requires `vasp_interactive`.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Ionic motion |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ to the potential provider. The Python package remains `vasp_interactive`.
 Additional potential parameters are passed to the corresponding calculator;
 `vdw_path` sets the van der Waals kernel directory when needed.
 
-## Configurations
+## configurations
 
 ### vasp + vasp
 
@@ -66,7 +66,7 @@ executor:
       steps: 100
 ```
 
-### interactive + ase with DFT-D3
+### interactive + ase with dft-d3
 
 Add external DFT-D3 through a runtime modifier:
 

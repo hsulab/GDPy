@@ -4,11 +4,11 @@
 
 The `espresso` provider configures Quantum ESPRESSO from a PW input template.
 
-## Requirements
+## requirements
 
 Provide `pw.x`, a compatible ASE Espresso interface, a PW input template, and the pseudopotentials named in the configuration.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Provide `pw.x`, a compatible ASE Espresso interface, a PW input template, and th
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### espresso + ase
 

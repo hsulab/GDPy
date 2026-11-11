@@ -1,6 +1,6 @@
 (ga-supported-nanoparticle-example)=
 
-# Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001) supported cluster
+# cu<sub>4</sub>/α-al<sub>2</sub>o<sub>3</sub>(0001) supported cluster
 
 Search for low-energy Cu₄ clusters on α-Al₂O₃(0001), the basal surface
 corresponding to `(111)` in the rhombohedral setting. The genetic algorithm
@@ -10,7 +10,7 @@ for Cu, Al, O, and their interfaces; the exploration inputs are independent
 of the model. See the {doc}`potential guides <../../potentials/index>` for
 installation, model files, and runtime configurations.
 
-## Substrate and search region
+## substrate and search region
 
 `examples/global_optimisation/assets/alpha_alumina111_ortho.xyz` contains a
 180-atom Al₇₂O₁₀₈ slab in a 14.28 × 16.49 × 34.0 Å orthogonal cell. A 3×2
@@ -27,7 +27,7 @@ Keep ASE tag 0 on all substrate atoms. The builder gives each Cu atom a
 distinct positive tag so GA operators can distinguish the support from the
 searchable cluster.
 
-## Local relaxation runtime
+## local relaxation runtime
 
 Create `runtime.yaml` using a potential configuration from its provider guide
 and the following executor block. This fixes the bottom 60 substrate atoms
@@ -68,7 +68,7 @@ used in the table. See {ref}`the Prophet timing details <prophet-cpu-timing>`.
 See the {ref}`potential comparison <potential-cpu-inference-comparison>` for
 the test protocol and model-specific setup.
 
-## Genetic algorithm
+## genetic algorithm
 
 The GA uses periodic cut-and-splice crossover and rattle mutation. Each Cu
 atom has its own tag, so default fragment preservation keeps the atoms
@@ -91,7 +91,7 @@ gdp -d ./run-cu4-alumina111-ga --runtime ./runtime.yaml explore \
 
 (bh-supported-nanoparticle-example)=
 
-## Basin hopping
+## basin hopping
 
 The BH recipe relaxes four random supported structures, then starts two chains
 with eight attempted moves each. Hopping proposals select only Cu atoms. The
@@ -114,7 +114,7 @@ Inspect `candidates.db` for relaxed structures and acceptance metadata,
 `tmp_folder/gen1/rounds/events.jsonl` for committed rounds. Repeating the
 command with the same output directory resumes the search.
 
-### Prophet runtime
+### prophet runtime
 
 Prophet-OAME-MBD is the currently released standard Prophet energy/force
 checkpoint. Upstream does not release a smaller standard checkpoint or report
@@ -148,7 +148,7 @@ this checkpoint is costly for this example on the measured hardware.
 
 (sa-supported-nanoparticle-example)=
 
-## Simulated annealing with DPA4C-mini
+## simulated annealing with dpa4c-mini
 
 This short example starts with four random Cu₄/support configurations and
 minimises them in generation 0. Two cooling generations then run four MD

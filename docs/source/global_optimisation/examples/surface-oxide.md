@@ -1,13 +1,13 @@
 (ga-surface-oxide-example)=
 
-# Cu<sub>4</sub>O<sub>4</sub>/Cu(111) surface oxide
+# cu<sub>4</sub>o<sub>4</sub>/cu(111) surface oxide
 
 This example searches Cu–O reconstructions on a two-layer Cu(111)-p(2×2)
 substrate. The right-angled surface cell contains eight substrate Cu atoms. Four
 additional Cu atoms and four O atoms are placed above it, giving Cu12O4
 candidates that are relaxed with the 1-million-parameter MatterSim model.
 
-## Substrate and search region
+## substrate and search region
 
 The substrate is provided as
 `examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`. Its orthogonal
@@ -28,7 +28,7 @@ directions. The shared demo runtime allows all atoms to relax. For a surface
 study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower Cu
 layer while relaxing the upper layer and Cu–O overlayer.
 
-## Input
+## input
 
 The exploration configuration is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml`:
@@ -49,7 +49,7 @@ them as independent particles. MatterSim is used instead of EMT because this
 example requires a potential that describes both Cu and O; see the
 {ref}`potential-mattersim` guide for installation and model details.
 
-## Run
+## run
 
 After installing MatterSim, run from the example folder indicated below:
 

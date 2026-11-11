@@ -4,7 +4,7 @@
 
 The `reax` provider evaluates ReaxFF force fields through xreac or LAMMPS.
 
-## Requirements
+## requirements
 
 Install from the GDPy checkout:
 
@@ -20,7 +20,7 @@ binary that accepts the `reax/c` pair style and `qeq/reax` fix. Modern binaries
 that have removed these names in favour of `reaxff` are not compatible with
 this adapter.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ this adapter.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### xreac + ase
 

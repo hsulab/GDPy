@@ -5,7 +5,7 @@
 Builders are several classes that generate structures. They can be defined in two
 categories as Builder and Modifier.
 
-## Related Commands
+## related commands
 
 ```shell
 # - build structures based on `config.yaml`
@@ -45,11 +45,11 @@ $ gdp -d ./results build ./config.yaml --substrates ./sub.xyz --number 10
 
 % repeat, cleave, perturb
 
-## List of Builders
+## list of builders
 
 See {doc}`methods` for dimer, random, and graph builders.
 
-## Related Components
+## related components
 
 - {doc}`regions <region>`
 - {doc}`atomic groups and constraints <../groups-and-constraints>`

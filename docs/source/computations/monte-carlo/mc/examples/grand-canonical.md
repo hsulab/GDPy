@@ -1,4 +1,4 @@
-# Grand-canonical: Cu insertion and removal
+# grand-canonical: cu insertion and removal
 
 The toy periodic 8 Å box begins with eight Cu atoms and one Au atom. Only Cu
 exchanges with the reservoir. The Au atom remains at its initial position and
@@ -38,7 +38,7 @@ use the same energy reference as the potential. The value 2.0 eV is chosen
 for this EMT demonstration, not calibrated to an experimental reservoir or
 pressure. Using a different potential requires reconsidering this value.
 
-## Run
+## run
 
 Run the complete sampling runtime from the repository root:
 

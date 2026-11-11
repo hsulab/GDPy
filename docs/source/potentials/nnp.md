@@ -4,11 +4,11 @@
 
 The `nnp` provider exposes gdpx’s element-wise ACSF neural-network calculator through ASE.
 
-## Requirements
+## requirements
 
 Use a version-2 model archive produced by the current gdpx NNP trainer. Inference uses gdpx’s NumPy implementation.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Use a version-2 model archive produced by the current gdpx NNP trainer. Inferenc
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

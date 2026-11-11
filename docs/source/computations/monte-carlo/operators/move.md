@@ -4,7 +4,7 @@
 
 Translate one randomly selected particle while preserving composition.
 
-## Configuration
+## configuration
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC set
@@ -17,7 +17,7 @@ the operator:
   max_disp: 0.8
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ the operator:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 The operator selects one eligible tagged particle in the region and draws a
 random direction. In the current implementation, its center moves by exactly

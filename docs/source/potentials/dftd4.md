@@ -4,11 +4,11 @@
 
 The `dftd4` provider wraps the `DFTD4` ASE dispersion calculator.
 
-## Requirements
+## requirements
 
 Install the package providing `dftd4.ase` and its native dispersion library in the gdpx environment.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Install the package providing `dftd4.ase` and its native dispersion library in t
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

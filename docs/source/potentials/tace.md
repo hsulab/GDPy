@@ -4,7 +4,7 @@
 
 The `tace` provider loads TACE checkpoints and foundation models.
 
-## Requirements
+## requirements
 
 From the repository root (Git is required):
 
@@ -16,7 +16,7 @@ The extra installs the upstream commit pinned in `pyproject.toml`. See
 {doc}`../installation` for the recommended combined GPU installation and
 verification.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ verification.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -66,7 +66,7 @@ See {ref}`bh-cuox-tace-example` for the Cu₄O₄ basin-hopping example and meas
 [foundation registry](https://github.com/xvzemin/tace/blob/90e241bc9c74f7ed5c1e0be42fe7aee4bf5e9896/tace/foundations/download_link.py)
 and the [ASE interface](https://tace.readthedocs.io/en/latest/guide/ase.html).
 
-## Integration test
+## integration test
 
 The ordinary tests do not download models. To run real checkpoint loading,
 energy/force comparisons against upstream, and minimisation:
@@ -77,7 +77,7 @@ GDPX_TEST_TACE=1 OMP_NUM_THREADS=1 python -m pytest -q tests/providers/test_tace
 
 (bh-supported-nanoparticle-tace-example)=
 
-## User-provided model for supported clusters
+## user-provided model for supported clusters
 
 For these global optimisation examples, store model files in `models/` under
 the repository root and run from the exploration's method folder. The supplied
@@ -97,7 +97,7 @@ only the energy and forces needed by the minimizer:
 This runtime can also be used for other systems supported by the checkpoint.
 Add system-specific constraints to your own runtime copy when needed.
 
-## CPU inference and profiling
+## cpu inference and profiling
 
 | TACE-OMat24-7M path | Time per energy-and-force evaluation |
 | --- | --- |
@@ -124,7 +124,7 @@ uses specialized operators and compiled inference on NVIDIA GPUs; that path
 was not measured here. See the {ref}`shared CPU comparison <potential-cpu-inference-comparison>`
 for the benchmark protocol and results from other providers.
 
-### CPU compilation
+### cpu compilation
 
 The installed TACE 0.2.2 supports `enable_compile=True`. A compilation test in
 `gdp3` reached PyTorch Inductor but failed when Clang compiled the generated

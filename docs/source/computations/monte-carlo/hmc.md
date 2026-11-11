@@ -1,6 +1,6 @@
 (hybrid-monte-carlo)=
 
-# Hybrid Monte Carlo
+# hybrid monte carlo
 
 For MD alternating with minimisation-based MC proposals, use
 {doc}`hybrid biased Monte Carlo <hybrid-biased-mc>`.
@@ -27,7 +27,7 @@ current composition; MC handles particle exchange or species changes. Child
 ensemble declarations, regulator targets, and temperature/pressure ramps are
 rejected. Thermostat algorithms and numerical settings remain in MD's regulator.
 
-## Examples
+## examples
 
 This complete canonical input alternates 20 NVT MD steps and five Cu displacement
 proposals per cycle, for five cycles at 1200 K. It uses ASE EMT and the Cu32
@@ -56,7 +56,7 @@ and {doc}`Cu(111) oxidation with xreac <hmc/examples/cu111-oxidation-xreac>`.
 hmc/examples/index
 ```
 
-## Configure the cycle
+## configure the cycle
 
 Run `gdp compute INPUT --runtime hybrid.yaml` with `executor.provider: native`
 and `executor.method: hybrid_monte_carlo`. Each input starts an independent chain.
@@ -87,7 +87,7 @@ reproducible invocation seeds. Repeated children use separate random streams
 and working directories. Existing nonzero momenta carry into subsequent MD
 segments unless the MD child explicitly requests fresh velocities.
 
-## Outputs and restart
+## outputs and restart
 
 A single input writes directly in the compute directory; batches use `candN`
 for each chain. For a five-cycle run with `output.trajectory.period: 1`, each

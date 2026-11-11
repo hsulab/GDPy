@@ -4,7 +4,7 @@
 
 Rearrange two particle types while preserving their total counts.
 
-## Configuration
+## configuration
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC set
@@ -19,7 +19,7 @@ the operator:
   max_random_attempts: 1
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -30,7 +30,7 @@ the operator:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 The operator chooses one tagged particle of each type. Both types must be
 present in the selection region. In `atomic` mode it exchanges their position

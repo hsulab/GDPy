@@ -5,7 +5,7 @@
 The `prophet` provider uses Kairos Materials' `prophet.KairosCalculator` to
 evaluate energies, forces, and stresses with local Prophet checkpoints.
 
-## Requirements
+## requirements
 
 Python 3.11 or newer and Git are required. From the repository root:
 
@@ -29,13 +29,13 @@ The extra pins Prophet 1.0.1 to an upstream commit. Download a checkpoint such
 as `prophet-oame-mbd.pt` from the model repository linked in the
 [upstream README](https://github.com/kairosmaterial/prophet).
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
 | `ase` | `ase` | Yes | ASE-compatible calculator. |
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -69,7 +69,7 @@ interfaces of this provider.
 
 (prophet-supported-cluster)=
 
-## Supported cluster exploration and GPU acceleration
+## supported cluster exploration and gpu acceleration
 
 The {ref}`Cu₄/alumina basin-hopping example <bh-supported-nanoparticle-example>`
 includes `examples/global_optimisation/runtimes/prophet_oame_mbd.yaml` with
@@ -110,7 +110,7 @@ macOS environment.
 
 (prophet-cpu-timing)=
 
-## CPU timing on the supported cluster
+## cpu timing on the supported cluster
 
 Prophet-OAME-MBD took **156.763 s (156,763 ms)** per uncached warmed
 energy-and-force evaluation (median of two samples) of the 184-atom Cu₄/alumina fixture

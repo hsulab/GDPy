@@ -1,6 +1,6 @@
 (bh-tio2-water-rotation)=
 
-# Two or three neighboring waters on anatase (101)
+# two or three neighboring waters on anatase (101)
 
 This example searches water orientations with {doc}`../../../computations/monte-carlo/operators/rotate`
 and xreac's bundled `ffield.reax.TiOH.Monti2012` parameters. GDPy's `reax` extra
@@ -17,7 +17,7 @@ shifted 0.5 Å toward the other, and one water is rotated about its oxygen so
 one hydrogen points toward the other oxygen. A 5° deviation from perfect
 alignment avoids an undefined collinear torsion derivative.
 
-## Compare the two starting motifs
+## compare the two starting motifs
 
 Run these seed-comparison scripts from the repository root:
 
@@ -57,7 +57,7 @@ contacts. This captures the three-neighbor motif in the reference image;
 the screenshot supplies an arrangement, not numerical atomic coordinates.
 The same adsorption and hydrogen-bond diagnostics cover all water pairs.
 
-## Basin hopping with molecular rotations
+## basin hopping with molecular rotations
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml
 :language: yaml
@@ -91,7 +91,7 @@ Inspect `candidates.db` for every evaluated minimum, including rejected
 trials, and `results/history/gen0001.png` for the chain history. Four hops
 per chain demonstrate the operator and are not an exhaustive stability search.
 
-## Validation result
+## validation result
 
 With xreac source revision `2d0f2bd` and Monti2012, the supplied short search
 completed all eight rotations, retaining ten evaluated minima including the

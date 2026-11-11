@@ -1,4 +1,4 @@
-# Minimal EMT and NNP loop
+# minimal emt and nnp loop
 
 This small example demonstrates transactional active-learning state without a
 cluster scheduler or an external `shared/` directory. EMT samples and labels Cu

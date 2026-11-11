@@ -5,11 +5,11 @@
 The `nequip` provider evaluates NequIP models through ASE or LAMMPS.
 For Allegro models, use the separate {doc}`allegro` provider.
 
-## Requirements
+## requirements
 
 The ASE adapter expects PyTorch and the NequIP API `NequIPCalculator.from_deployed_model`. LAMMPS requires the `nequip` pair style and an exported model.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ The ASE adapter expects PyTorch and the NequIP API `NequIPCalculator.from_deploy
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -67,7 +67,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 `type_list` maps chemical symbols to the same model type names. The ASE branch
 selects CUDA when available and supports committee construction through

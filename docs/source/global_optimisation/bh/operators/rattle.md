@@ -5,7 +5,7 @@
 Translate a random subset of eligible particles in one proposal, allowing
 several local environments to change before relaxation.
 
-## Configuration
+## configuration
 
 Place this fragment under `strategy.operators` and set `temperature` on the
 operator for basin-hopping acceptance:
@@ -17,7 +17,7 @@ operator for basin-hopping acceptance:
   rattle_prop: 0.4
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ operator for basin-hopping acceptance:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 Each eligible tagged group is selected independently with probability
 `rattle_prop`. Each selected group receives its own displacement, with x, y,

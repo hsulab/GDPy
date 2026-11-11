@@ -18,7 +18,7 @@ generations select from the best distinct, eligible candidates in the search
 history. The strategy determines how new candidates are produced; the runtime
 determines how they are evaluated.
 
-## Configuration at a glance
+## configuration at a glance
 
 Search configuration follows the same three-section layout as MC: `method`,
 `system`, and `strategy`. There is no `recipe` wrapper.
@@ -37,7 +37,7 @@ to `system.generation.total_size`. The generation size counts offspring for
 GA and chains for BH. For BH, `strategy.steps_per_chain` counts attempted
 proposals per chain per generation, including rejected and invalid proposals.
 
-## Demo: choose where to define the runtime
+## demo: choose where to define the runtime
 
 These two layouts run the same Cu₈ basin-hopping search with ASE's EMT potential.
 The search builds four initial structures, retains up to two distinct candidates,
@@ -45,7 +45,7 @@ and launches two chains of ten steps in generation 1. BH defaults to one hopping
 generation when `strategy.convergence` is omitted. The EMT runtime relaxes initial
 structures and valid trials with a force tolerance of 0.05 eV/Å.
 
-### Separate `expo.yaml` and `runtime.yaml`
+### separate `expo.yaml` and `runtime.yaml`
 
 Save this exploration configuration as `expo.yaml`:
 
@@ -72,7 +72,7 @@ potentials, select another runtime file and use a new output directory. The
 repository examples use this layout; see the central
 {doc}`examples catalogue <examples/index>`.
 
-### Embed the runtime in `expo.yaml`
+### embed the runtime in `expo.yaml`
 
 Alternatively, keep the exploration settings above and append this top-level
 `runtime` section to `expo.yaml`. The contents of the separate runtime file
@@ -103,7 +103,7 @@ relaxation used by both strategies. See {doc}`runtime configurations
 `runtime.scheduler` schedules candidate calculations, while the top-level
 `scheduler` schedules the exploration loop itself.
 
-## Switch to a genetic algorithm
+## switch to a genetic algorithm
 
 Keep the shared `system` and chosen runtime layout. Replace the BH
 `strategy` section with:
@@ -134,14 +134,14 @@ the crossover operator automatically; no composition-selection switch is needed.
 See {doc}`population` for the shared settings and {doc}`genetic-algorithm` for
 reproduction, mutation, and completion behavior.
 
-## Combine random candidates and seed structures
+## combine random candidates and seed structures
 
 The {doc}`seeded Cu₈ basin-hopping example <bh/examples/seeded-cluster>` uses
 two initial builders: `random_structure_improved` creates two candidates and
 a `direct` builder reads two frames from a seed file. Exact builder allocations
 combine them into one initial population, evaluated by the same runtime.
 
-## Results and restart
+## results and restart
 
 Inspect `gdp.out` for progress, `candidates.db` for evaluated candidates, and
 `results/` for strategy-specific reports and history figures. Rerun the same
@@ -149,7 +149,7 @@ command with the same configuration and output directory to resume interrupted
 work. Use a new directory when changing the strategy, runtime, or search setup.
 See {doc}`output` for the complete directory layout and restart conventions.
 
-## Examples by system
+## examples by system
 
 Choose a physical system from the {doc}`examples catalogue <examples/index>`,
 then select its GA, BH, or SA recipe. Shared

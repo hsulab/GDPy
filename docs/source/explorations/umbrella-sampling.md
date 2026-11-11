@@ -1,6 +1,6 @@
 (umbrella-sampling)=
 
-# Umbrella sampling
+# umbrella sampling
 
 `umbrella_sampling` runs independent harmonic-distance windows for rare-event
 sampling and active-learning candidate generation. Each window is equilibrated
@@ -14,7 +14,7 @@ SN2 model reaction and thermodynamic integration; the runnable example below
 instead uses H2O dissociation on Ni(111) and stops at biased trajectory
 generation.
 
-## H2O dissociation on Ni(111)
+## h2o dissociation on ni(111)
 
 The example uses xreac with the bundled `ffield.reax.PtNiCHO.2016` parameters.
 Install the ReaxFF extra first:
@@ -43,7 +43,7 @@ The base runtime must be an unbiased ASE MD runtime. The exploration adds the
 `distance_harmonic` modifier itself. Its `steps` setting is the production
 length; `strategy.equilibration_steps` controls the preceding equilibration.
 
-## Outputs and restart
+## outputs and restart
 
 Replica calculations use:
 
@@ -62,7 +62,7 @@ Only production workers are exposed downstream. Every production frame stores
 and `umbrella_seed_index`. `samples.csv` summarizes the actual distance, bias
 energy, and committee force deviation when available.
 
-## Active-learning selection
+## active-learning selection
 
 Use a committee potential as the base potential, extract the production
 workers, and select uncertain structures independently for each center:

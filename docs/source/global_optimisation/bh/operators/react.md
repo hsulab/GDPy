@@ -5,7 +5,7 @@
 Replace reactant particles with product particles according to a configured
 stoichiometric reaction, allowing both forward and reverse proposals.
 
-## Configuration
+## configuration
 
 Place this fragment under `strategy.operators`. Set `temperature` and
 `reaction.chempot_0` on the operator for basin-hopping acceptance:
@@ -22,7 +22,7 @@ Place this fragment under `strategy.operators`. Set `temperature` and
     radius: 3.0
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Place this fragment under `strategy.operators`. Set `temperature` and
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 The example expresses `2 H2 + O2 -> 2 H2O`. Keep the three reaction lists
 aligned and choose physically appropriate standard chemical potentials; the

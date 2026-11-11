@@ -1,6 +1,6 @@
 (ga-bulk-example)=
 
-# Cu<sub>4</sub> bulk crystal
+# cu<sub>4</sub> bulk crystal
 
 This minimal example searches for low-energy periodic cells containing four Cu
 atoms. The `random_bulk` builder samples both atomic positions and cell shapes,
@@ -8,7 +8,7 @@ and ASE's Effective Medium Theory (EMT) calculator relaxes each candidate. The
 small population and single generation make this a workflow demonstration, not
 a converged Cu crystal-structure prediction.
 
-## Input
+## input
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml`:
@@ -30,7 +30,7 @@ parent structures, while rattle and strain mutations vary atomic positions and
 cell shape. Each Cu atom has its own tag, so default fragment preservation still
 treats the atoms as independently movable particles.
 
-## Run
+## run
 
 Run from the example folder indicated below:
 

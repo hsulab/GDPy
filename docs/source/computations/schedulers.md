@@ -6,7 +6,7 @@ gdpx separates the scheduler that starts work from the transport used to reach
 the execution host. Worker batching and metadata behavior belong to the
 runtime's separate `dispatch` section.
 
-## Choose a scheduler
+## choose a scheduler
 
 | Scheduler | Use it for |
 | --- | --- |
@@ -30,9 +30,9 @@ pbs.md
 lsf.md
 ```
 
-## Scheduler and transport
+## scheduler and transport
 
-### Named user presets
+### named user presets
 
 Store reusable scheduler configurations in `~/.config/gdpx/config.yaml`:
 
@@ -77,7 +77,7 @@ inputs. Replacing an inline scheduler with an equivalent preset preserves the
 saved run's fingerprint. Editing effective preset settings changes that
 fingerprint, so it cannot silently change an existing run or prepared job.
 
-### Execution host
+### execution host
 
 The scheduler provider selects how work starts. Its optional nested transport
 selects where the scheduler command runs.
@@ -130,7 +130,7 @@ datasets, and executables must already be accessible on the remote host.
 Direct SSH jobs remain attached to the SSH command and do not survive a lost
 connection. Queue jobs are detached by the remote scheduler after submission.
 
-## Batches and application launchers
+## batches and application launchers
 
 `dispatch.batch_size` controls how many structures belong to one scheduler job.
 For MC/HMC, it counts compatible basic evaluation requests across chains; see
@@ -142,7 +142,7 @@ For example, use `machine_prefix: srun --exact -n 4 -c 1` with a bare
 `command: vasp_std`; do not wrap `gdp` itself with a multi-rank launcher.
 Resource syntax and concurrency behavior are documented on each scheduler page.
 
-## Packed training
+## packed training
 
 For training committees, scheduler `parameters.concurrent_tasks` greater than
 one packs that many independent models into each job. Set the allocation's
@@ -177,7 +177,7 @@ export exists; unfinished models use their trainer's normal restart behavior.
 This applies to direct, single-model, and packed jobs. Packed resubmissions retain
 the configured resource request even when some models are already complete.
 
-## Queue lifecycle
+## queue lifecycle
 
 Prepare, review, submit, inspect, and collect a queued calculation using one
 output directory:

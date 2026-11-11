@@ -4,11 +4,11 @@
 
 The `abacus` provider configures ABACUS electronic-structure calculations.
 
-## Requirements
+## requirements
 
 Install ABACUS and an ASE distribution that provides `ase.calculators.abacus` and `ase.io.abacus`. Supply an INPUT template, pseudopotentials, and basis files.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ Install ABACUS and an ASE distribution that provides `ase.calculators.abacus` an
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### abacus + abacus
 
@@ -62,7 +62,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 `template`, `pseudo_dir`, and `basis_dir` are required by the manager.
 Each `type_info` entry maps an element to its pseudopotential and basis filename.

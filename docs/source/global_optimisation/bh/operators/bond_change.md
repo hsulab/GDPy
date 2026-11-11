@@ -1,6 +1,6 @@
 (sampling-operator-bond-change)=
 
-# Bond breaking and formation
+# bond breaking and formation
 
 Use {doc}`bond_break` to separate one atom and {doc}`bond_form` to attach an
 isolated atom to a stationary acceptor. They are separate search operators with
@@ -27,7 +27,7 @@ as needed. Breaking only separates one atom: it does not place that atom
 onto an acceptor in the same move. Relaxation and acceptance occur between hops.
 A subsequent formation move is possible only if an isolated eligible atom remains.
 
-## Distance rules
+## distance rules
 
 Both operators accept eligible moving element symbols (`particles`), an
 unordered element pair (`bond: [O, H]` or `bond: O-H`),
@@ -53,7 +53,7 @@ Collision checks use the lower ratio for minimum separations to other atoms.
 Detached fragments are allowed by default; `allow_isolated: false` enables the
 usual neighbor requirement. Shared operator controls remain available.
 
-## Motion, constraints and tags
+## motion, constraints and tags
 
 Breaking translates one atom with an angular perturbation of up to 10 degrees.
 Formation places one isolated atom at the formed distance from a stationary
@@ -69,7 +69,7 @@ connectivity graph. A surface-bound H keeps its own positive tag. Reconcile
 tags after every relaxation, including trials from other operators. Invalid or
 rejected proposals restore coordinates, tags, calculator and history exactly.
 
-## Standalone geometry and history
+## standalone geometry and history
 
 The MC wrappers delegate to functions in `gdpx.structures.geometry.bond_change`:
 
@@ -103,7 +103,7 @@ All bond operators in a search must use the same upper covalent ratio. Mixtures
 require atom-order-preserving operators: `bond_break`, `bond_form`, `rotate`,
 `move`, `rattle` or `bounce`.
 
-## Migration
+## migration
 
 `method: bond_change` has been removed. Replace it with explicit `bond_break`
 and/or `bond_form` entries. For both operators, `particles` now lists

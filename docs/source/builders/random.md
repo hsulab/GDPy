@@ -29,7 +29,7 @@ The builder parameters:
 
   > Random seed for the random generator. Use the same seed to reproduce results.
 
-## Geometric restraints
+## geometric restraints
 
 `random_structure_improved` accepts the same typed `restraints` used by the
 connectivity describer and the Thanos `restraints` callback. A contact uses a
@@ -73,7 +73,7 @@ structures with very close atomic distances. If this still does not work, set
 
 The YAML input file has the format of
 
-## Cluster
+## cluster
 
 Use `cell` to define the box where the generated cluster is in even though it is
 not periodic. Here, a smaller region is set to put random atoms, which makes atoms
@@ -102,7 +102,7 @@ This may fail the following calculations as some codes do not support non-period
 Thus, set `pbc: True` to make generated structures periodic.
 :::
 
-## Surface
+## surface
 
 Generate random atoms on a substrate. This is useful to explore reconstructed (amorphous)
 surfaces or supported nanoparticles. The surface region samples the substrate's
@@ -122,7 +122,7 @@ covalent_ratio: [0.4, 2.0]
 random_seed: 1112
 ```
 
-## Bulk
+## bulk
 
 Bulks have random lattice parameters. Use `cell_bounds` to set the range of
 angles and lengths.

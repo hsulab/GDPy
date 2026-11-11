@@ -1,6 +1,6 @@
 (monte-carlo)=
 
-# Standard Monte Carlo
+# standard monte carlo
 
 Standard Monte Carlo (MC) proposes structural changes and accepts or rejects them using
 single-point energies from a runtime. Run it through `gdp compute INPUT --runtime mc.yaml`
@@ -47,7 +47,7 @@ Additional structure-search proposals are documented under
 {ref}`basin-hopping operators <bh-operators>`. MC and BH share implementations,
 but accepting the same configuration does not make their sampling equivalent.
 
-## Detailed balance
+## detailed balance
 
 Equilibrium MC requires detailed balance for the target ensemble. The proposal
 must allow the reverse transition, and acceptance must account for any
@@ -88,7 +88,7 @@ mandatory minimisation and geometry filters, use {doc}`biased-mc`.
 
 See {doc}`ensembles` for the ensemble fields, units, and HMC inheritance.
 
-## Examples
+## examples
 
 The {doc}`EMT examples <mc/examples/index>` provide complete inputs and commands
 for canonical, semi-grand-canonical, and grand-canonical MC with single-point energies.
@@ -104,7 +104,7 @@ and restart behaviour.
 mc/examples/index
 ```
 
-## Proposal settings
+## proposal settings
 
 `probability` is a relative operator-selection weight; the weights are
 normalised automatically. Preset ensembles define temperature and chemical
@@ -124,7 +124,7 @@ MC assigns distinct atomic tags by default. If `setup.ignore_atoms_tags: false`,
 provide distinct tags for independent atoms; atoms sharing a tag are treated
 as one particle. `swap_type` requires single-atom particles.
 
-## Inspect the results
+## inspect the results
 
 Each chain's `mc.out` groups setup, initialization, each MC step, and completion in
 boxes. Worker evaluations appear inside the corresponding initialization or
@@ -171,7 +171,7 @@ should retain one Au while Cu counts change. The cell stays fixed in all
 three. For quantitative work, assess equilibration, autocorrelation, acceptance
 rates, and sensitivity to run length after validating the sampling algorithm.
 
-## Checkpoints and restart
+## checkpoints and restart
 
 Restart with the same configuration and output directory. MC stores versioned
 JSON metadata and uncompressed NumPy `.npz` arrays, without pickle. Arrays,
@@ -188,6 +188,6 @@ structures to compute inputs, migrate settings to `executor.parameters`, and
 start a new compute directory. `gdp compute status`, `resubmit`, and `collect`
 use the normal compute lifecycle; status never submits child evaluations.
 
-## Application
+## application
 
 1. {ref}`ref-acs-catal-2022-xu`

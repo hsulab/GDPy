@@ -1,6 +1,6 @@
 (mc-cu111-oxidation-xreac)=
 
-# Cu(111) oxidation with xreac
+# cu(111) oxidation with xreac
 
 This short grand-canonical example attempts three atomic-O exchanges above a
 three-layer Cu(111)-p(2×2) slab. The four Cu atoms in the bottom layer are fixed

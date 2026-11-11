@@ -4,11 +4,11 @@
 
 The `bias` provider exposes a built-in bias as a standalone ASE calculator.
 
-## Requirements
+## requirements
 
 The built-in distance restraint uses gdpx and its base scientific dependencies; no external model is required.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ The built-in distance restraint uses gdpx and its base scientific dependencies; 
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

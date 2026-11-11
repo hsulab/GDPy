@@ -1,6 +1,6 @@
 (bh-operators)=
 
-# Operators
+# operators
 
 Basin hopping uses structural proposals to search for low-energy minima.
 Configure them under `strategy.operators`, with `temperature` and any chemical
@@ -15,7 +15,7 @@ Their implementation and parameter names are shared. The methods below are
 documented here for structure search; availability in the shared parser does
 not establish suitability for equilibrium MC.
 
-## Search operators
+## search operators
 
 | Method | Proposal | Main settings |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ adsorbate_exchange
 react
 ```
 
-## Proposal settings and acceptance
+## proposal settings and acceptance
 
 `probability` is a relative operator-selection weight, not an acceptance
 probability. Geometry filtering and repeated attempts can help produce useful

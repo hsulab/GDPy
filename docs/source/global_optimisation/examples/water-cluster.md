@@ -1,6 +1,6 @@
 (ga-water-cluster-example)=
 
-# (H<sub>2</sub>O)<sub>4</sub> molecular cluster
+# (h<sub>2</sub>o)<sub>4</sub> molecular cluster
 
 This example searches for low-energy structures of a four-water cluster. The
 builder inserts four intact H2O molecules in a spherical region at the centre
@@ -9,7 +9,7 @@ are relaxed with xreac and the bundled H/O ReaxFF parameters. See the
 {ref}`potential-reax` guide for installation and runtime settings. No
 neural-network model download is needed.
 
-## Input
+## input
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/water4.yaml`:
@@ -30,7 +30,7 @@ fragments and their inherited orientations, while rattle translates whole
 water molecules. The ReaxFF relaxation may change intramolecular coordinates
 because the model evaluates and relaxes all atoms.
 
-## Run
+## run
 
 After installing `gdpx[reax]` as described in the {ref}`potential-reax`
 guide, run from the example folder indicated below:

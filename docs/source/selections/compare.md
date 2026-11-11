@@ -1,4 +1,4 @@
-# Structure comparison
+# structure comparison
 
 `compare` retains a candidate when its configured comparator considers it
 dissimilar to every previously retained structure. By default it visits every
@@ -26,7 +26,7 @@ support oxygen. Other datasets can use tags, symbols, regions, or combinations
 from {doc}`../groups-and-constraints`. Omit `group_expression` to compare all
 atoms. Empty selections and incompatible selected compositions are rejected.
 
-## Atomic displacement
+## atomic displacement
 
 `displacement` compares root-mean-square atomic displacement in the input
 coordinate frame. Similarity means RMS displacement strictly below
@@ -50,7 +50,7 @@ identity, and enable permutation invariance when order may differ between
 structures. Translation and orientation differences remain part of the
 comparison, including movement relative to a support.
 
-## Oganov fingerprints
+## oganov fingerprints
 
 An alternative comparator measures weighted cosine distance between
 species-resolved radial environments:
@@ -91,7 +91,7 @@ similarity. Prepared comparisons preserve every composed criterion, so
 comparison treats geometrically similar candidates as distinct when their
 energy difference meets or exceeds the configured energy threshold.
 
-## Convergence and outputs
+## convergence and outputs
 
 The maximum atomic force **vector norm**, after applying constraints, must be
 at most `fmax`. Energies and force checks include the complete structure even
@@ -105,7 +105,7 @@ candidates are available. Output retains input order even when comparison uses
 energy order. Use a fresh output directory when changing inputs or selection
 parameters because existing selection caches are reused.
 
-## Migration
+## migration
 
 The former `minima` selector is folded into `compare`. Replace
 `method: minima` with `method: compare` and add `rank_by: energy`; `number`,

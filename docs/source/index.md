@@ -4,13 +4,13 @@
 :width: 400
 :::
 
-# GDPy
+# gdpy
 
 GDPy builds MLIP-driven workflows for atomistic simulation using advanced and
 newly developed structure-exploration methods. It integrates sampling, dataset
 construction, and model training into adaptive workflows.
 
-## Scope
+## scope
 
 **Focused systems**, with an emphasis on heterogeneous catalysis:
 
@@ -25,7 +25,7 @@ construction, and model training into adaptive workflows.
 - monte carlo (canonical, semi-grand canonical, and grand canonical)
 - global optimisation (structures and reactions)
 
-## Get started
+## get started
 
 Install GDPy by following the {doc}`installation guide <installation>`, then
 choose a complete workflow from the {doc}`quick examples <quick-examples>`.
@@ -36,7 +36,7 @@ classical, machine-learning, and electronic-structure interfaces.
 % index tree on the landing page.
 
 ```{toctree}
-:caption: 'Introduction:'
+:caption: 'introduction:'
 :maxdepth: 2
 :hidden:
 
@@ -45,7 +45,7 @@ installation.md
 ```
 
 ```{toctree}
-:caption: 'Basic Guides:'
+:caption: 'basic guides:'
 :maxdepth: 2
 :hidden:
 
@@ -55,7 +55,7 @@ quick-examples
 ```
 
 ```{toctree}
-:caption: 'Define Potentials:'
+:caption: 'define potentials:'
 :maxdepth: 2
 :titlesonly:
 :hidden:
@@ -65,7 +65,7 @@ potentials <potentials/providers>
 ```
 
 ```{toctree}
-:caption: 'Train Potentials:'
+:caption: 'train potentials:'
 :maxdepth: 2
 :titlesonly:
 :hidden:
@@ -75,7 +75,7 @@ potentials <trainers/potentials>
 ```
 
 ```{toctree}
-:caption: 'Batch Simulations:'
+:caption: 'batch simulations:'
 :maxdepth: 2
 :titlesonly:
 :hidden:
@@ -90,7 +90,7 @@ monte carlo <computations/monte-carlo/index>
 ```
 
 ```{toctree}
-:caption: 'Build Structures:'
+:caption: 'build structures:'
 :maxdepth: 2
 :titlesonly:
 :hidden:
@@ -101,7 +101,7 @@ regions <builders/region>
 ```
 
 ```{toctree}
-:caption: 'Select Structures:'
+:caption: 'select structures:'
 :maxdepth: 2
 :titlesonly:
 :hidden:
@@ -111,7 +111,7 @@ methods <selections/methods>
 ```
 
 ```{toctree}
-:caption: 'Explore Structures:'
+:caption: 'explore structures:'
 :maxdepth: 1
 :titlesonly:
 :hidden:
@@ -120,7 +120,7 @@ command: gdp explore <explorations/index>
 ```
 
 ```{toctree}
-:caption: 'Global Optimisation:'
+:caption: 'global optimisation:'
 :maxdepth: 4
 :titlesonly:
 :hidden:
@@ -135,7 +135,7 @@ global_optimisation/output
 ```
 
 ```{toctree}
-:caption: 'Advanced Guides:'
+:caption: 'advanced guides:'
 :maxdepth: 2
 :hidden:
 
@@ -143,7 +143,7 @@ workflows/index
 ```
 
 ```{toctree}
-:caption: 'Developer Guides:'
+:caption: 'developer guides:'
 :maxdepth: 2
 :hidden:
 
@@ -156,7 +156,7 @@ data/index
 % modules/modules
 
 ```{toctree}
-:caption: 'Gallery:'
+:caption: 'gallery:'
 :maxdepth: 2
 :hidden:
 

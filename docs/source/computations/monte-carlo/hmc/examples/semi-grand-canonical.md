@@ -1,4 +1,4 @@
-# Semi-grand-canonical: Cu/Ni identity changes and MD
+# semi-grand-canonical: cu/ni identity changes and md
 
 The initial Cu16Ni16 alloy uses the same cell. MD changes positions; the MC
 block attempts Cu ↔ Ni identity changes while preserving the total of 32 atoms.

@@ -4,11 +4,11 @@
 
 The `plumed` provider exposes gdpx’s PLUMED bias calculator through the ASE materializer.
 
-## Requirements
+## requirements
 
 Install the PLUMED Python bindings and a compatible PLUMED kernel library.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Install the PLUMED Python bindings and a compatible PLUMED kernel library.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

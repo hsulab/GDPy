@@ -30,7 +30,7 @@ input structure, these temperatures use `cand0`, `cand1`, and `cand2` under the
 run directory. In a workflow, a `compute` step accepts the resulting runtime
 collection directly.
 
-## Extract and select a temperature
+## extract and select a temperature
 
 Workflow `compute` and `extract` restore results as
 `[variant, input structure, trajectory frame]`, even when several variants
@@ -58,7 +58,7 @@ still reduces to `[structure, frame]` by default; `merge_workers: true`
 explicitly combines variants into the candidate axis. Sweeps with repeated
 temperature targets use a generic `variant` axis.
 
-## Batch executor variants in one allocation
+## batch executor variants in one allocation
 
 `worker: batch` puts compatible executor variants in one driver worker.
 `batch_size` counts simulations across all variants and input structures;
@@ -104,7 +104,7 @@ The frozen plan records variant indices, structure indices, and candidate
 paths. Existing plans retain their original layout on restart even when
 automatic batching policy changes. Use a new directory when changing inputs.
 
-## Multiple parameters
+## multiple parameters
 
 Broadcast keys are paths relative to `executor.parameters`. Multiple paths
 form a Cartesian product in declaration order, with the rightmost path varying
@@ -137,7 +137,7 @@ Ordinary lists remain literal executor parameters. Only fields named under
 `broadcast` are expanded. Empty, malformed, unknown, or overlapping paths are
 rejected before workers are created.
 
-## Modifier windows
+## modifier windows
 
 Place `broadcast` beside a modifier's `parameters` to create independent
 restraint windows. Its keys are paths relative to that modifier's parameters:

@@ -1,4 +1,4 @@
-# Batching evaluations
+# batching evaluations
 
 Standard MC, biased MC, HMC, and hybrid biased MC use a Monte Carlo worker to coordinate independent
 chains. The worker advances each chain until it needs an energy evaluation or
@@ -6,7 +6,7 @@ MD segment, collects compatible requests, and submits them through the ordinary
 calculation worker. MC proposals and HMC stage order remain sequential within
 each chain.
 
-## Configuration
+## configuration
 
 These fields belong at the top level of the sampling runtime:
 
@@ -40,7 +40,7 @@ The coordinator runs locally; whole MC chains and native HMC/MC stages are not
 submitted to the queue. Runtime variants remain separate Monte Carlo workers.
 Batching occurs among chains managed by the same Monte Carlo worker.
 
-## Progress and restart
+## progress and restart
 
 The coordinator advances ready chains independently. It does not wait for all
 chains to reach the same MC step. Queued calculations can leave some chains

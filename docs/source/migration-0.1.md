@@ -4,7 +4,7 @@ gdpx 0.1 is a clean API break. Deprecated forwarding packages, schema-v1
 translation, implicit runtime broadcasting, and schema-1 compute plans have
 been removed.
 
-## Imports
+## imports
 
 Use the package that owns the concept:
 
@@ -18,7 +18,7 @@ Use the package that owns the concept:
 - loaders and arrays: `gdpx.data`
 - reusable Monte Carlo proposals and acceptance rules: `gdpx.sampling`
 
-## Basin hopping and shared moves
+## basin hopping and shared moves
 
 GA and BH now use `method: global_optimisation` and a `strategy.method` of
 `genetic_algorithm` or `basin_hopping`. Remove the `recipe` wrapper: put
@@ -55,7 +55,7 @@ new working directory. New checkpoints and pending-move records support restart.
 This extraction preserves the existing acceptance formulas. It does not certify
 detailed balance of biased moves or change MC into an execution method.
 
-## Runtime configuration
+## runtime configuration
 
 Every runtime is complete. User-authored runtime files omit `schema_version`
 and use the current schema. Serialized runtimes and saved compute plans retain
@@ -104,7 +104,7 @@ Schema 4 also replaces the runtime `options` mapping with the typed `dispatch`
 section shown above. Older runtime files and compute plans are not translated
 automatically.
 
-## Workflow and CLI
+## workflow and cli
 
 Workflow variables are `potential`, `executor`, `runtime`, and
 `runtime_chain`. The save operation is `save_potential`. Use
@@ -117,7 +117,7 @@ The former `train.active`, `train.init_models`, `explore.active`, and
 repeat directories cannot resume; start a new run using stable named step
 directories and transactional state manifests.
 
-## Global-optimisation objectives
+## global-optimisation objectives
 
 Genetic algorithms and concurrent hopping configure search scoring with the
 `strategy.objective` mapping for global optimisation. The former names are not accepted:
@@ -137,14 +137,14 @@ strategy:
       O: -4.95
 ```
 
-## Global-optimisation database
+## global-optimisation database
 
 Population-based global-optimisation methods now store candidates and restart
 metadata in `candidates.db` inside each exploration directory. Remove the former
 GA `database` and concurrent-hopping `population.database_fname` settings;
 custom database filenames are no longer accepted.
 
-## Driver worker output layout
+## driver worker output layout
 
 New driver-based runs keep two JSON catalogs under `_meta/`:
 
@@ -194,7 +194,7 @@ require fresh folders. Manifest-file `--job` arguments and old append-based
 MC/HMC layouts are rejected. Existing outputs are not modified or migrated.
 Corrupt catalogs raise errors instead of falling back to legacy files.
 
-## Driver input fingerprints
+## driver input fingerprints
 
 Driver workers and compute plans use the same versioned SHA-256 structure
 fingerprint. It covers frame and atom order, atomic arrays (including custom
@@ -221,7 +221,7 @@ frozen calculation-set contract and is rejected even when it uses SHA-256.
 Old MD5 records also cannot be migrated reliably because their XYZ snapshots may have
 lost constraints or coordinate precision.
 
-## Monte Carlo now uses compute
+## monte carlo now uses compute
 
 MC and hybrid MC are no longer exploration methods. Invoke
 `gdp compute INPUT --runtime mc.yaml` with `executor.provider: native` and
@@ -251,7 +251,7 @@ Shared Python sampling primitives now live in `gdpx.sampling`; sampling
 executors and transaction/checkpoint helpers live in `gdpx.execution`.
 Umbrella sampling remains under explore for a separate migration.
 
-## Native composite tasks
+## native composite tasks
 
 The executor provider `gdpx` was renamed to `native` without an alias. Ordinary
 MC no longer requires an evaluator block. HMC accepts executor lists
@@ -268,7 +268,7 @@ generation. The experimental `native/simulated_annealing` executor was removed.
 Its inputs and checkpoints require migration and a fresh run directory.
 
 
-## Unified MD and Monte Carlo ensembles
+## unified md and monte carlo ensembles
 
 MD, MC, and HMC now share a `parameters.setup.ensemble` mapping. Move an existing
 `parameters.ensemble` mapping under `setup`. For older MD inputs, convert the
@@ -284,7 +284,7 @@ ensembles, with the shared temperature. Children cannot override the ensemble
 or add temperature/pressure ramps. Change temperature broadcast paths to
 `setup.ensemble.temperature`. Use a new run directory for migrated inputs.
 
-### Flat MC evaluation settings
+### flat mc evaluation settings
 
 For standard and biased Monte Carlo, replace `setup.executor` with
 `setup.evaluation`. Move the evaluator's `parameters.setup` fields directly

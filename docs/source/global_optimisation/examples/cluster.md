@@ -1,6 +1,6 @@
 (cu8-example)=
 
-# Cu<sub>8</sub> cluster
+# cu<sub>8</sub> cluster
 
 Search for low-energy structures of an isolated eight-atom copper cluster with
 ASE's Effective Medium Theory (EMT) potential. A 20 × 20 × 20 Å periodic vacuum
@@ -13,7 +13,7 @@ atoms can move and recombine. SA instead reads two starting structures from the
 shared seed file and does not preserve fragments. The search budgets below are
 short workflow demonstrations, not converged global-minimum searches.
 
-## Local relaxation runtime for GA and BH
+## local relaxation runtime for ga and bh
 
 Both methods relax initial structures and new candidates with this runtime:
 
@@ -26,12 +26,12 @@ in its section below.
 
 (ga-cluster-example)=
 
-## Genetic algorithm
+## genetic algorithm
 
 The search creates two offspring in one generation using interatomic-distance
 comparison, `cut_and_splice` crossover, and rattle mutation.
 
-### Input
+### input
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml`:
@@ -40,7 +40,7 @@ The complete example is available at
 :language: yaml
 ```
 
-### Run
+### run
 
 Run from the example folder indicated below:
 
@@ -65,9 +65,9 @@ scientific Cu8 global optimisation.
 
 (bh-cu8-example)=
 
-## Basin hopping
+## basin hopping
 
-### Input
+### input
 
 The exploration input is `examples/global_optimisation/explorations/basin_hopping/cu8.yaml`:
 
@@ -90,7 +90,7 @@ most 24 evaluated structures including initialization. The omitted `strategy.con
 uses the default final generation of 1; generation 0 is initialization. Stored
 discoveries do not replace chain states: MC acceptance determines each next state.
 
-### Run
+### run
 
 Use the working directory indicated with each command:
 
@@ -133,7 +133,7 @@ The demonstration does not establish the global minimum of Cu₈.
 
 (sa-cu8-example)=
 
-## Simulated annealing
+## simulated annealing
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
 :language: yaml

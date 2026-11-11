@@ -6,7 +6,7 @@ The `slurm` scheduler writes `#SBATCH` directives, submits with `sbatch`, and
 checks active jobs with `squeue`. Parameter keys are rendered directly as Slurm
 options, so use the resource names supported by the target cluster.
 
-## CPU allocation
+## cpu allocation
 
 ```yaml
 scheduler:
@@ -41,7 +41,7 @@ scheduler:
     machine_prefix: srun --exact -n 64 -c 1 --cpu-bind=cores
 ```
 
-## GPU allocation
+## gpu allocation
 
 ```yaml
 scheduler:
@@ -65,7 +65,7 @@ The queue normally sets device visibility. Do not replace that binding with a
 fixed workstation value such as `CUDA_VISIBLE_DEVICES=0`. Requesting a GPU does
 not make a CPU-only potential GPU-capable.
 
-## Concurrent calculations in one allocation
+## concurrent calculations in one allocation
 
 `concurrent_tasks` is the maximum number of independent calculations running at
 once inside one batch. A batch of 100 structures with `concurrent_tasks: 4`
@@ -119,7 +119,7 @@ dispatch:
 working directories are rejected. Python-native GPU calculators do not use the
 external command prefix, so this option does not isolate their devices.
 
-## Local and remote submission
+## local and remote submission
 
 With no transport, `sbatch` runs on the current host. Add an SSH transport to
 stage the working tree and submit on another host:

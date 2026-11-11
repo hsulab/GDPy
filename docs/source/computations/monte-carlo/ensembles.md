@@ -1,4 +1,4 @@
-# Ensembles
+# ensembles
 
 Standard MC, biased MC, HMC, and hybrid biased MC define thermodynamic settings under
 `executor.parameters.setup.ensemble`, using the same mapping format as
@@ -18,7 +18,7 @@ determine which changes are proposed. See the {ref}`MC sampling limitations
 
 The fragments below belong under `executor.parameters.setup`.
 
-## NVT
+## nvt
 
 ```yaml
 ensemble:
@@ -30,7 +30,7 @@ Use composition-preserving proposals such as `move`, `rotate`, or `swap`.
 `swap` exchanges particle positions, preserving species counts.
 See the {doc}`canonical example <mc/examples/canonical>`.
 
-## UVT
+## uvt
 
 ```yaml
 ensemble:
@@ -45,7 +45,7 @@ and removal. Values must use the same energy reference as the potential;
 the value above is an example input, not a calibrated reservoir.
 See the {doc}`grand-canonical example <mc/examples/grand-canonical>`.
 
-## SUVT
+## suvt
 
 ```yaml
 ensemble:
@@ -62,7 +62,7 @@ the difference between the new and old species values. Particle insertion and
 removal are rejected for this ensemble. See the
 {doc}`semi-grand-canonical example <mc/examples/semi-grand-canonical>`.
 
-## Shared settings and validation
+## shared settings and validation
 
 Temperature is in K and must be finite and positive. Chemical potentials are
 finite values in eV per particle, keyed by species or particle name. NVT does
@@ -71,7 +71,7 @@ individual MC operators. The former `custom` ensemble is no longer supported;
 use {doc}`basin hopping <../../global_optimisation/basin_hopping>` for structure
 search with per-operator acceptance settings.
 
-## HMC inheritance
+## hmc inheritance
 
 Declare `parameters.setup.ensemble` only on the HMC parent. Keep the MD and MC
 executors in the ordered `parameters.setup.stages` list. For NVT, both children use
@@ -84,7 +84,7 @@ MC retains its own operators and proposal count. The potential is shared.
 A parent broadcast at `setup.ensemble.temperature` changes MD and MC together.
 See the {doc}`complete HMC input <hmc>`.
 
-## Biased Monte Carlo
+## biased monte carlo
 
 {doc}`Biased Monte Carlo <biased-mc>` also accepts `nvt`, `uvt`, and `suvt`
 with the same thermodynamic fields and operator restrictions. It uses minimised

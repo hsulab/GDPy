@@ -28,7 +28,7 @@ must still be supplied. `probability` is the relative selection weight when
 several mutations are configured, and defaults to `1.0`. It does not guarantee
 that a valid mirrored offspring will be produced.
 
-## Parameters
+## parameters
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ subsequent attempts. If the attempt limit is exhausted, no offspring is returned
 The population and reference builder supply the minimum bond distances,
 number of mobile atoms, and random-number stream automatically.
 
-## Fragment preservation
+## fragment preservation
 
 Mirror offspring retain the parent's tags at the same atom indices, including
 on mobile atoms. Retaining these labels does not preserve the geometry of atoms

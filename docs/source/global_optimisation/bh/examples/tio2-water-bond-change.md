@@ -1,6 +1,6 @@
 (bh-tio2-water-bond-change)=
 
-# Water dissociation and recombination on TiO₂
+# water dissociation and recombination on tio₂
 
 Use {doc}`../operators/bond_change` to search molecular and
 dissociated water adsorption with xreac's Monti2012 Ti/O/H parameters. The
@@ -8,7 +8,7 @@ two-water example has 198 atoms: 192 anatase (101) slab atoms and two neighborin
 waters. The bottom 48 atoms are fixed. The three-water variant has 201 atoms
 on the same slab. Install GDPy's `reax` extra to use the pinned xreac revision.
 
-## Seeds and independent relaxation
+## seeds and independent relaxation
 
 The first seed contains molecular water. The builder creates the dissociated
 seed by breaking an O–H bond above the surface and then forming an O–H bond
@@ -44,7 +44,7 @@ an unconverged pair exits with a nonzero status. `--build-only` validates seed
 geometry without xreac. `--waters 3` selects the three-water variant.
 Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
 
-## Mixed basin hopping
+## mixed basin hopping
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml
 :language: yaml
@@ -78,7 +78,7 @@ atoms remain tag 0. Changing the connectivity policy during checkpoint recovery
 requires a new search directory. Replace the exploration input with
 `tio2_water3_bond_change.yaml` for three waters.
 
-## Independent validation result
+## independent validation result
 
 With xreac revision `2d0f2bd`, Monti2012 and BFGS at fmax=0.02 eV/Å, both
 two-water seeds converged and remained adsorbed:

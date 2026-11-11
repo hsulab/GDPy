@@ -1,6 +1,6 @@
 (ga-variable-surface-oxide-example)=
 
-# Cu<sub>x</sub>O<sub>y</sub>/Cu(111) surface oxide
+# cu<sub>x</sub>o<sub>y</sub>/cu(111) surface oxide
 
 This example searches CuₓOᵧ structures on the same two-layer
 Cu(111)-p(2×2) substrate used by the fixed-composition surface-oxide example.
@@ -8,7 +8,7 @@ Both *x* and *y* may vary from 1 to 4. The candidates are relaxed with the
 1-million-parameter MatterSim model and ranked in a grand-canonical form using
 configured Cu and O chemical potentials.
 
-## Variable composition
+## variable composition
 
 The random builder uses range-valued composition entries:
 
@@ -43,7 +43,7 @@ must be calculated consistently with the selected potential and the intended
 Cu/O reservoirs before interpreting a production search.
 :::
 
-## Substrate and input
+## substrate and input
 
 The substrate is
 `examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`, with four Cu atoms
@@ -70,7 +70,7 @@ have tag 0, and every added Cu or O atom receives a distinct positive tag.
 MatterSim is required because the search contains both Cu and O; see the
 {ref}`potential-mattersim` guide for installation and model details.
 
-## Run
+## run
 
 After installing MatterSim, run from the example folder indicated below:
 

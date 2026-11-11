@@ -34,7 +34,7 @@ run simultaneously; `concurrent_tasks` limits concurrent tasks within each job,
 using the same bounded task loop as other supported schedulers. Its default is
 one. There is no host-wide resource limit or waiting queue.
 
-## Runnable EMT example
+## runnable emt example
 
 From the repository root, use `examples/compute/cu2_emt_nohup/runtime.yaml`
 with the existing three Cu dimers. ASE's bundled EMT calculator needs no model
@@ -61,7 +61,7 @@ The three final structures are written to `cu2-nohup/results/end_frames.xyz`.
 Submission, status queries, and collection can be run in separate terminal
 sessions. Inspect per-attempt logs under `cu2-nohup/_meta/jobs/`.
 
-## List simulations across submissions
+## list simulations across submissions
 
 ```shell
 gdp queue                 # this user's simulations on the current host
@@ -89,7 +89,7 @@ arbitrary Python scripts using GDPy without a recognizable launcher, inspect
 other hosts, or list allocations waiting in a cluster scheduler. Use that
 scheduler's queue command for pending allocations.
 
-## Logs, failures, and resubmission
+## logs, failures, and resubmission
 
 Each submitted attempt writes stdout and stderr to `nohup-<UUID>.out` beside
 its job script. Previous attempt logs remain available after resubmission.

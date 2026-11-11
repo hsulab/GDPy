@@ -64,7 +64,7 @@ strategy:
 Omitting the top-level `scheduler` also runs the exploration itself directly
 on the current machine.
 
-## Rare-event sampling
+## rare-event sampling
 
 Use {doc}`umbrella sampling <umbrella-sampling>` to run equilibrated harmonic
 distance windows and multiple independent replicas. Its production trajectories

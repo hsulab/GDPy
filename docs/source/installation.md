@@ -1,13 +1,13 @@
 # installation
 
-## Requirements
+## requirements
 
 Use Python 3.10 or newer. Required packages, optional extras, and their version
 constraints are declared in
 [`pyproject.toml`](https://github.com/hsulab/GDPy/blob/main/pyproject.toml).
 Pip installs the dependencies for the extras you select.
 
-## Create an environment
+## create an environment
 
 Use Conda to create an isolated Python environment, then use pip to install
 GDPy and its dependencies:
@@ -17,7 +17,7 @@ conda create -n gdpx python=3.12 pip
 conda activate gdpx
 ```
 
-## Install from source
+## install from source
 
 We recommend the `dev` branch when installing from source. Clone that branch
 and enter the repository's root directory:
@@ -45,12 +45,12 @@ metadata have changed, rerun your pip installation command with the same extras.
 For a non-editable installation, rerun the pip installation command after every
 pull.
 
-## CPU-only installation
+## cpu-only installation
 
 For DeepMD 3 (PyTorch and TensorFlow), TACE and MatterSim, use the command for
 your platform from the repository root.
 
-### macOS
+### macos
 
 PyTorch's macOS wheels use the plain version number and are installed from
 PyPI. On both Apple Silicon and Intel macOS, run:
@@ -59,7 +59,7 @@ PyPI. On both Apple Silicon and Intel macOS, run:
 python -m pip install -e '.[deepmd3-torch,deepmd3-cpu,tace,mattersim]' 'deepmd-kit==3.2.0' 'torch==2.11.0'
 ```
 
-### Linux
+### linux
 
 Linux CPU wheels use the `+cpu` suffix and PyTorch's CPU wheel index:
 
@@ -75,7 +75,7 @@ Add `-e` to that command if you also want an editable installation.
 
 (gpu-install-on-cpu-node)=
 
-## Recommended GPU installation
+## recommended gpu installation
 
 For DeepMD 3 (PyTorch and TensorFlow), TACE and MatterSim, run this from the
 repository root on either a CPU or GPU Linux node:
@@ -99,7 +99,7 @@ libraries and is therefore larger than the CPU-only installation.
 
 (gpu-verification)=
 
-## Verify GPU access
+## verify gpu access
 
 Run these checks in the installed environment on a GPU node, inside a GPU
 allocation when using a scheduler:
@@ -115,7 +115,7 @@ PyTorch and a nonempty GPU list for TensorFlow. On a CPU-only node, `False`
 and an empty list are normal even with GPU packages installed. On a GPU node,
 check the allocation, driver, and loaded environment if no GPU is visible.
 
-## Other potential packages
+## other potential packages
 
 :::{warning}
 Some provider versions require incompatible dependencies. For example,

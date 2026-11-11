@@ -5,7 +5,7 @@
 Bias an atomic displacement along a chosen Cartesian axis and push nearby
 atoms away when the displacement brings them too close.
 
-## Configuration
+## configuration
 
 Place this fragment under `strategy.operators` and set `temperature` on the
 operator for basin-hopping acceptance:
@@ -19,7 +19,7 @@ operator for basin-hopping acceptance:
   repulsion_strength: 1.0
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ operator for basin-hopping acceptance:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 One eligible atom is selected. Its displacement combines a component along
 `direction` with a random perpendicular component according to `bias_ratio`.

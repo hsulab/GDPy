@@ -4,11 +4,11 @@
 
 The `gp` provider loads gdpx’s full or sparse Gaussian-process models into an ASE calculator.
 
-## Requirements
+## requirements
 
 Use a model archive written by gdpx’s Gaussian-process trainer or `gdpx.providers.gp.save_model`. This calculator uses gdpx’s NumPy-based implementation.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Use a model archive written by gdpx’s Gaussian-process trainer or `gdpx.provid
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

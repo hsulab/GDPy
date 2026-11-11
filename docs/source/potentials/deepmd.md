@@ -4,7 +4,7 @@
 
 The `deepmd` provider loads Deep Potential models.
 
-## Requirements
+## requirements
 
 From the repository root, choose the extra matching your model, for example:
 
@@ -29,7 +29,7 @@ See {doc}`../installation` for the recommended GPU installation and
 {ref}`gpu-verification` for checks. LAMMPS requires a separate binary with the
 DeepMD pair style and a compatible exported model.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ DeepMD pair style and a compatible exported model.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -123,7 +123,7 @@ automatically.
 
 (deepmd-dpa4c-export-troubleshooting)=
 
-#### Export troubleshooting
+#### export troubleshooting
 
 :::{note}
 Use Python 3.12 for DPA4C export rather than Python 3.10. Check the active
@@ -146,7 +146,7 @@ This generated-code failure was also observed with Python 3.12 and PyTorch
 
 (bh-supported-nanoparticle-dpa4-example)=
 
-### User-provided DPA4-mini and DPA4C-mini
+### user-provided dpa4-mini and dpa4c-mini
 
 With the `deepmd3-torch` extra and DeepMD-kit 3.2 or newer, export your own
 pretrained checkpoint for the device that will run inference. These examples
@@ -189,7 +189,7 @@ DPA4-mini measured **601.1 ms** per energy-and-force evaluation; DPA4C-mini
 measured **29.2 ms** with the scalar CPU export workaround. The latter was
 about 20.6 times faster on this fixture.
 
-### Parameter notes
+### parameter notes
 
 `model` accepts one existing checkpoint or a list. `models` is also accepted
 as an alias when `model` is absent. `type_list` defines the model’s element

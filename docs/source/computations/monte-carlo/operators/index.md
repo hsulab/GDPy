@@ -1,6 +1,6 @@
 (sampling-operators)=
 
-# MC operators
+# mc operators
 
 This MC reference covers `move`, `rotate`, `swap`, `swap_type`,
 `biased_volume_exchange`, and `cavity_exchange`. Use them with
@@ -12,7 +12,7 @@ For structure search, see {ref}`bh-operators`. BH can reuse these six operators
 and provides additional search proposals. Both methods share implementations;
 this documentation split describes their intended use, not a parser restriction.
 
-## Configuration
+## configuration
 
 MC and hybrid MC configure proposals under `executor.parameters.setup.operators`;
 basin hopping retains `strategy.operators`. HMC places the ensemble on the parent and operators in the MC child.
@@ -37,7 +37,7 @@ be finite and nonnegative, with a positive total; they need not sum to one.
 `probability` controls **operator selection**, not trial acceptance. The former
 `prob` key is rejected.
 
-## MC methods
+## mc methods
 
 Settings belong directly in each operator mapping beside `method`.
 
@@ -70,7 +70,7 @@ cavity_exchange
 
 (sampling-operator-shared-settings)=
 
-## Shared settings and particle selection
+## shared settings and particle selection
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -86,7 +86,7 @@ sharing a tag form one particle; use distinct tags for independent atomic moves.
 The automatic region requires a nonzero simulation cell. A proposal can be
 invalid when no requested particle is present or geometric attempts fail.
 
-## Acceptance and proposal lifecycle
+## acceptance and proposal lifecycle
 
 Standard MC requires a single-point runtime and evaluates proposed states
 without relaxation. Basin hopping normally minimizes them first. Ordinary

@@ -15,7 +15,7 @@ potential:
     model: ./graph.pb
 ```
 
-## Materialization
+## materialization
 
 During runtime resolution, the potential provider materializes the interface
 required by the executor. The same DeepMD potential can therefore be used with
@@ -48,7 +48,7 @@ Selecting `executor.provider: lammps` instead uses LAMMPS `reax/c` and requires
 a local force-field file. To use that implementation with ASE, set
 `potential.backend: reax/c`.
 
-## Native software
+## native software
 
 Providers such as VASP and CP2K can expose native execution as well as an ASE
 calculator interface. Native input settings remain potential parameters while
@@ -68,7 +68,7 @@ executor:
   parameters: {}
 ```
 
-## Modifiers
+## modifiers
 
 Biases and enhanced-sampling forces are explicit runtime `modifiers`. Each
 modifier is a provider component with parameters, an optional backend, and an
@@ -77,7 +77,7 @@ as DFT-D3, do not require a method. Runtime
 resolution applies compatible modifiers to the materialized potential; the
 removed mixer potential is not part of schema version 3.
 
-## Supported families
+## supported families
 
 Built-in providers cover classical models, machine-learning potentials,
 electronic-structure software, and lightweight ASE calculators. Most providers
@@ -85,17 +85,17 @@ require their corresponding optional scientific package. External provider
 distributions can add capabilities through the `gdpx.providers` entry-point
 group; see {doc}`../extensions/index`.
 
-## Potential guides
+## potential guides
 
 See {doc}`providers` for potential configuration examples and requirements.
 Runtime setup and executor compatibility are covered in {doc}`../computations/index`.
 
-## Training
+## training
 
 Trainer capabilities are owned by the same provider as the potential they
 produce. See {ref}`trainers`.
 
-## Backend defaults and overrides
+## backend defaults and overrides
 
 `potential.provider` names the potential; optional `potential.backend` selects
 its implementation. `potential.parameters` contains calculator settings.
@@ -130,7 +130,7 @@ Move `parameters.backend` to `potential.backend`. Replace CP2K/VASP's old
 
 (potential-cpu-inference-comparison)=
 
-## CPU inference comparison
+## cpu inference comparison
 
 The following measurements use the 184-atom Cu₄/alumina fixture
 `examples/global_optimisation/assets/cu4_alumina111_supported.xyz`. Each value

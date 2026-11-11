@@ -42,7 +42,7 @@ execution services. Cross-provider integration uses consumer-defined
 materialization interfaces rather than imports of another provider's concrete
 implementation.
 
-## Execution and exploration
+## execution and exploration
 
 Execution performs a concrete request: evaluate these structures, optimize
 this geometry, run this trajectory, or search this supplied transition-state
@@ -55,7 +55,7 @@ replica. NEB and string methods are path transition-state executors because
 their concrete request contains a path of replicas. They are exploration only
 when another algorithm adaptively chooses or changes those requests.
 
-## Public boundary
+## public boundary
 
 The implementation packages are now `providers`, `execution`,
 `exploration`, `sampling`, `workflow`, `structures`, `analysis`, `modifiers`, and

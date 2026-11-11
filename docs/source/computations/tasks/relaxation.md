@@ -32,7 +32,7 @@ step. The three initial Cu–Cu separations should relax toward the same EMT
 minimum. Inspect `min-demo/results/end_frames.xyz` and the convergence report;
 reaching the step limit alone does not establish convergence.
 
-## Optimizer configuration
+## optimizer configuration
 
 Select the algorithm under `executor.parameters.setup.optimizer`:
 

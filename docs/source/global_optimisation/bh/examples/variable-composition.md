@@ -1,13 +1,13 @@
 (bh-variable-composition-example)=
 
-# Cu<sub>6</sub>Ni<sub>x</sub> clusters
+# cu<sub>6</sub>ni<sub>x</sub> clusters
 
 This example changes composition during a single basin-hopping search. It
 starts with six copper atoms and one to three nickel atoms, then attempts Ni
 insertion and removal alongside ordinary displacement moves. All calculations
 use EMT, so no model download is needed.
 
-## Input
+## input
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu6_nix.yaml
 :language: yaml
@@ -27,7 +27,7 @@ The builder's range applies **only to initialization**. It does not impose a
 bound on later exchange moves: chains can lose all nickel or grow beyond three
 nickel atoms. The finite move budget keeps this demonstration short.
 
-## Chemical potentials and ranking
+## chemical potentials and ranking
 
 The exchange operator uses `chempots: [-0.5]`, in eV per Ni atom, for acceptance.
 Population ranking uses `strategy.objective.target: formation_energy` with the same Ni
@@ -44,7 +44,7 @@ are illustrative search settings, not calibrated reservoir conditions. The
 short run demonstrates variable composition rather than an equilibrium
 composition or a converged global minimum.
 
-## Run
+## run
 
 Pair the recipe with the shared EMT relaxation runtime:
 
@@ -65,7 +65,7 @@ This is one exploration, so its outputs are directly under `run-cu6-nix/`.
 Rerun the same command to resume. Use a fresh directory when changing the
 chemical potentials, recipe, or runtime.
 
-## Inspect composition changes
+## inspect composition changes
 
 `candidates.db` stores initial structures and evaluated trials, including
 rejected ones. Compare each trial with its recorded parent to distinguish

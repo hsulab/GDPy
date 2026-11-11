@@ -6,7 +6,7 @@ Prepare a dataset, configure a trainer, and train a potential with `gdp train`.
 See {doc}`potentials` for provider-specific model settings and training outputs,
 and {doc}`../potentials/providers` to load a trained model as a potential.
 
-## Related Commands
+## related commands
 
 ```shell
 # - train a model in the current directory
@@ -18,7 +18,7 @@ $ gdp train ./config.yaml
 $ gdp -d m0 train ./config.yaml
 ```
 
-## Configuration File
+## configuration file
 
 The `config.yaml` requires two sections `dataset` and `trainer` to define a training process as
 
@@ -79,7 +79,7 @@ the value of `numb_steps`.
 - train_epochs: Number of training epochs.
 - random_seed: Random number generator to generate random numbers in the training.
 
-## Use Scheduler
+## use scheduler
 
 For long-running training, use `gdp workflow run` with a workflow that defines
 a `train` step. See {ref}`workflows` for the configuration format and commands.

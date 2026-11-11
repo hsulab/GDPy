@@ -5,7 +5,7 @@ with sparse storage, labeled axes, and selection tracking.
 It serves as the canonical data bus type for structure data flowing
 through the session graph DAG.
 
-## Design Concepts
+## design concepts
 
 1. **ND Sparse Storage**
 
@@ -79,7 +79,7 @@ through the session graph DAG.
    - `.save_file(target)`: Serialize to HDF5
    - `.from_file(target)`: Deserialize from HDF5 (classmethod)
 
-## API Reference
+## api reference
 
 `__init__(data=None, markers=None, *, dims=None, coords=None)`
 
@@ -191,7 +191,7 @@ through the session graph DAG.
 : Deserialize from HDF5. Backward compatible with files that do not
   contain dims/coords (default names are assigned automatically).
 
-### Internal Methods
+### internal methods
 
 `_from_components(shape, data, markers, ind_map, dims, coords)` → `AtomsNDArray`
 
@@ -212,9 +212,9 @@ through the session graph DAG.
 : Provides label-based indexing via `arr.loc[key]`. Handles integer,
   slice, and tuple keys with coordinate label resolution.
 
-## Migration Guide
+## migration guide
 
-### Changes in marker format (integer → boolean)
+### changes in marker format (integer → boolean)
 
 Previously, `.markers` returned a `(M, ndim)` integer array of
 coordinate tuples. Now it returns a boolean array of shape `.shape`.
@@ -224,7 +224,7 @@ coordinate tuples. Now it returns a boolean array of shape `.shape`.
 - `arr.markers = [[0,1], [0,2]]` is still accepted and auto-converted.
 - `np.array_equal(arr.markers, m)` is unchanged when `m` is also boolean.
 
-### HDF5 backward compatibility
+### hdf5 backward compatibility
 
 Old HDF5 files (without `dims` / `coords` datasets) load correctly.
 Dimensions default to `("dim_0", "dim_1", ...)` and coordinates to

@@ -4,11 +4,11 @@
 
 The `fairchem` provider wraps FAIR-Chem pretrained predictors as potential calculators.
 
-## Requirements
+## requirements
 
 Install PyTorch and FAIR-Chem exposing `FAIRChemCalculator` and `pretrained_mlip.get_predict_unit` from `fairchem.core`. Make the requested pretrained model available to that loader.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Install PyTorch and FAIR-Chem exposing `FAIRChemCalculator` and `pretrained_mlip
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

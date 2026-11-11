@@ -7,7 +7,7 @@ such as builders, sampling operators, comparators, and restraints, use the same
 selection syntax. An executor's `constraint` uses that syntax to select atoms
 whose positions should remain fixed during a simulation.
 
-## Selecting a group
+## selecting a group
 
 Enclose each selector in backticks and quote the complete expression in YAML:
 
@@ -44,7 +44,7 @@ Region selectors use a region name followed by its numeric arguments. For
 example, `sphere` takes three origin coordinates and a radius. See
 {doc}`builders/region` for region geometry and units.
 
-## Selecting bottom or top atoms
+## selecting bottom or top atoms
 
 `zbot N` and `ztop N` select a number of atoms, rather than a number of layers
 or atoms below or above a height threshold. Selection is evaluated on the
@@ -72,7 +72,7 @@ placement in the cell, and verify which atoms are selected, especially if the
 slab crosses a periodic boundary. For tilted cells, fractional z follows the
 cell coordinates rather than Cartesian height.
 
-## Fixing atoms in an executor
+## fixing atoms in an executor
 
 Put `constraint` under `executor.parameters.setup` in a structured runtime:
 

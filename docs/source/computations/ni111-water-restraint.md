@@ -1,6 +1,6 @@
 (compute-ni-water-restraint-example)=
 
-# O-H restraint windows on H2O/Ni(111)
+# o-h restraint windows on h2o/ni(111)
 
 This example adds harmonic O-H distance restraints to ReaxFF molecular
 dynamics for molecular water on Ni(111). It demonstrates how a runtime

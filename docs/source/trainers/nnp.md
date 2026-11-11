@@ -4,7 +4,7 @@ The `nnp` trainer is a lightweight Behler--Parrinello-style potential using
 ACSF descriptors and one atomic-energy network for each central element. It
 uses a DeepMD-style scheduled energy and force loss.
 
-## Training options
+## training options
 
 The main options under `trainer.config` are:
 
@@ -62,7 +62,7 @@ timings. It reports raw and prefactored gradient norms plus their cosine
 similarity so conflicts between energy and force fitting remain visible. The
 prefactored norms are measured before optional `max_grad_norm` clipping.
 
-## Model format
+## model format
 
 The current `nn_weights.npz` format is version 2. It stores per-element
 networks, descriptor normalization, and fitted atomic energy offsets. Models

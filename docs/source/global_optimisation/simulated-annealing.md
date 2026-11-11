@@ -5,7 +5,7 @@
 Simulated annealing (SA) searches for low-energy structures through repeated
 MD cooling and minimisation, using `gdp explore`.
 
-## Search cycle
+## search cycle
 
 ```{figure} simulated_annealing.svg
 :alt: "Simulated annealing workflow with population selection, MD cooling, snapshot selection, and minimisation."
@@ -43,7 +43,7 @@ Earlier minima remain eligible throughout the search, so a generation that
 finds no better structures does not discard the best results. Builders are
 used only in generation 0; subsequent generations start from retained minima.
 
-## Candidate tags
+## candidate tags
 
 SA preserves explicit ASE tags and restores them on MD and minimisation
 results when the backend omits them. Newly generated untagged candidates
@@ -58,9 +58,9 @@ empty-mobile-group error. Existing saved inputs are not rewritten, allowing
 cached calculations to be reused; retrieved SA results receive tags before
 snapshot selection and candidate ingestion.
 
-## Examples
+## examples
 
-### Complete minimal input
+### complete minimal input
 
 This self-contained Cu₂ example uses ASE's EMT potential, so no model download
 is needed. Save the following three files in the same directory. It minimises
@@ -151,7 +151,7 @@ The two evaluated minima are written to `run-sa/results/all_candidates.xyz`,
 and the retained population contains at most one distinct minimum. Rerun the
 same command to resume the search.
 
-### Larger examples
+### larger examples
 
 The central {doc}`examples catalogue <examples/index>` groups recipes by physical
 system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
@@ -159,7 +159,7 @@ system. See {ref}`Cu₈ annealing <sa-cu8-example>` for an EMT demonstration and
 The {ref}`Cu₄/alumina example <sa-supported-nanoparticle-example>` uses DPA4C-mini
 with two short cooling generations of four trajectories each.
 
-## Configuration and parallel execution
+## configuration and parallel execution
 
 Use `method: global_optimisation` and `strategy.method: simulated_annealing`.
 The `system` configuration is shared with GA and BH.
@@ -237,7 +237,7 @@ minimisation:
     batch_size: 4
 ```
 
-### Snapshot selection
+### snapshot selection
 
 `strategy.selection` is optional and sits alongside `strategy.minimisation`.
 Omitting it uses `{method: locate, indices: "-1", group_by: "axis 0"}`, selecting
@@ -319,7 +319,7 @@ error. Failure details are saved in `population.json` and, for new failures,
 `candN/gdp-failure.json`; restart preserves the skip decision. Incomplete queued
 jobs remain pending and are not treated as failed candidates.
 
-## Results and restart
+## results and restart
 
 - `candidates.db`: all evaluated minima, including duplicate and unretained
   candidates; records include generation, parent IDs, and replica index.

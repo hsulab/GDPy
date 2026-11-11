@@ -31,7 +31,7 @@ regions/cylinder
 regions/lattice
 ```
 
-## Configuration and coordinates
+## configuration and coordinates
 
 Set `region.method` to the region name and supply its geometry parameters.
 Each subpage gives a YAML fragment for an existing builder or operator input.

@@ -1,6 +1,6 @@
 (hmc-cu111-oxidation-xreac)=
 
-# Cu(111) oxidation with xreac
+# cu(111) oxidation with xreac
 
 This example applies HMC to the same three-layer Cu(111)-p(2×2) oxidation
 system as the {doc}`MC example <../../mc/examples/cu111-oxidation-xreac>`. One

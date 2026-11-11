@@ -60,7 +60,7 @@ and cell minimization may add `setup.optimizer`. Flat executor parameters remain
 accepted for compatibility, but they cannot be mixed with the structured form.
 
 
-## Ensemble settings
+## ensemble settings
 
 MD, standard MC, and HMC share an `executor.parameters.setup.ensemble` mapping.
 See {doc}`MD ensembles <molecular-dynamics/ensembles>` for NVE, NVT, and NPT,

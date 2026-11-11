@@ -1,6 +1,6 @@
 (co-cu111-example)=
 
-# CO adsorption on Cu(111)
+# co adsorption on cu(111)
 
 This example searches positions and orientations of one CO molecule on an
 orthogonal Cu(111)-p(2×2) slab. The right-angled surface cell is rectangular,
@@ -13,7 +13,7 @@ The dedicated substrate `cu111_p2x2_3layer_sa.xyz` preserves the geometry of
 enabled to match the population interface. Its 24 Å cell height leaves vacuum
 between periodic slab images. The original shared substrate is unchanged.
 
-## Simulated annealing with DPA4C
+## simulated annealing with dpa4c
 
 Four starting structures are built by inserting an intact CO molecule with
 random orientation and centre of mass 1.5–3.5 Å above the top Cu layer.

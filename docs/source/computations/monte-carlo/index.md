@@ -1,12 +1,12 @@
 (boltzmann-sampling-overview)=
 
-# Monte Carlo
+# monte carlo
 
 GDPy supports standard, biased, and hybrid Monte Carlo with `nvt`, `uvt`, and
 `suvt` ensembles. Choose {doc}`operators <operators/index>` to define the proposed
 changes and an {doc}`ensemble <ensembles>` to set the thermodynamic conditions.
 
-## Schemes
+## schemes
 
 ```{figure} monte_carlo.svg
 :alt: "Monte Carlo workflow: evaluate the initial structure, optionally run a simulation, then perform MC steps consisting of proposal, evaluation, and Metropolis acceptance."
@@ -47,7 +47,7 @@ Standard MC evaluates each trial without relaxation and accepts or rejects it
 for the configured ensemble. {doc}`Basin hopping <../../global_optimisation/basin_hopping>` uses the same kinds of proposals but
 relaxes trials to local minima and ranks them for structure search.
 
-## Demo
+## demo
 
 This example uses EMT to sample a periodic Cu32 structure at 1200 K. Each
 step displaces one atom by 0.1 Å while keeping the composition and cell fixed.

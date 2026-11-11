@@ -5,7 +5,7 @@
 The `direct` scheduler runs a calculation synchronously without a queue manager.
 It is the default when a runtime omits the `scheduler` section.
 
-## Local execution
+## local execution
 
 An explicit local configuration is:
 
@@ -58,7 +58,7 @@ With the default `concurrent_tasks: 1`, direct execution calls the calculation
 in the current process. Consequently, scheduler `environs` commands do not
 modify that already-running process.
 
-## Concurrent direct tasks
+## concurrent direct tasks
 
 Set `concurrent_tasks` to run independent tasks through a generated Bash script:
 
@@ -81,7 +81,7 @@ as `mpirun`. Python-native GPU calculators are not assigned distinct devices by
 this option; use `concurrent_tasks: 1` unless device isolation is handled
 outside gdpx.
 
-## Direct execution over SSH
+## direct execution over ssh
 
 Combine the direct scheduler with the SSH transport:
 

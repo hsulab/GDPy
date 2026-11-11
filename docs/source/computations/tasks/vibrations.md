@@ -5,7 +5,7 @@
 The `ase`, `vasp`, and `cp2k` executors provide the `freq` task. Start from a
 relaxed structure and converged force-evaluation settings.
 
-## ASE finite differences
+## ase finite differences
 
 The ASE executor uses [ASE Vibrations](https://ase-lib.org/ase/vibrations/modes.html)
 with any potential that provides an ASE calculator. Save as `frequency.yaml`,
@@ -47,7 +47,7 @@ Imaginary components are stored separately in the JSON; `modes` has shape
 The collected trajectory contains the undisplaced structure and is marked
 complete only after the spectrum is written.
 
-### Resuming interrupted ASE vibrations
+### resuming interrupted ase vibrations
 
 The default `setup.resume: true` reuses completed force evaluations when
 `vibrations.restart.json` matches the input geometry (including cell, species,
@@ -76,7 +76,7 @@ does not itself submit or retry scheduler jobs. It resumes complete displacement
 force evaluations, not an interrupted electronic SCF calculation. Completion
 is still recorded only after every required force and the spectrum are saved.
 
-## VASP finite differences
+## vasp finite differences
 
 Save as `frequency.yaml`, using your VASP executable and input files:
 
@@ -107,7 +107,7 @@ gdp -d frequency-results -r frequency.yaml compute relaxed.xyz
 `NFREE=2`, `POTIM=maxstep`, and `NSW=1`. Inspect VASP’s native output for
 frequencies and modes; the generic collected XYZ is not a vibrational spectrum.
 
-## CP2K finite differences
+## cp2k finite differences
 
 Use a {doc}`CP2K potential <../../potentials/cp2k>` with this executor:
 

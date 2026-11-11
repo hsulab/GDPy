@@ -21,7 +21,7 @@ Sampling draws fractional coordinates in `[0, 1)` and returns
 `[2, 3)` Å. Use a nondegenerate, right-handed cell; volume is the scalar triple
 product of its vectors.
 
-## Membership and periodicity
+## membership and periodicity
 
 Membership wraps fractional coordinates into `[0, 1)` in all three directions.
 Coordinates are measured relative to the region's `origin` and `cell`, not the

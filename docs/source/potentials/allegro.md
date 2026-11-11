@@ -5,7 +5,7 @@
 The `allegro` provider evaluates Allegro models directly through ASE or through
 LAMMPS using its own `AllegroManager`. NequIP models use the separate {doc}`nequip` provider.
 
-## Requirements
+## requirements
 
 For backend `ase`, install NequIP with
 `nequip.integrations.ase.NequIPCalculator.from_compiled_model` and the
@@ -18,7 +18,7 @@ For backend `lammps`, provide a LAMMPS executable with the `allegro` pair style
 and a compatible exported model. ASE-target and LAMMPS-target model artifacts
 are not interchangeable.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ are not interchangeable.
 | `lammps` | `lammps` | Yes | Native LAMMPS execution with the Allegro pair style. |
 | `lammps` | `ase` | No | LAMMPS evaluates energies and forces; ASE drives the calculation. |
 
-## Configurations
+## configurations
 
 ### ase + ase
 

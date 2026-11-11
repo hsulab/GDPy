@@ -13,7 +13,7 @@ similar; extinction rules exclude candidates that are no longer eligible.
 population/thanos
 ```
 
-## Shared search configuration
+## shared search configuration
 
 Both algorithms use `method: global_optimisation` with `system` and `strategy`
 sections; there is no `recipe` wrapper. `system` describes initialization and
@@ -38,7 +38,7 @@ preservation. If no pair is compatible, GA uses its single-parent mutation
 fallback and builder completion. Standalone mutations select from the full pool.
 There is no composition-group balancing or population-wide constant/variable mode.
 
-## Three sizes
+## three sizes
 
 | Setting | Meaning |
 | --- | --- |
@@ -56,7 +56,7 @@ candidates are available. Otherwise it samples with replacement. Set
 evolves independently. An empty surviving pool ends the search as extinct. GA uses its
 own reproduction and mutation policies to produce the requested generation.
 
-## Builders and initialization
+## builders and initialization
 
 Both methods use named `builders` and exact `initial.builder_allocations`:
 
@@ -98,7 +98,7 @@ Set it to `false` for gas-phase clusters; do not set `pbc` inside builders or
 `pbc`/`mic` inside the comparator. Molecular tags remain available for BH moves;
 GA's `preserve_fragments` setting controls its genetic operators.
 
-## Comparison and selection
+## comparison and selection
 
 `system.comparator.method` defaults to `interatomic_distance`. Other search
 comparators are `oganov_fingerprint`, `nnmat`, and `atoms` (exact ASE Atoms
@@ -125,7 +125,7 @@ therefore adds up to `generation.total_size × steps_per_chain` evaluated candid
 invalid proposals add none. Population refresh considers all eligible stored
 minima at the start of the next generation.
 
-## Migrating existing input
+## migrating existing input
 
 | Previous setting | Replacement |
 | --- | --- |
@@ -154,7 +154,7 @@ BH now launches the exact requested number of chains even when its retained pool
 is underfilled. Named random streams and the changed selection policy mean that
 migrated BH runs need not reproduce old trajectories bit for bit.
 
-## Population and algorithm policies
+## population and algorithm policies
 
 GA and BH inherit `gdpx.exploration.population.PopulationBasedExploration` for
 common setup and serialization, and use the same
@@ -184,7 +184,7 @@ an independent mutable copy only when starting an offspring or hopping chain.
 The shared population has no GA-specific subclasses, and algorithm selection
 statistics are kept outside `Atoms.info`.
 
-## Generation progress and restart
+## generation progress and restart
 
 Both engines use `gdpx.exploration.generation.GenerationInfo` and
 `GenerationState`. The database determines whether a generation is beginning,

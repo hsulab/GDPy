@@ -49,7 +49,7 @@ requires a fresh directory. Existing layouts with root-level job records or
 `expedition-*` directories are detected and rejected; they are not automatically
 moved or resumed by the new layout.
 
-## Broadcast compositions in one allocation
+## broadcast compositions in one allocation
 
 A top-level `broadcast` mapping expands one recipe into independent searches:
 

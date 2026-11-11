@@ -1,6 +1,6 @@
 (mc-examples)=
 
-# Examples
+# examples
 
 These examples cover canonical, semi-grand-canonical, and grand-canonical MC
 with EMT, plus a short Cu(111) oxidation run with xreac. Read the
@@ -14,7 +14,7 @@ For the curated MC operator list and detailed-balance requirements, see
 {ref}`sampling-operators`. The documentation catalogue does not change parser support
 or the acceptance rule used by these inputs.
 
-## Run the EMT examples
+## run the emt examples
 
 The complete inputs and initial structures are in `examples/monte_carlo/`.
 Run from the **repository root**, since structure paths are relative to it:
@@ -34,7 +34,7 @@ provider, settings, or scheduler; MC selects `spc` automatically.
 The {doc}`hybrid examples <../../hmc/examples/index>` alternate MD segments with MC proposals
 and list MD and standard MC executors directly in `parameters.setup`.
 
-## Choose an example
+## choose an example
 
 ```{toctree}
 :maxdepth: 1

@@ -4,7 +4,7 @@
 
 The `mattersim` provider loads MatterSim pretrained models and local checkpoints.
 
-## Requirements
+## requirements
 
 From the repository root:
 
@@ -19,7 +19,7 @@ uses CPU. An explicit `device: cpu` forces CPU execution even on GPU nodes;
 both backends respect an explicit device. Backend `graph_pes`
 also requires the `graph_pes` package with its MatterSim interface.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ also requires the `graph_pes` package with its MatterSim interface.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -58,7 +58,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 Set `potential.parameters.device: cpu` to enforce CPU execution. For example:
 
@@ -81,7 +81,7 @@ For backend `ase`, `compute_stress: false` avoids unnecessary stress evaluation 
 molecules and clusters. Keep stress enabled when the calculation requires it. The `graph_pes` branch
 does not forward this option; it uses GraphPESCalculator property requests.
 
-## Models
+## models
 
 The `model` parameter accepts either a MatterSim pretrained-model name or a
 local checkpoint path:
@@ -95,7 +95,7 @@ local checkpoint path:
 The `.pth` suffix is optional for either pretrained name. MatterSim downloads a
 named checkpoint automatically on first use; local paths must already exist.
 
-## Usage notes
+## usage notes
 
 - Use a sufficiently large periodic vacuum box for an isolated molecule or
   cluster. This avoids interactions with periodic images while following the
@@ -111,7 +111,7 @@ See {ref}`ga-water-cluster-example` for a complete four-water global-
 optimisation example using the 1M model.
 
 
-## Supported-cluster runtime and CPU inference
+## supported-cluster runtime and cpu inference
 
 The following runtime can be paired with the
 {ref}`supported-cluster exploration <ga-supported-nanoparticle-example>`:

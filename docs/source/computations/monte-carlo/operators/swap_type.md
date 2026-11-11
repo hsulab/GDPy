@@ -5,7 +5,7 @@
 Change the chemical identity of one atom while keeping the total atom count
 fixed. This provides composition changes without insertion or removal.
 
-## Configuration
+## configuration
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC read
@@ -17,7 +17,7 @@ basin hopping adds them to the operator:
   particles: [Cu, Ni]
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ basin hopping adds them to the operator:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 An initial species is chosen from the eligible species currently present.
 The operator selects one atom of that species and changes it to a different

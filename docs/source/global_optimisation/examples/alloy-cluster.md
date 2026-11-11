@@ -1,6 +1,6 @@
 (ga-alloy-cluster-example)=
 
-# Cu<sub>7</sub>Ni<sub>6</sub> alloy cluster
+# cu<sub>7</sub>ni<sub>6</sub> alloy cluster
 
 This example searches the chemical ordering of a Cu7Ni6 alloy cluster. Four
 random cluster geometries are generated inside a spherical region and relaxed
@@ -8,7 +8,7 @@ with ASE's Effective Medium Theory (EMT) calculator. The following generation
 uses only swap mutation, making the example a focused demonstration of
 exchanging unlike atomic species without changing the composition.
 
-## Input
+## input
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml`:
@@ -36,7 +36,7 @@ are checked with consistent distance limits. If the requested mutations cannot
 be produced within the attempt limit, the random builder completes the
 generation.
 
-## Run
+## run
 
 Run from the example folder indicated below:
 

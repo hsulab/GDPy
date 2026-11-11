@@ -4,13 +4,13 @@
 
 The `xtb` provider exposes the xTB Python ASE calculator for semiempirical calculations.
 
-## Requirements
+## requirements
 
 For backend `xtb`, install the Python package exposing `xtb.ase.calculator.XTB`
 and its native library. For backend `tblite`, install the package exposing
 `tblite.ase.TBLite` and its native library.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ and its native library. For backend `tblite`, install the package exposing
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### xtb + ase
 
@@ -51,7 +51,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 Calculator options pass directly to the selected `XTB` or `TBLite` calculator. `parameters.method` selects the
 xTB Hamiltonian; the potential component’s method remains `default`.

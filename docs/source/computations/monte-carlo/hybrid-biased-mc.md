@@ -1,6 +1,6 @@
 (hybrid-biased-monte-carlo)=
 
-# Hybrid biased Monte Carlo
+# hybrid biased monte carlo
 
 `hybrid_biased_monte_carlo` alternates MD segments with
 {doc}`biased Monte Carlo <biased-mc>` blocks. It uses the same ordered setup

@@ -6,7 +6,7 @@ The `exchange` mutation inserts or removes atoms or molecular fragments. Use it
 with a variable population and a composition-dependent target when the number
 of particles may change during a search.
 
-## Configuration
+## configuration
 
 This example allows one to four independently tagged Cu atoms and one to four
 independently tagged O atoms:
@@ -52,7 +52,7 @@ them consistently with the selected potential and physical reservoirs before
 interpreting a variable-composition search.
 :::
 
-## Insertion modes
+## insertion modes
 
 Without `anchors`, a new particle is placed randomly inside `region` and
 accepted only when its distances satisfy `covalent_ratio`. The default ratio is
@@ -63,7 +63,7 @@ Set `anchors` to place species at graph-derived adsorption sites instead. A
 single anchor configuration applies to every species, or a list can provide
 one configuration per entry in `species`.
 
-## Fragments and managed settings
+## fragments and managed settings
 
 Each entry in `species` may identify an atom such as `O` or a supported
 molecular formula. Exchange counts and removes particles using their positive

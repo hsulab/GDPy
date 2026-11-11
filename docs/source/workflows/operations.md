@@ -62,7 +62,7 @@ heads can be declared with `output_names_for(spec)` and the corresponding
 instance `output_names`, as used by `transfer`. A normal dictionary returned by
 a single-output node remains one value; it is not implicitly split into heads.
 
-## Uncertainty per compute step
+## uncertainty per compute step
 
 A `compute` step can override the potential's `estimate_uncertainty` flag without
 changing the shared runtime or loop-carried potential. Omit the option (or use
@@ -94,7 +94,7 @@ Both runtimes can reference the same `current_potential` ensemble. The overrides
 apply to each iteration's potential, including newly trained models.
 
 
-### Separate exploration trajectories
+### separate exploration trajectories
 
 The `explore` operation exposes four heads:
 
@@ -136,7 +136,7 @@ from its source, including intermediate minimisation frames. The SA example in
 the two sources separately before adding both labeled contributions to the
 training dataset.
 
-### Carry selected candidates into the next search
+### carry selected candidates into the next search
 
 Population explorations accept `builder_<name>` inputs containing structures
 or a selected `AtomsNDArray`. For example, `builder_init` replaces the existing

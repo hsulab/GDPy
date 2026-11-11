@@ -1,7 +1,7 @@
 (ga-supported-cluster-adsorbate-example)=
 (ga-adsorbate-insertion-example)=
 
-# CO–Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001) supported adsorbate
+# co–cu<sub>4</sub>/α-al<sub>2</sub>o<sub>3</sub>(0001) supported adsorbate
 
 This example searches for low-energy structures of CO adsorbed on a supported
 Cu4 cluster. Two builders contribute four candidates each to one initial
@@ -9,7 +9,7 @@ population, comparing random construction with adsorption-site insertion.
 Every candidate contains Cu4 and one CO molecule on the same orthogonal
 α-Al₂O₃(0001) support and is relaxed with the same MatterSim runtime.
 
-## System and search region
+## system and search region
 
 The example reuses
 `examples/global_optimisation/assets/alpha_alumina111_ortho.xyz` from the
@@ -42,7 +42,7 @@ Default fragment preservation therefore makes crossover and mutation move CO
 as one particle instead of separating its atoms.
 :::
 
-## Input
+## input
 
 The exploration configuration is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml`:
@@ -66,7 +66,7 @@ Fragment preservation applies to structure generation and GA operators. The
 local MatterSim relaxation still optimises the C–O coordinates, so it does not
 impose a rigid C–O bond.
 
-## Run
+## run
 
 After installing MatterSim, run from the example folder indicated below:
 

@@ -6,13 +6,13 @@ and the model training for **machine learning interatomic potentials** (MLIPs).
 It is developed and maintained by [Jiayan Xu] under supervision of Prof. [P. Hu]
 at Queen's University Belfast.
 
-## Features
+## features
 
 - A unified interface to various MLIPs.
 - Versatile exploration algorithms to construct a general dataset.
 - Automation workflows for dataset construction and MLIP training.
 
-## Overview
+## overview
 
 The modules are:
 

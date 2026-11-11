@@ -1,6 +1,6 @@
 (bh-seeded-cu8-example)=
 
-# Seeded Cu<sub>8</sub> cluster
+# seeded cu<sub>8</sub> cluster
 
 This example starts one basin-hopping search from **two random structures and
 two seed structures**. It uses two named builders in the same population:
@@ -8,7 +8,7 @@ two seed structures**. It uses two named builders in the same population:
 checked-in structure file. All four initial candidates are relaxed using EMT
 before the search selects chain starts.
 
-## Input
+## input
 
 Run from `examples/global_optimisation/explorations/basin_hopping/` so the seed-file path resolves correctly.
 The exploration input is
@@ -46,7 +46,7 @@ search evaluates at most 14 structures; invalid proposals do not trigger an
 evaluation. The shared {doc}`population settings <../../population>` explain
 initial, retained, and generation sizes.
 
-## Run with EMT
+## run with emt
 
 Use the existing relaxation runtime:
 
@@ -77,7 +77,7 @@ some candidates later relax to similar minima. Reports and the history figure
 are under `results/`; see the {doc}`basic Cu₈ example <cluster>` for trajectory
 export and the output layout.
 
-## Supply your own seeds
+## supply your own seeds
 
 Replace `system.builders.seeds.frames` with your structure-file path and
 set `indices` to the frames you want to include. Update the `seeds` allocation

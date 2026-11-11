@@ -4,11 +4,11 @@
 
 The `dftd3` provider wraps the `DFTD3` ASE dispersion calculator.
 
-## Requirements
+## requirements
 
 Install the package providing `dftd3.ase` and its native dispersion library in the gdpx environment.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Install the package providing `dftd3.ase` and its native dispersion library in t
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -39,7 +39,7 @@ ASE calculator.
 
 This calculator evaluates the **dispersion contribution only**. Selecting it
 as the potential does not also run an electronic-structure calculation.
-### DFT-D3 modifier
+### dft-d3 modifier
 
 For a combined ASE calculation, add DFT-D3 as a runtime modifier:
 

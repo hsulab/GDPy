@@ -6,7 +6,7 @@ orphan: true
 
 # genetic algorithm (ga)
 
-## Overview
+## overview
 
 Genetic algorithm is a popular global optimisation method to find stable structures.
 GA in gdpx makes use of functionalities in `ase` package and provides a user-friendly
@@ -51,7 +51,7 @@ The steps are
 
    > - Find structures with target properties in all explored structures.
 
-## Example
+## example
 
 To use GA, the related commands are
 
@@ -179,7 +179,7 @@ strategy:
         proportion: 1.0
 ```
 
-## Application
+## application
 
 1. {ref}`ref-jpcc-2022-xu`
 2. {ref}`ref-acs-catal-2022-xu`

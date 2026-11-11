@@ -4,11 +4,11 @@
 
 The `emt` provider exposes ASE’s effective-medium-theory calculator.
 
-## Requirements
+## requirements
 
 EMT is included with ASE and needs no external model files.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ EMT is included with ASE and needs no external model files.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

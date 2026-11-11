@@ -19,7 +19,7 @@ operators:
 Swap requires at least two mobile particle types. The fixed substrate, whose
 atoms have tag 0, is never selected.
 
-## Parameters
+## parameters
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Particle type names are the chemical formulas of the tagged particles, such as
 distance checks, the mutation returns no offspring and the population's normal
 completion strategy handles the deficit.
 
-## Tags and fragments
+## tags and fragments
 
 Swap identifies particles by positive ASE tags. Each independently tagged atom
 is one particle. Atoms sharing a positive tag form one fragment, which is moved

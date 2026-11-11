@@ -1,6 +1,6 @@
 (bh-cuox-tace-example)=
 
-# Cu<sub>4</sub>O<sub>4</sub> cluster with TACE
+# cu<sub>4</sub>o<sub>4</sub> cluster with tace
 
 This self-contained example searches for low-energy Cu₄O₄ clusters with the
 small TACE-OAM-7M foundation model. Four random structures are relaxed in a
@@ -8,7 +8,7 @@ small TACE-OAM-7M foundation model. Four random structures are relaxed in a
 moves. Every valid trial is locally minimized before acceptance at 500 K.
 This is a short demonstration, not a converged global-minimum search.
 
-## Input
+## input
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu4o4.yaml
 :language: yaml
@@ -24,7 +24,7 @@ All eight atoms are independently movable. Unlike the MatterSim extinction
 example, this recipe applies no O–O extinction rule. The acceptance temperature
 is a search parameter, not a molecular-dynamics temperature.
 
-## Run
+## run
 
 Install the {ref}`TACE extra <potential-tace>` and run from the example folder indicated below:
 
@@ -49,7 +49,7 @@ Running the same command with the same directory resumes the search; a completed
 search does not add duplicate calculations. See {doc}`cluster` for trajectory
 export instructions.
 
-## Model choice and validation
+## model choice and validation
 
 The 7M models are the small current general-purpose foundation models in the
 upstream registry. On macOS arm64 with one Torch CPU thread, float32, the default

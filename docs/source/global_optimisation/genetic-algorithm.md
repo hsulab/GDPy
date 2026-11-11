@@ -55,7 +55,7 @@ omit IDs when necessary. Intermediate mutations retain the original crossover pa
 instead of creating self-links. The figure is rebuilt from database history when
 reporting a completed search, including after a restart.
 
-## Search cycle
+## search cycle
 
 A typical GA search repeats the following steps:
 
@@ -77,7 +77,7 @@ A typical GA search repeats the following steps:
 The shared {ref}`global-optimisation-population` reference defines population
 sizes, builders, and comparison for both GA and BH.
 
-## Components in gdpx
+## components in gdpx
 
 gdpx separates the search policy from candidate construction and evaluation:
 
@@ -93,7 +93,7 @@ structures with exploration of new regions. An overly similar population can
 converge early, while excessive random variation can prevent useful structural
 features from being retained.
 
-## Running a GA search
+## running a ga search
 
 The {ref}`genetic-algorithm` guide contains gdpx's YAML configuration reference,
 available operators, command-line example, and application links.

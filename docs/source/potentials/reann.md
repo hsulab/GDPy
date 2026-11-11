@@ -4,7 +4,7 @@
 
 The `reann` provider loads REANN TorchScript models with gdpx’s ASE calculator.
 
-## Requirements
+## requirements
 
 From the repository root:
 
@@ -18,7 +18,7 @@ exported first. gdpx uses ASE neighbour lists, so inference does not require
 upstream REANN source or its Fortran extension. See {doc}`../installation`
 for CPU/GPU setup and verification. This provider supports ASE only.
 
-### Training and exporting models
+### training and exporting models
 
 Obtain the training code separately (Git is required):
 
@@ -35,7 +35,7 @@ The defaults, `train` and `freeze`, are not installed by gdpx. The trainer
 expects `REANN.pth` as the training checkpoint and `PES.pt` as the exported
 potential.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -44,7 +44,7 @@ potential.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 

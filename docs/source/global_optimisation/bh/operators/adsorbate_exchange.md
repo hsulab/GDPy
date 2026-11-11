@@ -5,7 +5,7 @@
 Insert adsorbates at sites identified from a surface graph, or remove an
 existing tagged adsorbate.
 
-## Configuration
+## configuration
 
 Place this fragment under `strategy.operators`. Set `temperature` and
 `chempots` on the operator for basin-hopping acceptance:
@@ -20,7 +20,7 @@ Place this fragment under `strategy.operators`. Set `temperature` and
     surf_index: 2
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ Place this fragment under `strategy.operators`. Set `temperature` and
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 The example assumes a Cu surface with its normal along z, separately tagged
 adsorbates, and a runtime that describes Cu/C/O adsorption. Its chemical

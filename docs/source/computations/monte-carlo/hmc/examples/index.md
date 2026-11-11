@@ -1,6 +1,6 @@
 (hmc-examples)=
 
-# Examples
+# examples
 
 The EMT examples alternate **20 NVT MD steps and five MC proposals** per cycle,
 for five cycles at 1200 K. Each input defines one potential and an ordered list of MD and MC

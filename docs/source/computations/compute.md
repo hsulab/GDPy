@@ -13,7 +13,7 @@ compute plan rejects conflicting inputs.
 
 (compute-copper-dimers-example)=
 
-## Simple example: copper dimers
+## simple example: copper dimers
 
 The repository includes a ready-to-run example in `examples/compute/cu2_emt/`.
 It minimizes three Cu2 dimers with ASE's built-in EMT potential, requiring no
@@ -31,7 +31,7 @@ limit of 100 optimization steps per structure. The output summarizes steps,
 energy, and `maxfrc` across the three calculations. Relaxed structures are saved
 in `cu2-compute/results/end_frames.xyz`.
 
-## Compute lifecycle
+## compute lifecycle
 
 The lifecycle can be controlled explicitly:
 
@@ -71,7 +71,7 @@ cand3/
 Job UUIDs are retained on resubmission. Optional result journals use
 `_meta/jobs/<uuid>.jsonl`. Existing runs keep their previous metadata filenames.
 
-## Progress output
+## progress output
 
 Workers report one aggregate box for the requested calculations, with counts of
 finished, pending, and failed calculations. The same timestamped boxes appear
@@ -90,7 +90,7 @@ A finished calculation is not necessarily converged.
 Reporting does not evaluate calculators, copy structures, or read extra
 trajectories. Routine worker diagnostics remain available at DEBUG level.
 
-## Independent runtimes
+## independent runtimes
 
 A runtime file can contain a list of complete runtime mappings to evaluate the
 same structures independently with different settings. Compatible batch
@@ -110,7 +110,7 @@ broadcast, and the resolved runtimes are flattened in source order. Use
 
 See {doc}`tasks/index` for task examples and {doc}`schedulers` for queue jobs.
 
-## Monte Carlo sampling
+## monte carlo sampling
 
 Use `executor.provider: native` with `method: monte_carlo`, `biased_monte_carlo`,
 `hybrid_monte_carlo`, or `hybrid_biased_monte_carlo` to run independent chains

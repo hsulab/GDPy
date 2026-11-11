@@ -1,6 +1,6 @@
 # deepmd
 
-## Installation
+## installation
 
 Install the optional DeepMD dependencies from the repository root:
 
@@ -18,7 +18,7 @@ training environment. DPA4 requires the DeepMD 3 PyTorch backend; install the
 `deepmd3-torch` extra or use one of the complete DeepMD 3 commands in
 {doc}`../installation`.
 
-## Configuration
+## configuration
 
 **gdp** converts structures into the DeepMD format stored in two folders `train`
 and `valid` based on `dataset` and writes a training configuration `deepmd.json`.
@@ -59,7 +59,7 @@ initialise model parameters from a previous checkpoint. This is useful when
 training models iteratively in an active learning loop.
 :::
 
-## Run the training examples
+## run the training examples
 
 The repository includes small CPU examples for `se_e2_a`, DPA4, and DPA4C
 under `examples/training/`. See the [training examples README](https://github.com/hsulab/GDPy/blob/main/examples/training/README.md)

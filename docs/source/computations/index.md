@@ -22,7 +22,7 @@ The {ref}`H2O/Ni(111) restraint example <compute-ni-water-restraint-example>`
 shows a built-in distance modifier broadcast over several windows and combined
 with an xreac ReaxFF potential.
 
-## Runtime layout
+## runtime layout
 
 A runtime has a `potential`, an `executor`, optional `modifiers`, an optional
 `scheduler`, and optional worker `dispatch`. In a runtime YAML file,

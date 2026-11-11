@@ -5,7 +5,7 @@
 Screen several trial positions for atomic insertion and account for their
 cavity count in exchange acceptance.
 
-## Configuration
+## configuration
 
 Place this fragment under `executor.parameters.setup.operators` for MC/HMC
 or `strategy.operators` for basin hopping. Preset MC and hybrid MC read
@@ -23,7 +23,7 @@ basin hopping adds them to the operator:
     radius: 3.0
 ```
 
-## Settings
+## settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ basin hopping adds them to the operator:
 See {ref}`sampling-operator-shared-settings` for temperature, relative selection
 weights, regions, particle tags, and distance checks.
 
-## Proposal and acceptance
+## proposal and acceptance
 
 Only atomic chemical symbols are supported. Insertion samples `num_trials`
 positions and screens their distances to existing atoms, ignoring interactions
@@ -58,7 +58,7 @@ requires a nearby atom. The example specifies only a minimum distance, allowing
 isolated insertion sites. This operator uses its own screening rather than the
 ordinary exchange retry loop.
 
-## Equilibrium-sampling limitation
+## equilibrium-sampling limitation
 
 The cavity-count factor alone does not establish detailed balance for every
 branch. In particular, the zero-cavity fallback submits an unscreened insertion;

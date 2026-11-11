@@ -4,13 +4,13 @@
 
 The `cp2k` provider configures CP2K input templates and electronic settings.
 
-## Requirements
+## requirements
 
 Provide a CP2K executable, input template, and the basis/pseudopotential data
 referenced by the input. Backend `interactive` requires a shell-capable CP2K
 executable; replace `cp2k_shell.psmp` below with your shell command.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ executable; replace `cp2k_shell.psmp` below with your shell command.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### cp2k + cp2k
 
@@ -71,7 +71,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 `template` supplies the CP2K input text. When present, the adapter leaves
 `cutoff`, `max_scf`, and `xc` to the template unless explicitly supplied as

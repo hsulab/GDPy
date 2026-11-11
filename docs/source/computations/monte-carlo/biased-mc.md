@@ -1,4 +1,4 @@
-# Biased Monte Carlo
+# biased monte carlo
 
 `native/biased_monte_carlo` runs an independent chain for each input structure
 with `gdp compute`. It minimises the initial structure and every valid proposal,
@@ -14,7 +14,7 @@ this method has no population selection or generations. Standard
 geometry filters. Biased MC permits those filters and requires fixed-cell
 minimisation. It cannot be used as an {doc}`HMC <hmc>` child.
 
-## EMT example
+## emt example
 
 ```{literalinclude} ../../../../examples/monte_carlo/biased.yaml
 :language: yaml
@@ -29,7 +29,7 @@ gdp -d run-biased-mc compute examples/monte_carlo/assets/cu32.xyz --runtime exam
 EMT is bundled with ASE; no model file is required. This short example illustrates
 the input and output workflow.
 
-## Minimisation settings
+## minimisation settings
 
 Configure the evaluator under `parameters.setup.evaluation`. The provider defaults
 to `ase`; biased MC always selects `min`, so no `method` field is needed.
@@ -70,7 +70,7 @@ worker batches compatible minimisation requests across chains. A different evalu
 potential. Evaluation-specific `output` and `random_seed` settings also go
 directly under `evaluation`; provider-specific setup fields need no wrapper.
 
-## Ensembles and filters
+## ensembles and filters
 
 Use the shared `parameters.setup.ensemble` mapping with `nvt`, `uvt`, or `suvt`.
 Temperature and chemical potentials supply the existing operator acceptance
@@ -86,7 +86,7 @@ are exhausted, the invalid proposal consumes an MC step without minimisation
 and retains the previous state. See {doc}`operators/index` for operator-specific
 filter behavior. Basin-hopping filters remain available independently.
 
-## Output and restart
+## output and restart
 
 A single input writes directly in the compute directory; batches use `candN`
 for each chain. Paths below are relative to the chain directory.

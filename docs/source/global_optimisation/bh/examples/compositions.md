@@ -1,12 +1,12 @@
 (bh-composition-broadcast-example)=
 
-# Cu<sub>6</sub>Ni<sub>2</sub> and Cu<sub>4</sub>Ni<sub>4</sub> composition sweep
+# cu<sub>6</sub>ni<sub>2</sub> and cu<sub>4</sub>ni<sub>4</sub> composition sweep
 
 This example runs independent Cu₆Ni₂ and Cu₄Ni₄ basin-hopping searches with
 EMT. Both use seed 7, two initial candidates, and two hopping rounds. The move
 operator acts on both species, preserving each search's composition.
 
-## Input
+## input
 
 The `broadcast` field replaces the entire composition mapping for each search.
 Keeping the element counts together produces exactly two compositions.
@@ -21,7 +21,7 @@ Pair this exploration with the EMT runtime:
 :language: yaml
 ```
 
-## Run
+## run
 
 Use the working directory indicated with each command:
 
@@ -40,7 +40,7 @@ adapt account/partition settings in the supplied script, and submit:
 sbatch examples/global_optimisation/two_explorations.slurm
 ```
 
-## Outputs and restart
+## outputs and restart
 
 - `run-cu-ni-compositions/expo.00/`: Cu₆Ni₂ candidates, results, and checkpoints.
 - `run-cu-ni-compositions/expo.01/`: Cu₄Ni₄ candidates, results, and checkpoints.

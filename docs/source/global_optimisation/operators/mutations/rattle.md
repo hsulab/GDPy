@@ -17,7 +17,7 @@ operators:
 When `mutation` is a list, `probability` is the relative selection weight of
 this mutation. It defaults to `1.0` and is not part of the displacement itself.
 
-## Parameters
+## parameters
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ three-dimensional displacement can be larger than this value. Larger values
 explore more distant configurations but also increase the chance that a trial
 is rejected by the minimum-distance checks.
 
-## Atoms, fragments, and substrate
+## atoms, fragments, and substrate
 
 With the default `system.preserve_fragments: true`, all atoms sharing one
 positive ASE tag receive the same displacement. The mutation therefore moves

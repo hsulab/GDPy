@@ -4,7 +4,7 @@
 
 The `mace` provider loads local MACE checkpoints.
 
-## Requirements
+## requirements
 
 From the repository root:
 
@@ -29,7 +29,7 @@ verification, and dependency conflicts with other providers.
 LAMMPS requires a separate binary with the MACE pair style and a compatible
 exported model.
 
-## Backends
+## backends
 
 | Potential backend | Executor | Default | Description |
 | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ exported model.
 Backend defaults depend on the executor. The comments in each configuration
 show whether `potential.backend` can be omitted.
 
-## Configurations
+## configurations
 
 ### ase + ase
 
@@ -72,7 +72,7 @@ executor:
   method: spc
 ```
 
-### Parameter notes
+### parameter notes
 
 `model` accepts an existing path or list of paths. The ASE adapter passes
 `precision` (default `float32`) as `default_dtype`, selecting CUDA if available
@@ -85,7 +85,7 @@ to `lmp`.
 
 See {doc}`../trainers/mace` for training.
 
-### MACE-OMAT-0 Small runtime
+### mace-omat-0 small runtime
 
 For these global optimisation examples, store model files in `models/` under
 the repository root and run from the exploration's method folder. The supplied
@@ -104,7 +104,7 @@ This runtime uses GDPy's standard ASE path. The compiled timings below were
 measured with the upstream calculator; GDPy's current MACE adapter does not
 forward `compile_mode`.
 
-## Foundation-model CPU inference
+## foundation-model cpu inference
 
 Local checkpoints from the
 [official MACE foundation registry](https://github.com/ACEsuit/mace-foundations)

@@ -15,7 +15,7 @@ Princeton-specific paths and scheduler settings.
 The changing potential and datasets are explicit loop-carried state. The
 workflow never updates an external `shared/` directory.
 
-## Complete YAML
+## complete yaml
 
 The documentation includes the checked-in example directly, so the displayed
 configuration is always the same file used by the validation commands below.
@@ -26,7 +26,7 @@ configuration is always the same file used by the validation commands below.
 :linenos:
 ```
 
-## Execution graph
+## execution graph
 
 The two validation branches are workflow targets. Following their dependencies
 executes the same computational steps as the original configuration without a
@@ -52,7 +52,7 @@ Shared upstream steps execute once per iteration even though the workflow has
 two validation endpoints. The compiler creates the required internal barrier
 for multiple targets automatically.
 
-## Resources and provider configuration
+## resources and provider configuration
 
 The original variables are represented as typed resources:
 
@@ -73,7 +73,7 @@ The training step initializes from the models in `current_potential`. Its output
 becomes the next iteration's potential, so there is no `active` flag, model-path
 discovery, or shared potential symlink.
 
-## Site parameters
+## site parameters
 
 Paths and commands that commonly change are declared together at the top of
 the file:
@@ -105,7 +105,7 @@ gdp workflow run examples/workflows/active-learning.yaml \
 Shell expansion occurs before the value reaches GDPy. Quote values when they
 contain spaces or YAML punctuation.
 
-## Inspect before running
+## inspect before running
 
 Validation checks the schema, registered node types, constructor arguments,
 references, and cycles without submitting calculations:
@@ -120,7 +120,7 @@ Validation does not verify that external model files, executables, remote
 hosts, scheduler accounts, or pseudopotentials exist. Those are checked only
 when the corresponding resources and calculations are used.
 
-## Repeated execution
+## repeated execution
 
 The workflow uses:
 
@@ -151,7 +151,7 @@ state rather than replacing completed calculation directories.
 The state manifest is committed before an iteration is marked finished, so an
 interrupted iteration cannot publish a partial dataset or potential.
 
-## Durable artifacts
+## durable artifacts
 
 Loop state is a small pointer layer over append-only artifacts:
 

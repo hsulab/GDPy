@@ -1,4 +1,4 @@
-# Semi-grand-canonical: Cu/Ni identity changes
+# semi-grand-canonical: cu/ni identity changes
 
 Start from Cu16Ni16 in the same fixed cell. Half the operator selections attempt
 a displacement; the other half attempt a Cu ↔ Ni identity change. Total
@@ -17,7 +17,7 @@ the Ni value relative to Cu therefore favours Ni. Only the difference matters:
 chemical contribution. The demonstration uses equal chemical potentials;
 this does not impose equal concentrations.
 
-## Run
+## run
 
 Run the complete sampling runtime from the repository root:
 

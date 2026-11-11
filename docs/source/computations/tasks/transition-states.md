@@ -2,7 +2,7 @@
 
 (compute-neb-example)=
 
-## NEB: a surface-diffusion path
+## neb: a surface-diffusion path
 
 NEB needs an ordered path or two endpoints with the same atom ordering and
 cell. A flat list of unrelated structures is not a reaction path.
@@ -58,7 +58,7 @@ pass a nested Python list to this worker.
 Inspect the image trajectories in `neb-demo` and check convergence before
 using the energy profile as a barrier.
 
-## NEB: O-H dissociation on Ni(111)
+## neb: o-h dissociation on ni(111)
 
 The repository also includes `examples/compute/ni111_water_neb/`, an
 illustrative O-H dissociation path using the same Ni(111)/water structure as
@@ -89,7 +89,7 @@ the saddle with vibrational analysis.
 
 (compute-dimer-example)=
 
-## Dimer: a local transition-state search
+## dimer: a local transition-state search
 
 Dimer searches start from one structure near a saddle point. The CP2K executor
 supports `dimer` (also represented internally as `ts`). With a prepared CP2K

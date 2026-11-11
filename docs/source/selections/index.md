@@ -83,6 +83,6 @@ However, it will not check whether the input structures are different from the l
 Remove output files before selection if necessary.
 :::
 
-## List of Selectors
+## list of selectors
 
 See {doc}`methods` for property and descriptor selectors.
