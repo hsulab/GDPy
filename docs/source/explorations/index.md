@@ -77,7 +77,7 @@ Use {doc}`MD simulated annealing <../global_optimisation/simulated-annealing>`
 to evolve a population through parallel cooling cycles, endpoint minimisation,
 and selection of diverse low-energy structures.
 
-Start with the {doc}`global optimisation overview <../global_optimisation/overview>`
+Start with the {doc}`global optimisation overview <../global_optimisation/index>`
 for the shared configuration and a runnable demo using either a separate
 `runtime.yaml` or a runtime embedded in `expo.yaml`.
 
