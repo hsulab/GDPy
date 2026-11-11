@@ -2,33 +2,46 @@
 
 # simulated annealing (sa)
 
-Simulated annealing is a population exploration run with `gdp explore`.
-It combines MD cooling over a user-selected temperature range for each generation with
-minimisation and selection of diverse low-energy structures.
+Simulated annealing (SA) searches for low-energy structures through repeated
+MD cooling and minimisation, using `gdp explore`.
 
 ## Search cycle
 
-Generation 0 builds and minimises the initial structures. The shared
-{doc}`population <population>` ranks them by energy (or formation energy) and
-removes duplicates using the configured comparator.
+```{figure} simulated_annealing.svg
+:alt: "Simulated annealing workflow with population selection, MD cooling, snapshot selection, and minimisation."
+:width: 100%
 
-For each subsequent generation:
+Simulated annealing search cycle.
+```
 
-1. Choose `system.generation.total_size` parents from the retained population
-   using fitness weights. Selection is without replacement when enough parents
-   exist, and with replacement otherwise.
-2. Start independent MD trajectories with fresh velocities. Run all candidates
-   as a batch, cooling linearly from start to end in
-   `strategy.temperatures[generation - 1]`.
-3. Select snapshots from each successful MD trajectory and minimise them with
-   the minimisation runtime. By default, select only the final snapshot.
-4. Store every endpoint minimum, refresh the retained population from all
-   generations, and repeat.
+In the first generation (generation 0),
 
-The retained population has at most `system.retained_size` distinct candidates.
-Older minima remain eligible, so an unsuccessful generation does not discard
-the best structures. This initial version uses supplied builders for generation
-0 only; later generations restart from selected minima.
+1. Generate `system.initial.total_size` structures using the configured builders.
+2. Minimise all initial structures with the minimisation runtime.
+3. Rank the resulting minima by energy (or formation energy) using the shared
+   {doc}`population <population>`.
+4. Remove duplicates using the configured comparator and retain up to
+   `system.retained_size` distinct candidates.
+
+In the following generations, the search repeats four steps:
+
+1. Select `system.generation.total_size` structures from the retained population
+   using fitness weights. Selection is without replacement when enough
+   candidates are available, and with replacement otherwise.
+2. Start an independent MD trajectory from each selected structure with fresh
+   velocities. Run the trajectories as a batch, cooling linearly over the
+   temperature range specified by `strategy.temperatures[generation - 1]`.
+3. Apply `strategy.selection` to the successful trajectories and minimise the
+   selected snapshots as one batch. By default, select the last saved frame of
+   each trajectory. The selector's `group_by` controls whether selection acts
+   across the whole generation or within individual trajectories.
+4. Store the resulting minima and rank them alongside those from earlier
+   generations. Remove duplicates and retain up to `system.retained_size`
+   distinct candidates for the next generation.
+
+Earlier minima remain eligible throughout the search, so a generation that
+finds no better structures does not discard the best results. Builders are
+used only in generation 0; subsequent generations start from retained minima.
 
 ## Candidate tags
 

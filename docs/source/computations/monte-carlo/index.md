@@ -8,7 +8,7 @@ changes and an {doc}`ensemble <ensembles>` to set the thermodynamic conditions.
 
 ## Schemes
 
-```{figure} monte_carlo.png
+```{figure} monte_carlo.svg
 :alt: "Monte Carlo workflow: evaluate the initial structure, optionally run a simulation, then perform MC steps consisting of proposal, evaluation, and Metropolis acceptance."
 :width: 100%
 
