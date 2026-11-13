@@ -125,6 +125,7 @@ command: gdp explore <explorations/index>
 :hidden:
 
 global_optimisation/index
+reaction_sampling/index
 ```
 
 ```{toctree}

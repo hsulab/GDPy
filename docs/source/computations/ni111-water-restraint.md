@@ -60,7 +60,7 @@ This deliberately short trajectory is a mechanics test, not equilibrated
 sampling and not a free-energy calculation. Broadcast supplies the independent
 windows that can precede umbrella sampling. For automatic equilibration,
 multiple replicas, restart metadata, and active-learning selection, see the
-{doc}`umbrella-sampling exploration <../explorations/umbrella-sampling>`. Neither
+{doc}`umbrella-sampling exploration <../reaction_sampling/umbrella-sampling>`. Neither
 workflow performs replica exchange or free-energy reconstruction. A free-energy
 workflow must also verify overlap between neighboring distance distributions and
 combine them with an appropriate unbiased estimator. The bundled force field is

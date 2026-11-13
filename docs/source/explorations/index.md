@@ -2,95 +2,44 @@
 
 # gdp explore
 
-Exploration proposes and selects candidate structures. Execution evaluates
-those candidates through a complete runtime. Genetic algorithms, basin hopping,
-and other search policies remain independent of the evaluation backend.
-Standard, biased, and hybrid {doc}`Monte Carlo <../computations/monte-carlo/index>`
-run through `gdp compute`; umbrella sampling remains here pending a separate migration.
+`gdp explore` explores the configuration space of a chemical system according
+to user-defined rules. These rules determine how candidate structures are
+generated, evaluated, and selected to guide further exploration.
 
-Run a complete exploration configuration with:
+## run an exploration
+
+Run an exploration with a separate calculation runtime:
+
+```shell
+gdp -d results --runtime runtime.yaml explore exploration.yaml
+```
+
+Place `--runtime` before `explore`. Alternatively, define `runtime` inside
+`exploration.yaml` and omit the command-line option:
 
 ```shell
 gdp -d results explore exploration.yaml
 ```
 
-See the method guides below for complete input examples, the
-{ref}`MC operator reference <sampling-operators>` for equilibrium-sampling
-requirements, and {ref}`basin-hopping operators <bh-operators>` for structure search.
+The input selects a `method`, defines the structures and search settings, and
+can set a `random_seed`. The method guides below provide complete inputs.
+See {doc}`runtime configurations <../computations/runtime>` for potentials and
+calculation settings.
 
-```yaml
-potential:
-  provider: deepmd
-  parameters:
-    model: [graph-0.pb, graph-1.pb]
-    type_list: [Al, Cu, O]
-executor:
-  provider: lammps
-  method: min
-  parameters:
-    setup:
-      constraint: '`zbot 120`'
-    stop:
-      fmax: 0.05
-      steps: 400
-```
-
-This runtime executes directly on the current machine by default. Add a
-{ref}`scheduler configuration <scheduler-transport>` for queue or SSH execution.
-
-The exploration layer owns proposal state, convergence, and selection. The
-execution layer owns materialization, job submission, restart, and result
-collection.
-
-Global-optimisation inputs use `system` and `strategy` sections. The system
-owns population construction; the strategy selects GA or BH and owns its
-operators, generation policies, objective, convergence, and archive behavior.
-Runtime and optional scheduler configuration remain separate execution concerns.
-MC uses compute’s `executor.parameters.setup/output/stop` layout. Population-based MD
-annealing uses `strategy.method: simulated_annealing` under global optimisation;
-the low-level cooling runner retains its `recipe` wrapper.
-
-```yaml
-method: global_optimisation
-runtime: {}
-random_seed: 7
-system:
-  builders:
-    random: {}
-strategy:
-  method: genetic_algorithm
-```
-
-Omitting the top-level `scheduler` also runs the exploration itself directly
-on the current machine.
-
-## rare-event sampling
-
-Use {doc}`umbrella sampling <umbrella-sampling>` to run equilibrated harmonic
-distance windows and multiple independent replicas. Its production trajectories
-can be grouped by restraint center for committee-uncertainty selection in an
-active-learning workflow.
+Execution is local by default. An optional top-level `scheduler` controls where
+the exploration runs; `runtime.scheduler` controls its candidate calculations.
+See {ref}`scheduler configuration <scheduler-transport>` for queue and SSH setup.
 
 ## global optimisation
 
-Use {doc}`MD simulated annealing <../global_optimisation/simulated-annealing>`
-to evolve a population through parallel cooling cycles, endpoint minimisation,
-and selection of diverse low-energy structures.
+Global optimisation searches for stable structures by finding low-energy
+regions of configuration space. See the
+{doc}`global optimisation guide <../global_optimisation/index>` for configuration
+and examples.
 
-Start with the {doc}`global optimisation overview <../global_optimisation/index>`
-for the shared configuration and a runnable demo using either a separate
-`runtime.yaml` or a runtime embedded in `expo.yaml`.
+## reaction sampling
 
-Use {doc}`genetic algorithms <../global_optimisation/genetic-algorithm>` or
-{doc}`basin hopping <../global_optimisation/basin_hopping>` to search for low-energy
-structures. These methods share {doc}`population configuration
-<../global_optimisation/population>` and {ref}`output conventions
-<exploration-output-layout>`. The older {doc}`GA configuration discussion
-<ga>` remains available as supplementary material.
-
-```{toctree}
-:maxdepth: 1
-:hidden:
-
-umbrella-sampling
-```
+Reaction sampling explores how a chemical system transforms between states,
+sampling configurations along reaction pathways and in transition regions.
+See the {doc}`reaction sampling guide <../reaction_sampling/index>` for
+configuration and examples.
