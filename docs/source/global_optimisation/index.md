@@ -2,256 +2,111 @@
 
 # global optimisation
 
-Global optimisation searches for low-energy atomic structures by repeatedly
-building candidates, relaxing them, and using the results to guide the next
-generation. GDPy provides three population-based strategies:
+Global optimisation searches the configuration space of a chemical system for
+low-energy structures. Starting from an initial population, it proposes new
+candidates, evaluates them, and retains promising structures to guide the search.
 
-| Strategy | How it proposes new candidates |
+The `system` defines the {doc}`population`, the `strategy` controls the search,
+and the `runtime` evaluates candidates. These roles let different search methods
+share the same structure builders and calculation settings.
+
+## configuration
+
+Set `method: global_optimisation` and configure the following sections:
+
+| Setting | Purpose |
 | --- | --- |
-| {doc}`Genetic algorithm <genetic-algorithm>` | Selects compatible parents for crossover, applies mutations, and fills any remaining generation slots with builders. |
-| {doc}`Basin hopping <basin_hopping>` | Selects starting structures for independent chains, then proposes, relaxes, and accepts or rejects a trial at each chain step. |
-| {doc}`Simulated annealing <simulated-annealing>` | Selects minima for independent MD cooling trajectories, then minimises their endpoints. |
+| `random_seed` | Seed for reproducible search choices |
+| `system` | Builders, population sizes, structural comparison, and extinction checks |
+| `strategy` | Search method, objective, operators, and stopping conditions |
+| `runtime` | Potential and calculation settings, supplied here or in a separate file |
+| `scheduler` | Where the exploration runs; local execution by default |
+| `broadcast` | Optional setting variations that expand one input into independent searches |
 
-All use `method: global_optimisation` and the same {doc}`population configuration
-<population>`. Generation 0 builds and evaluates the initial candidates. Later
-generations select from the best distinct, eligible candidates in the search
-history. The strategy determines how new candidates are produced; the runtime
-determines how they are evaluated.
+Generation 0 builds and evaluates the initial structures. Later generations use
+retained candidates to continue exploring. The {doc}`population` guide explains
+initialization, retention, and diversity; each method's guide describes how it
+produces new candidates.
 
-## configuration at a glance
+## run a small search
 
-Search configuration follows the same three-section layout as MC: `method`,
-`system`, and `strategy`. There is no `recipe` wrapper.
+This Cu₈ example uses basin hopping with ASE's EMT potential. It starts from
+four structures, retains up to two distinct candidates, and runs two chains of
+ten steps. It is a short demonstration, not a converged structure search.
 
-| Section | Purpose |
-| --- | --- |
-| `system` | Named builders, initialization, retained population size, generation size, comparison, and extinction rules. |
-| `strategy` | Algorithm method, operators, search policies, objective, convergence, and archive behavior. |
-| `random_seed` | Reproducible search random streams. |
-| `runtime` | Potential and executor used to evaluate candidates; can instead be supplied in a separate file. |
-| `scheduler` | Where the exploration loop runs; defaults to direct execution. |
-
-`system.initial.total_size` is the number of initial candidates.
-`system.retained_size` is the maximum number kept for selection and defaults
-to `system.generation.total_size`. The generation size counts offspring for
-GA and chains for BH. For BH, `strategy.steps_per_chain` counts attempted
-proposals per chain per generation, including rejected and invalid proposals.
-
-## demo: choose where to define the runtime
-
-These two layouts run the same Cu₈ basin-hopping search with ASE's EMT potential.
-The search builds four initial structures, retains up to two distinct candidates,
-and launches two chains of ten steps in generation 1. BH defaults to one hopping
-generation when `strategy.convergence` is omitted. The EMT runtime relaxes initial
-structures and valid trials with a force tolerance of 0.05 eV/Å.
-
-### separate `expo.yaml` and `runtime.yaml`
-
-Save this exploration configuration as `expo.yaml`:
+Save the exploration settings as `expo.yaml`:
 
 ```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
 :language: yaml
 :caption: expo.yaml
 ```
 
-Save the calculation settings separately as `runtime.yaml`:
+Save the calculation settings as `runtime.yaml`:
 
 ```{literalinclude} ../../../examples/global_optimisation/runtimes/emt.yaml
 :language: yaml
 :caption: runtime.yaml
 ```
 
-Run the search with `--runtime` **before** the `explore` subcommand:
+Run with `--runtime` before `explore`:
 
 ```shell
-gdp -d run-separate --runtime runtime.yaml explore expo.yaml
+gdp -d run-cu8 --runtime runtime.yaml explore expo.yaml
 ```
 
-This layout lets several explorations share one runtime. To compare suitable
-potentials, select another runtime file and use a new output directory. The
-repository examples use this layout; see the central
+A separate runtime can be reused across searches. You can also place its contents
+under a top-level `runtime` key in `expo.yaml` and omit `--runtime`.
+See {doc}`runtime configurations <../computations/runtime>` for calculation
+options. The top-level `scheduler` controls the exploration; `runtime.scheduler`
+controls candidate calculations.
+
+For other systems and search methods, start with the
 {doc}`examples catalogue <examples/index>`.
-
-### embed the runtime in `expo.yaml`
-
-Alternatively, keep the exploration settings above and append this top-level
-`runtime` section to `expo.yaml`. The contents of the separate runtime file
-become the value of `runtime`, indented by two spaces:
-
-```yaml
-runtime:
-  potential:
-    provider: emt
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      stop:
-        fmax: 0.05
-        steps: 1000
-```
-
-Now the single file contains both the search and its calculation settings:
-
-```shell
-gdp -d run-embedded explore expo.yaml
-```
-
-Use either layout with GA or BH. A minimization runtime supplies the local
-relaxation used by both strategies. See {doc}`runtime configurations
-<../computations/runtime>` for other potentials and calculation settings.
-`runtime.scheduler` schedules candidate calculations, while the top-level
-`scheduler` schedules the exploration loop itself.
-
-## switch to a genetic algorithm
-
-Keep the shared `system` and chosen runtime layout. Replace the BH
-`strategy` section with:
-
-```yaml
-strategy:
-  method: genetic_algorithm
-  convergence:
-    generation: 1
-  reproduction:
-    size: 2
-    mutation_probability: 0.5
-  mutation:
-    size: 0
-  completion:
-    builder_proportions:
-      - builder: init
-        proportion: 1.0
-  operators:
-    crossover:
-      method: cut_and_splice
-    mutation:
-      method: rattle
-```
-
-This produces two offspring after initialization. Parent compatibility follows
-the crossover operator automatically; no composition-selection switch is needed.
-See {doc}`population` for the shared settings and {doc}`genetic-algorithm` for
-reproduction, mutation, and completion behavior.
-
-## combine random candidates and seed structures
-
-The {doc}`seeded Cu₈ basin-hopping example <bh/examples/seeded-cluster>` uses
-two initial builders: `random_structure_improved` creates two candidates and
-a `direct` builder reads two frames from a seed file. Exact builder allocations
-combine them into one initial population, evaluated by the same runtime.
-
-## results and restart
-
-Inspect `gdp.out` for progress, `candidates.db` for evaluated candidates, and
-`results/` for strategy-specific reports and history figures. Rerun the same
-command with the same configuration and output directory to resume interrupted
-work. Use a new directory when changing the strategy, runtime, or search setup.
-See {ref}`exploration-output-layout` for the complete directory layout and restart conventions.
 
 (exploration-output-layout)=
 
-## exploration output layout
+## results and restart
 
-For a single exploration, `gdp -d work explore ...` writes algorithm outputs,
-checkpoints, calculation directories, and `gdp.out` directly under `work/`.
-There is no enclosing `expedition-0` directory.
+For a single exploration, outputs are written directly into the directory
+specified by `-d`:
 
-GA and BH save search history figures under `results/history/`: GA writes
-`family_tree.png`, and BH writes `genNNNN.png` for each generation. This replaces
-GA's former `results/family_tree.png` and BH's `results/lineage/` paths. Existing
-figures remain in place; reporting a completed search writes the new paths.
+| Path | Contents |
+| --- | --- |
+| `gdp.out` | Progress and diagnostics |
+| `candidates.db` | Evaluated structures and search metadata |
+| `results/` | Method-specific reports and history figures |
+| `tmp_folder/` | Intermediate calculations and checkpoints |
+| `_meta/` | Exploration inputs, launch scripts, and scheduler records |
 
-When a recipe creates multiple explorations, each has its own `expo.<index>`
-directory. Indices start at zero. The number of decimal digits in the exploration
-count is rounded up to the next even width:
+Rerun the same command with the same configuration and output directory to resume
+interrupted work. Keep the scheduler provider and exploration count unchanged.
+Use a fresh directory when changing the search settings, runtime, or sweep values.
+Legacy `expedition-*` layouts require a new run.
 
-| Explorations | Output directories |
-| ---: | --- |
-| 2 | `expo.00`, `expo.01` |
-| 10 | `expo.00` through `expo.09` |
-| 100 | `expo.0000` through `expo.0099` |
-| 10,000 | `expo.000000` through `expo.009999` |
+## run multiple searches
 
-The exploration worker keeps its bookkeeping in one shared `work/_meta/`:
+A top-level `broadcast` mapping expands an input into independent searches.
+For example, add this block to a suitable Cu–Ni search input to vary composition:
 
-- `_scheduler.json`: scheduler provider, saved exploration count, relative output
-  directories, and submission/completion records in one file for every provider.
-  Its `scheduler` table records `provider` (for example, `direct` or `slurm`),
-  its `layout` table records directories, and TinyDB’s `_default` table holds jobs.
-- `exp-<uuid>.json`: generated exploration inputs, including the calculation runtime.
-- `run.script-<uuid>`: scripts that launch each exploration in its output directory.
+```{code-block} yaml
+:caption: YAML
 
-Runs using separate `_meta/layout.json` (or `exploration.json`) and
-`_<scheduler>_jobs.json` files, or the interim `_<scheduler>.json` files, remain
-resumable. The worker validates and merges them into `_scheduler.json`,
-preserving job identifiers and status, then removes
-the old files. Read-only layout inspection does not migrate files.
-
-Explorations do not need separate metadata directories for the exploration
-worker. Calculation workers inside them retain their own caches and job records.
-Default scheduler artifacts are written beside the submission scripts; explicit
-scheduler output settings remain in effect. The main `gdp.out` stays in the
-working directory, and separately launched explorations log in their output
-directories.
-
-Resume with the same working directory, scheduler provider, and exploration count. Changing the count
-requires a fresh directory. Existing layouts with root-level job records or
-`expedition-*` directories are detected and rejected; they are not automatically
-moved or resumed by the new layout.
-
-### broadcast compositions in one allocation
-
-A top-level `broadcast` mapping expands one recipe into independent searches:
-
-```yaml
-method: global_optimisation
 broadcast:
   system.builders.init.composition:
     - {Cu: 6, Ni: 2}
     - {Cu: 4, Ni: 4}
-strategy:
-  method: basin_hopping
-  # Full system, operators, and convergence settings.
 ```
 
-Run the complete supplied Cu–Ni example from its method folder:
+Keys identify settings by dotted paths; each listed value replaces that setting
+in one search. Multiple keys generate all combinations of their values. Keep
+coupled settings together, as with the complete composition dictionaries above.
+See the {doc}`composition sweep example <bh/examples/compositions>` for a complete
+input and run command.
 
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
-  --runtime ../../runtimes/emt.yaml \
-  explore ./cu_ni_compositions.yaml
-```
-
-This runs two short EMT searches sequentially, using seed 7 for both. Cu₆Ni₂
-writes to `expo.00` and Cu₄Ni₄ to `expo.01`. Submit
-`sbatch examples/global_optimisation/two_explorations.slurm` to run both within
-one allocation; adapt environment/account/partition settings to your cluster.
-
-Broadcast keys are dotted paths into top-level search settings, including numeric
-list indices such as `strategy.operators.0.temperature`. Each value is a nonempty list of alternatives;
-an alternative replaces the entire target value, including dictionaries or lists.
-Parents must exist, but final mapping keys may introduce optional settings.
-Invalid paths, empty alternatives, and overlapping paths are rejected.
-
-Multiple fields generate a Cartesian product in field/value order, with the
-rightmost field varying fastest. Broadcast whole composition dictionaries to
-keep element counts paired; broadcasting Cu and Ni separately generates all
-combinations. Values in `broadcast` override the base recipe. Ordinary recipe
-lists are unchanged. GA's existing chemical-potential expansion is applied
-within each explicit broadcast combination.
-
-Generated exploration inputs contain only resolved recipes. Rerun unchanged
-settings to resume; use a fresh directory when changing sweep values or order.
-Direct scheduling executes the searches sequentially. Selecting a queue
-scheduler retains its usual separate submission per exploration.
-
-## examples by system
-
-Choose a physical system from the {doc}`examples catalogue <examples/index>`,
-then select its GA, BH, or SA recipe. Shared
-system descriptions and method-specific inputs live in the same catalogue.
+Each search gets its own directory, such as `expo.00` and `expo.01`, while
+`_meta/` holds shared submission records. Direct scheduling runs the searches
+sequentially; a queue scheduler submits them separately. Resume with the same
+values and ordering.
 
 ```{toctree}
 :maxdepth: 4
