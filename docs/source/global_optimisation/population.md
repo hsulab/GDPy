@@ -6,7 +6,9 @@ The population retains the best distinct, eligible structures from the search
 history. All global optimisation methods share the following `system`
 configuration:
 
-```yaml
+```{code-block} yaml
+:caption: YAML
+
 system:
   periodic: false
   preserve_fragments: false
@@ -119,7 +121,9 @@ methods and their settings.
 
 Population membership is rebuilt using this simplified Python logic:
 
-```python
+```{code-block} python
+:caption: Python
+
 retained = []
 # Higher objective scores are better; history contains eligible candidates.
 ranked = sorted(history, key=objective_score, reverse=True)
