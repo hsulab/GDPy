@@ -26,8 +26,34 @@ population construction under `system`, and put objective, convergence,
 archive, operators, and method-specific settings under `strategy`. Keep the
 seed at the top level. GA generation
 policies move from `population.generation` to `strategy`; `population.name` is
-removed because crossover compatibility is automatic. See
-{doc}`global_optimisation/population` for the complete migration table.
+removed because crossover compatibility is automatic. The field mapping is listed below.
+
+| Previous setting | Replacement |
+| --- | --- |
+| `method: genetic_algorithm` or `method: basin_hopping` | `method: global_optimisation` and `strategy.method` |
+| Top-level `population` | `system` |
+| Top-level `objective` | `strategy.objective` |
+| Top-level `convergence` | `strategy.convergence` |
+| Top-level `use_archive` | `strategy.use_archive` |
+| `recipe` wrapper | Move system and algorithm settings into `system` and `strategy` |
+| `recipe.operators` | `strategy.operators` |
+| GA `population.generation.reproduction/mutation/completion` | Corresponding sections under `strategy` |
+| GA `population.substrate` | `strategy.substrate` |
+| GA `population.name` | Remove; crossover compatibility is automatic |
+| BH `recipe.num_mcmoves` or `strategy.num_mcmoves` | `strategy.steps_per_chain` |
+| BH `recipe.selection` | `strategy.selection` |
+| BH `population.initial_size` | `system.initial.total_size` |
+| BH `population.population_size` | `system.retained_size` |
+| BH `population.generation_size` | `system.generation.total_size` |
+| BH `population.random_offspring_generator` or recipe `builder` | `system.builders` and `system.initial.builder_allocations` |
+| GA `operators.comparator` or `operators.mobile.comparator` | `system.comparator` |
+| BH comparator `name` | comparator `method` |
+
+Old YAML fields raise migration errors rather than silently changing meaning.
+Use `comparator: {method: atoms}` to retain BH's former exact-equality comparison.
+BH now launches the exact requested number of chains even when its retained pool
+is underfilled. Named random streams and the changed selection policy mean that
+migrated BH runs need not reproduce old trajectories bit for bit.
 
 The former concurrent-hopping search is the `basin_hopping` strategy. Configure
 initialization and batched hop calculations with the top-level `runtime`;
