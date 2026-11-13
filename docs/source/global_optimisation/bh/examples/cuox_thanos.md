@@ -1,6 +1,6 @@
 (bh-cuox-thanos-example)=
 
-# cu<sub>4</sub>o<sub>4</sub> cluster with o–o extinction
+# copper oxide cluster: extinction filtering
 
 This example exercises Thanos on a gas-phase Cu₄O₄ cluster using MatterSim.
 The default periodic setting uses a 20 × 20 × 20 Å periodic vacuum cell, avoiding

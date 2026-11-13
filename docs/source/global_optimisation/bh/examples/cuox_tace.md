@@ -1,6 +1,6 @@
 (bh-cuox-tace-example)=
 
-# cu<sub>4</sub>o<sub>4</sub> cluster with tace
+# copper oxide cluster: tace potential
 
 This self-contained example searches for low-energy Cu₄O₄ clusters with the
 small TACE-OAM-7M foundation model. Four random structures are relaxed in a

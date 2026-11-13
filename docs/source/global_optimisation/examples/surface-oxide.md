@@ -1,6 +1,6 @@
 (ga-surface-oxide-example)=
 
-# cu<sub>4</sub>o<sub>4</sub>/cu(111) surface oxide
+# copper surface oxide: fixed composition
 
 This example searches Cu–O reconstructions on a two-layer Cu(111)-p(2×2)
 substrate. The right-angled surface cell contains eight substrate Cu atoms. Four

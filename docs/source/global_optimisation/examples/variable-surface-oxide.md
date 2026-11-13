@@ -1,6 +1,6 @@
 (ga-variable-surface-oxide-example)=
 
-# cu<sub>x</sub>o<sub>y</sub>/cu(111) surface oxide
+# copper surface oxide: variable composition
 
 This example searches CuₓOᵧ structures on the same two-layer
 Cu(111)-p(2×2) substrate used by the fixed-composition surface-oxide example.

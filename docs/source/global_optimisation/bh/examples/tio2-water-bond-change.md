@@ -1,6 +1,6 @@
 (bh-tio2-water-bond-change)=
 
-# water dissociation and recombination on tio₂
+# water on titania: dissociation and recombination
 
 Use {doc}`../operators/bond_change` to search molecular and
 dissociated water adsorption with xreac's Monti2012 Ti/O/H parameters. The

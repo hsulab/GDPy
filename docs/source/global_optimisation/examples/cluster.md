@@ -1,6 +1,6 @@
 (cu8-example)=
 
-# cu<sub>8</sub> cluster
+# copper cluster
 
 Search for low-energy structures of an isolated eight-atom copper cluster with
 ASE's Effective Medium Theory (EMT) potential. A 20 × 20 × 20 Å periodic vacuum

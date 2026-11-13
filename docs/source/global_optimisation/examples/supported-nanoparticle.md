@@ -1,6 +1,6 @@
 (ga-supported-nanoparticle-example)=
 
-# cu<sub>4</sub>/α-al<sub>2</sub>o<sub>3</sub>(0001) supported cluster
+# copper cluster on alumina
 
 Search for low-energy Cu₄ clusters on α-Al₂O₃(0001), the basal surface
 corresponding to `(111)` in the rhombohedral setting. The genetic algorithm

@@ -1,6 +1,6 @@
 (co-cu111-example)=
 
-# co adsorption on cu(111)
+# carbon monoxide on copper
 
 This example searches positions and orientations of one CO molecule on an
 orthogonal Cu(111)-p(2×2) slab. The right-angled surface cell is rectangular,

@@ -1,6 +1,6 @@
 (ga-alloy-cluster-example)=
 
-# cu<sub>7</sub>ni<sub>6</sub> alloy cluster
+# copper–nickel cluster: chemical ordering
 
 This example searches the chemical ordering of a Cu7Ni6 alloy cluster. Four
 random cluster geometries are generated inside a spherical region and relaxed

@@ -1,6 +1,6 @@
 (bh-tio2-water-rotation)=
 
-# two or three neighboring waters on anatase (101)
+# water on titania: molecular orientations
 
 This example searches water orientations with {doc}`../../../computations/monte-carlo/operators/rotate`
 and xreac's bundled `ffield.reax.TiOH.Monti2012` parameters. GDPy's `reax` extra
