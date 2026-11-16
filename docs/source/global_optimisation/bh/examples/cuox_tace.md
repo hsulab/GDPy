@@ -2,13 +2,15 @@
 
 # copper oxide cluster: tace potential
 
+## system
+
 This self-contained example searches for low-energy Cu₄O₄ clusters with the
 small TACE-OAM-7M foundation model. Four random structures are relaxed in a
 20 Å periodic vacuum cell, then two basin-hopping chains each attempt eight
 moves. Every valid trial is locally minimized before acceptance at 500 K.
 This is a short demonstration, not a converged global-minimum search.
 
-## input
+## configuration
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu4o4.yaml
 :language: yaml
@@ -42,6 +44,8 @@ The first calculation downloads the approximately 29 MB checkpoint to
 or CUDA extensions. Relaxations are limited to 20 steps and may not reach the
 force tolerance. Use `device: cuda` on a compatible GPU installation.
 
+## results
+
 Under `run-cu4o4-bh-tace`, inspect `candidates.db` for relaxed
 structures and acceptance metadata, `results/history/gen0001.png` for the search
 history, and `tmp_folder/gen1/rounds/events.jsonl` for committed rounds.
@@ -49,7 +53,7 @@ Running the same command with the same directory resumes the search; a completed
 search does not add duplicate calculations. See {doc}`cluster` for trajectory
 export instructions.
 
-## model choice and validation
+### model validation
 
 The 7M models are the small current general-purpose foundation models in the
 upstream registry. On macOS arm64 with one Torch CPU thread, float32, the default

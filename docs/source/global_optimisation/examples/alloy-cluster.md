@@ -2,13 +2,15 @@
 
 # copper–nickel cluster: chemical ordering
 
+## system
+
 This example searches the chemical ordering of a Cu7Ni6 alloy cluster. Four
 random cluster geometries are generated inside a spherical region and relaxed
 with ASE's Effective Medium Theory (EMT) calculator. The following generation
 uses only swap mutation, making the example a focused demonstration of
 exchanging unlike atomic species without changing the composition.
 
-## input
+## configuration
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml`:
@@ -46,6 +48,8 @@ gdp -d ./run-cu7ni6-emt \
     --runtime ../../runtimes/emt.yaml explore \
     ./cu7ni6.yaml
 ```
+
+## results
 
 The search is stored under `run-cu7ni6-emt`, with its restart state
 in `candidates.db`. When it completes, `results/all_candidates.xyz` contains

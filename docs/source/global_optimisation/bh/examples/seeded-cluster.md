@@ -2,13 +2,15 @@
 
 # copper cluster: seeded initialization
 
+## system
+
 This example starts one basin-hopping search from **two random structures and
 two seed structures**. It uses two named builders in the same population:
 `random` generates fresh Cu₈ clusters and `seeds` reads selected frames from a
 checked-in structure file. All four initial candidates are relaxed using EMT
 before the search selects chain starts.
 
-## input
+## configuration
 
 Run from `examples/global_optimisation/explorations/basin_hopping/` so the seed-file path resolves correctly.
 The exploration input is
@@ -46,7 +48,22 @@ search evaluates at most 14 structures; invalid proposals do not trigger an
 evaluation. The shared {doc}`population settings <../../population>` explain
 initial, retained, and generation sizes.
 
-## run with emt
+### supply your own seeds
+
+Replace `system.builders.seeds.frames` with your structure-file path and
+set `indices` to the frames you want to include. Update the `seeds` allocation
+and `initial.total_size` together if the number of selected frames changes.
+Keep the cell, periodicity, composition, and tags consistent with the intended
+search and moves. For this atomic Cu₈ example, give each atom a distinct positive
+tag and preserve the periodic vacuum cell. Extended XYZ stores both the cell
+and tags; plain XYZ may omit this information.
+
+Seeds are starting geometries, not cached evaluations: their calculators and
+previous search metadata are cleared, and the configured runtime evaluates them
+again. Use a new output directory when changing the seed file or initialization
+allocations. Resume an interrupted run with the same configuration and seed file.
+
+## run
 
 Use the existing relaxation runtime:
 
@@ -62,6 +79,8 @@ including the seeds, and every valid hopping trial. You can also embed the
 runtime in the exploration file as shown in the
 {doc}`global optimisation overview <../../index>`.
 
+## results
+
 Inspect the initial candidates' builder provenance in the database:
 
 ```python
@@ -76,18 +95,3 @@ There are two initial rows labeled `random` and two labeled `seeds`, even if
 some candidates later relax to similar minima. Reports and the history figure
 are under `results/`; see the {doc}`basic Cu₈ example <cluster>` for trajectory
 export and the output layout.
-
-## supply your own seeds
-
-Replace `system.builders.seeds.frames` with your structure-file path and
-set `indices` to the frames you want to include. Update the `seeds` allocation
-and `initial.total_size` together if the number of selected frames changes.
-Keep the cell, periodicity, composition, and tags consistent with the intended
-search and moves. For this atomic Cu₈ example, give each atom a distinct positive
-tag and preserve the periodic vacuum cell. Extended XYZ stores both the cell
-and tags; plain XYZ may omit this information.
-
-Seeds are starting geometries, not cached evaluations: their calculators and
-previous search metadata are cleared, and the configured runtime evaluates them
-again. Use a new output directory when changing the seed file or initialization
-allocations. Resume an interrupted run with the same configuration and seed file.

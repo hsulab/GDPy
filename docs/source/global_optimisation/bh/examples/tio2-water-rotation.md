@@ -2,6 +2,8 @@
 
 # water on titania: molecular orientations
 
+## system
+
 This example searches water orientations with {doc}`../../../computations/monte-carlo/operators/rotate`
 and xreac's bundled `ffield.reax.TiOH.Monti2012` parameters. GDPy's `reax` extra
 pins the xreac source revision prepared for v0.10.0, which includes these Ti/O/H
@@ -17,7 +19,28 @@ shifted 0.5 Å toward the other, and one water is rotated about its oxygen so
 one hydrogen points toward the other oxygen. A 5° deviation from perfect
 alignment avoids an undefined collinear torsion derivative.
 
-## compare the two starting motifs
+## configuration
+
+```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml
+:language: yaml
+```
+
+```{literalinclude} ../../../../../examples/global_optimisation/runtimes/xreac_tioh.yaml
+:language: yaml
+```
+
+Two initial minima seed two chains with four attempted rotations each.
+Each rotation keeps its oxygen pivot fixed during the proposal, preserves
+the internal molecular geometry, and then relaxes all mobile atoms with
+BFGS. This includes oxygen motion and possible water dissociation; original
+tags identify the proposed groups, not a dynamic bond assignment.
+The calculation runtime applies the fixed-bottom-layer constraint explicitly.
+The `atoms` comparator keeps geometrically distinct candidates without
+introducing orientation-insensitive duplicate filtering in this short demo.
+
+## run
+
+### prepare and compare seeds
 
 Run these seed-comparison scripts from the repository root:
 
@@ -57,15 +80,7 @@ contacts. This captures the three-neighbor motif in the reference image;
 the screenshot supplies an arrangement, not numerical atomic coordinates.
 The same adsorption and hydrogen-bond diagnostics cover all water pairs.
 
-## basin hopping with molecular rotations
-
-```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml
-:language: yaml
-```
-
-```{literalinclude} ../../../../../examples/global_optimisation/runtimes/xreac_tioh.yaml
-:language: yaml
-```
+### start the search
 
 ```shell
 # Working directory: examples/global_optimisation/explorations/basin_hopping
@@ -78,20 +93,13 @@ Replace the exploration input with `tio2_water3.yaml` and use a new output
 directory to run the three-water search with the same rotation settings and
 calculation runtime.
 
-Two initial minima seed two chains with four attempted rotations each.
-Each rotation keeps its oxygen pivot fixed during the proposal, preserves
-the internal molecular geometry, and then relaxes all mobile atoms with
-BFGS. This includes oxygen motion and possible water dissociation; original
-tags identify the proposed groups, not a dynamic bond assignment.
-The calculation runtime applies the fixed-bottom-layer constraint explicitly.
-The `atoms` comparator keeps geometrically distinct candidates without
-introducing orientation-insensitive duplicate filtering in this short demo.
+## results
 
 Inspect `candidates.db` for every evaluated minimum, including rejected
 trials, and `results/history/gen0001.png` for the chain history. Four hops
 per chain demonstrate the operator and are not an exhaustive stability search.
 
-## validation result
+### validation
 
 With xreac source revision `2d0f2bd` and Monti2012, the supplied short search
 completed all eight rotations, retaining ten evaluated minima including the

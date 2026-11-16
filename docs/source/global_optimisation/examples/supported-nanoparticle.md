@@ -2,6 +2,8 @@
 
 # copper cluster on alumina
 
+## system
+
 Search for low-energy Cu₄ clusters on α-Al₂O₃(0001), the basal surface
 corresponding to `(111)` in the rhombohedral setting. The genetic algorithm
 (GA), basin-hopping (BH), and simulated annealing (SA) recipes generate random Cu
@@ -9,8 +11,6 @@ clusters above the same substrate. Supply a runtime with a potential suitable
 for Cu, Al, O, and their interfaces; the exploration inputs are independent
 of the model. See the {doc}`potential guides <../../potentials/index>` for
 installation, model files, and runtime configurations.
-
-## substrate and search region
 
 `examples/global_optimisation/assets/alpha_alumina111_ortho.xyz` contains a
 180-atom Al₇₂O₁₀₈ slab in a 14.28 × 16.49 × 34.0 Å orthogonal cell. A 3×2
@@ -27,7 +27,9 @@ Keep ASE tag 0 on all substrate atoms. The builder gives each Cu atom a
 distinct positive tag so GA operators can distinguish the support from the
 searchable cluster.
 
-## local relaxation runtime
+## configuration
+
+### local relaxation runtime
 
 Create `runtime.yaml` using a potential configuration from its provider guide
 and the following executor block. This fixes the bottom 60 substrate atoms
@@ -68,7 +70,7 @@ used in the table. See {ref}`the Prophet timing details <prophet-cpu-timing>`.
 See the {ref}`potential comparison <potential-cpu-inference-comparison>` for
 the test protocol and model-specific setup.
 
-## genetic algorithm
+### genetic algorithm
 
 The GA uses periodic cut-and-splice crossover and rattle mutation. Each Cu
 atom has its own tag, so default fragment preservation keeps the atoms
@@ -78,20 +80,9 @@ independently movable.
 :language: yaml
 ```
 
-Run from the GA example folder with your local `runtime.yaml`:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu4-alumina111-ga --runtime ./runtime.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
-`results/all_candidates.xyz` contains relaxed structures ordered by GA score;
-`results/pop.png` shows their energies by generation.
-
 (bh-supported-nanoparticle-example)=
 
-## basin hopping
+### basin hopping
 
 The BH recipe relaxes four random supported structures, then starts two chains
 with eight attempted moves each. Hopping proposals select only Cu atoms. The
@@ -101,20 +92,7 @@ with eight attempted moves each. Hopping proposals select only Cu atoms. The
 :language: yaml
 ```
 
-Copy the same local-relaxation `runtime.yaml` into the BH example folder:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp -d ./run-cu4-alumina111-bh --runtime ./runtime.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
-Inspect `candidates.db` for relaxed structures and acceptance metadata,
-`results/history/gen0001.png` for the search history, and
-`tmp_folder/gen1/rounds/events.jsonl` for committed rounds. Repeating the
-command with the same output directory resumes the search.
-
-### prophet runtime
+#### prophet runtime
 
 Prophet-OAME-MBD is the currently released standard Prophet energy/force
 checkpoint. Upstream does not release a smaller standard checkpoint or report
@@ -131,13 +109,6 @@ relaxation budget as the example above:
 :language: yaml
 ```
 
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-mamba run -n gdp3 gdp -d ./run-cu4-alumina111-bh-prophet \
-    --runtime ../../runtimes/prophet_oame_mbd.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
 For accelerated inference on an NVIDIA GPU, install Prophet's optional CUDA
 kernels and change the potential parameters to `device: cuda`,
 `use_kernel: true`, and `use_compile: true`; see
@@ -148,7 +119,7 @@ this checkpoint is costly for this example on the measured hardware.
 
 (sa-supported-nanoparticle-example)=
 
-## simulated annealing with dpa4c-mini
+### simulated annealing
 
 This short example starts with four random Cu₄/support configurations and
 minimises them in generation 0. Two cooling generations then run four MD
@@ -171,6 +142,39 @@ bottom 60 substrate atoms.
 :language: yaml
 ```
 
+## run
+
+### genetic algorithm
+
+Run from the GA example folder with your local `runtime.yaml`:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
+gdp -d ./run-cu4-alumina111-ga --runtime ./runtime.yaml explore \
+    ./cu4_alumina111.yaml
+```
+
+### basin hopping
+
+Copy the same local-relaxation `runtime.yaml` into the BH example folder:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
+gdp -d ./run-cu4-alumina111-bh --runtime ./runtime.yaml explore \
+    ./cu4_alumina111.yaml
+```
+
+#### prophet runtime
+
+```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
+mamba run -n gdp3 gdp -d ./run-cu4-alumina111-bh-prophet \
+    --runtime ../../runtimes/prophet_oame_mbd.yaml explore \
+    ./cu4_alumina111.yaml
+```
+
+### simulated annealing
+
 Run from the SA example folder:
 
 ```shell
@@ -179,6 +183,22 @@ OMP_NUM_THREADS=1 gdp -d ./run-cu4-alumina111-sa \
     --runtime ../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml explore \
     ./cu4_alumina111.yaml
 ```
+
+## results
+
+### genetic algorithm
+
+`results/all_candidates.xyz` contains relaxed structures ordered by GA score;
+`results/pop.png` shows their energies by generation.
+
+### basin hopping
+
+Inspect `candidates.db` for relaxed structures and acceptance metadata,
+`results/history/gen0001.png` for the search history, and
+`tmp_folder/gen1/rounds/events.jsonl` for committed rounds. Repeating the
+command with the same output directory resumes the search.
+
+### simulated annealing
 
 A full local macOS CPU run completed in **85.02 seconds** with
 `OMP_NUM_THREADS=1`, using a scalar CPU export of

@@ -2,12 +2,12 @@
 
 # copper surface oxide: fixed composition
 
+## system
+
 This example searches Cu–O reconstructions on a two-layer Cu(111)-p(2×2)
 substrate. The right-angled surface cell contains eight substrate Cu atoms. Four
 additional Cu atoms and four O atoms are placed above it, giving Cu12O4
 candidates that are relaxed with the 1-million-parameter MatterSim model.
-
-## substrate and search region
 
 The substrate is provided as
 `examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`. Its orthogonal
@@ -28,7 +28,7 @@ directions. The shared demo runtime allows all atoms to relax. For a surface
 study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower Cu
 layer while relaxing the upper layer and Cu–O overlayer.
 
-## input
+## configuration
 
 The exploration configuration is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml`:
@@ -59,6 +59,8 @@ gdp -d ./run-cu4o4-cu111 \
     --runtime ../../runtimes/mattersim.yaml explore \
     ./cu4o4_cu111.yaml
 ```
+
+## results
 
 The search is stored under `run-cu4o4-cu111`. When it completes,
 `results/all_candidates.xyz` contains the relaxed structures ordered by their

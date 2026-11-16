@@ -2,13 +2,13 @@
 
 # water on titania: dissociation and recombination
 
+## system
+
 Use {doc}`../operators/bond_change` to search molecular and
 dissociated water adsorption with xreac's Monti2012 Ti/O/H parameters. The
 two-water example has 198 atoms: 192 anatase (101) slab atoms and two neighboring
 waters. The bottom 48 atoms are fixed. The three-water variant has 201 atoms
 on the same slab. Install GDPy's `reax` extra to use the pinned xreac revision.
-
-## seeds and independent relaxation
 
 The first seed contains molecular water. The builder creates the dissociated
 seed by breaking an O–H bond above the surface and then forming an O–H bond
@@ -29,34 +29,10 @@ connectivity overrides of 1.25 Å. Regeneration now follows the radius-based
 rules and need not reproduce those coordinates or energies. The archived files
 remain valid inputs and are reconciled under the current policy at search start.
 
-Run this seed-generation script from the repository root:
-
-```shell
-python examples/global_optimisation/tio2_water_bond_change.py \
-  --output tmp/tio2-water-bond-change --steps 500 --fmax 0.02
-```
-
-The script writes initial and relaxed XYZ files, optimization trajectories,
-logs, `summary.json`, and a two-frame `relaxed_pair.xyz`. It reports molecular
-water, adsorbed OH, surface H and free H separately, plus Ti–O distances,
-energies and maximum mobile force. Optimizer convergence is recorded explicitly;
-an unconverged pair exits with a nonzero status. `--build-only` validates seed
-geometry without xreac. `--waters 3` selects the three-water variant.
-Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
-
-## mixed basin hopping
+## configuration
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml
 :language: yaml
-```
-
-Use the existing xreac runtime:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp --runtime ../../runtimes/xreac_tioh.yaml \
-  -d tmp/tio2-water-bond-change-bh \
-  explore ./tio2_water2_bond_change.yaml
 ```
 
 The search starts two chains with molecular and dissociated seeds and attempts
@@ -78,7 +54,42 @@ atoms remain tag 0. Changing the connectivity policy during checkpoint recovery
 requires a new search directory. Replace the exploration input with
 `tio2_water3_bond_change.yaml` for three waters.
 
-## independent validation result
+## run
+
+### prepare and compare seeds
+
+Run this seed-generation script from the repository root:
+
+```shell
+python examples/global_optimisation/tio2_water_bond_change.py \
+  --output tmp/tio2-water-bond-change --steps 500 --fmax 0.02
+```
+
+The script writes initial and relaxed XYZ files, optimization trajectories,
+logs, `summary.json`, and a two-frame `relaxed_pair.xyz`. It reports molecular
+water, adsorbed OH, surface H and free H separately, plus Ti–O distances,
+energies and maximum mobile force. Optimizer convergence is recorded explicitly;
+an unconverged pair exits with a nonzero status. `--build-only` validates seed
+geometry without xreac. `--waters 3` selects the three-water variant.
+Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
+
+### start the search
+
+Use the existing xreac runtime:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/basin_hopping
+gdp --runtime ../../runtimes/xreac_tioh.yaml \
+  -d tmp/tio2-water-bond-change-bh \
+  explore ./tio2_water2_bond_change.yaml
+```
+
+## results
+
+Inspect `candidates.db` for evaluated structures and recorded bond changes.
+The validation below distinguishes proposed moves from the relaxed outcomes.
+
+### validation
 
 With xreac revision `2d0f2bd`, Monti2012 and BFGS at fmax=0.02 eV/Å, both
 two-water seeds converged and remained adsorbed:

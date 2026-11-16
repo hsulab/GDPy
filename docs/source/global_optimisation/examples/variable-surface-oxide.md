@@ -2,13 +2,24 @@
 
 # copper surface oxide: variable composition
 
+## system
+
 This example searches CuₓOᵧ structures on the same two-layer
 Cu(111)-p(2×2) substrate used by the fixed-composition surface-oxide example.
 Both *x* and *y* may vary from 1 to 4. The candidates are relaxed with the
 1-million-parameter MatterSim model and ranked in a grand-canonical form using
 configured Cu and O chemical potentials.
 
-## variable composition
+The substrate is
+`examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`, with four Cu atoms
+in each layer. The shared demo runtime allows all atoms to relax. For a surface
+study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower
+layer while relaxing the upper layer and CuₓOᵧ overlayer. The insertion region
+covers the complete surface cell from z = 4.60 to 9.10 Å.
+
+## configuration
+
+### variable composition
 
 The random builder uses range-valued composition entries:
 
@@ -43,14 +54,7 @@ must be calculated consistently with the selected potential and the intended
 Cu/O reservoirs before interpreting a production search.
 :::
 
-## substrate and input
-
-The substrate is
-`examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`, with four Cu atoms
-in each layer. The shared demo runtime allows all atoms to relax. For a surface
-study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower
-layer while relaxing the upper layer and CuₓOᵧ overlayer. The insertion region
-covers the complete surface cell from z = 4.60 to 9.10 Å.
+### input and runtime
 
 The complete configuration is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml`:
@@ -80,6 +84,8 @@ gdp -d ./run-cuxoy-cu111 \
     --runtime ../../runtimes/mattersim.yaml explore \
     ./cuxoy_cu111.yaml
 ```
+
+## results
 
 The search is stored under `run-cuxoy-cu111`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by their

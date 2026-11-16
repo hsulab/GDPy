@@ -2,6 +2,8 @@
 
 # water cluster: molecular packing
 
+## system
+
 This example searches for low-energy structures of a four-water cluster. The
 builder inserts four intact H2O molecules in a spherical region at the centre
 of a large periodic vacuum box and assigns one tag to each molecule. Structures
@@ -9,7 +11,7 @@ are relaxed with xreac and the bundled H/O ReaxFF parameters. See the
 {ref}`potential-reax` guide for installation and runtime settings. No
 neural-network model download is needed.
 
-## input
+## configuration
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/water4.yaml`:
@@ -41,6 +43,8 @@ gdp -d ./run-water4-reax \
     --runtime ../../runtimes/xreac.yaml explore \
     ./water4.yaml
 ```
+
+## results
 
 The search is stored under `run-water4-reax`. The small
 population and single generation keep this example quick; increase both for a

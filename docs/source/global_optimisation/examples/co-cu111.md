@@ -2,6 +2,8 @@
 
 # carbon monoxide on copper
 
+## system
+
 This example searches positions and orientations of one CO molecule on an
 orthogonal Cu(111)-p(2×2) slab. The right-angled surface cell is rectangular,
 5.11 × 4.43 Å, not exactly square. Three layers contain twelve Cu atoms.
@@ -13,7 +15,7 @@ The dedicated substrate `cu111_p2x2_3layer_sa.xyz` preserves the geometry of
 enabled to match the population interface. Its 24 Å cell height leaves vacuum
 between periodic slab images. The original shared substrate is unchanged.
 
-## simulated annealing with dpa4c
+## configuration
 
 Four starting structures are built by inserting an intact CO molecule with
 random orientation and centre of mass 1.5–3.5 Å above the top Cu layer.
@@ -39,6 +41,8 @@ execution device. No weights are bundled or downloaded. See
 {ref}`DPA4C setup <potential-deepmd>` for export and installation guidance.
 Element coverage alone does not establish accuracy for CO adsorption.
 
+## run
+
 Run from the example folder indicated below:
 
 ```shell
@@ -47,6 +51,8 @@ gdp -d run-co-cu111-sa \
   --runtime ../../runtimes/dpa4c_mini_sa.yaml \
   explore ./co_cu111.yaml
 ```
+
+## results
 
 CO starts intact but is flexible during MD and minimisation. Fragment tags
 identify the initial molecule; they do not constrain its bond or prevent

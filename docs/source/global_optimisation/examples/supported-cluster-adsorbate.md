@@ -3,13 +3,13 @@
 
 # carbon monoxide on a supported copper cluster
 
+## system
+
 This example searches for low-energy structures of CO adsorbed on a supported
 Cu4 cluster. Two builders contribute four candidates each to one initial
 population, comparing random construction with adsorption-site insertion.
 Every candidate contains Cu4 and one CO molecule on the same orthogonal
 α-Al₂O₃(0001) support and is relaxed with the same MatterSim runtime.
-
-## system and search region
 
 The example reuses
 `examples/global_optimisation/assets/alpha_alumina111_ortho.xyz` from the
@@ -42,7 +42,7 @@ Default fragment preservation therefore makes crossover and mutation move CO
 as one particle instead of separating its atoms.
 :::
 
-## input
+## configuration
 
 The exploration configuration is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml`:
@@ -76,6 +76,8 @@ gdp -d ./run-cu4-co-alumina111 \
     --runtime ../../runtimes/mattersim.yaml explore \
     ./cu4_co_alumina111.yaml
 ```
+
+## results
 
 The search is stored under `run-cu4-co-alumina111`. When it
 completes, `results/all_candidates.xyz` contains the relaxed candidates and

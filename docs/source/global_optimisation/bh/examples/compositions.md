@@ -2,11 +2,13 @@
 
 # copper–nickel cluster: composition sweep
 
+## system
+
 This example runs independent Cu₆Ni₂ and Cu₄Ni₄ basin-hopping searches with
 EMT. Both use seed 7, two initial candidates, and two hopping rounds. The move
 operator acts on both species, preserving each search's composition.
 
-## input
+## configuration
 
 The `broadcast` field replaces the entire composition mapping for each search.
 Keeping the element counts together produces exactly two compositions.
@@ -40,7 +42,7 @@ adapt account/partition settings in the supplied script, and submit:
 sbatch examples/global_optimisation/two_explorations.slurm
 ```
 
-## outputs and restart
+## results
 
 - `run-cu-ni-compositions/expo.00/`: Cu₆Ni₂ candidates, results, and checkpoints.
 - `run-cu-ni-compositions/expo.01/`: Cu₄Ni₄ candidates, results, and checkpoints.

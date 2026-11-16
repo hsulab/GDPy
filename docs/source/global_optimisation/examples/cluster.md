@@ -2,6 +2,8 @@
 
 # copper cluster
 
+## system
+
 Search for low-energy structures of an isolated eight-atom copper cluster with
 ASE's Effective Medium Theory (EMT) potential. A 20 × 20 × 20 Å periodic vacuum
 cell separates neighbouring cluster images. No model download is needed.
@@ -13,7 +15,9 @@ atoms can move and recombine. SA instead reads two starting structures from the
 shared seed file and does not preserve fragments. The search budgets below are
 short workflow demonstrations, not converged global-minimum searches.
 
-## local relaxation runtime for ga and bh
+## configuration
+
+### local relaxation runtime
 
 Both methods relax initial structures and new candidates with this runtime:
 
@@ -26,12 +30,10 @@ in its section below.
 
 (ga-cluster-example)=
 
-## genetic algorithm
+### genetic algorithm
 
 The search creates two offspring in one generation using interatomic-distance
 comparison, `cut_and_splice` crossover, and rattle mutation.
-
-### input
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml`:
@@ -40,34 +42,9 @@ The complete example is available at
 :language: yaml
 ```
 
-### run
-
-Run from the example folder indicated below:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu8-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu8.yaml
-```
-
-The search is stored under `run-cu8-emt`. When it completes,
-`results/all_candidates.xyz` contains the relaxed candidates ordered by the GA
-score, while `results/pop.png` summarises the population energies by
-generation. The example produces six relaxed Cu8 candidates: four initial
-structures and two offspring.
-
-:::{note}
-EMT is inexpensive and convenient for demonstrating the workflow, but this
-small population and single-generation search are not sufficient for a
-scientific Cu8 global optimisation.
-:::
-
 (bh-cu8-example)=
 
-## basin hopping
-
-### input
+### basin hopping
 
 The exploration input is `examples/global_optimisation/explorations/basin_hopping/cu8.yaml`:
 
@@ -90,7 +67,39 @@ most 24 evaluated structures including initialization. The omitted `strategy.con
 uses the default final generation of 1; generation 0 is initialization. Stored
 discoveries do not replace chain states: MC acceptance determines each next state.
 
-### run
+(sa-cu8-example)=
+
+### simulated annealing
+
+```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
+:language: yaml
+```
+
+The calculation runtime is supplied separately:
+
+```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_sa.yaml
+:language: yaml
+```
+
+The example minimises two initial structures and runs three generations of four
+MD trajectories cooling from 1200 to 300 K, 900 to 200 K, and 600 to 100 K
+respectively. Each trajectory is
+followed by minimisation. It retains at most two distinct minima after each generation.
+
+## run
+
+### genetic algorithm
+
+Run from the example folder indicated below:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/genetic_algorithm
+gdp -d ./run-cu8-emt \
+    --runtime ../../runtimes/emt.yaml explore \
+    ./cu8.yaml
+```
+
+### basin hopping
 
 Use the working directory indicated with each command:
 
@@ -100,6 +109,35 @@ gdp -d ./run-cu8-bh-emt \
     --runtime ../../runtimes/emt.yaml explore \
     ./cu8.yaml
 ```
+
+### simulated annealing
+
+Run from the example folder indicated below:
+
+```shell
+# Working directory: examples/global_optimisation/explorations/simulated_annealing
+gdp -d run-sa \
+  --runtime ../../runtimes/emt_sa.yaml \
+  explore ./cu8.yaml
+```
+
+## results
+
+### genetic algorithm
+
+The search is stored under `run-cu8-emt`. When it completes,
+`results/all_candidates.xyz` contains the relaxed candidates ordered by the GA
+score, while `results/pop.png` summarises the population energies by
+generation. The example produces six relaxed Cu8 candidates: four initial
+structures and two offspring.
+
+:::{note}
+EMT is inexpensive and convenient for demonstrating the workflow, but this
+small population and single-generation search are not sufficient for a
+scientific Cu8 global optimisation.
+:::
+
+### basin hopping
 
 Results are written under `run-cu8-bh-emt`:
 
@@ -131,30 +169,8 @@ chains for a broader search. Setting `strategy.convergence.generation` above 1 a
 reselects chain starts from the accumulated minima between search generations.
 The demonstration does not establish the global minimum of Cu₈.
 
-(sa-cu8-example)=
+### simulated annealing
 
-## simulated annealing
-
-```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
-:language: yaml
-```
-
-The calculation runtime is supplied separately:
-
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_sa.yaml
-:language: yaml
-```
-
-Run from the example folder indicated below:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/simulated_annealing
-gdp -d run-sa \
-  --runtime ../../runtimes/emt_sa.yaml \
-  explore ./cu8.yaml
-```
-
-The example minimises two initial structures and runs three generations of four
-MD trajectories cooling from 1200 to 300 K, 900 to 200 K, and 600 to 100 K
-respectively. Each trajectory is
-followed by minimisation. It retains at most two distinct minima after each generation.
+Inspect `results/all_candidates.xyz` for the retained minima and
+`results/pop.png` for the energy history. The short cooling trajectories
+demonstrate the workflow rather than a converged search.

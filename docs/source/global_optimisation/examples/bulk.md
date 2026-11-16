@@ -2,13 +2,15 @@
 
 # bulk copper: crystal structure search
 
+## system
+
 This minimal example searches for low-energy periodic cells containing four Cu
 atoms. The `random_bulk` builder samples both atomic positions and cell shapes,
 and ASE's Effective Medium Theory (EMT) calculator relaxes each candidate. The
 small population and single generation make this a workflow demonstration, not
 a converged Cu crystal-structure prediction.
 
-## input
+## configuration
 
 The complete example is available at
 `examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml`:
@@ -40,6 +42,8 @@ gdp -d ./run-cu4-bulk-emt \
     --runtime ../../runtimes/emt.yaml explore \
     ./cu4_bulk.yaml
 ```
+
+## results
 
 The search is stored under `run-cu4-bulk-emt`. When it completes,
 `results/all_candidates.xyz` contains the relaxed candidates ordered by their
