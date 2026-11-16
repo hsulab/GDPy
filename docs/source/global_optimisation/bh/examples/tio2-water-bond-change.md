@@ -56,6 +56,12 @@ requires a new search directory. Replace the exploration input with
 
 ## run
 
+Follow {ref}`running the examples <go-running-examples>` with these settings:
+
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `tio2_water2_bond_change.yaml` | `../../runtimes/xreac_tioh.yaml` | `tmp/tio2-water-bond-change-bh` |
+
 ### prepare and compare seeds
 
 Run this seed-generation script from the repository root:
@@ -72,17 +78,6 @@ energies and maximum mobile force. Optimizer convergence is recorded explicitly;
 an unconverged pair exits with a nonzero status. `--build-only` validates seed
 geometry without xreac. `--waters 3` selects the three-water variant.
 Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
-
-### start the search
-
-Use the existing xreac runtime:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp --runtime ../../runtimes/xreac_tioh.yaml \
-  -d tmp/tio2-water-bond-change-bh \
-  explore ./tio2_water2_bond_change.yaml
-```
 
 ## results
 

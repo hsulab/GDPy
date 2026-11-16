@@ -28,15 +28,17 @@ is a search parameter, not a molecular-dynamics temperature.
 
 ## run
 
-Install the {ref}`TACE extra <potential-tace>` and run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
+
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `cu4o4.yaml` | `../../runtimes/tace.yaml` | `run-cu4o4-bh-tace` |
+
+Install the {ref}`TACE extra <potential-tace>` in your active environment.
+From the method folder:
 
 ```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-conda activate catorch3
 python -m pip install -e '../../../..[tace]'
-OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-tace \
-    --runtime ../../runtimes/tace.yaml explore \
-    ./cu4o4.yaml
 ```
 
 The first calculation downloads the approximately 29 MB checkpoint to

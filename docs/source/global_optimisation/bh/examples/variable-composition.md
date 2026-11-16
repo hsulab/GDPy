@@ -56,14 +56,11 @@ Pair the recipe with the shared EMT relaxation runtime:
 
 ## run
 
-Use the working directory indicated with each command:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-OMP_NUM_THREADS=1 gdp -d run-cu6-nix \
-  --runtime ../../runtimes/emt.yaml \
-  explore ./cu6_nix.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `cu6_nix.yaml` | `../../runtimes/emt.yaml` | `run-cu6-nix` |
 
 ## results
 

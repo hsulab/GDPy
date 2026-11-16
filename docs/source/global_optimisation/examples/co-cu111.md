@@ -43,14 +43,11 @@ Element coverage alone does not establish accuracy for CO adsorption.
 
 ## run
 
-Run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/simulated_annealing
-gdp -d run-co-cu111-sa \
-  --runtime ../../runtimes/dpa4c_mini_sa.yaml \
-  explore ./co_cu111.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `simulated_annealing` | `co_cu111.yaml` | `../../runtimes/dpa4c_mini_sa.yaml` | `run-co-cu111-sa` |
 
 ## results
 

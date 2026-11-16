@@ -40,6 +40,12 @@ introducing orientation-insensitive duplicate filtering in this short demo.
 
 ## run
 
+Follow {ref}`running the examples <go-running-examples>` with these settings:
+
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `tio2_water2.yaml` | `../../runtimes/xreac_tioh.yaml` | `tmp/tio2-water-rotation-bh` |
+
 ### prepare and compare seeds
 
 Run these seed-comparison scripts from the repository root:
@@ -81,13 +87,6 @@ the screenshot supplies an arrangement, not numerical atomic coordinates.
 The same adsorption and hydrogen-bond diagnostics cover all water pairs.
 
 ### start the search
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp --runtime ../../runtimes/xreac_tioh.yaml \
-  -d tmp/tio2-water-rotation-bh \
-  explore ./tio2_water2.yaml
-```
 
 Replace the exploration input with `tio2_water3.yaml` and use a new output
 directory to run the three-water search with the same rotation settings and

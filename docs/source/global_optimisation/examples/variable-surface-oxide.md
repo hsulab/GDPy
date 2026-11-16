@@ -76,14 +76,13 @@ MatterSim is required because the search contains both Cu and O; see the
 
 ## run
 
-After installing MatterSim, run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cuxoy-cu111 \
-    --runtime ../../runtimes/mattersim.yaml explore \
-    ./cuxoy_cu111.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cuxoy_cu111.yaml` | `../../runtimes/mattersim.yaml` | `run-cuxoy-cu111` |
+
+Install MatterSim as described in {ref}`potential-mattersim`.
 
 ## results
 

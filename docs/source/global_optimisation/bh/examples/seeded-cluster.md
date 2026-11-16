@@ -65,14 +65,11 @@ allocations. Resume an interrupted run with the same configuration and seed file
 
 ## run
 
-Use the existing relaxation runtime:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp -d ./run-cu8-seeded-bh-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu8_seeded.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `cu8_seeded.yaml` | `../../runtimes/emt.yaml` | `run-cu8-seeded-bh-emt` |
 
 No model download is needed. The runtime relaxes every initial structure,
 including the seeds, and every valid hopping trial. You can also embed the

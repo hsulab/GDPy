@@ -25,18 +25,16 @@ Pair this exploration with the EMT runtime:
 
 ## run
 
-Use the working directory indicated with each command:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-OMP_NUM_THREADS=1 gdp -d run-cu-ni-compositions \
-  --runtime ../../runtimes/emt.yaml \
-  explore ./cu_ni_compositions.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `cu_ni_compositions.yaml` | `../../runtimes/emt.yaml` | `run-cu-ni-compositions` |
 
 The searches execute sequentially in one process with independent calculation
 workers. To run both within one Slurm allocation, activate your gdpx environment,
-adapt account/partition settings in the supplied script, and submit:
+adapt account/partition settings in the supplied script, and submit from the
+repository root:
 
 ```shell
 sbatch examples/global_optimisation/two_explorations.slurm

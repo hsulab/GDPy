@@ -34,14 +34,11 @@ treats the atoms as independently movable particles.
 
 ## run
 
-Run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu4-bulk-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu4_bulk.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu4_bulk.yaml` | `../../runtimes/emt.yaml` | `run-cu4-bulk-emt` |
 
 ## results
 

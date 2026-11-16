@@ -68,14 +68,13 @@ impose a rigid C–O bond.
 
 ## run
 
-After installing MatterSim, run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu4-co-alumina111 \
-    --runtime ../../runtimes/mattersim.yaml explore \
-    ./cu4_co_alumina111.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu4_co_alumina111.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4-co-alumina111` |
+
+Install MatterSim as described in {ref}`potential-mattersim`.
 
 ## results
 

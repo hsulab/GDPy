@@ -51,14 +51,13 @@ example requires a potential that describes both Cu and O; see the
 
 ## run
 
-After installing MatterSim, run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu4o4-cu111 \
-    --runtime ../../runtimes/mattersim.yaml explore \
-    ./cu4o4_cu111.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu4o4_cu111.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4o4-cu111` |
+
+Install MatterSim as described in {ref}`potential-mattersim`.
 
 ## results
 

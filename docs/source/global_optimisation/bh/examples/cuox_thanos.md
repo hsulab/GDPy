@@ -47,15 +47,17 @@ without terminating the current chain.
 
 ## run
 
+Follow {ref}`running the examples <go-running-examples>` with these settings:
+
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `basin_hopping` | `cu4o4_thanos.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4o4-bh-thanos` |
+
 Install MatterSim following {ref}`potential-mattersim`. The example uses the
-1M checkpoint and was verified on CPU; its first use may download the model. From the example folder indicated below, run:
+1M checkpoint and was verified on CPU; its first use may download the model.
+After the search, run this verification from the method folder:
 
 ```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-OMP_NUM_THREADS=1 gdp -d ./run-cu4o4-bh-thanos \
-    --runtime ../../runtimes/mattersim.yaml explore \
-    ./cu4o4_thanos.yaml
-
 python ../../verify_cu4o4_bh_thanos.py \
     ./run-cu4o4-bh-thanos
 ```

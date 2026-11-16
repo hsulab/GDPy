@@ -88,38 +88,13 @@ followed by minimisation. It retains at most two distinct minima after each gene
 
 ## run
 
-### genetic algorithm
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-Run from the example folder indicated below:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu8-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu8.yaml
-```
-
-### basin hopping
-
-Use the working directory indicated with each command:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp -d ./run-cu8-bh-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu8.yaml
-```
-
-### simulated annealing
-
-Run from the example folder indicated below:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/simulated_annealing
-gdp -d run-sa \
-  --runtime ../../runtimes/emt_sa.yaml \
-  explore ./cu8.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu8.yaml` | `../../runtimes/emt.yaml` | `run-cu8-emt` |
+| `basin_hopping` | `cu8.yaml` | `../../runtimes/emt.yaml` | `run-cu8-bh-emt` |
+| `simulated_annealing` | `cu8.yaml` | `../../runtimes/emt_sa.yaml` | `run-sa` |
 
 ## results
 

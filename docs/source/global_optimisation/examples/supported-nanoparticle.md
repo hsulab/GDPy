@@ -144,45 +144,14 @@ bottom 60 substrate atoms.
 
 ## run
 
-### genetic algorithm
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-Run from the GA example folder with your local `runtime.yaml`:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu4-alumina111-ga --runtime ./runtime.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
-### basin hopping
-
-Copy the same local-relaxation `runtime.yaml` into the BH example folder:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-gdp -d ./run-cu4-alumina111-bh --runtime ./runtime.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
-#### prophet runtime
-
-```shell
-# Working directory: examples/global_optimisation/explorations/basin_hopping
-mamba run -n gdp3 gdp -d ./run-cu4-alumina111-bh-prophet \
-    --runtime ../../runtimes/prophet_oame_mbd.yaml explore \
-    ./cu4_alumina111.yaml
-```
-
-### simulated annealing
-
-Run from the SA example folder:
-
-```shell
-# Working directory: examples/global_optimisation/explorations/simulated_annealing
-OMP_NUM_THREADS=1 gdp -d ./run-cu4-alumina111-sa \
-    --runtime ../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml explore \
-    ./cu4_alumina111.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu4_alumina111.yaml` | `runtime.yaml` | `run-cu4-alumina111-ga` |
+| `basin_hopping` | `cu4_alumina111.yaml` | `runtime.yaml` | `run-cu4-alumina111-bh` |
+| `basin_hopping` | `cu4_alumina111.yaml` | `../../runtimes/prophet_oame_mbd.yaml` | `run-cu4-alumina111-bh-prophet` |
+| `simulated_annealing` | `cu4_alumina111.yaml` | `../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml` | `run-cu4-alumina111-sa` |
 
 ## results
 

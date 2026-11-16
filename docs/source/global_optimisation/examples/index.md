@@ -10,26 +10,40 @@ its geometry and shared setup once, followed by the available genetic algorithm
 and short searches keep these demonstrations easy to inspect; increase search
 and calculation budgets for production work.
 
-Exploration inputs live under `examples/global_optimisation/explorations/`,
-grouped by method. Run each exploration from the folder containing its YAML
-file, for example `examples/global_optimisation/explorations/basin_hopping/`.
-Structure paths resolve through `../../assets/`; shared runtime files are at
-`../../runtimes/`. Model paths in the supplied runtimes point to the repository's
-`models/` directory via `../../../../models/`. These paths are relative to the
-working directory, not to the runtime file. Each guide provides runtime settings
-and run commands. Output directories are created relative to that same working
-directory.
-Select a runtime with
-`gdp --runtime <runtime.yaml> explore <exploration.yaml>`, placing `--runtime`
-before `explore`. Use a new output directory when changing the runtime or search
-settings. SA needs an MD cooling runtime; GA and BH use local relaxation.
+(go-running-examples)=
 
-All examples use direct scheduling by default. See {ref}`scheduler-transport`
-for queue and SSH execution, and {ref}`exploration-output-layout` for outputs
-and restart metadata. EMT needs no model download; other potentials may require
-optional dependencies and model files. Short relaxation budgets may not reach
-the force tolerance. Follow each surface guide's constraints when preparing a
-surface study.
+## running the examples
+
+Each example lists its method folder, exploration input, runtime, and output
+directory. From the repository root, enter the method folder and run:
+
+```{code-block} shell
+:caption: Shell
+
+cd examples/global_optimisation/explorations/<method>
+gdp -d <output-directory> --runtime <runtime-file> explore <exploration-file>
+```
+
+Replace the placeholders with the values in the example's run table. Keep
+`--runtime` before `explore`. Shared runtimes are under `../../runtimes/`; a
+local `runtime.yaml` must be created as described in the example.
+
+Paths are relative to the method folder: structure inputs use `../../assets/`,
+and supplied model paths resolve to the repository's `models/` directory.
+Outputs are written relative to the same working directory. Rerun unchanged to
+resume; use a fresh output directory when changing the input or runtime.
+
+Activate an environment with the required potential dependencies before running.
+EMT needs no model download; other runtimes may need model files or additional
+packages. Set `OMP_NUM_THREADS=1` when reproducing the single-thread CPU runs
+and timings described in the examples.
+
+Local execution is the default. See {ref}`scheduler-transport` for queue and SSH
+setup, and {ref}`exploration-output-layout` for outputs and restart conventions.
+The short search and relaxation budgets demonstrate the workflows; increase
+them and check convergence before interpreting the results scientifically.
+
+## choose a system
 
 | Main system | Specific system | Methods | Potential / variants |
 | --- | --- | --- | --- |

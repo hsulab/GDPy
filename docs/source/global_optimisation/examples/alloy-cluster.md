@@ -40,14 +40,11 @@ generation.
 
 ## run
 
-Run from the example folder indicated below:
+Follow {ref}`running the examples <go-running-examples>` with these settings:
 
-```shell
-# Working directory: examples/global_optimisation/explorations/genetic_algorithm
-gdp -d ./run-cu7ni6-emt \
-    --runtime ../../runtimes/emt.yaml explore \
-    ./cu7ni6.yaml
-```
+| Method folder | Exploration input | Runtime | Output directory |
+| --- | --- | --- | --- |
+| `genetic_algorithm` | `cu7ni6.yaml` | `../../runtimes/emt.yaml` | `run-cu7ni6-emt` |
 
 ## results
 
