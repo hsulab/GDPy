@@ -4,120 +4,48 @@
 
 ## system
 
-Use {doc}`../operators/bond_change` to search molecular and
-dissociated water adsorption with xreac's Monti2012 Ti/O/H parameters. The
-two-water example has 198 atoms: 192 anatase (101) slab atoms and two neighboring
-waters. The bottom 48 atoms are fixed. The three-water variant has 201 atoms
-on the same slab. Install GDPy's `reax` extra to use the pinned xreac revision.
-
-The first seed contains molecular water. The builder creates the dissociated
-seed by breaking an O–H bond above the surface and then forming an O–H bond
-with a neighboring surface oxygen. Both steps use the standalone geometry API.
-With `covalent_ratio: [0.8, 1.2]`, their proposed distances are 1.455 Å for
-breaking and 0.97 Å for formation. The regenerated seed records both events
-in `seed_bond_changes`.
-
-Both seed slabs receive the same reproducible 0.001 Å perturbation on mobile
-slab atoms. Protonation activates torsions involving exactly collinear atoms
-in the ideal slab, for which xreac rejects undefined derivatives. Fixed atoms
-are unchanged. Connectivity uses 1.2 times each element pair's covalent-radius
-sum, consistently with the search operator.
-
-The committed XYZ seed files and results below are archived from the earlier
-implementation, which used a single break proposal at 1.5 Å and O–H/Ti–H
-connectivity overrides of 1.25 Å. Regeneration now follows the radius-based
-rules and need not reproduce those coordinates or energies. The archived files
-remain valid inputs and are reconciled under the current policy at search start.
-
-## configuration
+Search molecular and dissociated water states on anatase (101), starting from
+two seeds: intact waters and a dissociated configuration. The two-water system
+contains 198 atoms, including 48 fixed slab atoms; a three-water variant is also
+available. Fragment tags are reconciled after relaxation as bonds change.
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-The search starts two chains with molecular and dissociated seeds and attempts
-four hops per chain, assigning rotations half the operator weight and splitting the other half
-equally between breaking and formation.
-The rotation operator selects `H2O` and `HO` (Hill notation for hydroxyl).
-`bond_break` and `bond_form` both select `particles: [H]`, moving exactly one
-hydrogen atom per proposal. Breaking leaves the oxygen-containing component
-stationary. Formation requires an isolated H and restricts stationary acceptors
-with ``acceptor_group: "`symbol O`"``. Both use `bond: [O, H]` and the default
-`covalent_ratio: [0.8, 1.2]`. Their respective search windows are `[0.8, 1.2]`
-and `[1.2, 3.5]` Å. Formation can be skipped when relaxation has recombined all
-detached H atoms. Proposed operations and actual relaxed connectivity remain
-separate records in `candidates.db`.
+## runtime
 
-Tags are reconciled after all relaxations. OH and molecular water have their
-own positive tags; surface H retains an independent positive tag. Substrate
-atoms remain tag 0. Changing the connectivity policy during checkpoint recovery
-requires a new search directory. Replace the exploration input with
-`tio2_water3_bond_change.yaml` for three waters.
+- {doc}`ReaxFF / xreac <../../../potentials/reax>` ({download}`xreac_tioh.yaml <../../../../../examples/global_optimisation/runtimes/xreac_tioh.yaml>`): minimisation with
+  `fmax: 0.02` eV/Å and `steps: 500`. Fixed atoms: zbot 48.
 
-## run
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+## methods
+
+- {doc}`basin hopping <../../basin_hopping>`: 1 generation after initialization, with 2 chains of
+  4 attempted steps using `rotate`, `bond_break`, `bond_form` at 500 K acceptance temperature.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `basin_hopping` | `tio2_water2_bond_change.yaml` | `../../runtimes/xreac_tioh.yaml` | `tmp/tio2-water-bond-change-bh` |
 
-### prepare and compare seeds
-
-Run this seed-generation script from the repository root:
-
-```shell
-python examples/global_optimisation/tio2_water_bond_change.py \
-  --output tmp/tio2-water-bond-change --steps 500 --fmax 0.02
-```
-
-The script writes initial and relaxed XYZ files, optimization trajectories,
-logs, `summary.json`, and a two-frame `relaxed_pair.xyz`. It reports molecular
-water, adsorbed OH, surface H and free H separately, plus Ti–O distances,
-energies and maximum mobile force. Optimizer convergence is recorded explicitly;
-an unconverged pair exits with a nonzero status. `--build-only` validates seed
-geometry without xreac. `--waters 3` selects the three-water variant.
-Use `--seed-output PATH.xyz` to regenerate the reusable seed file.
+Use `tio2_water3_bond_change.yaml` for the three-water variant.
 
 ## results
 
-Inspect `candidates.db` for evaluated structures and recorded bond changes.
-The validation below distinguishes proposed moves from the relaxed outcomes.
+Compare proposed bond changes with relaxed connectivity in `candidates.db`.
+The archived two-water test retained molecular and dissociated minima; its
+best refined dissociated structure was 0.129322 eV above the best molecular
+structure. One trial required additional relaxation, and current seed-generation
+rules differ from those used for the archived test. These results are a local
+comparison, not an exhaustive stability search.
 
-### validation
-
-With xreac revision `2d0f2bd`, Monti2012 and BFGS at fmax=0.02 eV/Å, both
-two-water seeds converged and remained adsorbed:
-
-| Initial state | Relaxed state | Total energy (eV) | Maximum mobile force (eV/Å) |
-| --- | --- | --- | --- |
-| Molecular | Two intact waters | -1364.707476 | 0.016961 |
-| Dissociated | One water, one adsorbed OH, one surface H | -1364.324416 | 0.016163 |
-
-The dissociated minimum is 0.383059 eV higher for the same total composition.
-Its surface O–H distance is 0.949 Å and adsorbate O–H distance is 0.940 Å.
-All 48 fixed coordinates remained unchanged. This is a comparison of local
-minima with the specified potential, not an adsorption-energy calculation or
-an exhaustive stability search. Three-water seed geometry and both formation
-tests also passed; a three-water optimization was unnecessary because the
-two-water case retained a converged dissociated state.
-
-The mixed two-water BH smoke run evaluated eight trials (four breaks and four
-rotations), accepting six and rejecting two, with no invalid proposals. Nine
-of its ten stored endpoints met fmax=0.02 eV/Å. One trial reached the 500-step
-limit at 0.0421 eV/Å; a separate BFGS refinement converged in three additional
-steps. The database retains the original endpoint rather than replacing its
-record with the refinement.
-
-| Representative | Total energy (eV) | Relative to best molecular state (eV) |
-| --- | --- | --- |
-| Best BH molecular pair | -1364.708926 | 0 |
-| Refined lower-energy dissociated state | -1364.579604 | 0.129322 |
-| Independently relaxed alternate dissociated state | -1364.324416 | 0.384510 |
-
-The two dissociated representatives protonate different surface oxygen sites.
-All evaluated structures retained 48 fixed coordinates and consistent fragment
-tags. Only converged endpoints were selected for XYZ export. Formation and
-recombination are separately exercised by the controlled two- and three-water
-tests; all bond-change proposals selected in this short random search were
-breaks.
+Use `examples/global_optimisation/tio2_water_bond_change.py` from the repository
+root to regenerate and independently relax seeds; `--waters 3` selects the variant.

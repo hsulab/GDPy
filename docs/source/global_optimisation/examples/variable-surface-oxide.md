@@ -4,95 +4,42 @@
 
 ## system
 
-This example searches CuₓOᵧ structures on the same two-layer
-Cu(111)-p(2×2) substrate used by the fixed-composition surface-oxide example.
-Both *x* and *y* may vary from 1 to 4. The candidates are relaxed with the
-1-million-parameter MatterSim model and ranked in a grand-canonical form using
-configured Cu and O chemical potentials.
-
-The substrate is
-`examples/global_optimisation/assets/cu111_p2x2_2layer.xyz`, with four Cu atoms
-in each layer. The shared demo runtime allows all atoms to relax. For a surface
-study, add ``constraint: "`zbot 4`"`` to `executor.parameters` to fix the lower
-layer while relaxing the upper layer and CuₓOᵧ overlayer. The insertion region
-covers the complete surface cell from z = 4.60 to 9.10 Å.
-
-## configuration
-
-### variable composition
-
-The random builder uses range-valued composition entries:
-
-```yaml
-composition:
-  Cu: "1:4"
-  O: "1:4"
-```
-
-The quoted ranges include both endpoints, so every initial or completion
-candidate contains one to four added Cu atoms and one to four O atoms. The
-shared population retains candidates across these compositions automatically.
-Mutation selects from the full retained pool; crossover, when enabled, selects
-parents compatible with its operator.
-
-The `exchange` mutation inserts or removes one independently tagged Cu or O
-atom. Its `num_min_max` entries follow the order in `species` and enforce the
-same inclusive 1–4 bounds. Rattle mutation supplies additional configurational
-variation without changing composition. This compact example creates offspring
-by mutation only; failed mutations are replaced by candidates from the random
-builder.
-
-The `cohesive_energy` target ranks candidates by
-`E - N_Cu μ_Cu - N_O μ_O`. The eight substrate Cu atoms contribute the same
-constant term to every candidate, while the variable overlayer composition
-changes the score.
-
-:::{note}
-The chemical potentials in this example are illustrative values for exercising
-the workflow. Chemical potentials define the composition being favoured and
-must be calculated consistently with the selected potential and the intended
-Cu/O reservoirs before interpreting a production search.
-:::
-
-### input and runtime
-
-The complete configuration is available at
-`examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml`:
+Search CuₓOᵧ overlayers on a two-layer Cu(111) slab, with both x and y between
+1 and 4. Substrate atoms have tag 0; added atoms receive distinct positive tags.
+The initial search region spans z = 4.60–9.10 Å over the 5.11 × 4.43 Å surface cell.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-Pair this exploration with the following runtime (passed with `--runtime`):
+## runtime
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/mattersim.yaml
-:language: yaml
-```
+- {doc}`MatterSim <../../potentials/mattersim>` ({download}`mattersim.yaml <../../../../examples/global_optimisation/runtimes/mattersim.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 20`.
 
-The default periodic and fragment-preservation settings apply. Substrate atoms
-have tag 0, and every added Cu or O atom receives a distinct positive tag.
-MatterSim is required because the search contains both Cu and O; see the
-{ref}`potential-mattersim` guide for installation and model details.
+The shared runtime relaxes all atoms. For a constrained surface study, add
+`zbot 4` as the executor setup constraint to fix the bottom substrate layer.
 
-## run
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+## methods
+
+- {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 4 offspring; mutation only, using `exchange`, `rattle` mutation.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `genetic_algorithm` | `cuxoy_cu111.yaml` | `../../runtimes/mattersim.yaml` | `run-cuxoy-cu111` |
 
-Install MatterSim as described in {ref}`potential-mattersim`.
-
 ## results
 
-The search is stored under `run-cuxoy-cu111`. When it completes,
-`results/all_candidates.xyz` contains the relaxed candidates ordered by their
-grand-canonical score, and `results/pop.png` plots that target by generation.
-
-:::{note}
-The two-layer slab, eight-candidate initial population, and single generation
-make this a format demonstration. Use a thicker slab, converge the model and
-relaxation settings, expand the population, and sample more generations for a
-scientific surface phase search.
-:::
+Candidates are ranked by `E − N_Cu μ_Cu − N_O μ_O`; the supplied chemical
+potentials are illustrative. Inspect `results/all_candidates.xyz` and
+`results/pop.png`, and use reservoir references consistent with your potential
+before comparing compositions scientifically.

@@ -4,43 +4,31 @@
 
 ## system
 
-This example searches the chemical ordering of a Cu7Ni6 alloy cluster. Four
-random cluster geometries are generated inside a spherical region and relaxed
-with ASE's Effective Medium Theory (EMT) calculator. The following generation
-uses only swap mutation, making the example a focused demonstration of
-exchanging unlike atomic species without changing the composition.
-
-## configuration
-
-The complete example is available at
-`examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml`:
+Search chemical ordering in a Cu₇Ni₆ cluster. Random structures are built in a
+spherical region within a 20 Å periodic vacuum cell, with a separate tag for
+each atom.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-Pair this exploration with the following runtime (passed with `--runtime`):
+## runtime
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt.yaml
-:language: yaml
-```
+- {doc}`EMT <../../potentials/emt>` ({download}`emt.yaml <../../../../examples/global_optimisation/runtimes/emt.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 1000`.
 
-The default periodic setting places the isolated cluster in a 20 × 20 × 20 Å periodic vacuum cell. The random
-builder assigns every Cu and Ni atom a distinct positive tag, so the default
-fragment-preserving mode treats each atom as an independently movable
-particle.
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-The generation requests no crossover offspring and two mutation offspring.
-`particles: [Cu, Ni]` restricts swap to Cu/Ni pairs, while `swap_ratio: 0.2`
-gives one successful exchange for this composition. The builder and mutation
-use the same `covalent_ratio`, ensuring that generated and swapped structures
-are checked with consistent distance limits. If the requested mutations cannot
-be produced within the attempt limit, the random builder completes the
-generation.
+## methods
 
-## run
+- {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; mutation only, using `swap` mutation.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu7ni6.yaml).
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
@@ -48,13 +36,6 @@ Follow {ref}`running the examples <go-running-examples>` with these settings:
 
 ## results
 
-The search is stored under `run-cu7ni6-emt`, with its restart state
-in `candidates.db`. When it completes, `results/all_candidates.xyz` contains
-the relaxed candidates ordered by energy, and `results/pop.png` summarises the
-population energies by generation.
-
-:::{note}
-EMT and the small population keep this example inexpensive. They are suitable
-for demonstrating swap-driven chemical ordering, not for a converged or
-quantitatively predictive Cu-Ni cluster study.
-:::
+Compare relaxed chemical orderings in `results/all_candidates.xyz` and the
+energy history in `results/pop.png`. The small population and EMT potential
+make this a workflow demonstration, not a validated Cu–Ni stability study.

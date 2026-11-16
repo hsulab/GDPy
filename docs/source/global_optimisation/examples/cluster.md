@@ -4,91 +4,52 @@
 
 ## system
 
-Search for low-energy structures of an isolated eight-atom copper cluster with
-ASE's Effective Medium Theory (EMT) potential. A 20 × 20 × 20 Å periodic vacuum
-cell separates neighbouring cluster images. No model download is needed.
-
-GA and BH generate four initial structures inside a sphere, using matching
-builder settings and random seed. Each Cu atom has a distinct positive tag,
-with `system.periodic: true` and `system.preserve_fragments: true`, so individual
-atoms can move and recombine. SA instead reads two starting structures from the
-shared seed file and does not preserve fragments. The search budgets below are
-short workflow demonstrations, not converged global-minimum searches.
-
-## configuration
-
-### local relaxation runtime
-
-Both methods relax initial structures and new candidates with this runtime:
-
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt.yaml
-:language: yaml
-```
-
-SA uses an MD runtime for cooling, followed by endpoint minimisation, as shown
-in its section below.
-
-(ga-cluster-example)=
-
-### genetic algorithm
-
-The search creates two offspring in one generation using interatomic-distance
-comparison, `cut_and_splice` crossover, and rattle mutation.
-
-The complete example is available at
-`examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml`:
+Search an isolated Cu₈ cluster in a 20 Å periodic vacuum cell. The initial
+random structures occupy a sphere of radius 3 Å; each Cu atom has its own tag.
+The annealing input instead reads two seed structures and disables fragment
+preservation.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
+This block shows the first method's system settings. The linked inputs below
+contain each method's builders and population sizes.
+
+## runtime
+
+- {doc}`EMT <../../potentials/emt>` ({download}`emt.yaml <../../../../examples/global_optimisation/runtimes/emt.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 1000`.
+
+- {doc}`EMT <../../potentials/emt>` ({download}`emt_sa.yaml <../../../../examples/global_optimisation/runtimes/emt_sa.yaml>`): NVT dynamics,
+  `timestep: 1.0` fs and `steps: 100` per trajectory.
+  Temperature follows the cooling schedule below; pressure is not controlled.
+
+Annealing endpoints are minimised with the same potential using
+`fmax: 0.05` eV/Å and `steps: 1000`.
+
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
+
+(ga-cluster-example)=
 (bh-cu8-example)=
-
-### basin hopping
-
-The exploration input is `examples/global_optimisation/explorations/basin_hopping/cu8.yaml`:
-
-```{literalinclude} ../../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
-:language: yaml
-```
-
-The search selects starts once and launches two independent chains from the retained
-pool of up to two distinct candidates. Starts are sampled with replacement,
-so both chains may start from the same candidate. Each chain runs ten displacement proposals, with a maximum displacement of 0.8 Å.
-Both chains propose once per round, and the calculation worker minimizes the
-batch of valid trials before their energies are used for acceptance.
-The operator's 500 K temperature controls uphill acceptance during the search;
-it is not an MD thermostat or a claim of thermal equilibrium sampling.
-
-The separate runtime relaxes the initial population and every valid trial
-using EMT and a force tolerance of 0.05 eV/Å. Every relaxed trial endpoint is stored, whether accepted or rejected,
-without another relaxation. The search adds up to twenty trial minima, for at
-most 24 evaluated structures including initialization. The omitted `strategy.convergence`
-uses the default final generation of 1; generation 0 is initialization. Stored
-discoveries do not replace chain states: MC acceptance determines each next state.
-
 (sa-cu8-example)=
 
-### simulated annealing
+## methods
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/cu8.yaml
-:language: yaml
-```
+- {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle` mutation.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml).
+- {doc}`basin hopping <../basin_hopping>`: 1 generation after initialization, with 2 chains of
+  10 attempted steps using `move` at 500 K acceptance temperature.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu8.yaml).
+- {doc}`simulated annealing <../simulated-annealing>`: 3 generations with 4 trajectories each, cooling
+  through 1200 → 300, 900 → 200, 600 → 100 K; minimise the selected endpoints.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/simulated_annealing/cu8.yaml).
 
-The calculation runtime is supplied separately:
-
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt_sa.yaml
-:language: yaml
-```
-
-The example minimises two initial structures and runs three generations of four
-MD trajectories cooling from 1200 to 300 K, 900 to 200 K, and 600 to 100 K
-respectively. Each trajectory is
-followed by minimisation. It retains at most two distinct minima after each generation.
-
-## run
-
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
@@ -98,54 +59,7 @@ Follow {ref}`running the examples <go-running-examples>` with these settings:
 
 ## results
 
-### genetic algorithm
-
-The search is stored under `run-cu8-emt`. When it completes,
-`results/all_candidates.xyz` contains the relaxed candidates ordered by the GA
-score, while `results/pop.png` summarises the population energies by
-generation. The example produces six relaxed Cu8 candidates: four initial
-structures and two offspring.
-
-:::{note}
-EMT is inexpensive and convenient for demonstrating the workflow, but this
-small population and single-generation search are not sufficient for a
-scientific Cu8 global optimisation.
-:::
-
-### basin hopping
-
-Results are written under `run-cu8-bh-emt`:
-
-- `results/all_candidates.xyz`: all evaluated minima (including rejected trials), ordered by score
-  with the lowest-energy candidate first for the default energy objective.
-- `results/pop.png`: candidate energies by generation.
-- `tmp_folder/gen*/rounds/events.jsonl`: chain decisions and references to
-  structures in `candidates.db`. Trajectory files are not written automatically.
-
-Export each chain's starting structure and accepted hops when needed:
-
-```python
-from gdpx.exploration.basin_hopping import export_trajectories
-
-export_trajectories(
-    "run-cu8-bh-emt/tmp_folder/gen1/rounds",
-    "cu8-trajectories",
-)
-```
-
-This writes `mc-0000.xyz`, `mc-0001.xyz`, and so on, overwriting previous exports
-of those chains. Rejected trials are omitted. Extinction replacements are marked
-as restart events; this demo has no extinction rules. Export works during a run
-up to its last committed round and after generation finalization.
-
-The small population and ten-move chains keep this example short. Increase
-`steps_per_chain` for longer chains, or adjust the initial population and number of
-chains for a broader search. Setting `strategy.convergence.generation` above 1 additionally
-reselects chain starts from the accumulated minima between search generations.
-The demonstration does not establish the global minimum of Cu₈.
-
-### simulated annealing
-
-Inspect `results/all_candidates.xyz` for the retained minima and
-`results/pop.png` for the energy history. The short cooling trajectories
-demonstrate the workflow rather than a converged search.
+Inspect `results/all_candidates.xyz` for evaluated minima and `results/pop.png`
+for the energy history. For hopping chains, `tmp_folder/gen1/rounds/events.jsonl`
+records decisions, including rejected trials. These short runs demonstrate the
+workflow rather than establishing the global minimum.

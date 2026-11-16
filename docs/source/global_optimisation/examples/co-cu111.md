@@ -4,46 +4,36 @@
 
 ## system
 
-This example searches positions and orientations of one CO molecule on an
-orthogonal Cu(111)-p(2×2) slab. The right-angled surface cell is rectangular,
-5.11 × 4.43 Å, not exactly square. Three layers contain twelve Cu atoms.
-The bottom four Cu atoms are fixed during both MD and minimisation; the upper
-two layers and CO are mobile.
-
-The dedicated substrate `cu111_p2x2_3layer_sa.xyz` preserves the geometry of
-`cu111_p2x2_3layer.xyz`, with substrate tags set to zero and all three PBC flags
-enabled to match the population interface. Its 24 Å cell height leaves vacuum
-between periodic slab images. The original shared substrate is unchanged.
-
-## configuration
-
-Four starting structures are built by inserting an intact CO molecule with
-random orientation and centre of mass 1.5–3.5 Å above the top Cu layer.
-The search retains up to four distinct minima and performs three generations
-of four trajectories. Generations 1–3 cool from 600, 450, and 300 K respectively to 100 K.
-Each trajectory starts with fresh velocities and runs 1,000 MD steps at
-0.5 fs (0.5 ps), followed by minimisation. If fewer than four parents survive
-duplicate filtering, selection uses replacement.
+Search positions and orientations of one CO molecule on a three-layer
+Cu(111)-p(2×2) slab. The 5.11 × 4.43 Å surface cell has a height of 24 Å.
+The bottom four Cu atoms are fixed; the remaining atoms and CO are mobile.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-The separate runtime uses the DeepMD ASE backend and an ASE Langevin thermostat:
+## runtime
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/dpa4c_mini_sa.yaml
-:language: yaml
-```
+- {doc}`DPA4C / DeepMD <../../potentials/deepmd>` ({download}`dpa4c_mini_sa.yaml <../../../../examples/global_optimisation/runtimes/dpa4c_mini_sa.yaml>`): NVT dynamics,
+  `timestep: 0.5` fs and `steps: 1000` per trajectory.
+  Temperature follows the cooling schedule below; pressure is not controlled. Fixed atoms: zbot 4.
 
-Supply a DPA4C foundation model at `models/dpa4c-foundation.pt2` under the repository root, or edit the
-runtime model path. The model must cover Cu, C, and O and be exported for the
-execution device. No weights are bundled or downloaded. See
-{ref}`DPA4C setup <potential-deepmd>` for export and installation guidance.
-Element coverage alone does not establish accuracy for CO adsorption.
+Annealing endpoints are minimised with the same potential using
+`fmax: 0.05` eV/Å and `steps: 1000`.
 
-## run
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+## methods
+
+- {doc}`simulated annealing <../simulated-annealing>`: 3 generations with 4 trajectories each, cooling
+  through 600 → 100, 450 → 100, 300 → 100 K; minimise the selected endpoints.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
@@ -51,10 +41,7 @@ Follow {ref}`running the examples <go-running-examples>` with these settings:
 
 ## results
 
-CO starts intact but is flexible during MD and minimisation. Fragment tags
-identify the initial molecule; they do not constrain its bond or prevent
-desorption or dissociation. Inspect the final structures to check their chemical
-state. Candidates are ranked by total energy because their composition is fixed;
-these energies are not adsorption energies relative to a clean slab and gas-phase
-CO. This small, short search demonstrates the workflow, not convergence or model
-accuracy. Results are written to `results/all_candidates.xyz` and `results/pop.png`.
+Inspect `results/all_candidates.xyz` for adsorption geometry, desorption, or
+dissociation, and `results/pop.png` for energy history. CO is flexible during
+dynamics and minimisation. Total energies rank these fixed-composition
+candidates; they are not adsorption energies relative to a clean slab and gas-phase CO.

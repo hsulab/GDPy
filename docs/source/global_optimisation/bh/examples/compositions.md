@@ -4,49 +4,41 @@
 
 ## system
 
-This example runs independent Cu₆Ni₂ and Cu₄Ni₄ basin-hopping searches with
-EMT. Both use seed 7, two initial candidates, and two hopping rounds. The move
-operator acts on both species, preserving each search's composition.
-
-## configuration
-
-The `broadcast` field replaces the entire composition mapping for each search.
-Keeping the element counts together produces exactly two compositions.
+Run independent searches for Cu₆Ni₂ and Cu₄Ni₄ clusters using a shared setup
+and seed. The top-level `broadcast` mapping in the complete input changes the
+whole composition dictionary; each search preserves its assigned composition.
+The system block below shows the base composition.
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu_ni_compositions.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-Pair this exploration with the EMT runtime:
+## runtime
 
-```{literalinclude} ../../../../../examples/global_optimisation/runtimes/emt.yaml
-:language: yaml
-```
+- {doc}`EMT <../../../potentials/emt>` ({download}`emt.yaml <../../../../../examples/global_optimisation/runtimes/emt.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 1000`.
 
-## run
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+## methods
+
+- {doc}`basin hopping <../../basin_hopping>`: 1 generation after initialization, with 2 chains of
+  2 attempted steps using `move` at 500 K acceptance temperature.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu_ni_compositions.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `basin_hopping` | `cu_ni_compositions.yaml` | `../../runtimes/emt.yaml` | `run-cu-ni-compositions` |
 
-The searches execute sequentially in one process with independent calculation
-workers. To run both within one Slurm allocation, activate your gdpx environment,
-adapt account/partition settings in the supplied script, and submit from the
-repository root:
-
-```shell
-sbatch examples/global_optimisation/two_explorations.slurm
-```
-
 ## results
 
-- `run-cu-ni-compositions/expo.00/`: Cu₆Ni₂ candidates, results, and checkpoints.
-- `run-cu-ni-compositions/expo.01/`: Cu₄Ni₄ candidates, results, and checkpoints.
-- `run-cu-ni-compositions/_meta/_scheduler.json`: shared provider, layout, and job records.
-- `run-cu-ni-compositions/gdp.out`: progress for both searches.
-
-Rerun the same command to resume. Use a fresh directory when changing broadcast
-values, their order, or calculation settings. See {ref}`exploration-output-layout`
-for broadcast ordering and metadata details.
+The two searches write separate results under `expo.00/` and `expo.01/`, with
+shared scheduler records under `_meta/`. Resume with the same broadcast values
+and order. For one Slurm allocation, adapt and submit
+`examples/global_optimisation/two_explorations.slurm` from the repository root.

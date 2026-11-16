@@ -4,51 +4,38 @@
 
 ## system
 
-This example searches for low-energy structures of a four-water cluster. The
-builder inserts four intact H2O molecules in a spherical region at the centre
-of a large periodic vacuum box and assigns one tag to each molecule. Structures
-are relaxed with xreac and the bundled H/O ReaxFF parameters. See the
-{ref}`potential-reax` guide for installation and runtime settings. No
-neural-network model download is needed.
-
-## configuration
-
-The complete example is available at
-`examples/global_optimisation/explorations/genetic_algorithm/water4.yaml`:
+Search a cluster of four water molecules in a periodic vacuum cell. Each
+molecule shares one tag so compatible search operators preserve its internal
+geometry; subsequent relaxation can change its bonds.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/water4.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-Pair this exploration with the following runtime (passed with `--runtime`):
+## runtime
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/xreac.yaml
-:language: yaml
-```
+- {doc}`ReaxFF / xreac <../../potentials/reax>` ({download}`xreac.yaml <../../../../examples/global_optimisation/runtimes/xreac.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 20`.
 
-As for all isolated clusters, use `system.periodic: true` and
-`system.preserve_fragments: true`. The `cut_and_splice` crossover preserves tagged molecular
-fragments and their inherited orientations, while rattle translates whole
-water molecules. The ReaxFF relaxation may change intramolecular coordinates
-because the model evaluates and relaxes all atoms.
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-## run
+## methods
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+- {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle` mutation.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/water4.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `genetic_algorithm` | `water4.yaml` | `../../runtimes/xreac.yaml` | `run-water4-reax` |
 
-Install `gdpx[reax]` as described in {ref}`potential-reax`.
-
 ## results
 
-The search is stored under `run-water4-reax`. The small
-population and single generation keep this example quick; increase both for a
-production search.
-
-:::{note}
-This compact example demonstrates the workflow rather than providing a
-converged or validated water-cluster study.
-:::
+Inspect `results/all_candidates.xyz` for molecular arrangements and possible
+bond changes during relaxation. The small population and short relaxation budget
+do not establish converged water-cluster minima.

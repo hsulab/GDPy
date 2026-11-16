@@ -4,37 +4,30 @@
 
 ## system
 
-This minimal example searches for low-energy periodic cells containing four Cu
-atoms. The `random_bulk` builder samples both atomic positions and cell shapes,
-and ASE's Effective Medium Theory (EMT) calculator relaxes each candidate. The
-small population and single generation make this a workflow demonstration, not
-a converged Cu crystal-structure prediction.
-
-## configuration
-
-The complete example is available at
-`examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml`:
+Search periodic copper cells containing four atoms. The builder varies atomic
+positions and cell shape at a fixed volume of 48 Å³.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-Pair this exploration with the following runtime (passed with `--runtime`):
+## runtime
 
-```{literalinclude} ../../../../examples/global_optimisation/runtimes/emt.yaml
-:language: yaml
-```
+- {doc}`EMT <../../potentials/emt>` ({download}`emt.yaml <../../../../examples/global_optimisation/runtimes/emt.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 1000`.
 
-The default periodic setting applies periodic boundary conditions in all three
-directions. The builder fixes the cell volume at 48 Å³ while sampling cell
-lengths and angles within the declared bounds. Periodic cut-and-splice combines
-parent structures, while rattle and strain mutations vary atomic positions and
-cell shape. Each Cu atom has its own tag, so default fragment preservation still
-treats the atoms as independently movable particles.
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-## run
+## methods
 
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+- {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle`, `strain` mutation.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu4_bulk.yaml).
+
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
@@ -42,13 +35,6 @@ Follow {ref}`running the examples <go-running-examples>` with these settings:
 
 ## results
 
-The search is stored under `run-cu4-bulk-emt`. When it completes,
-`results/all_candidates.xyz` contains the relaxed candidates ordered by their
-GA score, and `results/pop.png` summarises the energies by generation. This
-configuration produces four initial structures and two offspring.
-
-:::{note}
-EMT and the compact search settings keep the example inexpensive. Increase the
-population, number of generations, and structural diversity before using this
-workflow for a scientific bulk-structure search.
-:::
+Inspect relaxed cells in `results/all_candidates.xyz` and energies in
+`results/pop.png`. The example produces four initial candidates and two
+offspring; increase the search budget before drawing structural conclusions.

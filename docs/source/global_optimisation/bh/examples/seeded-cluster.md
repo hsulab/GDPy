@@ -4,91 +4,41 @@
 
 ## system
 
-This example starts one basin-hopping search from **two random structures and
-two seed structures**. It uses two named builders in the same population:
-`random` generates fresh Cu₈ clusters and `seeds` reads selected frames from a
-checked-in structure file. All four initial candidates are relaxed using EMT
-before the search selects chain starts.
-
-## configuration
-
-Run from `examples/global_optimisation/explorations/basin_hopping/` so the seed-file path resolves correctly.
-The exploration input is
-`examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml`:
+Start a Cu₈ search from two random structures and two supplied seed structures
+in a 20 Å periodic vacuum cell. The seeds are a perturbed cube and square
+antiprism; their existing energies are discarded and both are evaluated again.
+Keep composition, cell, periodicity, and tags consistent when supplying your own seeds.
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml
 :language: yaml
+:caption: system
+:start-at: system:
+:end-before: strategy:
 ```
 
-The seed file contains two hand-built starting geometries: a slightly perturbed
-cube and a slightly perturbed square antiprism. They are unrelaxed examples, not
-claimed low-energy minima. Both frames contain eight Cu atoms, a 20 × 20 × 20 Å
-periodic vacuum cell, and distinct positive atom tags (1–8), matching the random
-builder's system description. The tags allow moves of individual Cu atoms.
+## runtime
 
-```{literalinclude} ../../../../../examples/global_optimisation/assets/cu8_seeds.xyz
-:language: text
-:caption: cu8_seeds.xyz (two extended-XYZ frames)
-```
+- {doc}`EMT <../../../potentials/emt>` ({download}`emt.yaml <../../../../../examples/global_optimisation/runtimes/emt.yaml>`): minimisation with
+  `fmax: 0.05` eV/Å and `steps: 1000`.
 
-`indices: [0, 1]` selects both seed frames in file order. The allocation sizes
-must sum to `initial.total_size`: two random candidates plus two seeds gives
-four initial evaluations. The `direct` builder returns its selected frames;
-its allocation must match that frame count. It does not randomly sample or
-truncate a larger file to the requested allocation size.
+See the linked potential guide for installation and model setup. Check force
+convergence rather than assuming the step limit reaches a minimum.
 
-`random` remains the default reference builder, supplying system metadata to
-the move operators. Both sources feed the same retained pool, whose capacity
-is four distinct candidates. Similar relaxed candidates can be deduplicated,
-and fitness-weighted selection chooses two chain starts from that pool. A seed
-is not guaranteed to start a chain simply because it was provided.
+## methods
 
-Each chain attempts five steps in generation 1. Including initialization, the
-search evaluates at most 14 structures; invalid proposals do not trigger an
-evaluation. The shared {doc}`population settings <../../population>` explain
-initial, retained, and generation sizes.
+- {doc}`basin hopping <../../basin_hopping>`: 1 generation after initialization, with 2 chains of
+  5 attempted steps using `move` at 500 K acceptance temperature.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml).
 
-### supply your own seeds
-
-Replace `system.builders.seeds.frames` with your structure-file path and
-set `indices` to the frames you want to include. Update the `seeds` allocation
-and `initial.total_size` together if the number of selected frames changes.
-Keep the cell, periodicity, composition, and tags consistent with the intended
-search and moves. For this atomic Cu₈ example, give each atom a distinct positive
-tag and preserve the periodic vacuum cell. Extended XYZ stores both the cell
-and tags; plain XYZ may omit this information.
-
-Seeds are starting geometries, not cached evaluations: their calculators and
-previous search metadata are cleared, and the configured runtime evaluates them
-again. Use a new output directory when changing the seed file or initialization
-allocations. Resume an interrupted run with the same configuration and seed file.
-
-## run
-
-Follow {ref}`running the examples <go-running-examples>` with these settings:
+Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `basin_hopping` | `cu8_seeded.yaml` | `../../runtimes/emt.yaml` | `run-cu8-seeded-bh-emt` |
 
-No model download is needed. The runtime relaxes every initial structure,
-including the seeds, and every valid hopping trial. You can also embed the
-runtime in the exploration file as shown in the
-{doc}`global optimisation overview <../../index>`.
-
 ## results
 
-Inspect the initial candidates' builder provenance in the database:
-
-```python
-from ase.db import connect
-
-database = connect("run-cu8-seeded-bh-emt/candidates.db")
-for row in database.select(relaxed=1, generation=0):
-    print(row.confid, row.data["builder"], row.energy)
-```
-
-There are two initial rows labeled `random` and two labeled `seeds`, even if
-some candidates later relax to similar minima. Reports and the history figure
-are under `results/`; see the {doc}`basic Cu₈ example <cluster>` for trajectory
-export and the output layout.
+Generation 0 in `candidates.db` records two candidates from `init` and two from
+`seeds`. Similar relaxed structures can be deduplicated, so providing a seed
+does not guarantee its selection. Use a fresh output directory when changing
+the seed file or its allocations.
