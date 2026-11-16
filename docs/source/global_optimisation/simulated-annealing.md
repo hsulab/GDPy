@@ -1,6 +1,6 @@
 (simulated-annealing)=
 
-# simulated annealing (sa)
+# simulated annealing
 
 Simulated annealing (SA) searches for low-energy structures through repeated
 MD cooling and minimisation, using `gdp explore`.
