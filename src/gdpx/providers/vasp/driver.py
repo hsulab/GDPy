@@ -1,4 +1,5 @@
 import dataclasses
+from collections.abc import Mapping
 import io
 import pathlib
 import re
@@ -13,6 +14,7 @@ from ase.geometry import find_mic
 from ase.io import ParseError, read, write
 
 from .backend import read_oszicar, read_outcar_scf, read_report, write_vasp
+from .restart import graceful_stop, restore_electronic_checkpoint
 from gdpx.data.extatoms import ScfErrAtoms
 from gdpx.utils.archive import open_archive
 from gdpx.utils.cmdrun import run_ase_calculator
@@ -331,6 +333,9 @@ class VaspDriverSetting(DriverSetting):
     #: Driver detailed controller setting.
     controller: dict = dataclasses.field(default_factory=dict)
 
+    #: Opt-in Slurm deadline stop, configured under executor.parameters.setup.
+    graceful_stop: dict = dataclasses.field(default_factory=dict)
+
     #: Whether initialise velocities by VASP itself.
     use_vasp_vinit: bool = True
 
@@ -349,6 +354,21 @@ class VaspDriverSetting(DriverSetting):
         These parameters are frozen when the driver is initialised.
 
         """
+        if not isinstance(self.graceful_stop, Mapping):
+            raise ValueError("setup.graceful_stop must be a mapping with enabled and margin_seconds.")
+        unknown = set(self.graceful_stop) - {"enabled", "margin_seconds"}
+        if unknown:
+            raise ValueError(f"Unknown setup.graceful_stop options: {sorted(unknown)}")
+        options = {"enabled": False, "margin_seconds": 7200, **self.graceful_stop}
+        if not isinstance(options["enabled"], bool):
+            raise ValueError("setup.graceful_stop.enabled must be a boolean.")
+        margin = options["margin_seconds"]
+        if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin <= 0:
+            raise ValueError("setup.graceful_stop.margin_seconds must be a finite positive number.")
+        if options["enabled"] and self.task != "min":
+            raise ValueError("Graceful stopping is supported only for VASP min.")
+        self.graceful_stop = options
+
         # - update internals that are specific for each calculator...
 
         _init_params = {}
@@ -565,7 +585,17 @@ class VaspDriver(BaseDriver):
                     direct=True,
                 )
         else:
+            # Preserve the current output policy when loading old run settings.
+            output_policy = {
+                key: self.calc.bool_params[key]
+                for key in ("lwave", "lcharg")
+                if self.calc.bool_params[key] is not None
+            }
             self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
+            self.calc.set(**output_policy)
+            if self.setting.task == "min":
+                restored = restore_electronic_checkpoint(self.calc, ckpt_wdir, self.directory)
+                self._print(f"Electronic restart files: {restored}")
             if cache_traj is None:
                 traj = self.read_trajectory()
             else:
@@ -605,7 +635,15 @@ class VaspDriver(BaseDriver):
             #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
             shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
 
-        run_ase_calculator("vasp", self.calc.command, self.directory)
+        if self.setting.task == "min":
+            with graceful_stop(
+                self.directory, self._print,
+                enabled=self.setting.graceful_stop["enabled"],
+                margin_seconds=self.setting.graceful_stop["margin_seconds"],
+            ):
+                run_ase_calculator("vasp", self.calc.command, self.directory)
+        else:
+            run_ase_calculator("vasp", self.calc.command, self.directory)
 
         return
 
