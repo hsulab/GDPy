@@ -97,3 +97,36 @@ features from being retained.
 
 The {ref}`genetic-algorithm` guide contains gdpx's YAML configuration reference,
 available operators, command-line example, and application links.
+
+## Mutation completion
+
+A generation can fill shortages from failed crossover or mutation attempts by
+mutating eligible parents instead of invoking a random structure builder:
+
+```yaml
+strategy:
+  method: genetic_algorithm
+  reproduction:
+    size: 12
+    maximum_attempts: 12
+    mutation_probability: 0.8
+  mutation:
+    size: 4
+  completion:
+    method: mutation
+    maximum_attempts: 200
+```
+
+The generation size still comes from `system.generation.total_size`. Completion
+uses the same configured mutation operators and parent selector as ordinary
+mutation, filling all remaining slots. Its attempt budget is per generation,
+including failed attempts, and defaults to ten times the generation size.
+Successful candidates and attempt counts are checkpointed; resuming continues
+from those counts without duplicating candidates. Exhaustion raises an error
+without falling back to random generation. Completion offspring are recorded as
+mutations with their parent IDs and `CompletionMutation` origin.
+
+The default completion method remains `builder`, configured through
+`builder_proportions`. Do not combine that setting with `method: mutation`.
+Changing an already-started builder completion into mutation completion requires
+a fresh search directory.
