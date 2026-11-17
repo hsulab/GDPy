@@ -40,10 +40,12 @@ def test_restart_driver_preserves_output_policy_and_restores_geometry(tmp_path, 
     driver = VaspDriver(calc, {"task": "min", "steps": 20}, directory=tmp_path)
     monkeypatch.delenv("GDPX_VASP_STOP_MARGIN_SECONDS", raising=False)
     captured = {}
-    def write_input(atoms):
+    def write_input(calc_, atoms, checkpoint, directory):
+        import shutil
+        shutil.copyfile(checkpoint / "CONTCAR", directory / "POSCAR")
         captured.update(istart=calc.int_params["istart"], icharg=calc.int_params["icharg"],
                         lwave=calc.bool_params["lwave"], lcharg=calc.bool_params["lcharg"])
-    with patch.object(calc, "write_input", side_effect=write_input), patch(
+    with patch("gdpx.providers.vasp.driver.prepare_restart_inputs", side_effect=write_input), patch(
         "gdpx.providers.vasp.driver.run_ase_calculator"
     ) as run:
         driver._irun(Atoms("H"), ckpt_wdir=previous, cache_traj=[Atoms("H")])
@@ -117,7 +119,7 @@ def test_structured_input_reaches_timer(tmp_path, enabled):
     previous.mkdir()
     (previous / "INCAR").write_text("ISTART = 0\n")
     (previous / "CONTCAR").write_text("geometry")
-    with patch.object(calc, "write_input"), patch(
+    with patch("gdpx.providers.vasp.driver.prepare_restart_inputs"), patch(
         "gdpx.providers.vasp.driver.run_ase_calculator"
     ), patch("gdpx.providers.vasp.driver.graceful_stop", return_value=nullcontext()) as stop:
         driver._irun(Atoms("H"), ckpt_wdir=previous, cache_traj=[Atoms("H")])

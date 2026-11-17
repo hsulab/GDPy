@@ -14,6 +14,7 @@ from ase.io import ParseError, read, write
 
 from .backend import read_oszicar, read_outcar_scf, read_report, write_vasp
 from .restart import graceful_stop, restore_electronic_checkpoint, validate_graceful_stop
+from .backend.inputs import SHARED_INPUTS, detach_input_links, prepare_restart_inputs, share_checkpoint_inputs
 from gdpx.data.extatoms import ScfErrAtoms
 from gdpx.utils.archive import open_archive
 from gdpx.utils.cmdrun import run_ase_calculator
@@ -430,6 +431,16 @@ class VaspDriver(BaseDriver):
     #: Class for setting.
     setting_cls: type[DriverSetting] = VaspDriverSetting
 
+    def _save_checkpoint(self):
+        moved_links = {
+            name: (self.directory / name).resolve(strict=True)
+            for name in SHARED_INPUTS if (self.directory / name).is_symlink()
+        }
+        checkpoint = super()._save_checkpoint()
+        if checkpoint is not None:
+            share_checkpoint_inputs(self.directory, checkpoint, moved_links)
+        return checkpoint
+
     def _verify_checkpoint(self, *args, **kwargs) -> bool:
         """Check whether there is a previous calculation in the `self.directory`."""
         verified = True
@@ -480,6 +491,9 @@ class VaspDriver(BaseDriver):
         """"""
         assert isinstance(self.calc, Vasp), "VaspDriver should use ase.calculators.vasp.Vasp."
         if ckpt_wdir is None:  # start from the scratch
+            if (self.directory / "0000.run").exists():
+                raise ValueError("Start a new calculation directory when changing a VASP restart system.")
+            detach_input_links(self.directory)
             # merge params
             run_params = self.setting.get_run_params(**kwargs)
             run_params.update(**self.setting.get_init_params())
@@ -616,12 +630,7 @@ class VaspDriver(BaseDriver):
                 self.calc.set(random_seed=report_random_seeds[-1].tolist())
             else:
                 ...
-            # FIXME: magmoms from outcar?
-            self.calc.write_input(atoms)
-            # To restart, velocities are always retained
-            # if (self.directory/"CONTCAR").exists() and (self.directory/"CONTCAR").stat().st_size != 0:
-            #    shutil.copy(self.directory/"CONTCAR", self.directory/"POSCAR")
-            shutil.copy(ckpt_wdir / "CONTCAR", self.directory / "POSCAR")
+            prepare_restart_inputs(self.calc, atoms, ckpt_wdir, self.directory)
 
         if self.setting.task == "min":
             with graceful_stop(
