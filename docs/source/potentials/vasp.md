@@ -56,6 +56,7 @@ executor:
     output:
       electronic_checkpoint:
         enabled: true
+        keep: 2
 ```
 
 For VASP, an explicit block sets `LWAVE` to `enabled` and sets `LCHARG=false`.
@@ -76,6 +77,43 @@ backend filenames. VASP implements the translation here; other DFT providers
 must implement their own translation before accepting this option. Enable
 graceful stopping separately for time-limited jobs: merely requesting output
 does not protect a write interrupted by a hard Slurm timeout.
+
+### Electronic checkpoint retention
+
+`output.electronic_checkpoint.keep` defaults to 2. A positive integer retains
+that many certified **archived** WAVECAR checkpoints, in addition to the active
+run's files. Set `keep: null` to retain all electronic files. Retention runs
+only when electronic checkpoint output is explicitly enabled.
+
+After VASP exits successfully, GDP certifies the new checkpoint only if:
+
+- WAVECAR, OUTCAR, and OSZICAR were refreshed during this invocation.
+- OUTCAR contains completed timing/accounting output.
+- The final OSZICAR ionic summary is present and both electronic energy changes
+  satisfy EDIFF.
+- CONTCAR can be read as a nonempty cell.
+- WAVECAR's header and spin/k-point/band record layout are consistent with its
+  file size (formats 45200/45210 and 53300/53310).
+
+These checks detect stale, missing, truncated, and unconverged output without
+reading all wavefunction coefficients. They do not prove freedom from arbitrary
+binary corruption or guarantee that VASP will accept every checkpoint.
+
+A small `.electronic-checkpoint.json` records the successful validation and the
+sizes/timestamps of its supporting files. It moves with the numbered checkpoint;
+changes to the evidence invalidate certification. Existing unmarked checkpoints
+do not count as certified backups.
+
+GDP prunes WAVECAR and CHGCAR only from directories **older than the oldest of
+the retained certified backups**, and only after the new active output has been
+certified and enough certified archives exist. A timeout, failed command, invalid
+output, or insufficient backups causes no pruning. Uncertified newer archives
+may therefore temporarily exceed the configured count. Electronic symlinks are
+left alone.
+
+Retention never deletes checkpoint directories, geometry, logs, INCAR, or the
+shared POTCAR/KPOINTS/sorting files. In particular, `0000.run` remains available
+even when its old WAVECAR and CHGCAR are pruned.
 
 ### Shared inputs on restart
 
