@@ -121,7 +121,7 @@ def test_structured_input_reaches_timer(tmp_path, enabled):
         "gdpx.providers.vasp.driver.run_ase_calculator"
     ), patch("gdpx.providers.vasp.driver.graceful_stop", return_value=nullcontext()) as stop:
         driver._irun(Atoms("H"), ckpt_wdir=previous, cache_traj=[Atoms("H")])
-    assert stop.call_args.kwargs == {"enabled": enabled, "margin_seconds": 600}
+    assert stop.call_args.kwargs == {**restart.GRACEFUL_STOP_DEFAULTS, "enabled": enabled, "margin_seconds": 600}
 
 
 
@@ -157,12 +157,10 @@ def test_graceful_stop_block_defaults(options, expected):
     from gdpx.providers.vasp.driver import VaspDriverSetting
     original = options.copy()
     setting = VaspDriverSetting(task="min", graceful_stop=options)
-    assert setting.graceful_stop == expected
+    assert setting.graceful_stop == {**restart.GRACEFUL_STOP_DEFAULTS, **expected}
     assert options == original
 
 
 def test_graceful_stop_omitted_is_disabled():
     from gdpx.providers.vasp.driver import VaspDriverSetting
-    assert VaspDriverSetting(task="min").graceful_stop == {
-        "enabled": False, "margin_seconds": 7200
-    }
+    assert VaspDriverSetting(task="min").graceful_stop == restart.GRACEFUL_STOP_DEFAULTS

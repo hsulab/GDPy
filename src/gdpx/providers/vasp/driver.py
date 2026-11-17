@@ -1,5 +1,4 @@
 import dataclasses
-from collections.abc import Mapping
 import io
 import pathlib
 import re
@@ -14,7 +13,7 @@ from ase.geometry import find_mic
 from ase.io import ParseError, read, write
 
 from .backend import read_oszicar, read_outcar_scf, read_report, write_vasp
-from .restart import graceful_stop, restore_electronic_checkpoint
+from .restart import graceful_stop, restore_electronic_checkpoint, validate_graceful_stop
 from gdpx.data.extatoms import ScfErrAtoms
 from gdpx.utils.archive import open_archive
 from gdpx.utils.cmdrun import run_ase_calculator
@@ -354,20 +353,9 @@ class VaspDriverSetting(DriverSetting):
         These parameters are frozen when the driver is initialised.
 
         """
-        if not isinstance(self.graceful_stop, Mapping):
-            raise ValueError("setup.graceful_stop must be a mapping with enabled and margin_seconds.")
-        unknown = set(self.graceful_stop) - {"enabled", "margin_seconds"}
-        if unknown:
-            raise ValueError(f"Unknown setup.graceful_stop options: {sorted(unknown)}")
-        options = {"enabled": False, "margin_seconds": 7200, **self.graceful_stop}
-        if not isinstance(options["enabled"], bool):
-            raise ValueError("setup.graceful_stop.enabled must be a boolean.")
-        margin = options["margin_seconds"]
-        if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin <= 0:
-            raise ValueError("setup.graceful_stop.margin_seconds must be a finite positive number.")
-        if options["enabled"] and self.task != "min":
+        self.graceful_stop = validate_graceful_stop(self.graceful_stop)
+        if self.graceful_stop["enabled"] and self.task != "min":
             raise ValueError("Graceful stopping is supported only for VASP min.")
-        self.graceful_stop = options
 
         # - update internals that are specific for each calculator...
 
@@ -638,8 +626,7 @@ class VaspDriver(BaseDriver):
         if self.setting.task == "min":
             with graceful_stop(
                 self.directory, self._print,
-                enabled=self.setting.graceful_stop["enabled"],
-                margin_seconds=self.setting.graceful_stop["margin_seconds"],
+                **self.setting.graceful_stop,
             ):
                 run_ase_calculator("vasp", self.calc.command, self.directory)
         else:
