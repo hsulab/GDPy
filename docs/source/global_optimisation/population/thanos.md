@@ -109,7 +109,7 @@ tags, so shared tags can hide contacts you intended to exclude.
 Explicit distances are in Å. If omitted, distance bounds use the sum of the
 two elements' covalent radii multiplied by `covalent_ratio`, which defaults to
 `[0.8, 2.0]`. See the existing
-{doc}`O–O extinction guide <../bh/examples/cuox_thanos>` for a worked BH case.
+{doc}`O–O extinction guide <../bh/examples/cuox_tace>` for a worked BH case.
 
 ## particle number
 

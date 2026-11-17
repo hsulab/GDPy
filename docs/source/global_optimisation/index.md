@@ -100,7 +100,7 @@ broadcast:
 Keys identify settings by dotted paths; each listed value replaces that setting
 in one search. Multiple keys generate all combinations of their values. Keep
 coupled settings together, as with the complete composition dictionaries above.
-See the {doc}`composition sweep example <bh/examples/compositions>` for a complete
+See the {doc}`composition sweep example <examples/alloy-cluster>` for a complete
 input and run command.
 
 Each search gets its own directory, such as `expo.00` and `expo.01`, while

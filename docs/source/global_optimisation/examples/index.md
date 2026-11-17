@@ -48,14 +48,11 @@ them and check convergence before interpreting the results scientifically.
 | Main system | Specific system | Methods | Potential / variants |
 | --- | --- | --- | --- |
 | Cluster | {ref}`Cu₈ <cu8-example>` | GA, BH, SA | EMT; {ref}`seeded BH <bh-seeded-cu8-example>` |
-| Cluster | {ref}`Cu₇Ni₆ <ga-alloy-cluster-example>` | GA | EMT; swap mutation |
-| Cluster | {ref}`Cu₆Ni₂ and Cu₄Ni₄ <bh-composition-broadcast-example>` | BH | EMT; composition sweep |
-| Cluster | {ref}`Cu₆Niₓ <bh-variable-composition-example>` | BH | EMT; Ni insertion/removal |
+| Cluster | {ref}`Cu–Ni <ga-alloy-cluster-example>` | GA, BH | EMT; chemical ordering, composition sweep, Ni insertion/removal |
 | Cluster | Cu₄O₄ | BH | {ref}`TACE <bh-cuox-tace-example>`; {ref}`MatterSim with O–O extinction <bh-cuox-thanos-example>` |
 | Cluster | {ref}`(H₂O)₄ <ga-water-cluster-example>` | GA | xreac / ReaxFF |
 | Bulk | {ref}`Cu₄ <ga-bulk-example>` | GA | EMT |
-| Interface | {ref}`Cu₄O₄/Cu(111) <ga-surface-oxide-example>` | GA | MatterSim |
-| Interface | {ref}`CuₓOᵧ/Cu(111) <ga-variable-surface-oxide-example>` | GA | MatterSim; variable composition |
+| Interface | {ref}`Copper oxide/Cu(111) <ga-surface-oxide-example>` | GA | MatterSim; fixed and variable composition |
 | Interface | {ref}`Cu₄/α-Al₂O₃(0001) <ga-supported-nanoparticle-example>` | GA, BH, SA | User-selected; {ref}`short DPA4C-mini SA <sa-supported-nanoparticle-example>` |
 | Interface | {ref}`CO–Cu₄/α-Al₂O₃(0001) <ga-supported-cluster-adsorbate-example>` | GA | MatterSim; random and site-insertion builders |
 | Interface | {ref}`Water/TiO₂(101) <bh-tio2-water-rotation>` | BH | xreac; rotations and {ref}`bond changes <bh-tio2-water-bond-change>` |
@@ -67,17 +64,12 @@ them and check convergence before interpreting the results scientifically.
 
 cluster
 alloy-cluster
-../bh/examples/compositions
-../bh/examples/variable-composition
 ../bh/examples/cuox_tace
-../bh/examples/cuox_thanos
 water-cluster
 bulk
 surface-oxide
-variable-surface-oxide
 supported-nanoparticle
 supported-cluster-adsorbate
 ../bh/examples/tio2-water-rotation
-../bh/examples/tio2-water-bond-change
 co-cu111
 ```

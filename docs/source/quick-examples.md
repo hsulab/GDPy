@@ -74,7 +74,7 @@ runtime roles, outputs, and restart behavior.
 | [(H<sub>2</sub>O)<sub>4</sub>](global_optimisation/examples/water-cluster.md) | cluster | Molecular-fragment search |
 | [Cu<sub>4</sub>](global_optimisation/examples/bulk.md) | bulk | Periodic crystal search |
 | [Cu<sub>4</sub>O<sub>4</sub>/Cu(111)](global_optimisation/examples/surface-oxide.md) | surface | Fixed-composition surface reconstruction |
-| [Cu<sub>x</sub>O<sub>y</sub>/Cu(111)](global_optimisation/examples/variable-surface-oxide.md) | surface | Variable composition |
+| [Cu<sub>x</sub>O<sub>y</sub>/Cu(111)](global_optimisation/examples/surface-oxide.md) | surface | Variable composition |
 | [Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001)](global_optimisation/examples/supported-nanoparticle.md) | cluster/surface | Supported nanoparticle search |
 | [CO–Cu<sub>4</sub>/α-Al<sub>2</sub>O<sub>3</sub>(0001)](global_optimisation/examples/supported-cluster-adsorbate.md) | molecule/surface | Random and site-insertion builders |
 
@@ -87,10 +87,10 @@ configuration shared by these examples.
 | --- | --- | --- |
 | {ref}`Cu₈ <bh-cu8-example>` | cluster | Basic search and trajectory export |
 | {ref}`Cu₈ <bh-seeded-cu8-example>` | cluster | Random structures and seed-file frames |
-| [Cu<sub>6</sub>Ni<sub>2</sub> and Cu<sub>4</sub>Ni<sub>4</sub>](global_optimisation/bh/examples/compositions.md) | cluster | Two compositions in one allocation |
-| [Cu<sub>6</sub>Ni<sub>x</sub>](global_optimisation/bh/examples/variable-composition.md) | cluster | Ni insertion and removal |
+| [Cu<sub>6</sub>Ni<sub>2</sub> and Cu<sub>4</sub>Ni<sub>4</sub>](global_optimisation/examples/alloy-cluster.md) | cluster | Two compositions in one allocation |
+| [Cu<sub>6</sub>Ni<sub>x</sub>](global_optimisation/examples/alloy-cluster.md) | cluster | Ni insertion and removal |
 | [Cu<sub>4</sub>O<sub>4</sub>](global_optimisation/bh/examples/cuox_tace.md) | cluster | Oxide-cluster search |
-| [Cu<sub>4</sub>O<sub>4</sub>](global_optimisation/bh/examples/cuox_thanos.md) | cluster | O-O extinction and chain restarts |
+| [Cu<sub>4</sub>O<sub>4</sub>](global_optimisation/bh/examples/cuox_tace.md) | cluster | O-O extinction and chain restarts |
 
 See the {doc}`basin-hopping guide <global_optimisation/basin_hopping>` for
 acceptance, batching, checkpoints, and history output.

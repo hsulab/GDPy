@@ -1,11 +1,15 @@
 (bh-cuox-tace-example)=
+(bh-cuox-thanos-example)=
 
-# copper oxide cluster: tace potential
+# copper oxide cluster
 
 ## system
 
-Search Cu₄O₄ clusters in a 20 Å periodic vacuum cell. All eight atoms move
-independently, and no O–O extinction filter is applied.
+Search Cu₄O₄ clusters in a 20 Å periodic vacuum cell, with all eight atoms
+moving independently. The baseline has no extinction filter; a second input
+uses `thanos` to exclude relaxed structures with O–O contacts below 1.6 Å.
+This filters evaluated results, rather than preventing bonds during construction
+or relaxation.
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/cu4o4.yaml
 :language: yaml
@@ -16,27 +20,51 @@ independently, and no O–O extinction filter is applied.
 
 ## runtime
 
-- {doc}`TACE <../../../potentials/tace>` ({download}`tace.yaml <../../../../../examples/global_optimisation/runtimes/tace.yaml>`): minimisation with
-  `fmax: 0.05` eV/Å and `steps: 20`.
+Both runtimes minimise with `fmax: 0.05` eV/Å and `steps: 20`:
 
-See the linked potential guide for installation and model setup. Check force
-convergence rather than assuming the step limit reaches a minimum.
+- Baseline: {doc}`TACE <../../../potentials/tace>`
+  ({download}`tace.yaml <../../../../../examples/global_optimisation/runtimes/tace.yaml>`).
+- Extinction variant: {doc}`MatterSim <../../../potentials/mattersim>`
+  ({download}`mattersim.yaml <../../../../../examples/global_optimisation/runtimes/mattersim.yaml>`).
+
+See the potential guides for setup, and check force convergence; 20 steps may
+not reach a minimum. The variants use different potentials, so their energies
+are not directly comparable.
 
 ## methods
 
-- {doc}`basin hopping <../../basin_hopping>`: 1 generation after initialization, with 2 chains of
-  8 attempted steps using `move` at 500 K acceptance temperature.
+Both {doc}`basin-hopping <../../basin_hopping>` inputs run 1 generation after
+initialization, with 2 chains of 8 attempted steps:
+
+- **Baseline:** atomic `move` proposals at 500 K acceptance temperature.
   [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu4o4.yaml).
+- **Extinction filtering:** `rattle` proposals at 100000 K acceptance temperature
+  to demonstrate extinction and chain replacement. This is a demonstration
+  setting, not a physical temperature.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu4o4_thanos.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `basin_hopping` | `cu4o4.yaml` | `../../runtimes/tace.yaml` | `run-cu4o4-bh-tace` |
+| `basin_hopping` | `cu4o4_thanos.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4o4-bh-thanos` |
 
 ## results
 
 Inspect `candidates.db`, `results/history/gen0001.png`, and
-`tmp_folder/gen1/rounds/events.jsonl` for minima and chain decisions. The supplied
-20-step relaxation limit may not converge; an earlier 300-step validation
-completed four initial structures and sixteen trials with finite energies and forces.
+`tmp_folder/gen1/rounds/events.jsonl` for minima and chain decisions.
+
+For the extinction variant, use database flags and chain events to distinguish
+excluded initial candidates, rejected trials, and accepted trials that trigger
+replacement.
+The verifier below requires an accepted extinct trial followed by a replacement:
+
+```shell
+# From the basin_hopping example folder, after the search.
+python ../../verify_cu4o4_bh_thanos.py ./run-cu4o4-bh-thanos
+```
+
+It writes `results/oo_extinct.xyz` and `results/thanos_verification.json`. The
+previously validated sequence used 150 relaxation steps; the current 20-step
+demonstration may not reproduce those events or pass the verifier.

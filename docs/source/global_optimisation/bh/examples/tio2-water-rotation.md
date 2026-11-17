@@ -1,13 +1,14 @@
 (bh-tio2-water-rotation)=
+(bh-tio2-water-bond-change)=
 
-# water on titania: molecular orientations
+# water on titania
 
 ## system
 
-Search orientations of two neighboring waters on anatase (101). The system
-contains a 192-atom slab and two waters, with 24 Å of vacuum and 48 fixed bottom
-atoms. Each water has a shared positive tag; substrate atoms have tag 0.
-A three-water input uses the same slab and adds a third neighboring molecule.
+Search orientations and dissociation of neighboring waters on anatase (101).
+The 192-atom slab has 24 Å of vacuum and 48 fixed bottom atoms. Inputs with two
+or three waters contain 198 or 201 atoms, respectively. Substrate atoms have
+tag 0; each water initially shares a positive fragment tag.
 
 ```{literalinclude} ../../../../../examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml
 :language: yaml
@@ -26,25 +27,40 @@ convergence rather than assuming the step limit reaches a minimum.
 
 ## methods
 
-- {doc}`basin hopping <../../basin_hopping>`: 1 generation after initialization, with 2 chains of
-  4 attempted steps using `rotate` at 500 K acceptance temperature.
+Both {doc}`basin-hopping <../../basin_hopping>` variants run 1 generation after
+initialization, with 2 chains of 4 attempted steps at 500 K acceptance temperature:
+
+- **Molecular orientations:** rotate intact waters about oxygen by up to 75°.
   [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/tio2_water2.yaml).
+- **Dissociation and recombination:** mix `rotate` (50%), `bond_break` (25%), and
+  `bond_form` (25%), starting from molecular and dissociated seeds. Fragment
+  tags are reconciled after relaxation as bonds change.
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/tio2_water2_bond_change.yaml).
+
+Three-water inputs use the same runtime:
+[rotations](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/tio2_water3.yaml)
+and [bond changes](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/tio2_water3_bond_change.yaml).
+Use a separate output directory for each input.
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
 | `basin_hopping` | `tio2_water2.yaml` | `../../runtimes/xreac_tioh.yaml` | `tmp/tio2-water-rotation-bh` |
-
-Use `tio2_water3.yaml` for the three-water variant, with the same runtime.
+| `basin_hopping` | `tio2_water2_bond_change.yaml` | `../../runtimes/xreac_tioh.yaml` | `tmp/tio2-water-bond-change-bh` |
 
 ## results
 
-Inspect `candidates.db` for evaluated minima and `results/history/gen0001.png`
-for chain decisions. In the recorded short test, both two-water seeds relaxed
-to parallel-like waters without a water-to-water hydrogen bond. The three-water
-variant also did not recover a hydrogen-bonded minimum. This does not rule out
-other minima with different seeds, sites, or potentials.
+Inspect minima and relaxed connectivity in `candidates.db`, and chain decisions
+in `results/history/gen0001.png`. Short rotation tests found parallel-like
+waters without a water-to-water hydrogen bond; this does not rule out other minima.
 
-Use `examples/global_optimisation/tio2_water_rotation.py` from the repository
-root for independent seed relaxation and geometric diagnostics.
+An archived bond-change test retained molecular and dissociated minima, with
+the best refined dissociated structure 0.129322 eV higher. One trial needed
+further relaxation, and current seed-generation rules differ, so this is a local
+comparison rather than an exhaustive stability search.
+
+For independent seed relaxation and diagnostics, use
+`examples/global_optimisation/tio2_water_rotation.py` or
+`examples/global_optimisation/tio2_water_bond_change.py` from the repository root;
+`--waters 3` selects the three-water variant.
