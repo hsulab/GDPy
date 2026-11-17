@@ -44,6 +44,40 @@ executor:
       steps: 100
 ```
 
+### Shared inputs on restart
+
+The first run writes ordinary VASP inputs. When GDP creates the first checkpoint,
+`0000.run` retains the real `POTCAR`, `KPOINTS`, and `ase-sort.dat`. Subsequent
+restarts generate a regular `INCAR`, copy the preceding `CONTCAR` to a regular
+`POSCAR`, and use relative links for the unchanged inputs:
+
+```text
+POTCAR                -> 0000.run/POTCAR
+KPOINTS               -> 0000.run/KPOINTS
+ase-sort.dat          -> 0000.run/ase-sort.dat
+0001.run/POTCAR       -> ../0000.run/POTCAR
+0001.run/KPOINTS      -> ../0000.run/KPOINTS
+0001.run/ase-sort.dat -> ../0000.run/ase-sort.dat
+```
+
+All four usual VASP input names remain in the working directory, so a manual
+VASP invocation uses the same inputs as GDP. Restarts initialize ASE and call
+its INCAR writer directly; they do not call its full input writer or regenerate
+POTCAR, KPOINTS, or the sorting file. Calculations using KSPACING retain their
+existing convention of having no KPOINTS file.
+
+Before reusing files, GDP checks pseudopotential contents, k-point input,
+species ordering, and ASE's sort/resort mapping against the first run.
+Incompatible settings require a new calculation directory. When creating a
+checkpoint, GDP adjusts the links for the new directory depth and converts
+identical regular copies in older checkpoints into links; differing historical
+inputs are retained.
+
+Keep `0000.run` with the calculation: it owns the shared inputs and must not be
+deleted while other runs reference it. Move or archive the whole calculation
+directory to preserve the relative links. GDP does not prune numbered VASP
+checkpoints. WAVECAR and CHGCAR remain separate writable restart files.
+
 ### Optional graceful stopping under Slurm
 
 For the native VASP `min` executor, configure the OUTCAR watcher explicitly:
