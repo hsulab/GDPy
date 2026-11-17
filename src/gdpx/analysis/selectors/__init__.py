@@ -10,6 +10,10 @@ from .interval import IntervalSelector
 
 REGISTER.register("interval")(IntervalSelector)
 
+from .cartesian_rmse import CartesianRMSESelector
+
+REGISTER.register("cartesian_rmse")(CartesianRMSESelector)
+
 from .invariant import InvariantSelector
 
 REGISTER.register("invariant")(InvariantSelector)

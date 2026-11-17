@@ -14,6 +14,10 @@ from .direct import DirectBuilder, ReadStruBuilder
 REGISTER.register("direct")(DirectBuilder)
 REGISTER.register("read_stru")(ReadStruBuilder)
 
+from .cached_trajectories import CachedTrajectoriesBuilder
+
+REGISTER.register("cached_trajectories")(CachedTrajectoriesBuilder)
+
 from .dimer import DimerBuilder
 
 REGISTER.register("dimer")(DimerBuilder)

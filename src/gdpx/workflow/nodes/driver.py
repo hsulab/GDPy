@@ -819,15 +819,17 @@ class extract_cache(Operation):
 
     def __init__(
         self,
-        compute,
-        cache_wdirs: list[Union[str, pathlib.Path]],
+        compute=None,
+        cache_wdirs: Optional[list[Union[str, pathlib.Path]]] = None,
         save_h5: bool = True,
         directory: Union[str, pathlib.Path] = "./",
         n_jobs: int = config.NJOBS,
     ) -> None:
         """"""
-        super().__init__(input_nodes=[compute], directory=directory)
+        super().__init__(input_nodes=[] if compute is None else [compute], directory=directory)
 
+        if not cache_wdirs:
+            raise ValueError("extract_cache requires at least one cache directory.")
         self.cache_wdirs = cache_wdirs
 
         self.save_h5 = save_h5
@@ -837,14 +839,16 @@ class extract_cache(Operation):
         return
 
     @CustomTimer(name="extract_cache", func=config._debug)
-    def forward(self, workers: list[DriverBasedWorker]):
+    def forward(self, workers: Optional[list[DriverBasedWorker]] = None):
         """"""
         super().forward()
 
         # Broadcast workers
         num_wdirs = len(self.cache_wdirs)
+        workers = [] if workers is None else workers
         num_workers = len(workers)
-        assert (num_wdirs == num_workers) or num_workers == 1, "Found inconsistent number of cache dirs and workers."
+        if num_workers not in (0, 1, num_wdirs):
+            raise ValueError("Found inconsistent number of cache dirs and workers.")
 
         # Use driver to read results
         cache_data = self.directory / "cache_data.h5"
@@ -852,8 +856,8 @@ class extract_cache(Operation):
             # TODO: whether check convergence?
             self._print(f"read trajectories from cache wdirs using {self.n_jobs} processes...")
             trajectories = Parallel(n_jobs=self.n_jobs)(
-                delayed(self._read_trajectory)(curr_wdir, curr_worker)
-                for curr_wdir, curr_worker in itertools.zip_longest(self.cache_wdirs, workers, fillvalue=workers[0])
+                delayed(self._read_trajectory)(curr_wdir, workers[0 if num_workers == 1 else i] if workers else None)
+                for i, curr_wdir in enumerate(self.cache_wdirs)
             )
             trajectories = AtomsNDArray(data=trajectories)
             if self.save_h5:
@@ -878,10 +882,13 @@ class extract_cache(Operation):
 
     @staticmethod
     def _read_trajectory(wdir, worker):
-        """"""
-        worker.driver.directory = wdir
+        from gdpx.data.trajectories import read_cached_trajectories
 
-        return worker.driver.read_trajectory()
+        trajectories = read_cached_trajectories(wdir, worker=worker)
+        # Preserve the historical shape for explicit raw calculation directories.
+        is_raw = (len(trajectories) == 1 and
+                  trajectories[0][0].info["trajectory_id"] == str(pathlib.Path(wdir).resolve()))
+        return trajectories[0] if worker is not None and is_raw else trajectories
 
 
 @registers.operation.register
