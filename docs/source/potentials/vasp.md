@@ -44,6 +44,39 @@ executor:
       steps: 100
 ```
 
+### Electronic restart output
+
+Use the backend-neutral output option to save wavefunctions for continuation:
+
+```yaml
+executor:
+  provider: vasp
+  method: min
+  parameters:
+    output:
+      electronic_checkpoint:
+        enabled: true
+```
+
+For VASP, an explicit block sets `LWAVE` to `enabled` and sets `LCHARG=false`.
+Only WAVECAR is written as electronic restart output, avoiding the additional
+CHGCAR storage cost. A WAVECAR-only restart uses `ISTART=1, ICHARG=0`; the
+charge density is constructed from the restored wavefunctions. Existing
+CHGCAR checkpoints remain supported as restart inputs.
+
+The explicit output policy overrides native INCAR write flags on fresh runs
+and restarts. Setting `enabled: false` disables both write flags. Omitting the
+block preserves existing native settings; an empty block defaults to disabled.
+The option controls writing, not whether existing checkpoints are read.
+Native LH5 output is currently rejected when this option is enabled because
+GDP's VASP restart reader uses WAVECAR, not vaspwave.h5.
+
+The public option describes electronic wavefunction checkpoints rather than
+backend filenames. VASP implements the translation here; other DFT providers
+must implement their own translation before accepting this option. Enable
+graceful stopping separately for time-limited jobs: merely requesting output
+does not protect a write interrupted by a hard Slurm timeout.
+
 ### Shared inputs on restart
 
 The first run writes ordinary VASP inputs. When GDP creates the first checkpoint,
@@ -125,8 +158,8 @@ are not used as full-cycle samples.
 
 All defaults are shown above. Durations must be finite and positive,
 `safety_factor` must be at least 1, and the positive integer `min_samples`
-must not exceed `window`. Set `lwave` and `lcharg` in the potential parameters
-to save the electronic state. Choose a fallback and write allowance appropriate
+must not exceed `window`. Set `output.electronic_checkpoint.enabled: true`
+to save wavefunctions for restart. Choose a fallback and write allowance appropriate
 for the system; runtime estimates cannot guarantee completion of an unexpectedly
 slow SCF or checkpoint write.
 
