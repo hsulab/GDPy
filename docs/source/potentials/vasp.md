@@ -44,6 +44,36 @@ executor:
       steps: 100
 ```
 
+### Optional graceful stopping under Slurm
+
+For the native VASP `min` executor, configure graceful stopping explicitly:
+
+```yaml
+executor:
+  provider: vasp
+  method: min
+  parameters:
+    setup:
+      graceful_stop:
+        enabled: false
+        margin_seconds: 7200
+    stop:
+      fmax: 0.05
+      steps: 100
+```
+
+`setup.graceful_stop.enabled` defaults to `false`. Set it to `true` to request an ionic-step
+stop by writing `LSTOP = .TRUE.` into STOPCAR before the Slurm allocation ends.
+The positive, finite margin in seconds defaults to 7200 and must allow the
+current ionic step and checkpoint writes to finish. This is a fixed margin,
+not an estimate from SCF timings. Enable `lwave` and `lcharg` in the potential
+parameters to save the electronic state.
+
+Slurm's job metadata supplies the actual allocation deadline. An enabled run
+fails before launching VASP if the deadline is unavailable or less than the
+margin remains. The old `GDPX_VASP_STOP_MARGIN_SECONDS` environment switch is
+not read; all tuning is through the executor input.
+
 ### interactive + ase
 
 This backend additionally requires the `vasp_interactive` Python package.
