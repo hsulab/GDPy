@@ -66,7 +66,6 @@ them and check convergence before interpreting the results scientifically.
 :hidden:
 
 cluster
-../bh/examples/seeded-cluster
 alloy-cluster
 ../bh/examples/compositions
 ../bh/examples/variable-composition
