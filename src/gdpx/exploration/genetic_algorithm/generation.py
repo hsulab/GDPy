@@ -125,9 +125,18 @@ class GeneticGenerationManager:
             raise ValueError("strategy reproduction and mutation sizes exceed system.generation.total_size.")
         self.gen_rep_max_try = self._attempts(reproduction_params, self.gen_rep_size, "reproduction")
         self.gen_mut_max_try = self._attempts(mutation_params, self.gen_mut_size, "mutation")
-        self.completion_builder_proportions = self._parse_builder_proportions(
-            completion_params.get("builder_proportions")
-        )
+        self.completion_method = completion_params.get("method", "builder")
+        if self.completion_method not in ("builder", "mutation"):
+            raise ValueError("strategy.completion.method must be builder or mutation.")
+        if self.completion_method == "mutation":
+            if "builder_proportions" in completion_params:
+                raise ValueError("Mutation completion cannot specify builder_proportions.")
+            self.completion_builder_proportions = []
+            self.completion_max_try = self._attempts(completion_params, self.config.gen_size, "completion")
+        else:
+            self.completion_builder_proportions = self._parse_builder_proportions(
+                completion_params.get("builder_proportions")
+            )
 
         # Mutation probabilities for offspring produced by reproduction.
         self.pmut = reproduction_params.get("mutation_probability", 0.5)
@@ -363,7 +372,38 @@ class GeneticGenerationManager:
             if deficit < 0:
                 raise RuntimeError("Reproduction and mutation exceeded generation.total_size.")
             plan["stage"] = "completion"
-            plan["completion_sizes"] = self.allocate_completion_sizes(deficit)
+            plan["completion_method"] = self.completion_method
+            plan["completion_sizes"] = (self.allocate_completion_sizes(deficit)
+                                        if self.completion_method == "builder" else [])
+            checkpoint()
+
+        if plan["stage"] == "completion" and self.completion_method == "mutation":
+            if completion_structures or plan.get("completion_sizes"):
+                raise RuntimeError("Cannot resume builder completion as mutation; use a new search directory.")
+            target = self.config.gen_size - len(paired_structures)
+            for i in range(int(plan.get("completion_mutation_attempts", 0)), self.completion_max_try):
+                if len(mutated_structures) >= target:
+                    break
+                with database.connection:
+                    parent = self.selector.select_one(population, with_history=True)
+                    parent_copy = parent.copy()
+                    parent_copy.info = copy.deepcopy(parent.info)
+                    atoms, desc = operators["mobile"]["mutations"].get_new_individual([parent_copy])
+                    if atoms is not None:
+                        self.config.validate_candidate(atoms, "completion mutation")
+                        database.add_unrelaxed_candidate(
+                            atoms, description=desc, origin="CompletionMutation",
+                            generation=curr_gen, mutation=1,
+                        )
+                        mutated_structures.append(atoms)
+                    plan["completion_mutation_attempts"] = i + 1
+                    checkpoint()
+            if len(mutated_structures) < target:
+                raise RuntimeError(
+                    f"Mutation completion exhausted {self.completion_max_try} attempts: "
+                    f"need {target} mutated candidates but have {len(mutated_structures)}."
+                )
+            plan["stage"] = "complete"
             checkpoint()
 
         if plan["stage"] == "completion":

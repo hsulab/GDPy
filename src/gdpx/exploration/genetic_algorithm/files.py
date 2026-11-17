@@ -46,7 +46,8 @@ def write_generation_history(database, directory, generation):
              '# Attempt totals include unsuccessful attempts; per-attempt failure diagnostics are not stored.',
              f'# stage: {plan.get("stage", "unknown")} | '
              f'reproduction attempts: {plan.get("reproduction_attempts", 0)} | '
-             f'mutation attempts: {plan.get("mutation_attempts", 0)}']
+             f'mutation attempts: {plan.get("mutation_attempts", 0)} | '
+             f'completion mutation attempts: {plan.get("completion_mutation_attempts", 0)}']
     for row in rows:
         initial = origins.get(row.get('confid'))
         if initial is None or not row.natoms or initial.get('generation', 0) != generation:
