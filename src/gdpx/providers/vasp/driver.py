@@ -21,6 +21,7 @@ from gdpx.utils.cmdrun import run_ase_calculator
 from gdpx.utils.strucopy import read_sort, resort_atoms_with_spc
 
 from gdpx.execution.driver import BaseDriver, Controller, DriverSetting
+from gdpx.providers.configuration import validate_electronic_checkpoint
 
 """Driver for VASP."""
 #: Ase-vasp resort fname.
@@ -336,6 +337,9 @@ class VaspDriverSetting(DriverSetting):
     #: Opt-in Slurm deadline stop, configured under executor.parameters.setup.
     graceful_stop: dict = dataclasses.field(default_factory=dict)
 
+    #: Backend-neutral output policy; None preserves native calculator settings.
+    electronic_checkpoint: Optional[dict] = None
+
     #: Whether initialise velocities by VASP itself.
     use_vasp_vinit: bool = True
 
@@ -354,6 +358,8 @@ class VaspDriverSetting(DriverSetting):
         These parameters are frozen when the driver is initialised.
 
         """
+        if self.electronic_checkpoint is not None:
+            self.electronic_checkpoint = validate_electronic_checkpoint(self.electronic_checkpoint)
         self.graceful_stop = validate_graceful_stop(self.graceful_stop)
         if self.graceful_stop["enabled"] and self.task != "min":
             raise ValueError("Graceful stopping is supported only for VASP min.")
@@ -430,6 +436,17 @@ class VaspDriver(BaseDriver):
 
     #: Class for setting.
     setting_cls: type[DriverSetting] = VaspDriverSetting
+
+    def _apply_electronic_checkpoint_policy(self):
+        policy = self.setting.electronic_checkpoint
+        if policy is not None:
+            enabled = policy["enabled"]
+            if enabled and self.calc.bool_params.get("lh5"):
+                raise ValueError(
+                    "VASP electronic_checkpoint currently requires WAVECAR output; "
+                    "LH5 output is not supported by the restart reader."
+                )
+            self.calc.set(lwave=enabled, lcharg=False)
 
     def _save_checkpoint(self):
         moved_links = {
@@ -559,6 +576,7 @@ class VaspDriver(BaseDriver):
             #       thus we manually call the function to write input files and
             #       run the calculation
             atoms.calc = self.calc
+            self._apply_electronic_checkpoint_policy()
             self.calc.write_input(atoms)
 
             # Check velocities
@@ -595,6 +613,7 @@ class VaspDriver(BaseDriver):
             }
             self.calc.read_incar(ckpt_wdir / "INCAR")  # read previous incar
             self.calc.set(**output_policy)
+            self._apply_electronic_checkpoint_policy()
             if self.setting.task == "min":
                 restored = restore_electronic_checkpoint(self.calc, ckpt_wdir, self.directory)
                 self._print(f"Electronic restart files: {restored}")

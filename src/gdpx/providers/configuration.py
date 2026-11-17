@@ -16,6 +16,18 @@ EXECUTOR_PARAMETER_SECTIONS = frozenset({"setup", "output", "stop"})
 EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
 
 
+def validate_electronic_checkpoint(value: Mapping[str, Any]) -> dict[str, bool]:
+    """Normalize the backend-neutral request to write electronic restart state."""
+    if not isinstance(value, Mapping) or set(value) - {"enabled"}:
+        raise ProviderConfigurationError(
+            "Executor output.electronic_checkpoint accepts only an enabled boolean."
+        )
+    enabled = value.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ProviderConfigurationError("Executor output.electronic_checkpoint.enabled must be a boolean.")
+    return {"enabled": enabled}
+
+
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:
     """Translate structured public executor parameters for existing providers."""
     data = copy.deepcopy(thaw(parameters))
@@ -130,7 +142,7 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
             )
         merge({"controller": {"name": name, "params": copy.deepcopy(dict(parameters_))}}, f"setup.{label}")
 
-    unknown_output = set(output) - {"trajectory", "checkpoint"}
+    unknown_output = set(output) - {"trajectory", "checkpoint", "electronic_checkpoint"}
     if unknown_output:
         raise ProviderConfigurationError(f"Unknown executor output fields: {', '.join(sorted(unknown_output))}.")
     trajectory = output.get("trajectory", {})
@@ -140,6 +152,8 @@ def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[
     if not isinstance(checkpoint, Mapping) or set(checkpoint) - {"period", "keep"}:
         raise ProviderConfigurationError("Executor output.checkpoint accepts only period and keep.")
     translated_output = {}
+    if "electronic_checkpoint" in output:
+        translated_output["electronic_checkpoint"] = validate_electronic_checkpoint(output["electronic_checkpoint"])
     if "period" in trajectory:
         translated_output["dump_period"] = trajectory["period"]
     if "period" in checkpoint:
