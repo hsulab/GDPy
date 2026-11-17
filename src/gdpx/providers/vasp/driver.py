@@ -15,6 +15,7 @@ from ase.io import ParseError, read, write
 from .backend import read_oszicar, read_outcar_scf, read_report, write_vasp
 from .restart import graceful_stop, restore_electronic_checkpoint, validate_graceful_stop
 from .backend.inputs import SHARED_INPUTS, detach_input_links, prepare_restart_inputs, share_checkpoint_inputs
+from .checkpoint import begin_electronic_checkpoint, finalize_electronic_checkpoint
 from gdpx.data.extatoms import ScfErrAtoms
 from gdpx.utils.archive import open_archive
 from gdpx.utils.cmdrun import run_ase_calculator
@@ -651,6 +652,10 @@ class VaspDriver(BaseDriver):
                 ...
             prepare_restart_inputs(self.calc, atoms, ckpt_wdir, self.directory)
 
+        policy = self.setting.electronic_checkpoint
+        checkpoint_before = (
+            begin_electronic_checkpoint(self.directory) if policy and policy["enabled"] else None
+        )
         if self.setting.task == "min":
             with graceful_stop(
                 self.directory, self._print,
@@ -659,6 +664,11 @@ class VaspDriver(BaseDriver):
                 run_ase_calculator("vasp", self.calc.command, self.directory)
         else:
             run_ase_calculator("vasp", self.calc.command, self.directory)
+
+        if checkpoint_before is not None:
+            finalize_electronic_checkpoint(
+                self.directory, checkpoint_before, policy["keep"], self._print
+            )
 
         return
 

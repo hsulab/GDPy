@@ -16,16 +16,19 @@ EXECUTOR_PARAMETER_SECTIONS = frozenset({"setup", "output", "stop"})
 EXECUTOR_PARAMETER_GLOBALS = frozenset({"random_seed"})
 
 
-def validate_electronic_checkpoint(value: Mapping[str, Any]) -> dict[str, bool]:
+def validate_electronic_checkpoint(value: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize the backend-neutral request to write electronic restart state."""
-    if not isinstance(value, Mapping) or set(value) - {"enabled"}:
+    if not isinstance(value, Mapping) or set(value) - {"enabled", "keep"}:
         raise ProviderConfigurationError(
-            "Executor output.electronic_checkpoint accepts only an enabled boolean."
+            "Executor output.electronic_checkpoint accepts only enabled and keep."
         )
     enabled = value.get("enabled", False)
     if not isinstance(enabled, bool):
         raise ProviderConfigurationError("Executor output.electronic_checkpoint.enabled must be a boolean.")
-    return {"enabled": enabled}
+    keep = value.get("keep", 2)
+    if keep is not None and (type(keep) is not int or keep < 1):
+        raise ProviderConfigurationError("Executor output.electronic_checkpoint.keep must be a positive integer or null.")
+    return {"enabled": enabled, "keep": keep}
 
 
 def resolve_executor_parameters(parameters: Mapping[str, Any], method: Optional[str] = None) -> dict[str, Any]:

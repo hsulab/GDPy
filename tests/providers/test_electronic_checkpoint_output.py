@@ -53,7 +53,7 @@ def test_other_output_controls_remain_available():
     }, "min")
     assert result == {
         "dump_period": 2, "ckpt_period": 10, "ckpt_number": 3,
-        "electronic_checkpoint": {"enabled": True},
+        "electronic_checkpoint": {"enabled": True, "keep": 2},
     }
 
 
@@ -66,7 +66,7 @@ def test_invalid_common_policy_rejected(value):
 def test_empty_block_is_disabled():
     assert resolve_executor_parameters(
         {"output": {"electronic_checkpoint": {}}}, "min"
-    ) == {"electronic_checkpoint": {"enabled": False}}
+    ) == {"electronic_checkpoint": {"enabled": False, "keep": 2}}
 
 
 def test_unsupported_hdf5_checkpoint_is_rejected(tmp_path):
