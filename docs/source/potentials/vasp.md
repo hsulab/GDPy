@@ -46,7 +46,7 @@ executor:
 
 ### Optional graceful stopping under Slurm
 
-For the native VASP `min` executor, configure graceful stopping explicitly:
+For the native VASP `min` executor, configure the OUTCAR watcher explicitly:
 
 ```yaml
 executor:
@@ -57,22 +57,51 @@ executor:
       graceful_stop:
         enabled: false
         margin_seconds: 7200
+        poll_interval_seconds: 30
+        checkpoint_margin_seconds: 300
+        safety_factor: 1.5
+        window: 5
+        min_samples: 2
     stop:
       fmax: 0.05
       steps: 100
 ```
 
-`setup.graceful_stop.enabled` defaults to `false`. Set it to `true` to request an ionic-step
-stop by writing `LSTOP = .TRUE.` into STOPCAR before the Slurm allocation ends.
-The positive, finite margin in seconds defaults to 7200 and must allow the
-current ionic step and checkpoint writes to finish. This is a fixed margin,
-not an estimate from SCF timings. Enable `lwave` and `lcharg` in the potential
-parameters to save the electronic state.
+The block is optional and `enabled` defaults to `false`. When enabled, GDP's
+background thread reads only newly appended OUTCAR data, logging each completed
+geometry's full SCF-cycle wall time from `LOOP+`. It ignores the first cycle
+of each VASP invocation and keeps the latest `window` subsequent timings.
 
-Slurm's job metadata supplies the actual allocation deadline. An enabled run
-fails before launching VASP if the deadline is unavailable or less than the
-margin remains. The old `GDPX_VASP_STOP_MARGIN_SECONDS` environment switch is
-not read; all tuning is through the executor input.
+Until `min_samples` timings are available, `margin_seconds` is the fallback
+reserve before the Slurm deadline. After that, the reserve is:
+
+```text
+max(safety_factor * recent_mean,
+    recent_maximum,
+    safety_factor * elapsed_since_last_cycle_observed)
++ checkpoint_margin_seconds + poll_interval_seconds
+```
+
+When remaining time is at or below this reserve, GDP writes `LSTOP = .TRUE.`
+to STOPCAR. This lets VASP finish an ionic step and write its checkpoint.
+The elapsed-time term increases the reserve when the current cycle runs longer
+than the recent history. The first cycle is excluded because cold-start SCF
+costs can be much larger than later cycles. `LOOP:` electronic-iteration timings
+are not used as full-cycle samples.
+
+All defaults are shown above. Durations must be finite and positive,
+`safety_factor` must be at least 1, and the positive integer `min_samples`
+must not exceed `window`. Set `lwave` and `lcharg` in the potential parameters
+to save the electronic state. Choose a fallback and write allowance appropriate
+for the system; runtime estimates cannot guarantee completion of an unexpectedly
+slow SCF or checkpoint write.
+
+Slurm job metadata supplies the allocation deadline. An enabled run fails
+before launching VASP if the deadline is unavailable or less than the fallback
+margin remains. Missing or unreadable OUTCAR data uses the fallback reserve;
+file replacement or truncation resets the timing history. The watcher stops
+when the VASP subprocess exits and removes only its own unchanged STOPCAR.
+There are no environment-variable tuning switches.
 
 ### interactive + ase
 
