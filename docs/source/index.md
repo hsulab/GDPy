@@ -108,6 +108,7 @@ regions <builders/region>
 
 command: gdp select <selections/index>
 methods <selections/methods>
+Cartesian RMSE <selections/cartesian_rmse>
 ```
 
 ```{toctree}

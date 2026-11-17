@@ -86,3 +86,6 @@ Remove output files before selection if necessary.
 ## list of selectors
 
 See {doc}`methods` for property and descriptor selectors.
+
+See {doc}`cartesian_rmse` for per-trajectory Cartesian displacement sampling and
+reading compute or exploration caches.
