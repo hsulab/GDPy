@@ -15,7 +15,7 @@ from gdpx.data.array import AtomsNDArray
 
 from gdpx.providers.configuration import RuntimeConfig, child_executor, resolve_executor_parameters
 from gdpx.execution.factory import create_worker
-from gdpx.execution.fingerprint import payload_digest
+from gdpx.execution.fingerprint import payload_digest, read_structure_inputs, write_structure_inputs
 from ..population.exploration import PopulationBasedExploration
 from ..basin_hopping.engine import canonical_candidates_from_worker_results
 from ..basin_hopping.selection import HoppingStartSelector
@@ -224,11 +224,28 @@ class PopulationAnnealing(PopulationBasedExploration):
         directory.mkdir(parents=True, exist_ok=True)
         manifest = directory / "selection.json"
         selected_path = directory / "selected.xyz"
+        exact_path = directory / "selected.json"
         if manifest.exists():
-            records = json.loads(manifest.read_text())["snapshots"]
-            if not selected_path.exists():
-                raise RuntimeError("SA selection.json requires the saved selected.xyz.")
-            frames = read(selected_path, ":") if records else []
+            selection = json.loads(manifest.read_text())
+            records = selection["snapshots"]
+            if exact_path.exists():
+                frames = read_structure_inputs(exact_path, selection.get("structure_digest"))
+            elif "structure_digest" in selection:
+                raise RuntimeError("SA selection.json requires the saved selected.json.")
+            else:
+                # Legacy searches evaluated unrounded in-memory frames. Recover
+                # those exact inputs, rather than the rounded XYZ export.
+                inputs = directory.parent / "min" / "_meta" / "structures.json"
+                if inputs.exists():
+                    frames = read_structure_inputs(inputs)
+                elif selected_path.exists():
+                    frames = read(selected_path, ":") if records else []
+                else:
+                    raise RuntimeError("SA selection.json requires the saved selected.xyz.")
+                if len(frames) != len(records):
+                    raise RuntimeError("SA selected structures do not match selection.json.")
+                digest = write_structure_inputs(exact_path, frames)
+                write_json(manifest, {**selection, "structure_digest": digest})
             if len(frames) != len(records):
                 raise RuntimeError("SA selected structures do not match selection.json.")
             return frames, records
@@ -267,7 +284,8 @@ class PopulationAnnealing(PopulationBasedExploration):
         else:
             temporary.write_text("")
         os.replace(temporary, selected_path)
-        write_json(manifest, {"snapshots": records})
+        digest = write_structure_inputs(exact_path, frames)
+        write_json(manifest, {"snapshots": records, "structure_digest": digest})
         return frames, records
 
     def run(self):

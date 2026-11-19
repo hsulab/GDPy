@@ -308,6 +308,40 @@ def test_rejects_nested_selector_with_migration_message(search):
         create_exploration(recipe)
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+def test_snapshot_restart_preserves_exact_fingerprint(search, legacy):
+    import numpy as np
+    from gdpx.execution.fingerprint import structure_digest, write_structure_inputs
+
+    obj = search()
+    atoms = Atoms("Cu2", positions=[[0.123456789123, 0, 0], [2.987654321987, 0, 0]],
+                  cell=[10]*3, pbc=True)
+    atoms.set_tags([1, 2])
+    frames, records = obj._select_snapshots(
+        1, {0: [atoms]}, {"seed": 13, "parents": [0]})
+    root = obj.directory / "gen1"
+    assert structure_digest(read(root / "sel/selected.xyz", ":")) != structure_digest(frames)
+    if legacy:
+        write_structure_inputs(root / "min/_meta/structures.json", frames)
+        (root / "sel/selected.json").unlink()
+        (root / "sel/selection.json").write_text(json.dumps({"snapshots": records}))
+    restored, restored_records = obj._select_snapshots(1, {}, {})
+    assert restored_records == records
+    assert structure_digest(restored) == structure_digest(frames)
+    np.testing.assert_array_equal(restored[0].positions, atoms.positions)
+    assert (root / "sel/selected.json").exists()
+    assert obj._select_snapshots(1, {}, {})[1] == records
+
+
+def test_missing_lossless_snapshot_is_not_replaced_by_rounded_xyz(search):
+    obj = search()
+    obj._select_snapshots(1, {0: [Atoms("Cu")]}, {"seed": 13, "parents": [0]})
+    (obj.directory / "gen1/sel/selected.json").unlink()
+    with pytest.raises(RuntimeError, match="requires the saved selected.json"):
+        obj._select_snapshots(1, {}, {})
+
+
+
 def test_final_report_reuses_population_but_standalone_and_resume_refresh(search, monkeypatch):
     from gdpx.exploration.population.population import Population
 
