@@ -273,6 +273,7 @@ class PopulationAnnealing(PopulationBasedExploration):
     def run(self):
         state = self._checkpoint()
         database = GlobalOptimisationDatabase(self.directory / "candidates.db")
+        population_current = False
         for generation in range(state["completed"] + 1, self.convergence["generation"] + 1):
             key = str(generation)
             root = self.directory / f"gen{generation}"
@@ -345,22 +346,23 @@ class PopulationAnnealing(PopulationBasedExploration):
                     evaluation_key += f":{record['frame_index']}"
                 database.add_evaluated_candidate(atoms, evaluation_key)
             self.population.refresh(database)
+            population_current = True
             if not self.population.candidates:
                 raise RuntimeError("SA has no surviving candidates to continue exploration.")
             plan["retained"] = [a.info["confid"] for a in self.population.candidates]
             state["completed"] = generation
             self._save(state)
             self._print(f"SA generation {generation}: evaluated {len(minima)}, retained {len(plan['retained'])}")
-        self.population.refresh(database)
-        self.report(database)
+        self.report(database, refresh_population=not population_current)
 
-    def report(self, database=None):
-        """Rebuild final artefacts from persisted evaluations, without running MD."""
+    def report(self, database=None, *, refresh_population=True):
+        """Export results, refreshing unless the caller just rebuilt the population."""
         from .results import write_results
 
         if database is None:
             database = GlobalOptimisationDatabase(self.directory / "candidates.db")
-        self.population.refresh(database)
+        if refresh_population:
+            self.population.refresh(database)
         write_results(
             self.directory / "results",
             database.get_all_relaxed_candidates(use_extinct=False),

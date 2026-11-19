@@ -306,3 +306,37 @@ def test_rejects_nested_selector_with_migration_message(search):
     recipe["strategy"]["minimisation"]["selector"] = {"method": "random"}
     with pytest.raises(ValueError, match=r"Move strategy.minimisation.selector to strategy.selection"):
         create_exploration(recipe)
+
+
+def test_final_report_reuses_population_but_standalone_and_resume_refresh(search, monkeypatch):
+    from gdpx.exploration.population.population import Population
+
+    calls = []
+    original = Population.refresh
+
+    def tracked(population, *args, **kwargs):
+        calls.append(population)
+        return original(population, *args, **kwargs)
+
+    monkeypatch.setattr(Population, "refresh", tracked)
+    obj = search()
+    obj.run()
+    # Generation 0, generation 1 parent selection, generation 1 completion.
+    assert len(calls) == 3
+    retained = [a.info["confid"] for a in obj.population.candidates]
+    exported = read(obj.directory / "results/all_candidates.xyz", ":")
+    energies = [a.get_potential_energy() for a in exported]
+
+    calls.clear()
+    standalone = search()
+    standalone.report()
+    assert len(calls) == 1
+    assert [a.info["confid"] for a in standalone.population.candidates] == retained
+
+    calls.clear()
+    resumed = search()
+    resumed.run()  # All generations are already complete; rebuild once for reporting.
+    assert len(calls) == 1
+    assert [a.info["confid"] for a in resumed.population.candidates] == retained
+    assert [a.get_potential_energy() for a in read(
+        obj.directory / "results/all_candidates.xyz", ":")] == energies
