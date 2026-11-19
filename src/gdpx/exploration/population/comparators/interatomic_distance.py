@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 from typing import Mapping
 
 import numpy as np
 import numpy.typing
 from ase import Atoms
+from ase.geometry import find_mic
 from joblib import Parallel, delayed
 
 #: The name of the fingerprint.
 FINGERPRINT_NAME = "interatomic_distance"
+
+# Bound the temporary arrays used by ASE for periodic image searches.
+_DISTANCE_BATCH_SIZE = 16384
 
 
 def get_sorted_dist_list(atoms: Atoms, mic: bool = False) -> Mapping[int, numpy.typing.NDArray]:
@@ -25,13 +25,19 @@ def get_sorted_dist_list(atoms: Atoms, mic: bool = False) -> Mapping[int, numpy.
     unique_types = set(numbers)
     pair_cor = {}
     for n in unique_types:
-        i_un = [i for i in range(len(atoms)) if atoms[i].number == n]  # type: ignore
-        d = []
-        for i, n1 in enumerate(i_un):
-            for n2 in i_un[i + 1 :]:
-                d.append(atoms.get_distance(n1, n2, mic))
-        d.sort()
-        pair_cor[n] = np.array(d)
+        positions = atoms.positions[numbers == n]
+        first, second = np.triu_indices(len(positions), k=1)
+        distances = np.empty(len(first), dtype=float)
+        for start in range(0, len(first), _DISTANCE_BATCH_SIZE):
+            stop = start + _DISTANCE_BATCH_SIZE
+            vectors = positions[second[start:stop]] - positions[first[start:stop]]
+            if mic:
+                _, lengths = find_mic(vectors, atoms.cell, atoms.pbc)
+            else:
+                lengths = np.linalg.norm(vectors, axis=1)
+            distances[start:stop] = lengths
+        distances.sort()
+        pair_cor[n] = distances
 
     return pair_cor
 
@@ -151,7 +157,3 @@ class InteratomicDistanceComparator:
             total_cum_diff += cum_diff / t_size * ntype / float(len(numbers))
 
         return (total_cum_diff, max_diff)
-
-
-if __name__ == "__main__":
-    ...
