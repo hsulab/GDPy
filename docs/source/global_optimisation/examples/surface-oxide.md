@@ -13,7 +13,7 @@ the overlayer at Cu₄O₄.
 
 ```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
 :language: yaml
-:caption: system
+:caption: examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
 :start-at: system:
 :end-before: strategy:
 ```
