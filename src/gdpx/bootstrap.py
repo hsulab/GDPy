@@ -39,7 +39,7 @@ def bootstrap_registries(custom_module_paths=None, *, disable_import_info: bool 
         except ImportError as error:
             errors.append((module_name, error))
 
-    if not disable_import_info:
+    if errors and not disable_import_info:
         config._print("FAILED TO IMPORT OPTIONAL MODULES: ")
         for name, error in errors:
             config._print(f"  {name:<33s} -> require `{error.name}`.")

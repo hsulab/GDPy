@@ -6,10 +6,7 @@ import numpy as np
 
 from ase import units
 
-try:
-    import plumed
-except Exception as e:
-    print(e)
+import plumed
 
 
 class AsePlumed(object):
