@@ -3,6 +3,11 @@
 # mutations
 
 Mutations modify one candidate to create structural or compositional variation.
+In population searches they default to the `active` group from
+`system.search_space`. Override `group`, for example with `"active or buffer"`,
+to include buffer atoms. Frozen atoms are excluded from movement regardless
+of the selected group. Fragment-preserving operators require complete fragments
+in their selection.
 
 | Method | Description |
 | --- | --- |

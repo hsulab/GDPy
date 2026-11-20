@@ -52,7 +52,7 @@ height interval crossing the chosen wrapping boundary.
 The string group syntax accepts optional fractional bounds:
 
 ```yaml
-group: "`region surface -1 3 -0.1 0.9`"
+group: "region surface -1 3 -0.1 0.9"
 ```
 
 Omitting the last two numbers uses the default interval. Tagged-particle

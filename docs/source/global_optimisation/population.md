@@ -12,6 +12,10 @@ configuration:
 system:
   periodic: false
   preserve_fragments: false
+  search_space:
+    active: "not tag 0"
+    buffer: null
+    frozen: null
   retained_size: 8
   initial:
     total_size: 20
@@ -67,6 +71,60 @@ and atoms in the same fragment a shared tag.
 This atomic Cu₈ example sets it to `false` because there are no molecular
 fragments to preserve. Fragment handling belongs to the search operators;
 this setting does not constrain bonds during relaxation or dynamics.
+
+### search_space
+
+`search_space` defines atom roles independently of fragment identity. Its values
+are {doc}`group expressions <../groups-and-constraints>`:
+
+```yaml
+system:
+  search_space:
+    active: "not tag 0"
+    buffer: "index 12 13 14 15"
+    frozen: "index 0 1 2 3"
+```
+
+- `active`: atoms selected by default by search operators and structural
+  comparators. If omitted or null, it selects nonzero-tag atoms; legacy untagged
+  GA/BH structures fall back to all atoms. Population SA requires explicit tags.
+- `buffer`: surrounding atoms that can relax or be included explicitly in an
+  operator. Omitted or null means an empty group.
+- `frozen`: atoms held fixed during calculation. Omitted or null derives the
+  group from the calculation runtime's `constraint`; without a constraint it
+  is empty. An explicit expression supplies a missing runtime constraint.
+
+Explicit active/buffer selections must not overlap each other or frozen atoms.
+The groups need not cover every atom. For compatibility, the implicit active
+selection can overlap runtime-inferred frozen atoms; movement operators always
+exclude frozen atoms, even when their group explicitly includes them.
+
+Selections are resolved on initial candidates and retained through calculations,
+snapshot selection, and restart. Moving an atom does not change its role.
+Fragment tags remain separate: `preserve_fragments` controls whether an operator
+may act on only part of a tagged fragment. New atoms inserted by an exchange
+operator belong to the active group.
+
+When a frozen expression and runtime constraint are both given, they must select
+the same atom indices. For SA, simulation and minimisation must freeze the same
+atoms; an explicit frozen expression supplies missing constraints in both stages.
+Buffer atoms are not automatically frozen. Cell degrees of freedom remain
+controlled by the runtime.
+
+Every operator defaults to `active`. To include buffer atoms, use an explicit
+selection. GA/BH movement operators accept `group: "active or buffer"`.
+Structural population comparators use `group_expression`:
+
+```yaml
+system:
+  comparator:
+    method: interatomic_distance
+    group_expression: "active or buffer"
+```
+
+An explicit comparator selection replaces the default active selection, so it
+can include zero-tag buffer atoms or frozen reference atoms. Energy comparisons
+continue to use the complete candidate energy.
 
 ## population sizes
 

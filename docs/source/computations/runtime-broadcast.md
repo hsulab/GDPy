@@ -147,7 +147,7 @@ modifiers:
   - provider: builtin
     method: distance_harmonic
     parameters:
-      group: "`index 8 10`"
+      group: "index 8 10"
       kspring: 5.0
     broadcast:
       center: [0.95, 1.15, 1.35, 1.55]

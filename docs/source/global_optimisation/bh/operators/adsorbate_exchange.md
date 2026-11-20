@@ -14,7 +14,7 @@ Place this fragment under `strategy.operators`. Set `temperature` and
 - method: adsorbate_exchange
   particles: [CO]
   anchors:
-    group: "`symbol Cu`"
+    group: "symbol Cu"
     cutoff: 3.0
     max_order: 2
     surf_index: 2

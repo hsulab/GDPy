@@ -9,10 +9,10 @@ whose positions should remain fixed during a simulation.
 
 ## selecting a group
 
-Enclose each selector in backticks and quote the complete expression in YAML:
+Write selectors directly and quote the complete expression in YAML:
 
 ```yaml
-group: "`symbol Cu O`"
+group: "symbol Cu O"
 ```
 
 This selects every Cu and O atom in the input structure. When a component uses
@@ -20,22 +20,40 @@ the group evaluator's default `group: null`, all atoms are selected.
 
 | Selector | Example | Selected atoms |
 | --- | --- | --- |
-| `index` | `` `index 0 2 5` `` | Atoms at the listed zero-based ASE indices; list individual indices, without ranges. |
-| `id` | `` `id 1:4 7` `` | Atoms 1 through 4 and atom 7, using one-based inclusive ranges. |
-| `symbol` | `` `symbol Cu O` `` | Atoms with any of the listed chemical symbols. |
-| `tag` | `` `tag 1:3` `` | Atoms whose ASE tags are 1, 2, or 3; tag values are not atom indices. |
-| `zbot` | `` `zbot 4` `` | The bottom four atoms along z. |
-| `ztop` | `` `ztop 4` `` | The top four atoms along z. |
-| `region` | `` `region sphere 0 0 0 5` `` | Atoms inside a sphere centered at the origin with radius 5 Å. |
+| `index` | `` index 0 2 5 `` | Atoms at the listed zero-based ASE indices; list individual indices, without ranges. |
+| `id` | `` id 1:4 7 `` | Atoms 1 through 4 and atom 7, using one-based inclusive ranges. |
+| `symbol` | `` symbol Cu O `` | Atoms with any of the listed chemical symbols. |
+| `tag` | `` tag 1:3 `` | Atoms whose ASE tags are 1, 2, or 3; tag values are not atom indices. |
+| `zbot` | `` zbot 4 `` | The bottom four atoms along z. |
+| `ztop` | `` ztop 4 `` | The top four atoms along z. |
+| `region` | `` region sphere 0 0 0 5 `` | Atoms inside a sphere centered at the origin with radius 5 Å. |
 
-Combine selectors with `and` (intersection), `or` (union), and parentheses:
+Combine selectors with `and` (intersection), `or` (union), `not` (complement), and parentheses:
 
 ```yaml
-group: "(`symbol Cu` or `symbol O`) and `tag 2`"
+group: "(symbol Cu or symbol O) and tag 2"
 ```
 
-The result contains Cu or O atoms that also have tag 2. The current evaluator
-does not support `not` or set subtraction. Use `index` or `id` when a component
+The result contains Cu or O atoms that also have tag 2.
+
+Use `not` to select the complement of a group:
+
+```yaml
+group: "not tag 0"
+# Select nonzero-tag atoms other than oxygen:
+# group: "not tag 0 and not symbol O"
+```
+
+Operators follow the precedence `not`, then `and`, then `or`; parentheses
+are optional around a single selector: `not tag 0` and `not (tag 0)`
+are equivalent. Use parentheses to group compound expressions, such as
+`not (tag 0 or tag 1)`. Selector arguments end at a boolean operator or
+parenthesis. Missing tags follow ASE's zero default, so `not tag 0` selects
+no atoms from an untagged structure. Runtime constraints use the same syntax.
+Backtick-delimited selectors, literal comparisons such as `tags != 0`, and
+arbitrary Python expressions are not supported.
+
+Use `index` or `id` when a component
 requires a particular set of atoms, and check that the selection has the atom
 count that component expects. For example, a distance restraint requires two
 atoms. Group expressions select a set; they do not prescribe its ordering.
@@ -43,6 +61,12 @@ atoms. Group expressions select a set; they do not prescribe its ordering.
 Region selectors use a region name followed by its numeric arguments. For
 example, `sphere` takes three origin coordinates and a radius. See
 {doc}`builders/region` for region geometry and units.
+
+Population searches also expose the resolved names `active`, `buffer`, and
+`frozen` from {ref}`system.search_space <global-optimisation-population>`.
+For example, `group: "active or buffer"` selects both groups. These names require
+population search metadata; they are not standalone selectors for arbitrary
+structures.
 
 ## selecting bottom or top atoms
 
@@ -55,7 +79,7 @@ a periodic z axis, they sort fractional z coordinates with the default wrapping
 interval [-0.1, 0.9). You can specify an alternative interval:
 
 ```yaml
-group: "`zbot 4 0.0 1.0`"
+group: "zbot 4 0.0 1.0"
 ```
 
 Bounds must be finite and span exactly one fractional cell. The lower bound
@@ -84,7 +108,7 @@ executor:
   method: min
   parameters:
     setup:
-      constraint: "`zbot 4`"
+      constraint: "zbot 4"
     stop:
       fmax: 0.05
       steps: 100
@@ -95,7 +119,7 @@ expression can be used during molecular dynamics. `constraint` accepts the
 same selectors and combinations as `group`, for example:
 
 ```yaml
-constraint: "`id 1:4`"
+constraint: "id 1:4"
 ```
 
 This fixes the first four atoms regardless of their positions. In contrast,

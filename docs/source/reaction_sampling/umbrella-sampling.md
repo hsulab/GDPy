@@ -80,7 +80,7 @@ resources:
           fname: structure.xyz
         collective_variable:
           method: distance
-          group: "`index 8 10`"
+          group: "index 8 10"
       strategy:
         centers: [0.95, 1.15, 1.35, 1.55]
         kspring: 5.0

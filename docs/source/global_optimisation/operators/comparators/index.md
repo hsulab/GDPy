@@ -5,26 +5,27 @@
 Comparators decide whether two relaxed candidates represent the same minimum.
 This prevents duplicate structures from dominating the population.
 
-Structural comparison in global optimisation uses atoms with **tag != 0** by
-default. Tag 0 identifies substrate atoms, regardless of their order in the
-structure. Set `group_expression` to compare a subset of the mobile atoms:
+Structural comparison in global optimisation defaults to the **active** group
+from `system.search_space`, whose default selection is `not tag 0`.
+Set `group_expression` to override that selection:
 
 ```yaml
 system:
   comparator:
     method: interatomic_distance
-    group_expression: "`symbol O`"
+    group_expression: "symbol O"
     dE: 0.02
 ```
 
-The expression is evaluated on the original structure, then intersected with
-`tag != 0`; index/ID selectors therefore refer to original atom indices. An
-empty intersection raises an error. Omit `group_expression` to compare all
-mobile atoms. `n_top` is no longer accepted in population comparator inputs.
+The expression is evaluated on the original structure; index/ID selectors
+refer to original atom indices. Use ``active and (symbol O)`` to narrow the
+active group, or `active or buffer` to include the buffer. An explicit expression
+can include zero-tag or frozen reference atoms. Empty selections raise an error.
+`n_top` is no longer accepted in population comparator inputs.
 Energy gates always use the complete candidate energy. In a `combined`
 comparator, set groups on individual structural children, not on the energy
-criterion or the combination itself. These tag restrictions apply to global
-optimisation; standalone analysis comparators retain their own group defaults.
+criterion or the combination itself. Standalone analysis comparators retain
+their own group defaults.
 
 | Method | Description |
 | --- | --- |
@@ -43,7 +44,7 @@ optimisation; standalone analysis comparators retain their own group defaults.
 
 `oganov_fingerprint` is implemented in the analysis comparator package as
 `OganovFingerprintComparator`. Use `group_expression` to select comparison
-atoms; omit it to compare all mobile atoms. Energy differences are not considered.
+atoms; omit it to compare the active group. Energy differences are not considered.
 Population derives its periodicity from `system.periodic`; do not set `pbc`
 in this mapping or in nested structural comparators.
 The former `ofp` name and `n_top` parameter are removed.
@@ -71,7 +72,7 @@ system:
       - method: energy
         ene_diff_tol: 1.0
       - method: oganov_fingerprint
-        group_expression: "`id 257:296`"
+        group_expression: "id 257:296"
         cos_dist_max: 0.005
 ```
 
@@ -84,7 +85,7 @@ system:
   comparator:
     method: energetic_oganov_fingerprint
     ene_diff_tol: 1.0
-    group_expression: "`id 257:296`"
+    group_expression: "id 257:296"
     cos_dist_max: 0.005
 ```
 

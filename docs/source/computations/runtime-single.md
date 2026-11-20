@@ -78,7 +78,7 @@ modifiers:
   - provider: builtin
     method: distance_harmonic
     parameters:
-      group: "`index 0 1`"
+      group: "index 0 1"
       center: 2.5
       kspring: 0.1
 ```

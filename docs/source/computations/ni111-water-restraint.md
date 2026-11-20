@@ -22,7 +22,7 @@ The complete runtime is:
 ```
 
 Atoms 0-7 are Ni, atom 8 is O, and atoms 9-10 are H. The group expression
-`` `index 8 10` `` selects O and one H by their zero-based indices. The modifier
+`` index 8 10 `` selects O and one H by their zero-based indices. The modifier
 restrains that O-H distance with a spring constant of 5.0 eV/Angstrom squared.
 Its `broadcast` creates four independent windows centered at 0.95, 1.15, 1.35,
 and 1.55 Angstrom. The bias contribution in each window is

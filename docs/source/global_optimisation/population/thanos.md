@@ -36,7 +36,7 @@ needed:
 system:
   thanos:
     - name: region
-      group: "`symbol O`"
+      group: "symbol O"
       region:
         method: surface
         wrap: [-0.1, 0.9]
@@ -55,7 +55,7 @@ any oxygen atom in a Cartesian box:
 system:
   thanos:
     - name: region
-      group: "`symbol O`"
+      group: "symbol O"
       region:
         method: cube
         origin: [0.0, 0.0, 0.0]
@@ -73,7 +73,7 @@ membership conventions; see {doc}`../../builders/region`.
 
 Selection uses the original structure and the standard
 {doc}`group expressions <../../groups-and-constraints>`. For example,
-`` `symbol O` and `tag 1:4` `` selects oxygen atoms in the specified tags.
+`` symbol O and tag 1:4 `` selects oxygen atoms in the specified tags.
 The rule tests individual selected atoms, not molecular centers. A symbol
 selection works even when all atoms share a tag. An empty selection survives.
 

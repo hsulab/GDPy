@@ -17,7 +17,7 @@ these biased moves do not implement equilibrium reaction proposal corrections.
 - method: bond_form
   particles: [H]
   bond: [O, H]
-  acceptor_group: "`index 45 123`"
+  acceptor_group: "index 45 123"
   cutoffs: [1.2, 3.5]
   probability: 0.5
 ```
@@ -83,7 +83,7 @@ event, diagnostic = break_bond(
 # Separately, on a structure containing a detached H:
 event, diagnostic = form_bond(
     detached.copy(), rng, particles=["H"], bond="O-H",
-    acceptor_group="`index 45 123`",
+    acceptor_group="index 45 123",
 )
 ```
 

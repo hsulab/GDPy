@@ -8,7 +8,7 @@ Move one isolated atom onto a stationary acceptor:
 - method: bond_form
   particles: [H]
   bond: [O, H]
-  acceptor_group: "`index 45 123`"
+  acceptor_group: "index 45 123"
   cutoffs: [1.2, 3.5]
   covalent_ratio: [0.8, 1.2]
 ```
@@ -22,7 +22,7 @@ stationary. Acceptors may lie outside the moving atom's region.
 
 `acceptor_group` uses existing atom-group expressions: zero-based `index`,
 one-based `id`, `symbol`, `tag`, and their supported combinations. For example,
-`` "`symbol O` and `index 45 123`" `` selects those oxygen atoms. Groups are
+`` "symbol O and index 45 123" `` selects those oxygen atoms. Groups are
 evaluated on the current reconciled structure. `None` allows all compatible
 stationary atoms. An empty selection permits no formation moves; there is no
 fallback to another site. Invalid expressions or out-of-range indices raise

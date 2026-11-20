@@ -284,6 +284,21 @@ MC no longer requires an evaluator block. HMC accepts executor lists
 directly under `parameters.setup`; descendants inherit the outer potential and
 modifiers. Child `scheduler` settings remain independent and default to direct.
 
+Group expressions no longer use backtick delimiters or literal comparisons.
+For example, use `not tag 0` for nonzero tags, `symbol Cu O` for species,
+and `zbot 12` for the bottom twelve atoms. Combine selectors with `and`, `or`,
+`not`, and parentheses. Update group expressions and runtime constraints;
+older backtick-delimited inputs are rejected with migration guidance.
+
+Global optimisation accepts `system.search_space` with `active`, `buffer`, and
+`frozen` group expressions. Omitted settings retain nonzero-tag active atoms,
+an empty buffer, and frozen atoms inferred from the runtime constraint.
+Population operators default to active atoms. Explicit comparator
+`group_expression` now replaces that default selection rather than intersecting
+it with nonzero tags; use ``active and (symbol O)`` to retain the old narrowing
+behavior. Use `active or buffer` to compare both groups, including zero-tag buffer
+atoms. See {ref}`population settings <global-optimisation-population>`.
+
 Population SA remains under `gdp explore`. Supply a minimisation runtime
 (`executor.method: min`) and put the MD executor protocol under
 `strategy.simulation` (`provider`, `method: md`, and `parameters`). Both stages

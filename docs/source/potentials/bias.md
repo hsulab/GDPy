@@ -27,7 +27,7 @@ potential:
   backend: ase  # Optional; default for the ase executor.
   parameters:
     method: distance_harmonic
-    group: "`index 0 1`"
+    group: "index 0 1"
     center: 1.5
     kspring: 0.1
 executor:

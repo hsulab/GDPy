@@ -45,18 +45,20 @@ used only in generation 0; subsequent generations start from retained minima.
 
 ## candidate tags
 
-SA preserves explicit ASE tags and restores them on MD and minimisation
-results when the backend omits them. Newly generated untagged candidates
-receive positive tags `1, ..., N`, treating each atom independently.
-Explicit tag 0 atoms are excluded from structural population comparisons.
-Executor constraints such as `zbot 48` control motion independently and
-do not automatically assign substrate tags.
+Population SA requires explicit ASE tags on initial structures, even with
+`system.preserve_fragments: false`. Use tag 0 for substrate atoms and positive
+tags for searched atoms or fragments. Tags must be nonnegative, with at least
+one positive tag. For an isolated atomic cluster, assign tags `1, ..., N`.
+SA validates these tags before initial minimisation and preserves them through
+MD, snapshot selection, and minimisation, restoring them when backends omit them.
+Untagged inputs are rejected rather than assigned implicit search membership.
 
-Legacy untagged checkpoints remain readable: comparison includes all selected
-atoms when the tags array is absent. Explicit all-zero tags still raise an
-empty-mobile-group error. Existing saved inputs are not rewritten, allowing
-cached calculations to be reused; retrieved SA results receive tags before
-snapshot selection and candidate ingestion.
+Structural comparators default to the active search-space group, which defaults
+to nonzero-tag atoms. Configure `system.search_space` to give manually prepared
+structures explicit active, buffer, and frozen selections; see
+{ref}`population settings <global-optimisation-population>`. Runtime constraints
+control motion and are checked against frozen membership; they do not assign tags. Resuming an untagged saved input requires
+preparing tagged structures and starting a new search directory.
 
 ## examples
 
@@ -72,9 +74,9 @@ it is not a converged global-minimum search.
 
 ```text
 2
-Lattice="10 0 0 0 10 0 0 0 10" Properties=species:S:1:pos:R:3 pbc="T T T"
-Cu 4.0 5.0 5.0
-Cu 6.4 5.0 5.0
+Lattice="10 0 0 0 10 0 0 0 10" Properties=species:S:1:pos:R:3:tags:I:1 pbc="T T T"
+Cu 4.0 5.0 5.0 1
+Cu 6.4 5.0 5.0 2
 ```
 
 `sa.yaml`:

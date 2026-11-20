@@ -14,7 +14,7 @@ rank_by: energy
 random_seed: 0
 comparator:
   method: displacement
-  group_expression: "`id 257:296`"
+  group_expression: "id 257:296"
   rmsd_max: 0.5
   permutation_invariant: true
   mic: false
@@ -62,7 +62,7 @@ fmax: 0.05
 rank_by: energy
 comparator:
   method: oganov_fingerprint
-  group_expression: "`id 257:296`"
+  group_expression: "id 257:296"
   pbc: false
   cos_dist_max: 0.005
   rcut: 20.0

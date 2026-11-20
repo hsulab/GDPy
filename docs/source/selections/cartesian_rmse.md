@@ -9,7 +9,7 @@ rmse_interval: 0.1       # Angstrom; required, positive
 include_first: false    # default: do not force the initial frame
 include_last: true      # default: always include the final frame
 mic: true               # minimum-image displacement for periodic cells
-# group_expression: "`tag 1`"  # optional atom subset; default is all atoms
+# group_expression: "tag 1"  # optional atom subset; default is all atoms
 ```
 
 Starting with the initial frame as reference, select the next frame whose
