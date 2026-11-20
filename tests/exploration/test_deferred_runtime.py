@@ -42,6 +42,10 @@ def test_slurm_defers_model_loading_through_submission_and_resume(tmp_path, monk
         },
         "scheduler": {"provider": "slurm"},
     }
+    simulation = params["runtime"]["executor"]
+    simulation["parameters"]["setup"]["ensemble"].pop("temperature")
+    params["runtime"]["executor"] = params["strategy"].pop("minimisation")["executor"]
+    params["strategy"]["simulation"] = simulation
     original = copy.deepcopy(params)
     loads = []
 
@@ -67,7 +71,7 @@ def test_slurm_defers_model_loading_through_submission_and_resume(tmp_path, monk
     saved_path, = (directory / "_meta").glob("exp-*.json")
     saved = json.loads(saved_path.read_text())
     assert saved["runtime"]["potential"]["parameters"]["model"] == str(tmp_path / "model.pt")
-    assert saved["strategy"]["minimisation"]
+    assert saved["strategy"]["simulation"]
 
     # The actual spawned process constructs its worker, even after chdir.
     monkeypatch.chdir(directory)

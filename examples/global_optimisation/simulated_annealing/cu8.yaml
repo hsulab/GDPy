@@ -20,14 +20,29 @@ strategy:
   convergence:
     generation: 3
   temperatures:
-  - [1200, 300]
-  - [900, 200]
-  - [600, 100]
-  minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+  - - 1200
+    - 300
+  - - 900
+    - 200
+  - - 600
+    - 100
+  simulation:
+    provider: ase
+    method: md
+    parameters:
+      setup:
+        ensemble:
+          method: nvt
+        timestep: 1.0
+        velocities:
+          initialize: if_missing
+          remove_rotation: false
+        regulator:
+          name: berendsen
+          parameters:
+            Tdamp: 100.0
+      stop:
+        steps: 100
+      output:
+        trajectory:
+          period: 10

@@ -17,9 +17,9 @@ def setup_search(tmp_path, monkeypatch):
     monkeypatch.chdir(examples / "simulated_annealing")
     config = yaml.safe_load(Path("cu8.yaml").read_text())
     runtime = yaml.safe_load((examples / "runtimes/emt_sa.yaml").read_text())
-    runtime["executor"]["parameters"]["stop"]["steps"] = 1
-    runtime["executor"]["parameters"]["output"]["trajectory"]["period"] = 1
-    config["strategy"]["minimisation"]["executor"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
+    config["strategy"]["simulation"]["parameters"]["stop"]["steps"] = 1
+    config["strategy"]["simulation"]["parameters"]["output"]["trajectory"]["period"] = 1
+    runtime["executor"]["parameters"]["stop"] = {"steps": 100, "fmax": .1}
     config["strategy"]["temperatures"] = [[600, 100], [600, 100]]
     config["strategy"]["convergence"]["generation"] = 2
     config["system"]["generation"]["total_size"] = 2

@@ -28,6 +28,9 @@ def test_rejects_nhc_before_any_setup(tmp_path, monkeypatch, method, mode, exter
     invalid = runtime()
     # The effective override, rather than the embedded runtime, is validated.
     params["runtime"] = runtime(regulator="langevin") if external else invalid
+    if method == "global_optimisation":
+        params["strategy"]["simulation"] = copy.deepcopy(invalid["executor"])
+        params["strategy"]["simulation"]["parameters"]["setup"]["ensemble"].pop("temperature")
     original = copy.deepcopy(params)
 
     def unexpected(*args, **kwargs):
@@ -62,9 +65,11 @@ def test_rejects_alternative_runtime_forms(form):
     ("ase", "langevin"), ("ase", "berendsen"), ("lammps", "nose_hoover_chain"),
 ])
 def test_accepts_supported_annealing_combinations(provider, regulator):
+    simulation = runtime(provider, regulator)["executor"]
+    simulation["parameters"]["setup"]["ensemble"].pop("temperature")
     validate_exploration_runtime(
-        {"method": "global_optimisation", "strategy": {"method": "simulated_annealing"}},
-        runtime(provider, regulator),
+        {"method": "global_optimisation", "strategy": {"method": "simulated_annealing", "simulation": simulation}},
+        {"potential": {"provider": "emt"}, "executor": {"provider": "ase", "method": "min", "parameters": {"stop": {"steps": 10, "fmax": .05}}}},
     )
 
 

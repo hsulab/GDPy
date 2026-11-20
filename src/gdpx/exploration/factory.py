@@ -29,6 +29,19 @@ def validate_exploration_runtime(exploration, runtime):
         return
     from gdpx.providers.configuration import RuntimeConfig, resolve_executor_parameters
 
+    if method == "global_optimisation":
+        from .simulated_annealing.protocol import simulation_executor
+        if "minimisation" in strategy:
+            raise ValueError("Move strategy.minimisation into the main runtime and the MD executor into strategy.simulation.")
+        simulation_executor(strategy.get("simulation"))
+        from .simulated_annealing.protocol import validate_minimum
+        values = runtime if isinstance(runtime, (list, tuple)) else [runtime]
+        if len(values) != 1:
+            raise ValueError("Population SA requires exactly one runtime.")
+        value = values[0]
+        validate_minimum(value if isinstance(value, RuntimeConfig) else RuntimeConfig.from_mapping(value))
+        return
+
     runtimes = runtime if isinstance(runtime, (list, tuple)) else [runtime]
     for item in runtimes:
         if isinstance(item, RuntimeConfig):

@@ -8,6 +8,7 @@ import yaml
 from ase.build import molecule
 from ase.io import read
 
+from gdpx.exploration.simulated_annealing.protocol import simulation_executor
 from gdpx.execution.factory import create_worker
 from gdpx.exploration.factory import create_exploration
 from gdpx.providers.configuration import resolve_executor_parameters
@@ -38,8 +39,8 @@ def test_co_cu111_inputs_and_runtime(tmp_path, monkeypatch):
     assert substrate.get_tags().tolist() == [0] * 12
     assert substrate.pbc.all()
     assert original.pbc.tolist() == [True, True, False]
-    md = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-    minimum = resolve_executor_parameters(config["strategy"]["minimisation"]["executor"]["parameters"], "min")
+    md = resolve_executor_parameters(simulation_executor(config["strategy"]["simulation"])["parameters"], "md")
+    minimum = resolve_executor_parameters(runtime["executor"]["parameters"], "min")
     for atoms in frames:
         assert atoms.get_chemical_formula() == "CCu12O"
         assert atoms.pbc.all()

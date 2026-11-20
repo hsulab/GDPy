@@ -3,7 +3,6 @@ import copy
 import math
 import json
 import os
-from collections.abc import Mapping
 
 import numpy as np
 
@@ -13,7 +12,7 @@ from ase.io.jsonio import encode
 from gdpx.analysis.selectors import create_selector
 from gdpx.data.array import AtomsNDArray
 
-from gdpx.providers.configuration import RuntimeConfig, child_executor, resolve_executor_parameters
+from gdpx.providers.configuration import resolve_executor_parameters
 from gdpx.execution.factory import create_worker
 from gdpx.execution.fingerprint import payload_digest, read_structure_inputs, write_structure_inputs
 from ..population.exploration import PopulationBasedExploration
@@ -49,32 +48,13 @@ class PopulationAnnealing(PopulationBasedExploration):
             raise ValueError("SA convergence requires a nonnegative integer generation.")
         if generation != len(temperatures):
             raise ValueError("SA requires one temperature range per generation (excluding initial generation 0).")
-        definition = strategy.get("minimisation")
-        if not isinstance(definition, Mapping):
-            raise ValueError("SA strategy.minimisation must be a runtime mapping.")
-        if "runtime" in definition:
-            raise ValueError("Remove the strategy.minimisation.runtime wrapper; put runtime fields directly under strategy.minimisation.")
-        if "selector" in definition:
-            raise ValueError("Move strategy.minimisation.selector to strategy.selection.")
+        from .protocol import simulation_executor
+        simulation_executor(strategy.get("simulation"))
         selector_config = copy.deepcopy(strategy.get("selection", {
             "method": "locate", "indices": "-1", "group_by": "axis 0"}))
         create_selector(selector_config)  # Validate before any calculations are submitted.
-        minimum_runtime = copy.deepcopy(dict(definition))
-        minimisation = child_executor(minimum_runtime.get("executor"))
-        if "scheduler" in minimisation:
-            raise ValueError("Move the minimisation scheduler to minimisation.scheduler.")
-        minimum_runtime["executor"] = minimisation
-        if minimisation["method"] != "min":
-            raise ValueError("SA strategy.minimisation requires method: min.")
-        params = resolve_executor_parameters(minimisation.get("parameters", {}), "min")
-        if (isinstance(params.get("steps"), bool) or not isinstance(params.get("steps"), int)
-                or params["steps"] <= 0 or isinstance(params.get("fmax"), bool)
-                or not isinstance(params.get("fmax"), (int, float))
-                or not math.isfinite(params["fmax"]) or params["fmax"] <= 0):
-            raise ValueError("SA minimisation requires positive stop.steps and stop.fmax.")
         strategy = copy.deepcopy(strategy)
         strategy["selection"] = selector_config
-        strategy["minimisation"] = minimum_runtime
         super().__init__(population, strategy, **kwargs)
         self.convergence = convergence
         self.objective = normalise_objective(objective, {"energy", "formation_energy"})
@@ -91,41 +71,12 @@ class PopulationAnnealing(PopulationBasedExploration):
         if len(candidate._drivers) != 1:
             raise ValueError("Population SA requires exactly one runtime.")
         config = candidate.runtime.config
-        if config.executor.method != "md":
-            raise ValueError("Population SA requires an MD runtime; SA itself remains an exploration.")
-        params = resolve_executor_parameters(config.executor.parameters, "md")
-        if params.get("ensemble") not in {"nvt", "npt"}:
-            raise ValueError("SA requires thermostatted NVT or NPT dynamics.")
-        if (isinstance(params.get("steps"), bool) or not isinstance(params.get("steps"), int)
-                or params["steps"] <= 0):
-            raise ValueError("SA MD stop.steps must be positive.")
-        if params.get("tend") is not None:
-            raise ValueError("Remove MD tend; strategy.temperatures defines the cooling range for each generation.")
-        if config.modifiers or config.dispatch.share_workdir:
-            raise ValueError("SA requires an unmodified potential and separate candidate directories.")
+        from .protocol import validate_minimum
+        validate_minimum(config)
         super().register_worker(worker, *args, **kwargs)
-        create_worker(self._minimum_runtime())
 
     def _minimum_runtime(self):
-        definition = copy.deepcopy(self.strategy_config["minimisation"])
-        md_runtime = self.worker.as_dict()
-        if "potential" not in definition:
-            potential = copy.deepcopy(md_runtime["potential"])
-            if definition["executor"]["provider"] != md_runtime["executor"]["provider"]:
-                # The resolved MD backend belongs to its executor. Let the
-                # minimisation executor select its own compatible backend.
-                potential.pop("backend", None)
-            definition["potential"] = potential
-        dispatch = definition.get("dispatch", {})
-        if not isinstance(dispatch, Mapping):
-            raise ValueError("SA minimisation.dispatch must be a mapping.")
-        definition["dispatch"] = {**md_runtime["dispatch"], "worker": "batch", **dispatch}
-        runtime = RuntimeConfig.from_mapping(definition)
-        if runtime.modifiers or runtime.dispatch.share_workdir:
-            raise ValueError("SA minimisation requires an unmodified potential and separate candidate directories.")
-        if runtime.dispatch.worker != "batch":
-            raise ValueError("SA minimisation requires dispatch.worker: batch.")
-        return runtime.to_dict()
+        return self.worker.as_dict()
 
     def as_dict(self):
         return self.serialise_search(self._init_params)
@@ -152,9 +103,14 @@ class PopulationAnnealing(PopulationBasedExploration):
         write_json(self.directory / "population.json", state)
 
     def _cooling(self, generation, frames, seed):
-        runtime = self.worker.as_dict()
-        params = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
+        runtime = copy.deepcopy(self.worker.as_dict())
+        from .protocol import simulation_executor
         start, end = self.temperatures[generation - 1]
+        executor = simulation_executor(self.strategy_config["simulation"], start)
+        if executor["provider"] != runtime["executor"]["provider"]:
+            runtime["potential"].pop("backend", None)
+        runtime["executor"] = executor
+        params = resolve_executor_parameters(executor["parameters"], "md")
         params.update(temp=start, tend=end, velocity_seed=None,
                       ignore_atoms_velocities=True)
         runtime["executor"]["parameters"] = params

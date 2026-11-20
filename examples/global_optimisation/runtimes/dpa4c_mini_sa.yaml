@@ -5,23 +5,10 @@ potential:
     model: ../../../models/dpa4c-foundation.pt2
 executor:
   provider: ase
-  method: md
+  method: min
   parameters:
     setup:
-      ensemble:
-        method: nvt
-        temperature: 600.0
-      timestep: 0.5
       constraint: '`zbot 4`'
-      velocities:
-        initialize: if_missing
-        remove_rotation: false
-      regulator:
-        name: langevin
-        parameters:
-          friction: 0.01
     stop:
       steps: 1000
-    output:
-      trajectory:
-        period: 10
+      fmax: 0.05

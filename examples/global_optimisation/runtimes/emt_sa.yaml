@@ -2,22 +2,8 @@ potential:
   provider: emt
 executor:
   provider: ase
-  method: md
+  method: min
   parameters:
-    setup:
-      ensemble:
-        method: nvt
-        temperature: 1200.0
-      timestep: 1.0
-      velocities:
-        initialize: if_missing
-        remove_rotation: false
-      regulator:
-        name: berendsen
-        parameters:
-          Tdamp: 100.0
     stop:
-      steps: 100
-    output:
-      trajectory:
-        period: 10
+      steps: 1000
+      fmax: 0.05

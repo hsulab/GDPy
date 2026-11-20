@@ -8,6 +8,7 @@ from ase.io import read
 
 from gdpx.analysis.selectors import create_selector
 from gdpx.data.array import AtomsNDArray
+from gdpx.exploration.simulated_annealing.protocol import simulation_executor
 from gdpx.execution.factory import create_worker
 from gdpx.exploration.factory import create_exploration
 from gdpx.providers.configuration import resolve_executor_parameters
@@ -33,8 +34,8 @@ def test_cu4_alumina_sa_example(tmp_path, monkeypatch):
     assert engine.population_config.gen_size == 4
     assert engine.convergence == {"generation": 2}
     substrate = read(recipe["system"]["builders"]["init"]["substrates"])
-    md = resolve_executor_parameters(runtime["executor"]["parameters"], "md")
-    minimum = resolve_executor_parameters(recipe["strategy"]["minimisation"]["executor"]["parameters"], "min")
+    md = resolve_executor_parameters(simulation_executor(recipe["strategy"]["simulation"])["parameters"], "md")
+    minimum = resolve_executor_parameters(runtime["executor"]["parameters"], "min")
     for atoms in frames:
         assert atoms.get_chemical_formula() == "Al72Cu4O108"
         assert atoms.pbc.all()

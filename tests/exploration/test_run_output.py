@@ -263,7 +263,6 @@ def test_cli_sa_runtime_error(tmp_path, monkeypatch, output, debug):
     assert main.main() == 1
     text = output.getvalue()
     assert_pair(text, 'failed')
-    assert "provider='ase', method='min'" in text
-    assert "executor.method='md'" in text
-    assert 'runtimes/emt_md.yaml' in text
+    assert "SA minimisation requires positive stop.steps" in text
+    assert "stop.fmax" in text
     assert ('Traceback (most recent call last)' in text) == debug

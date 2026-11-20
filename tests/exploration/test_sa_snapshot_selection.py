@@ -31,6 +31,11 @@ def search(tmp_path):
                    "regulator": {"name": "berendsen", "parameters": {"Tdamp": 10}}},
             stop={"steps": 4}, output={"trajectory": {"period": 1}})))
 
+    simulation = runtime["executor"]
+    simulation["parameters"]["setup"]["ensemble"].pop("temperature")
+    runtime["executor"] = recipe["strategy"].pop("minimisation")["executor"]
+    recipe["strategy"]["simulation"] = simulation
+
     def construct(selector=None):
         config = copy.deepcopy(recipe)
         if selector is not None:
@@ -130,8 +135,8 @@ def test_rejects_old_minimisation_shape(search):
     obj = search()
     recipe = obj.as_dict()
     runtime = recipe.pop("runtime")
-    recipe["strategy"]["minimisation"] = {"runtime": recipe["strategy"]["minimisation"]}
-    with pytest.raises(ValueError, match="Remove the strategy.minimisation.runtime wrapper"):
+    recipe["strategy"]["minimisation"] = {"runtime": runtime}
+    with pytest.raises(ValueError, match="Move strategy.minimisation"):
         create_exploration(recipe)
 
 
@@ -146,7 +151,7 @@ def with_minimum_runtime(search, **overrides):
     obj = search()
     recipe = obj.as_dict()
     md_runtime = recipe.pop("runtime")
-    recipe["strategy"]["minimisation"].update(overrides)
+    md_runtime.update(overrides)
     rebuilt = create_exploration(recipe)
     rebuilt.directory = obj.directory
     rebuilt.register_worker(create_worker(md_runtime))
@@ -159,7 +164,7 @@ def test_minimum_runtime_inherits_potential_and_overrides_dispatch(search):
     md_runtime = recipe.pop("runtime")
     md_runtime["dispatch"].update(batch_size=7, retain_info=True)
     md_runtime["scheduler"] = {"provider": "slurm"}
-    recipe["strategy"]["minimisation"]["dispatch"] = {"batch_size": 2}
+    md_runtime["dispatch"]["batch_size"] = 2
     original = copy.deepcopy((recipe, md_runtime))
     rebuilt = create_exploration(recipe)
     rebuilt.register_worker(create_worker(md_runtime))
@@ -167,7 +172,7 @@ def test_minimum_runtime_inherits_potential_and_overrides_dispatch(search):
     assert minimum["potential"] == rebuilt.worker.runtime.config.potential.to_dict()
     assert minimum["dispatch"]["batch_size"] == 2
     assert minimum["dispatch"]["retain_info"] is True
-    assert minimum.get("scheduler", {}).get("provider", "direct") == "direct"
+    assert minimum.get("scheduler", {}).get("provider", "direct") == "slurm"
     assert (recipe, md_runtime) == original
     overridden = with_minimum_runtime(search, scheduler={"provider": "slurm"})
     assert overridden._minimum_runtime()["scheduler"]["provider"] == "slurm"
@@ -177,7 +182,7 @@ def test_minimum_runtime_uses_own_potential_for_every_generation(search):
     from ase.calculators.lj import LennardJones
     potential = {"provider": "ase", "parameters": {"method": "lj", "sigma": 2.0, "epsilon": .5}}
     obj = with_minimum_runtime(search, potential=potential)
-    assert obj.worker.runtime.config.potential.provider == "emt"
+    assert obj.worker.runtime.config.potential.provider == "ase"
     assert obj._minimum_runtime()["potential"]["provider"] == "ase"
     obj.run()
     rows = list(GlobalOptimisationDatabase(obj.directory / "candidates.db").connection.select(relaxed=1))
@@ -194,28 +199,6 @@ def test_minimum_runtime_uses_own_potential_for_every_generation(search):
     assert rebuilt._minimum_runtime() == obj._minimum_runtime()
 
 
-@pytest.mark.parametrize("executor,explicit,expected", [
-    ("ase", False, "ase"),
-    ("lammps", False, None),
-    ("lammps", True, "lammps"),
-])
-def test_minimum_runtime_selects_backend_for_its_executor(search, monkeypatch, executor, explicit, expected):
-    obj = search()
-    md_runtime = obj.worker.as_dict()
-    md_runtime["potential"] = {
-        "provider": "mace", "backend": "ase", "parameters": {"model": "/models/mace.model"}}
-    original = copy.deepcopy(md_runtime)
-    monkeypatch.setattr(obj.worker, "as_dict", lambda: md_runtime)
-    minimum = obj.strategy_config["minimisation"]
-    minimum["executor"]["provider"] = executor
-    if explicit:
-        minimum["potential"] = {**copy.deepcopy(md_runtime["potential"]), "backend": "lammps"}
-
-    resolved = obj._minimum_runtime()["potential"]
-    assert resolved.get("backend") == expected
-    assert resolved["provider"] == "mace"
-    assert resolved["parameters"] == original["potential"]["parameters"]
-    assert md_runtime == original
 
 
 @pytest.mark.parametrize("overrides,message", [
@@ -303,8 +286,8 @@ def test_selection_with_no_successful_trajectories(search):
 def test_rejects_nested_selector_with_migration_message(search):
     recipe = search().as_dict()
     recipe.pop("runtime")
-    recipe["strategy"]["minimisation"]["selector"] = {"method": "random"}
-    with pytest.raises(ValueError, match=r"Move strategy.minimisation.selector to strategy.selection"):
+    recipe["strategy"]["simulation"]["selector"] = {"method": "random"}
+    with pytest.raises(ValueError, match=r"strategy.simulation accepts only"):
         create_exploration(recipe)
 
 
@@ -374,3 +357,40 @@ def test_final_report_reuses_population_but_standalone_and_resume_refresh(search
     assert [a.info["confid"] for a in resumed.population.candidates] == retained
     assert [a.get_potential_energy() for a in read(
         obj.directory / "results/all_candidates.xyz", ":")] == energies
+
+
+@pytest.mark.parametrize('provider,backend', [('ase', 'ase'), ('lammps', None)])
+def test_simulation_inherits_runtime_and_resolves_backend(search, monkeypatch, provider, backend):
+    obj = search()
+    runtime = obj.worker.as_dict()
+    runtime['potential'] = dict(provider='mace', backend='ase', parameters=dict(model='missing.model'))
+    runtime['scheduler'] = dict(provider='slurm')
+    original = copy.deepcopy(runtime)
+    monkeypatch.setattr(obj.worker, 'as_dict', lambda: runtime)
+    obj.strategy_config['simulation']['provider'] = provider
+    from types import SimpleNamespace
+    from gdpx.exploration.simulated_annealing import population
+    captured = []
+    monkeypatch.setattr(population, 'create_worker', lambda config, **kw: captured.append(config) or SimpleNamespace())
+    obj._cooling(1, [], 1)
+    resolved = captured[0]
+    assert resolved['potential'].get('backend') == backend
+    assert resolved['potential']['parameters'] == runtime['potential']['parameters']
+    assert resolved['scheduler'] == runtime['scheduler']
+    assert resolved['dispatch'] == runtime['dispatch']
+    assert runtime == original
+
+
+def test_generation_zero_does_not_construct_cooling_worker(search, monkeypatch):
+    obj = search()
+    config = obj.as_dict()
+    runtime = config.pop('runtime')
+    config['strategy']['temperatures'] = []
+    config['strategy']['convergence'] = {'generation': 0}
+    rebuilt = create_exploration(config)
+    rebuilt.directory = obj.directory
+    rebuilt.register_worker(create_worker(runtime))
+    monkeypatch.setattr(rebuilt, '_cooling', lambda *args: pytest.fail('Unexpected MD worker'))
+    rebuilt.run()
+    assert rebuilt.read_convergence()
+    assert not (rebuilt.directory / 'gen1').exists()
