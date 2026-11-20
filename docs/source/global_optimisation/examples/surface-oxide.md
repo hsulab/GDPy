@@ -11,9 +11,9 @@ atoms occupy z = 4.60–9.10 Å. Substrate atoms have tag 0; added atoms have
 positive tags. The variable composition input allows 1–4 atoms of each element. The baseline below fixes
 the overlayer at Cu₄O₄.
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
+```{literalinclude} ../../../../examples/global_optimisation/genetic_algorithm/cu4o4_cu111.yaml
 :language: yaml
-:caption: examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml
+:caption: examples/global_optimisation/genetic_algorithm/cu4o4_cu111.yaml
 :start-at: system:
 :end-before: strategy:
 ```
@@ -35,17 +35,17 @@ Both inputs use a {doc}`genetic algorithm <../genetic-algorithm>` for 1 generati
 after initialization:
 
 - **Fixed composition:** 2 offspring using `cut_and_splice` crossover and `rattle` mutation.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu4o4_cu111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/genetic_algorithm/cu4o4_cu111.yaml).
 - **Variable composition:** 4 offspring using only mutations: `exchange` (70%)
   and `rattle` (30%).
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cuxoy_cu111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/genetic_algorithm/cuxoy_cu111.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
-| `genetic_algorithm` | `cu4o4_cu111.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4o4-cu111` |
-| `genetic_algorithm` | `cuxoy_cu111.yaml` | `../../runtimes/mattersim.yaml` | `run-cuxoy-cu111` |
+| `genetic_algorithm` | `cu4o4_cu111.yaml` | `../runtimes/mattersim.yaml` | `run-cu4o4-cu111` |
+| `genetic_algorithm` | `cuxoy_cu111.yaml` | `../runtimes/mattersim.yaml` | `run-cuxoy-cu111` |
 
 ## results
 

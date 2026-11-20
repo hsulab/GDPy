@@ -9,7 +9,7 @@ Search Cu₄ clusters on α-Al₂O₃(0001). The 180-atom support has a
 centred at (7.1385, 8.2428, 10.0) Å. Support atoms have tag 0; each Cu atom
 has a distinct positive tag.
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml
+```{literalinclude} ../../../../examples/global_optimisation/genetic_algorithm/cu4_alumina111.yaml
 :language: yaml
 :caption: system
 :start-at: system:
@@ -44,13 +44,13 @@ convergence rather than assuming the step limit reaches a minimum.
 ## methods
 
 - {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle` mutation.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu4_alumina111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/genetic_algorithm/cu4_alumina111.yaml).
 - {doc}`basin hopping <../basin_hopping>`: 1 generation after initialization, with 2 chains of
   8 attempted steps using `move` at 500 K acceptance temperature.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu4_alumina111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/basin_hopping/cu4_alumina111.yaml).
 - {doc}`simulated annealing <../simulated-annealing>`: 2 generations with 4 trajectories each, cooling
   through 600 → 100, 450 → 100 K; minimise the selected endpoints.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/simulated_annealing/cu4_alumina111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/simulated_annealing/cu4_alumina111.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
@@ -58,8 +58,8 @@ Follow {ref}`running the examples <go-running-examples>` with these file setting
 | --- | --- | --- | --- |
 | `genetic_algorithm` | `cu4_alumina111.yaml` | `runtime.yaml` | `run-cu4-alumina111-ga` |
 | `basin_hopping` | `cu4_alumina111.yaml` | `runtime.yaml` | `run-cu4-alumina111-bh` |
-| `basin_hopping` | `cu4_alumina111.yaml` | `../../runtimes/prophet_oame_mbd.yaml` | `run-cu4-alumina111-bh-prophet` |
-| `simulated_annealing` | `cu4_alumina111.yaml` | `../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml` | `run-cu4-alumina111-sa` |
+| `basin_hopping` | `cu4_alumina111.yaml` | `../runtimes/prophet_oame_mbd.yaml` | `run-cu4-alumina111-bh-prophet` |
+| `simulated_annealing` | `cu4_alumina111.yaml` | `../runtimes/dpa4c_mini_cu4_alumina_sa.yaml` | `run-cu4-alumina111-sa` |
 
 ## results
 

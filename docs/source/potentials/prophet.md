@@ -79,7 +79,7 @@ recipe on that page.
 
 For these global optimisation examples, store model files in `models/` under
 the repository root and run from the exploration's method folder. The supplied
-runtime paths use `../../../../models/` relative to that working directory.
+runtime paths use `../../../models/` relative to that working directory.
 
 For the upstream accelerated CUDA path, install the kernel extra (a CUDA
 toolchain with `nvcc` and headers is required for runtime JIT compilation):
@@ -92,7 +92,7 @@ In a copy of the runtime, retain the executor settings and replace the
 potential parameters with:
 
 ```yaml
-model: ../../../../models/prophet-oame-mbd.pt
+model: ../../../models/prophet-oame-mbd.pt
 device: cuda
 use_kernel: true
 use_compile: true

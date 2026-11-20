@@ -20,15 +20,15 @@ directory. From the repository root, enter the method folder and run:
 ```{code-block} shell
 :caption: Shell
 
-cd examples/global_optimisation/explorations/<method>
+cd examples/global_optimisation/<method>
 gdp -d <output-directory> --runtime <runtime-file> explore <exploration-file>
 ```
 
 Replace the placeholders with the values in the example's run table. Keep
-`--runtime` before `explore`. Shared runtimes are under `../../runtimes/`; a
+`--runtime` before `explore`. Shared runtimes are under `../runtimes/`; a
 local `runtime.yaml` must be created as described in the example.
 
-Paths are relative to the method folder: structure inputs use `../../assets/`,
+Paths are relative to the method folder: structure inputs use `../assets/`,
 and supplied model paths resolve to the repository's `models/` directory.
 Outputs are written relative to the same working directory. Rerun unchanged to
 resume; use a fresh output directory when changing the input or runtime.

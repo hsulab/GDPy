@@ -23,7 +23,7 @@ Install the ReaxFF extra first:
 python -m pip install -e '.[reax]'
 ```
 
-```{literalinclude} ../../../examples/exploration/umbrella_sampling/ni111_water.yaml
+```{literalinclude} ../../../examples/reaction_sampling/umbrella_sampling/ni111_water.yaml
 :language: yaml
 ```
 
@@ -31,7 +31,7 @@ Run it from the repository root:
 
 ```shell
 gdp -d run-umbrella explore \
-    examples/exploration/umbrella_sampling/ni111_water.yaml
+    examples/reaction_sampling/umbrella_sampling/ni111_water.yaml
 ```
 
 The distance group must select exactly two atoms. Centers retain their declared

@@ -167,7 +167,7 @@ DPA4 uses `--pt`; DPA4C uses `--pt-expt`. Alternatively, provide an existing
 
 For these global optimisation examples, store model files in `models/` under
 the repository root and run from the exploration's method folder. The supplied
-runtime paths use `../../../../models/` relative to that working directory.
+runtime paths use `../../../models/` relative to that working directory.
 
 The following runtimes pair these local models with short ASE
 relaxations for the {ref}`supported-cluster exploration <bh-supported-nanoparticle-example>`.

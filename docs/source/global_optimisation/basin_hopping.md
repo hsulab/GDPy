@@ -1,7 +1,7 @@
 # basin hopping
 
 Examples keep search recipes in
-`examples/global_optimisation/explorations/basin_hopping/` and reusable
+`examples/global_optimisation/basin_hopping/` and reusable
 calculation settings in `examples/global_optimisation/runtimes/`. Combine them
 with `gdp --runtime <runtime.yaml> explore <exploration.yaml>`, placing
 `--runtime` before `explore`. To compare potentials, keep the exploration file

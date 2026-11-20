@@ -10,7 +10,7 @@ candidates come from random construction and four from adsorption-site insertion
 on a prepared Cu₄/support structure. Support atoms have tag 0, Cu atoms have
 individual tags, and C and O share the CO fragment tag.
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml
+```{literalinclude} ../../../../examples/global_optimisation/genetic_algorithm/cu4_co_alumina111.yaml
 :language: yaml
 :caption: system
 :start-at: system:
@@ -31,13 +31,13 @@ convergence rather than assuming the step limit reaches a minimum.
 ## methods
 
 - {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle` mutation.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu4_co_alumina111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/genetic_algorithm/cu4_co_alumina111.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
-| `genetic_algorithm` | `cu4_co_alumina111.yaml` | `../../runtimes/mattersim.yaml` | `run-cu4-co-alumina111` |
+| `genetic_algorithm` | `cu4_co_alumina111.yaml` | `../runtimes/mattersim.yaml` | `run-cu4-co-alumina111` |
 
 ## results
 

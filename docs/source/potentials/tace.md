@@ -81,7 +81,7 @@ GDPX_TEST_TACE=1 OMP_NUM_THREADS=1 python -m pytest -q tests/providers/test_tace
 
 For these global optimisation examples, store model files in `models/` under
 the repository root and run from the exploration's method folder. The supplied
-runtime paths use `../../../../models/` relative to that working directory.
+runtime paths use `../../../models/` relative to that working directory.
 
 For the {ref}`supported-cluster exploration <bh-supported-nanoparticle-example>`,
 supply a TACE checkpoint supporting Cu, Al, and O. Place it at

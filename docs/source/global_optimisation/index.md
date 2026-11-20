@@ -36,7 +36,7 @@ ten steps. It is a short demonstration, not a converged structure search.
 
 Save the exploration settings as `expo.yaml`:
 
-```{literalinclude} ../../../examples/global_optimisation/explorations/basin_hopping/cu8.yaml
+```{literalinclude} ../../../examples/global_optimisation/basin_hopping/cu8.yaml
 :language: yaml
 :caption: expo.yaml
 ```

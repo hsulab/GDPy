@@ -8,7 +8,7 @@ Search positions and orientations of one CO molecule on a three-layer
 Cu(111)-p(2×2) slab. The 5.11 × 4.43 Å surface cell has a height of 24 Å.
 The bottom four Cu atoms are fixed; the remaining atoms and CO are mobile.
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml
+```{literalinclude} ../../../../examples/global_optimisation/simulated_annealing/co_cu111.yaml
 :language: yaml
 :caption: system
 :start-at: system:
@@ -31,13 +31,13 @@ convergence rather than assuming the step limit reaches a minimum.
 
 - {doc}`simulated annealing <../simulated-annealing>`: 3 generations with 4 trajectories each, cooling
   through 600 → 100, 450 → 100, 300 → 100 K; minimise the selected endpoints.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/simulated_annealing/co_cu111.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/simulated_annealing/co_cu111.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
-| `simulated_annealing` | `co_cu111.yaml` | `../../runtimes/dpa4c_mini_sa.yaml` | `run-co-cu111-sa` |
+| `simulated_annealing` | `co_cu111.yaml` | `../runtimes/dpa4c_mini_sa.yaml` | `run-co-cu111-sa` |
 
 ## results
 

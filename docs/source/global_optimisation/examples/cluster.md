@@ -11,7 +11,7 @@ random structures occupy a sphere of radius 3 Å; each Cu atom has its own tag.
 The annealing input instead reads two seed structures and disables fragment
 preservation.
 
-```{literalinclude} ../../../../examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml
+```{literalinclude} ../../../../examples/global_optimisation/genetic_algorithm/cu8.yaml
 :language: yaml
 :caption: system
 :start-at: system:
@@ -49,25 +49,25 @@ convergence rather than assuming the step limit reaches a minimum.
 ## methods
 
 - {doc}`genetic algorithm <../genetic-algorithm>`: 1 generation after initialization, with 2 offspring; `cut_and_splice` crossover and `rattle` mutation.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/genetic_algorithm/cu8.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/genetic_algorithm/cu8.yaml).
 - {doc}`basin hopping <../basin_hopping>`: 1 generation after initialization, with 2 chains of
   10 attempted steps using `move` at 500 K acceptance temperature.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu8.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/basin_hopping/cu8.yaml).
 - **Seeded basin hopping:** uses the same EMT relaxation runtime and runs two
   chains of 5 attempted moves at 500 K in one generation after initialization.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/basin_hopping/cu8_seeded.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/basin_hopping/cu8_seeded.yaml).
 - {doc}`simulated annealing <../simulated-annealing>`: 3 generations with 4 trajectories each, cooling
   through 1200 → 300, 900 → 200, 600 → 100 K; minimise the selected endpoints.
-  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/explorations/simulated_annealing/cu8.yaml).
+  [Complete input](https://github.com/hsulab/GDPy/blob/dev/examples/global_optimisation/simulated_annealing/cu8.yaml).
 
 Follow {ref}`running the examples <go-running-examples>` with these file settings:
 
 | Method folder | Exploration input | Runtime | Output directory |
 | --- | --- | --- | --- |
-| `genetic_algorithm` | `cu8.yaml` | `../../runtimes/emt.yaml` | `run-cu8-emt` |
-| `basin_hopping` | `cu8.yaml` | `../../runtimes/emt.yaml` | `run-cu8-bh-emt` |
-| `basin_hopping` | `cu8_seeded.yaml` | `../../runtimes/emt.yaml` | `run-cu8-seeded-bh-emt` |
-| `simulated_annealing` | `cu8.yaml` | `../../runtimes/emt_sa.yaml` | `run-sa` |
+| `genetic_algorithm` | `cu8.yaml` | `../runtimes/emt.yaml` | `run-cu8-emt` |
+| `basin_hopping` | `cu8.yaml` | `../runtimes/emt.yaml` | `run-cu8-bh-emt` |
+| `basin_hopping` | `cu8_seeded.yaml` | `../runtimes/emt.yaml` | `run-cu8-seeded-bh-emt` |
+| `simulated_annealing` | `cu8.yaml` | `../runtimes/emt_sa.yaml` | `run-sa` |
 
 ## results
 
