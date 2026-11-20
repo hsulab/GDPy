@@ -162,6 +162,8 @@ class BasinHopping(PopulationBasedExploration):
         # Parse monte carlo settings
         self.steps_per_chain = steps_per_chain
         self.operators, self.op_probs = parse_operators(operators)
+        for operator in self.operators:
+            operator.search_space = self.population_config.search_space
         self.fragment_policy = fragment_policy_for(self.operators)
 
         # Some convergence criteria
@@ -190,7 +192,7 @@ class BasinHopping(PopulationBasedExploration):
             if len(workers) != 1 or isinstance(workers[0], list):
                 raise ValueError("BH requires one calculation runtime.")
             worker = workers[0]
-        self.worker = worker
+        super().register_worker(worker, *args, **kwargs)
 
         return
 
@@ -425,6 +427,11 @@ class BasinHopping(PopulationBasedExploration):
             if confid in committed:
                 continue
             provenance = expected[confid]
+            source = inputs[confid]
+            from ..population.search_space import transfer_membership
+            transfer_membership(source, candidate)
+            if source.has("tags"):
+                candidate.set_tags(source.get_tags())
             if self.fragment_policy is not None:
                 source = inputs[confid]
                 if len(candidate) != len(source) or (candidate.numbers != source.numbers).any():

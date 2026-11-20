@@ -126,6 +126,7 @@ class PopulationBasedExploration(BaseExploration):
         self.population_comparator = create_population_comparator(
             self.population_config.comparator_config, self.periodic,
             self.random_streams.get("population/comparator"),
+            search_space=self.population_config.search_space,
         )
         self.population = Population(
             self.population_config.retained_size,
@@ -136,6 +137,32 @@ class PopulationBasedExploration(BaseExploration):
         self.reference_builder_name = self.population_config.reference_builder_name
         self.generator = self.builders[self.reference_builder_name]
         self.worker = None
+
+    def _prepare_search_runtime(self, runtime):
+        policy = self.population_config.search_space
+        prepared = policy.prepare_runtime(runtime)
+        simulation = self.strategy_config.get("simulation")
+        if simulation is not None and policy.definition.get("frozen") is not None:
+            # Both SA stages inherit an explicit frozen selection if no constraint is given.
+            simulation = policy.prepare_runtime({"executor": simulation})["executor"]
+            self.strategy_config["simulation"] = simulation
+        policy.bind_runtime(prepared, simulation)
+        return prepared
+
+    def register_runtime(self, runtime):
+        from gdpx.providers.configuration import RuntimeConfig
+        definition = runtime.to_dict() if isinstance(runtime, RuntimeConfig) else runtime
+        super().register_runtime(self._prepare_search_runtime(definition))
+
+    def register_worker(self, worker, *args, **kwargs):
+        from gdpx.execution.factory import create_worker
+        candidate = worker[0] if isinstance(worker, list) else worker
+        if hasattr(candidate, "as_dict"):
+            definition = candidate.as_dict()
+            prepared = self._prepare_search_runtime(definition)
+            if prepared != definition:
+                candidate = create_worker(prepared)
+        super().register_worker(candidate, *args, **kwargs)
 
     def _configure_population_strategy(self):
         """Validate population-dependent policies before constructing builders."""

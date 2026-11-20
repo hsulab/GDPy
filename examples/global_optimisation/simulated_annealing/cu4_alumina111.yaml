@@ -50,7 +50,7 @@ strategy:
         ensemble:
           method: nvt
         timestep: 0.5
-        constraint: '`zbot 60`'
+        constraint: 'zbot 60'
         velocities:
           initialize: if_missing
           remove_rotation: false

@@ -73,7 +73,7 @@ def test_group_selection_and_preparation_do_not_mutate_input():
     second.positions[0] += [1, 2, 3]
     saved_positions = first.positions.copy()
     saved_info = copy.deepcopy(first.info)
-    comparator = DisplacementComparator(group_expression="`id 2:3`", mic=True, random_seed=0)
+    comparator = DisplacementComparator(group_expression="id 2:3", mic=True, random_seed=0)
     assert comparator(first, second)
     prepared = comparator.prepare_data([first, second])
     prepared[0].positions += 10
@@ -118,7 +118,7 @@ def test_invalid_parameters(parameters):
 def test_population_supplies_mic_and_no_presets_remain():
     for periodic in (False, True):
         comparator = create_population_comparator(dict(method="displacement", permutation_invariant=True), periodic=periodic)
-        assert comparator.mic is periodic
+        assert comparator.comparator.mic is periodic
     for method in ("cartesian_coordinate", "permutation_rmsd"):
         with pytest.raises(KeyError):
             create_comparator(dict(method=method))

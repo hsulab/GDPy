@@ -185,7 +185,7 @@ def test_compatibility_includes_surface_and_execution_settings(tmp_path):
     base = {'potential': {'provider': 'emt'}, 'executor': {'provider': 'ase', 'method': 'spc'}}
     configurations.append(base)
     modified = copy.deepcopy(base)
-    modified['executor']['parameters'] = {'setup': {'constraint': '`index 0`'}}
+    modified['executor']['parameters'] = {'setup': {'constraint': 'index 0'}}
     configurations.append(modified)
     modified = copy.deepcopy(base)
     modified['modifiers'] = [{'provider': 'builtin', 'method': 'distance_harmonic',

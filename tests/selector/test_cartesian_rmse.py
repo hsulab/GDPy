@@ -36,8 +36,8 @@ def test_cartesian_components_not_vector_rms(tmp_path):
 
 def test_periodic_and_atom_group(tmp_path):
     frames = [Atoms('HO', positions=[[x, 0, 0], [0, 0, 0]], cell=[10]*3, pbc=True) for x in [9.95, .05, .3]]
-    assert select(tmp_path/'a', frames, group_expression='`symbol H`') == [[2]]
-    assert select(tmp_path/'b', frames, mic=False, group_expression='`symbol H`') == [[1], [2]]
+    assert select(tmp_path/'a', frames, group_expression='symbol H') == [[2]]
+    assert select(tmp_path/'b', frames, mic=False, group_expression='symbol H') == [[1], [2]]
 
 
 def test_ragged_and_higher_dimensional_trajectories(tmp_path):
@@ -61,7 +61,7 @@ def test_invalid_trajectory(tmp_path):
     with pytest.raises(ValueError, match='ordering'):
         select(tmp_path/'a', [Atoms('H'), Atoms('O')])
     with pytest.raises(ValueError, match='empty'):
-        select(tmp_path/'b', trajectory([0, .2]), group_expression='`symbol Ti`')
+        select(tmp_path/'b', trajectory([0, .2]), group_expression='symbol Ti')
     frames = trajectory([0, .2]); frames[0].info['trajectory_id'] = 'a'
     with pytest.raises(ValueError, match='every frame'):
         select(tmp_path/'c', frames)

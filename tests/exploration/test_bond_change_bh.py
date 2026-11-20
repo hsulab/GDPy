@@ -202,10 +202,10 @@ def test_form_history_and_acceptor_group_checkpoint_recovery(tmp_path):
         return run_hopping_rounds([frame], Worker(pending=pending), ops, [1.], 1,
                                   np.random.default_rng(9), tmp_path)
 
-    assert execute("`index 1`", pending=True).status is EvaluationStatus.PENDING
+    assert execute("index 1", pending=True).status is EvaluationStatus.PENDING
     with pytest.raises(ValueError, match="Incompatible bond_change"):
-        execute("`index 0`")
-    result = execute("`index 1`")
+        execute("index 0")
+    result = execute("index 1")
     assert result.status is EvaluationStatus.FINISHED
     np.testing.assert_array_equal(result.endpoints[0].get_tags(), [0, 1, 1, 1])
     event = list(ase.db.connect(tmp_path / "history.db").select())[-1].data["bond_change"]

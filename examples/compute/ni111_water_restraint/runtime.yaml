@@ -13,7 +13,7 @@ executor:
         method: nvt
         temperature: 300.0
       timestep: 0.25
-      constraint: "`zbot 4`"
+      constraint: "zbot 4"
       velocities:
         initialize: if_missing
         seed: 7
@@ -30,7 +30,7 @@ modifiers:
   - provider: builtin
     method: distance_harmonic
     parameters:
-      group: "`index 8 10`"
+      group: "index 8 10"
       kspring: 5.0
     broadcast:
       center: [0.95, 1.15, 1.35, 1.55]

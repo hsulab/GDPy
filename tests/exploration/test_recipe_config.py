@@ -682,7 +682,14 @@ def test_basin_hopping_accepts_a_constructed_cli_worker():
     from gdpx.execution.workers.single import SingleWorker
 
     engine = object.__new__(BasinHopping)
-    worker = object.__new__(SingleWorker)
+    from gdpx.execution.factory import create_worker
+    from gdpx.exploration.population.search_space import SearchSpace
+    engine.population_config = SimpleNamespace(search_space=SearchSpace())
+    engine.strategy_config = {"method": "basin_hopping"}
+    worker = create_worker({"potential": {"provider": "emt"},
+                            "executor": {"provider": "ase", "method": "spc"},
+                            "dispatch": {"worker": "single"}})
+    assert isinstance(worker, SingleWorker)
     engine.register_worker(worker)
     assert engine.worker is worker
 

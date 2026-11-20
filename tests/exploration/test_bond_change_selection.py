@@ -90,7 +90,7 @@ def acceptor_fixture():
                  tags=[1, 2, 3], cell=[20]*3)
 
 
-@pytest.mark.parametrize("group", ["`index 1`", "`id 2`", "`tag 2`", "`symbol O` and `index 1`"])
+@pytest.mark.parametrize("group", ["index 1", "id 2", "tag 2", "symbol O and index 1"])
 def test_form_moves_selected_fragment_onto_only_the_selected_acceptor(group):
     atoms = acceptor_fixture()
     before = atoms.positions.copy()
@@ -102,7 +102,7 @@ def test_form_moves_selected_fragment_onto_only_the_selected_acceptor(group):
     assert atoms.get_distance(1, 2) == pytest.approx(0.97)
 
 
-@pytest.mark.parametrize("group", ["`symbol C`", "`index 2`"])
+@pytest.mark.parametrize("group", ["symbol C", "index 2"])
 def test_empty_or_self_acceptor_group_never_uses_another_site(group):
     atoms = acceptor_fixture()
     before = {name: values.copy() for name, values in atoms.arrays.items()}
@@ -113,7 +113,7 @@ def test_empty_or_self_acceptor_group_never_uses_another_site(group):
         np.testing.assert_array_equal(atoms.arrays[name], values)
 
 
-@pytest.mark.parametrize("group", ["`index -1`", "`index 3`", "`missing O`", "`symbol O` and"])
+@pytest.mark.parametrize("group", ["index -1", "index 3", "`missing O`", "symbol O and"])
 def test_invalid_acceptor_expression_restores_tags_and_coordinates(group):
     atoms = acceptor_fixture()
     atoms.set_tags([1, 1, 3])
@@ -137,7 +137,7 @@ def test_form_wrapper_roundtrip_rollback_and_stationary_acceptor():
     atoms = acceptor_fixture()
     before = {name: values.copy() for name, values in atoms.arrays.items()}
     op = parse_operators([dict(method="bond_form", particles=["H"], bond="O-H",
-                               acceptor_group="`index 1`")])[0][0]
+                               acceptor_group="index 1")])[0][0]
     op._print = op._debug = lambda *args: None
     prepare_operators([op], sorted(set(atoms.numbers)))
     assert parse_operators([op.as_dict()])[0][0].as_dict() == op.as_dict()

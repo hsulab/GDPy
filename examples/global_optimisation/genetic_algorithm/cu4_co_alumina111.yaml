@@ -21,7 +21,7 @@ system:
       composition:
         CO: 1
       sites:
-        group: '`symbol Cu`'
+        group: 'symbol Cu'
         cutoff: 3.0
         max_order: 1
         surf_index: 2

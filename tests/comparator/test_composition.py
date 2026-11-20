@@ -57,7 +57,7 @@ def test_combination_direct_and_prepared_agree(method, energy, distance, similar
 
 def test_preset_returns_combined_comparator_with_flat_parameters():
     parameters = dict(method="energetic_oganov_fingerprint", ene_diff_tol=0.2,
-                      group_expression="`symbol Cu Pt O`", cos_dist_max=0.01,
+                      group_expression="symbol Cu Pt O", cos_dist_max=0.01,
                       rcut=8.0, binwidth=0.1, sigma=0.2, nsigma=3, pbc=False,
                       maxdims=[12, 12, 12], random_seed=7, n_jobs=2)
     original = copy.deepcopy(parameters)
@@ -116,7 +116,7 @@ def test_population_injects_periodicity_recursively(periodic, method):
     original = copy.deepcopy(parameters)
     comparator = create_population_comparator(parameters, periodic=periodic)
     shortcut = comparator.comparators[0] if method == "combined" else comparator
-    assert np.all(shortcut.comparators[1].pbc == periodic)
+    assert np.all(shortcut.comparator.comparators[1].pbc == periodic)
     assert parameters == original
     with pytest.raises(ValueError, match="system.periodic"):
         create_population_comparator(dict(method="combined", comparators=[dict(method="energetic_oganov_fingerprint", pbc=True)]))
@@ -140,7 +140,7 @@ def test_population_list_shorthand_and_signature_based_periodicity():
     original = copy.deepcopy(configuration)
     comparator = create_population_comparator(configuration, periodic=False)
     assert type(comparator) is CombinedComparator
-    assert not comparator.comparators[1].pbc.any()
+    assert not comparator.comparators[1].comparator.pbc.any()
     assert configuration == original
 
 

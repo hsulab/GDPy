@@ -25,7 +25,7 @@ def _config(frames, **strategy):
         "random_seed": 17,
         "system": {
             "builder": {"method": "direct", "frames": frames},
-            "collective_variable": {"method": "distance", "group": "`index 0 1`"},
+            "collective_variable": {"method": "distance", "group": "index 0 1"},
         },
         "strategy": settings,
     }

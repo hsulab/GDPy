@@ -14,9 +14,9 @@ COMPARATORS = {
 }
 
 
-def create_population_comparator(config, periodic=True, rng=None):
+def create_population_comparator(config, periodic=True, rng=None, search_space=None):
     if isinstance(config, (list, tuple)):
-        return create_population_comparator({"method": "combined", "comparators": list(config)}, periodic, rng)
+        return create_population_comparator({"method": "combined", "comparators": list(config)}, periodic, rng, search_space)
     if not isinstance(config, Mapping):
         if hasattr(config, "looks_like"):
             return config
@@ -36,7 +36,7 @@ def create_population_comparator(config, periodic=True, rng=None):
         children = params.get("comparators")
         if not isinstance(children, (list, tuple)) or not children:
             raise ValueError("combined requires a nonempty list of comparators.")
-        params["comparators"] = [create_population_comparator(child, periodic, rng) for child in children]
+        params["comparators"] = [create_population_comparator(child, periodic, rng, search_space) for child in children]
     if method not in COMPARATORS:
         from gdpx.analysis.comparators import REGISTER
         if method not in REGISTER:
@@ -53,6 +53,6 @@ def create_population_comparator(config, periodic=True, rng=None):
         if group_expression is not None:
             raise ValueError("Energy comparison uses the complete candidate energy, without group_expression.")
         return comparator
-    return MobileComparator(comparator, group_expression, preserve_energy=method not in {
+    return MobileComparator(comparator, group_expression, search_space=search_space, preserve_energy=method not in {
         "atoms", "nnmat", "oganov_fingerprint", "displacement",
     })

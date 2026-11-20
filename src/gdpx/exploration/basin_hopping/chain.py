@@ -229,6 +229,8 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     stack.enter_context(proposal)
                     proposal.set_info("confid", index)
                     entry["tags"] = accepted.get_tags()
+                    from ..population.search_space import membership
+                    entry["search_space"] = membership(accepted)
                     save_structure(staging / f"trial-{index:06d}.json", accepted)
                     trials.append(accepted)
                 data = dict(version=5, entries=entries, rng=copy.deepcopy(rng.bit_generator.state),
@@ -264,6 +266,9 @@ def run_hopping_rounds(starts, worker, operators, probabilities, mcsteps, rng, d
                     raise ValueError("Fragment reconciliation requires workers to preserve atom order and composition.")
                 trial.set_constraint(atoms[index].constraints)
             trial.set_tags(entry["tags"])
+            if entry.get("search_space") is not None:
+                from ..population.search_space import set_membership
+                set_membership(trial, entry["search_space"])
             if fragment_policy is not None:
                 trial.info.pop("bond_change", None)
                 if "bond_change" in entry["metadata"]:

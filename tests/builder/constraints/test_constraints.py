@@ -27,7 +27,7 @@ def H2():
     return atoms
 
 def test_canonicalise_constraint_expression():
-    assert canonicalise_constraint_expression("1:2") == "`id 1:2`"
+    assert canonicalise_constraint_expression("1:2") == "id 1:2"
 
 def test_evaluate_constraint_expression(H2):
     mobile, frozen = evaluate_constraint_expression(H2, "1:2")

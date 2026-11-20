@@ -14,19 +14,22 @@ class MobileComparator(BaseComparator):
     gates use complete candidate energies, never a subset energy calculation.
     """
 
-    def __init__(self, comparator, group_expression=None, preserve_energy=True):
+    def __init__(self, comparator, group_expression=None, preserve_energy=True, search_space=None):
+        self.search_space = search_space
         self.comparator = comparator
         self.group_expression = group_expression
         self.preserve_energy = preserve_energy
         self._prepared = {}
 
     def _select(self, atoms):
-        selected = set(evaluate_group_expression(atoms, self.group_expression))
-        # Missing tags are legacy input, not an explicitly empty mobile group.
-        tags = atoms.get_tags() if atoms.has("tags") else np.ones(len(atoms), dtype=int)
-        indices = [i for i, tag in enumerate(tags) if tag != 0 and i in selected]
+        if self.search_space is not None:
+            indices = self.search_space.select(atoms, self.group_expression)
+        else:
+            selected = set(evaluate_group_expression(atoms, self.group_expression))
+            tags = atoms.get_tags() if atoms.has("tags") else np.ones(len(atoms), dtype=int)
+            indices = [i for i, tag in enumerate(tags) if tag != 0 and i in selected]
         if not indices:
-            raise ValueError("Population comparison selected no mobile atoms (tag != 0).")
+            raise ValueError("Population comparison selected no mobile atoms in its search-space group.")
         candidate = atoms[indices]
         # Do not reuse a fingerprint computed for another group or the full slab.
         candidate.info = {}

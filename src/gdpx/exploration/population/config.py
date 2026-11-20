@@ -79,6 +79,9 @@ class PopulationConfig:
         self.initial_builder_allocations = self._parse_builder_allocations(
             params["initial"].get("builder_allocations"), self.init_size
         )
+        from .search_space import SearchSpace
+        self.search_space = SearchSpace(params.get("search_space"))
+        self.require_tags = False
         self.periodic = self._boolean_setting(params, "periodic", True)
         self.preserve_fragments = self._boolean_setting(params, "preserve_fragments", True)
         self.comparator_config = copy.deepcopy(params.get("comparator", {"method": "interatomic_distance"}))
@@ -203,8 +206,9 @@ class PopulationConfig:
                 raise RuntimeError(f"Builder {name!r} returned invalid structures.")
             if len(generated) > size - len(frames):
                 raise RuntimeError(f"Builder {name!r} returned more structures than requested.")
+            generated = [atoms.copy() for atoms in generated]
             for offset, atoms in enumerate(generated):
-                self.validate_candidate(atoms, f"builder {name!r}", len(frames) + offset)
+                self.validate_candidate(atoms, f"builder {name!r}", len(frames) + offset, reset_search_space=True)
             frames.extend(generated)
         if len(frames) != size:
             raise RuntimeError(
@@ -213,7 +217,7 @@ class PopulationConfig:
             )
         return frames
 
-    def validate_candidate(self, atoms: Atoms, source: str, index: Optional[int] = None) -> None:
+    def validate_candidate(self, atoms: Atoms, source: str, index: Optional[int] = None, *, reset_search_space=False) -> None:
         """Validate population-wide system invariants for a candidate."""
         location = source if index is None else f"{source} candidate {index}"
         expected_pbc = np.full(3, self.periodic, dtype=bool)
@@ -222,17 +226,22 @@ class PopulationConfig:
                 f"{location} has periodic boundary conditions {atoms.get_pbc().tolist()}, "
                 f"but system.periodic is {self.periodic}."
             )
+        if self.require_tags and not atoms.has("tags"):
+            raise ValueError(f"{location} requires explicit ASE tags for population SA; "
+                             "use 0 for substrate and positive tags for searched atoms or fragments.")
         if self.preserve_fragments and not atoms.has("tags"):
             raise ValueError(
                 f"{location} has no explicit ASE tags, but system.preserve_fragments is true."
             )
-        if self.preserve_fragments:
+        if self.preserve_fragments or self.require_tags:
             tags = atoms.get_tags()
             if np.any(tags < 0) or not np.any(tags > 0):
                 raise ValueError(
                     f"{location} must use tag 0 only for substrate atoms and positive tags "
-                    "for mobile fragments when system.preserve_fragments is true."
+                    "for mobile fragments when explicit search tags are required."
                 )
+
+        self.search_space.resolve(atoms, reset=reset_search_space)
 
     @staticmethod
     def _require_builders(builders: Mapping, names) -> None:

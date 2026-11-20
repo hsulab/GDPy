@@ -118,15 +118,14 @@ class PopulationAnnealing(PopulationBasedExploration):
         worker.skip_failed_candidates = True
         return worker
 
-    @staticmethod
-    def _ensure_candidate_tags(atoms):
-        """Give untagged candidates independent mobile atoms; retain explicit tags."""
-        if not atoms.has("tags"):
-            atoms.set_tags(np.arange(1, len(atoms) + 1))
+    def _configure_population_strategy(self):
+        self.population_config.require_tags = True
 
     def _evaluate_stage(self, worker, frames, seeds, indices, state, plan, stage):
         if not frames:
             return {}
+        for index, atoms in enumerate(frames):
+            self.population_config.validate_candidate(atoms, f"SA {stage}", index)
         worker.skip_failed_candidates = True
         # Explicit task directories keep snapshot identity independent of the
         # worker's single-calculation layout and its failure bookkeeping.
@@ -149,12 +148,13 @@ class PopulationAnnealing(PopulationBasedExploration):
             # Restore arrays omitted by backends without changing legacy
             # input fingerprints or forcing cached calculations to run again.
             source = frames[int(name[4:])]
-            tags = (source.get_tags() if source.has("tags")
-                    else np.arange(1, len(source) + 1))
+            tags = source.get_tags()
             for frame in trajectory:
                 if not np.array_equal(frame.numbers, source.numbers):
                     raise RuntimeError(f"SA {stage} changed candidate atom identity: {name}.")
                 frame.set_tags(tags)
+                from ..population.search_space import transfer_membership
+                transfer_membership(source, frame)
             by_name[name] = trajectory
         if set(by_name) | set(failed) != expected:
             raise RuntimeError(f"Missing or duplicate SA {stage} results.")
@@ -270,7 +270,7 @@ class PopulationAnnealing(PopulationBasedExploration):
                 frames = ([database.get_one_candidate_by_confid(p) for p in plan["parents"]]
                           if generation else self.population_config._prepare_initial_population(self.builders))
                 for frame in frames:
-                    self._ensure_candidate_tags(frame)
+                    self.population_config.validate_candidate(frame, "SA generation input")
                     frame.calc = None
                     frame.info = {}
                     if "momenta" in frame.arrays:

@@ -13,15 +13,12 @@ from .group import evaluate_group_expression
 def canonicalise_constraint_expression(cons_expr: str) -> str:
     """Convert a constraint expression to a canonical form for compatibility."""
     cons_expr = cons_expr.strip()
-    if "`" in cons_expr:
-        new_cons_expr = cons_expr
-    elif "lowest" in cons_expr:
-        new_cons_expr = "`" + "zbot " + cons_expr.split()[1] + "`"
+    if re.fullmatch(r"lowest\s+\d+", cons_expr):
+        new_cons_expr = "zbot " + cons_expr.split()[1]
+    elif re.fullmatch(r"[\d:\s]+", cons_expr):
+        new_cons_expr = "id " + cons_expr
     else:
-        if re.match(r"^\d.*\d$", cons_expr):
-            new_cons_expr = "`" + "id " + cons_expr + "`"
-        else:
-            raise Exception(f"Invalid constraint expression: {cons_expr}.")
+        new_cons_expr = cons_expr
 
     return new_cons_expr
 

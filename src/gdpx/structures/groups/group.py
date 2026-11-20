@@ -132,19 +132,38 @@ SUPPORTED_GROUP_FUNCTIONS = dict(
 
 
 def preprocess_group_expression(grp_expr: str) -> tuple[str, list[functools.partial]]:
-    """"""
-    pattern = re.compile(r"`.*?`")
+    """Tokenize selectors and compile only boolean structure to a Python AST.
 
-    new_grp_str, grp_funcs = grp_expr, []
-    for i, match in enumerate(pattern.finditer(grp_expr)):
-        data = match.group().strip("`").split()  # remove delimiters ``
-        k, v = data[0], " ".join(data[1:])
-        new_grp_str = new_grp_str.replace(match.group(), k + "_" + str(i))
-        if k not in SUPPORTED_GROUP_FUNCTIONS:
-            raise Exception(f"Unsupported group function: {k}")
-        grp_funcs.append(functools.partial(SUPPORTED_GROUP_FUNCTIONS[k], inp=v))
-
-    return new_grp_str, grp_funcs
+    Selector arguments end at a boolean operator or parenthesis. They are passed
+    to the existing selector parsers, never interpreted as Python expressions.
+    """
+    if not isinstance(grp_expr, str) or not grp_expr.strip():
+        raise ValueError("A group expression must be a nonempty string.")
+    if "`" in grp_expr:
+        raise ValueError("Remove backticks from group expressions; use e.g. not tag 0.")
+    if re.search(r"[=!<>]", grp_expr):
+        raise ValueError("Literal comparisons are unsupported; use selectors such as not tag 0.")
+    tokens = re.findall(r"\(|\)|[^\s()]+", grp_expr)
+    compiled, functions = [], []
+    position = 0
+    boundaries = {"and", "or", "not", "(", ")"}
+    while position < len(tokens):
+        token = tokens[position]
+        position += 1
+        if token in boundaries or token in {"active", "buffer", "frozen"}:
+            compiled.append(token)
+            continue
+        if token not in SUPPORTED_GROUP_FUNCTIONS:
+            raise ValueError(f"Unknown group selector: {token}")
+        arguments = []
+        while position < len(tokens) and tokens[position] not in boundaries:
+            arguments.append(tokens[position])
+            position += 1
+        if not arguments:
+            raise ValueError(f"Group selector {token} requires arguments.")
+        compiled.append(f"group_{len(functions)}")
+        functions.append(functools.partial(SUPPORTED_GROUP_FUNCTIONS[token], inp=" ".join(arguments)))
+    return " ".join(compiled), functions
 
 
 def evaluate_group_expression(atoms: Atoms, grp_expr: Optional[str] = None) -> list[int]:
@@ -153,7 +172,9 @@ def evaluate_group_expression(atoms: Atoms, grp_expr: Optional[str] = None) -> l
     """
 
     def _eval(node):
-        if isinstance(node, ast.BoolOp):
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return set(range(len(atoms))) - _eval(node.operand)
+        elif isinstance(node, ast.BoolOp):
             if isinstance(node.op, ast.And):
                 result = _eval(node.values[0])
                 for value in node.values[1:]:
@@ -165,7 +186,17 @@ def evaluate_group_expression(atoms: Atoms, grp_expr: Optional[str] = None) -> l
                     result = result.union(_eval(value))
                 return result
         elif isinstance(node, ast.Name):
-            return grp_funcs[int(node.id.split("_")[1])](atoms)
+            if node.id in {"active", "buffer", "frozen"}:
+                array = atoms.arrays.get("gdpx_" + node.id)
+                if array is None:
+                    array = atoms.info.get("data", {}).get("search_space", {}).get(node.id)
+                if array is None or len(array) != len(atoms):
+                    raise ValueError(f"Named group {node.id} requires resolved system.search_space membership.")
+                return set(np.flatnonzero(array).tolist())
+            match = re.fullmatch(r"group_(\d+)", node.id)
+            if match is None or int(match[1]) >= len(grp_funcs):
+                raise ValueError(f"Unknown group name: {node.id}")
+            return grp_funcs[int(match[1])](atoms)
         elif isinstance(node, ast.Expression):
             return _eval(node.body)
         else:
@@ -174,7 +205,10 @@ def evaluate_group_expression(atoms: Atoms, grp_expr: Optional[str] = None) -> l
     if grp_expr is not None:
         # Parse the expression into an AST
         grp_expr, grp_funcs = preprocess_group_expression(grp_expr)
-        tree = ast.parse(grp_expr, mode="eval")
+        try:
+            tree = ast.parse(grp_expr, mode="eval")
+        except SyntaxError as error:
+            raise ValueError("Invalid group expression; combine selectors with and, or, not, and parentheses.") from error
         group_indices = _eval(tree)
     else:
         # Fall back to all atoms

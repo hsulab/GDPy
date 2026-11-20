@@ -40,7 +40,7 @@ def test_sampling_volume_and_cell_refresh():
 def test_thanos_wraps_before_cartesian_check(wrap, periodic_z, expected):
     atoms = Atoms("O", positions=[[-12, 25, 23]], cell=[10, 10, 20], pbc=[True, True, periodic_z])
     original = atoms.positions.copy()
-    rule = dispatch_thanos(name="region", group="`symbol O`",
+    rule = dispatch_thanos(name="region", group="symbol O",
                           region=dict(method="surface", z_range=[2, 4], wrap=wrap))
     assert rule(atoms) == expected
     np.testing.assert_array_equal(atoms.positions, original)
@@ -89,5 +89,5 @@ def test_direct_membership_and_tagged_particles_share_wrapping(wrap, expected):
 def test_group_expression_surface_wrapping():
     from gdpx.structures.groups.group import evaluate_group_expression
     atoms = Atoms("O", positions=[[0, 0, 19.5]], cell=[10, 10, 20], pbc=True)
-    assert evaluate_group_expression(atoms, "`region surface -1 0`") == [0]
-    assert evaluate_group_expression(atoms, "`region surface -1 0 0 1`") == []
+    assert evaluate_group_expression(atoms, "region surface -1 0") == [0]
+    assert evaluate_group_expression(atoms, "region surface -1 0 0 1") == []

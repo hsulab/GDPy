@@ -38,7 +38,7 @@ def test_original_index_group_and_fingerprint_cache_are_consistent():
     second.calc = SinglePointCalculator(second, energy=-10)
     # Include one substrate index deliberately; tag 0 must still be excluded.
     selected = create_population_comparator(dict(method='interatomic_distance',
-                                                  group_expression='`index 0 1`'))
+                                                  group_expression='index 0 1'))
     all_mobile = create_population_comparator(dict(method='interatomic_distance'))
     first.info['interatomic_distance'] = {'unrelated': 'cache'}
     for comparator, expected in [(selected, True), (all_mobile, False)]:
@@ -63,7 +63,7 @@ def test_energy_gate_uses_complete_candidate_energy():
 def test_empty_mobile_group_and_legacy_ntop_raise():
     with pytest.raises(ValueError, match='group_expression'):
         create_population_comparator(dict(method='interatomic_distance', n_top=2))
-    comparator = create_population_comparator(dict(method='atoms', group_expression='`symbol Cu`'))
+    comparator = create_population_comparator(dict(method='atoms', group_expression='symbol Cu'))
     with pytest.raises(ValueError, match='no mobile atoms'):
         comparator.looks_like(candidate(), candidate())
 
@@ -104,7 +104,7 @@ def test_legacy_untagged_comparison_and_explicit_zero_tags():
     assert comparator.looks_like(first, second)
     second.positions[0] += [1, 0, 0]
     assert not comparator.looks_like(first, second)
-    selected = create_population_comparator(dict(method="atoms", group_expression="`index 1 3`"))
+    selected = create_population_comparator(dict(method="atoms", group_expression="index 1 3"))
     assert selected.looks_like(first, second)
     comparator._precompute_fingerprint([first])
     assert not first.has("tags")

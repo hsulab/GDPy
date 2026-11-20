@@ -39,7 +39,7 @@ def test_support_excluded_from_fingerprints(tmp_path):
         atoms = Atoms("Mg", positions=[[i * 5, 0, 0]], cell=[20] * 3) + candidate(2, -i)
         atoms.calc = SinglePointCalculator(atoms, energy=-i, forces=np.zeros((4, 3)))
         frames.append(atoms)
-    selector = create_selector(dict(method="compare", number=2, fmax=0.05, rank_by="energy", comparator=dict(method="oganov_fingerprint", pbc=False, group_expression="`symbol Cu Pt O`"), directory=tmp_path, random_seed=0))
+    selector = create_selector(dict(method="compare", number=2, fmax=0.05, rank_by="energy", comparator=dict(method="oganov_fingerprint", pbc=False, group_expression="symbol Cu Pt O"), directory=tmp_path, random_seed=0))
     with pytest.raises(ValueError, match="found only 1"):
         selector.select(frames)
     assert not selector.info_fpath.exists()
@@ -124,7 +124,7 @@ def test_force_checks_still_include_support(tmp_path):
     forces[0, 0] = 0.1
     atoms.calc = SinglePointCalculator(atoms, energy=-1, forces=forces)
     selector = create_selector(dict(method="compare", number=1, fmax=0.05, rank_by="energy", directory=tmp_path, random_seed=0,
-                                   comparator=dict(method="displacement", group_expression="`id 2:4`")))
+                                   comparator=dict(method="displacement", group_expression="id 2:4")))
     with pytest.raises(ValueError, match="0 eligible"):
         selector.select([atoms])
 

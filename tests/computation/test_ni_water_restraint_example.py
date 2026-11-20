@@ -42,7 +42,7 @@ def test_ni_water_restraint_example_configuration():
         assert config.potential.parameters["model"] == "bundled:ffield.reax.PtNiCHO.2016"
         assert config.executor.method == "md"
         assert config.modifiers[0].method == "distance_harmonic"
-        assert config.modifiers[0].parameters["group"] == "`index 8 10`"
+        assert config.modifiers[0].parameters["group"] == "index 8 10"
         assert config.modifiers[0].parameters["kspring"] == 5.0
 
 

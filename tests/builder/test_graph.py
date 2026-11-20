@@ -126,7 +126,7 @@ def test_insert():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphInsertModifier(
-            species="CO", site="Cu", group="`symbol Cu`", random_seed=1112
+            species="CO", site="Cu", group="symbol Cu", random_seed=1112
         )
         modifier.directory = tmpdir
 
@@ -141,7 +141,7 @@ def test_remove():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphRemoveModifier(
-            species="O", group="`symbol O`", random_seed=1112
+            species="O", group="symbol O", random_seed=1112
         )
         modifier.directory = tmpdir
 
@@ -156,7 +156,7 @@ def test_swap():
     """"""
     with tempfile.TemporaryDirectory() as tmpdir:
         modifier = GraphSwapModifier(
-            species="Zn", target="Cr", group="`symbol Zn`", random_seed=1112
+            species="Zn", target="Cr", group="symbol Zn", random_seed=1112
         )
         modifier.directory = tmpdir
 

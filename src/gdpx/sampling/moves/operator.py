@@ -92,6 +92,9 @@ class BaseMCOperator(abc.ABC):
     def propose(self, atoms: Atoms, rng: np.random.Generator):
         """Borrow atoms for one transaction; configuration keeps no trial state."""
         from gdpx.sampling.proposal import MoveProposal
+        search_space = getattr(self, "search_space", None)
+        selected = search_space.select(atoms, self.group, movable=True) if search_space is not None else None
+        original_tags = set(atoms.get_tags()) if search_space is not None else set()
         proposal = MoveProposal(atoms)
         try:
             attempt = copy.copy(self)
@@ -99,7 +102,29 @@ class BaseMCOperator(abc.ABC):
             attempt._state = {}
             attempt._atoms = None
             attempt._transaction = proposal
+            temporary_tags = []
+            if selected is not None:
+                # Zero-tag buffer atoms need independent temporary identities for
+                # fragment-based proposal machinery. Restore their public tags below.
+                zero = [i for i in selected if atoms.get_tags()[i] == 0]
+                if zero:
+                    proposal.watch(zero, names=("tags",))
+                    first = max(original_tags, default=0) + 1
+                    temporary_tags = list(range(first, first + len(zero)))
+                    atoms.arrays["tags"][zero] = temporary_tags
             trial = attempt._propose(atoms, rng)
+            if trial is not None and search_space is not None:
+                from gdpx.exploration.population.search_space import membership
+                for tag in temporary_tags:
+                    atoms.arrays["tags"][atoms.get_tags() == tag] = 0
+                # ASE extends role arrays with zeros for inserted atoms.
+                new = np.flatnonzero(~np.isin(atoms.get_tags(), list(original_tags | set(temporary_tags))))
+                if len(new):
+                    proposal.watch(new, names=("gdpx_active",))
+                    atoms.arrays["gdpx_active"][new] = True
+                data = copy.deepcopy(atoms.info.get("data", {}))
+                data["search_space"] = {k: v.tolist() for k, v in membership(atoms).items()}
+                proposal.set_info("data", data)
             proposal.diagnostic = getattr(attempt, "_extra_info", "-")
             if trial is None:
                 proposal.valid = False
@@ -153,6 +178,13 @@ class BaseMCOperator(abc.ABC):
             self._print(self.indent + x)
 
         self._curr_tags_dict = self.region.get_contained_tags_dict(atoms, tags_dict)
+        if hasattr(self, "search_space"):
+            selected = set(self.search_space.select(atoms, self.group, movable=True))
+            tags = atoms.get_tags()
+            self._curr_tags_dict = {
+                species: [tag for tag in values if set(np.flatnonzero(tags == tag)) <= selected]
+                for species, values in self._curr_tags_dict.items()
+            }
         content = "          in region:  "
         content += "  " + "  ".join([str(k) + " " + str(len(v)) for k, v in self._curr_tags_dict.items()])
         for x in content.split("\n"):

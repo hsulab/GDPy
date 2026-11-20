@@ -11,7 +11,7 @@ executor:
   method: min
   parameters:
     setup:
-      constraint: '`zbot 60`'
+      constraint: 'zbot 60'
     stop:
       fmax: 0.05
       steps: 20

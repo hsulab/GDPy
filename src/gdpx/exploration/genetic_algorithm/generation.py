@@ -241,7 +241,7 @@ class GeneticGenerationManager:
                 )
                 curr_rows = [x for x in curr_rows if x.formula]
                 # get latest atoms, if pairing+mutation, the latest atoms should be the mutated one
-                curr_atoms = database.connection.get_atoms(curr_rows[-1].id, add_additional_information=True)
+                curr_atoms = database.get_atoms(curr_rows[-1].id, add_additional_information=True)
                 # Keep only candidate state needed after reloading; database
                 # event-classification fields belong to the stored rows.
                 kvp = {k: v for k, v in curr_atoms.info["key_value_pairs"].items() if k in RETAINED_KEYS}

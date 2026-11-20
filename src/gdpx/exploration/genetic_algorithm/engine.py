@@ -535,13 +535,19 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
                     else:
                         raise RuntimeError(f"Cannot find tags for candidate {confid}")
                     cand.set_tags(previous_tags)
+                    from ..population.search_space import transfer_membership
+                    transfer_membership(previous_atoms, cand)
                     identities = get_tags_per_species(cand)
                     identity_stats = {}
                     for k, v in identities.items():
                         identity_stats[k] = len(v)
                     cand.info["identity_stats"] = identity_stats
                 else:
-                    ...
+                    rows = list(self.da.connection.select(relaxed=0, confid=confid))
+                    if rows:
+                        from ..population.search_space import transfer_membership
+                        previous = max(rows, key=lambda row: row.mtime).toatoms(add_additional_information=True)
+                        transfer_membership(previous, cand)
                 self.population_config.validate_candidate(cand, "relaxed", ia)
                 # evaluate raw score
                 evaluate_candidate(cand, self.target, self.objective.get("chemical_potentials"))
@@ -792,6 +798,7 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
             self._reject_population_owned_operator_keys(crossover_params, f"operators.{group}.crossover")
             crossover_specific = dict(
                 specific_params,
+                search_space=self.population_config.search_space,
                 rng=self.random_streams.get(f"operator/{group}/crossover"),
             )
             pairing = instantiate_a_genetic_operator(
@@ -832,6 +839,7 @@ class GeneticAlgorithmEngine(PopulationBasedExploration):
                 specific_params_["rng"] = self.random_streams.get(
                     f"operator/{group}/mutation/{mutation_index}"
                 )
+                specific_params_["search_space"] = self.population_config.search_space
                 mut = instantiate_a_genetic_operator("mutation", mut_params, specific_params_)
                 self._configure_fragment_policy(
                     mut, f"operators.{group}.mutation[{mutation_index}]"

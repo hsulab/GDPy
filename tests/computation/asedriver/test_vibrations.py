@@ -28,7 +28,7 @@ class HarmonicCalculator(Calculator):
 def test_selected_group_spectrum_and_environment(tmp_path, nfree):
     atoms = Atoms("CuZnOH", positions=np.arange(12).reshape(4, 3) * 0.1)
     calc = HarmonicCalculator()
-    driver = AseFrequencyDriver(calc, {"group": "`symbol Zn O H`", "nfree": nfree, "maxstep": 0.025},
+    driver = AseFrequencyDriver(calc, {"group": "symbol Zn O H", "nfree": nfree, "maxstep": 0.025},
                                 directory=tmp_path)
     driver.run(atoms)
     result = json.loads((tmp_path / "vibrations.json").read_text())
@@ -81,7 +81,7 @@ def test_freq_runtime_factory(tmp_path):
     runtime = get_provider_manager().resolve_runtime({
         "potential": {"provider": "emt"},
         "executor": {"provider": "ase", "method": "freq", "parameters": {
-            "setup": {"group": "`index 1`", "maxstep": 0.02}}},
+            "setup": {"group": "index 1", "maxstep": 0.02}}},
     })
     driver = runtime.executor
     assert isinstance(driver, AseFrequencyDriver)

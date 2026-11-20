@@ -8,7 +8,7 @@ executor:
   method: min
   parameters:
     setup:
-      constraint: "`zbot 48`"
+      constraint: "zbot 48"
       optimizer:
         name: bfgs
         parameters:

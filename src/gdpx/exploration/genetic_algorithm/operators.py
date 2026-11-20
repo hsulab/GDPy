@@ -63,6 +63,8 @@ def instantiate_a_genetic_operator(
         raise ValueError("Operator RNGs are managed by the GA engine; remove the 'rng' option.")
     if "n_top" in op_params:
         raise ValueError("n_top is removed from GA configuration; mobile atoms have tag != 0.")
+    search_space = specific_params.get("search_space")
+    group = op_params.pop("group", None) if search_space is not None else None
     method = op_params.pop("method", None)
     if category == "mutation" and method == "rattle_buffer":
         raise ValueError("Mutation 'rattle_buffer' was renamed to 'group_rattle'.")
@@ -96,6 +98,11 @@ def instantiate_a_genetic_operator(
     for k, v in specific_params.items():
         if k in init_args:
             op_params.update(**{k: v})
+    if search_space is not None and "group" in sig.parameters:
+        op_params["group"] = "not tag 0"
     op = op_cls(**op_params)
+    if search_space is not None:
+        from ..population.operators import bind_genetic_group
+        bind_genetic_group(op, search_space, group)
 
     return op

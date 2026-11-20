@@ -21,7 +21,7 @@ executor:
             random_seed: 2026
             setup:
               timestep: 0.25
-              constraint: '`zbot 4`'
+              constraint: 'zbot 4'
               velocities:
                 seed: 2026
                 remove_rotation: false
@@ -64,7 +64,7 @@ executor:
                 method: spc
                 parameters:
                   setup:
-                    constraint: '`zbot 4`'
+                    constraint: 'zbot 4'
             stop:
               steps: 3
     output:

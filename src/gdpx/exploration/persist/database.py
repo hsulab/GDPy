@@ -7,6 +7,8 @@ from ase import Atoms
 
 CANDIDATES_DATABASE_FILENAME = "candidates.db"
 
+from ..population.search_space import persist_membership, membership, set_membership
+
 from ..generation import GenerationInfo, GenerationState
 
 
@@ -32,6 +34,14 @@ class GlobalOptimisationDatabase:
         self.connection.count()  # Initialise ASE's metadata cache, including an empty database.
 
         return
+
+    def get_atoms(self, *args, **kwargs):
+        """Restore population role arrays omitted by ASE's database schema."""
+        atoms = self.connection.get_atoms(*args, **kwargs)
+        groups = membership(atoms)
+        if groups is not None:
+            set_membership(atoms, groups)
+        return atoms
 
     def init_task(self, substrate: Atoms, data: dict[str, int]) -> None:
         """"""
@@ -97,14 +107,14 @@ class GlobalOptimisationDatabase:
                 rows[row.confid] = row
         candidates = []
         for confid, row in sorted(rows.items()):
-            atoms = self.connection.get_atoms(row.id, add_additional_information=True)
+            atoms = self.get_atoms(row.id, add_additional_information=True)
             atoms.info["confid"] = confid
             candidates.append(atoms)
         return candidates
 
     def get_substrate(self):
         """Get the substrate."""
-        return self.connection.get_atoms(substrate=True)
+        return self.get_atoms(substrate=True)
 
     def add_unrelaxed_candidate(self, candidate: Atoms, description: str = "", **kwargs):
         """"""
@@ -112,6 +122,7 @@ class GlobalOptimisationDatabase:
             t, desc = split_description(description)
             kwargs.update(**{t: 1, "description": desc})
 
+        persist_membership(candidate)
         key_value_pairs = candidate.info.get("key_value_pairs", {})
         data = candidate.info.get("data", {})
 
@@ -142,6 +153,7 @@ class GlobalOptimisationDatabase:
             t, desc = split_description(description)
             kwargs.update(**{t: 1, "description": desc})
 
+        persist_membership(candidate)
         key_value_pairs = candidate.info.get("key_value_pairs", {})
         data = candidate.info.get("data", {})
 
@@ -159,6 +171,7 @@ class GlobalOptimisationDatabase:
 
     def add_relaxed_step(self, atoms: Atoms) -> None:
         """"""
+        persist_membership(atoms)
         assert "raw_score" in atoms.info["key_value_pairs"]
 
         # We may have several entries due to add_unrelaxed_step
@@ -185,6 +198,7 @@ class GlobalOptimisationDatabase:
         The stable evaluation key identifies an event, not a geometry: two
         identical minima from different trials remain separate history entries.
         """
+        persist_membership(atoms)
         with self.connection:
             existing = list(self.connection.select(evaluation_key=evaluation_key))
             if existing:
@@ -206,7 +220,7 @@ class GlobalOptimisationDatabase:
         images.sort(key=lambda x: x.mtime)
 
         # TODO: if there is no images?
-        candidate = self.connection.get_atoms(images[-1].id, add_additional_information=add_info)
+        candidate = self.get_atoms(images[-1].id, add_additional_information=add_info)
         if mark_as_queued:
             self.connection.update(id=images[-1].id, queued=1)
 
@@ -223,7 +237,7 @@ class GlobalOptimisationDatabase:
         for row in rows:
             if through is not None and (row.get("generation", 0), row.data.get("round", 0)) > through:
                 continue
-            candidate = self.connection.get_atoms(id=row.id, add_additional_information=True)
+            candidate = self.get_atoms(id=row.id, add_additional_information=True)
             candidate.info["confid"] = row.confid
             candidates.append(candidate)
 

@@ -40,7 +40,7 @@ executor:
         method: spc
         parameters:
           setup:
-            constraint: '`zbot 4`'
+            constraint: 'zbot 4'
     output:
       trajectory:
         period: 1

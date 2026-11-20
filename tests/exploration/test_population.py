@@ -177,7 +177,7 @@ def test_example_population_round_trip_and_config_immutability(example, runtime_
 
     source = Path(__file__).resolve().parents[2] / "examples/global_optimisation" / example
     config = yaml.safe_load(source.read_text())
-    runtime = yaml.safe_load((source.parents[2] / "runtimes" / runtime_name).read_text())
+    runtime = yaml.safe_load((source.parents[1] / "runtimes" / runtime_name).read_text())
     original = copy.deepcopy(config)
     engine = create_exploration(copy.deepcopy(config))
     if isinstance(engine, list):

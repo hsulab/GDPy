@@ -16,7 +16,7 @@ from gdpx.exploration.simulated_annealing.population import PopulationAnnealing
 @pytest.fixture
 def search(tmp_path):
     write(tmp_path / "seed.xyz", Atoms("Cu2", positions=[[4, 5, 5], [6.4, 5, 5]],
-                                      cell=[10]*3, pbc=True))
+                                      cell=[10]*3, pbc=True, tags=[1, 2]))
     recipe = dict(method="global_optimisation", random_seed=7, system=dict(
         periodic=True, preserve_fragments=False, retained_size=1,
         builders={"init": {"method": "read_stru", "fname": str(tmp_path / "seed.xyz")}},
@@ -212,7 +212,7 @@ def test_minimum_runtime_rejects_unsupported_configuration(search, overrides, me
         with_minimum_runtime(search, **overrides)
 
 
-@pytest.mark.parametrize("tags", [None, [0, 7]])
+@pytest.mark.parametrize("tags", [[1, 2], [0, 7]])
 def test_candidate_tags_survive_backend_output_and_restart(search, monkeypatch, tags):
     import numpy as np
     from gdpx.execution.workers.drive import DriverBasedWorker
@@ -394,3 +394,63 @@ def test_generation_zero_does_not_construct_cooling_worker(search, monkeypatch):
     rebuilt.run()
     assert rebuilt.read_convergence()
     assert not (rebuilt.directory / 'gen1').exists()
+
+
+@pytest.mark.parametrize('tags', [None, [0, 0], [-1, 1]])
+def test_sa_requires_search_tags_before_calculation(search, monkeypatch, tags):
+    obj = search()
+    path = obj.directory.parent / 'seed.xyz'
+    atoms = read(path)
+    if tags is None:
+        atoms.arrays.pop('tags')
+    else:
+        atoms.set_tags(tags)
+    write(path, atoms)
+    from gdpx.exploration.simulated_annealing import population
+    monkeypatch.setattr(population, 'create_worker', lambda *a, **kw: pytest.fail('Calculation started'))
+    with pytest.raises(ValueError, match='tags'):
+        obj.run()
+
+
+def test_sa_search_space_freezes_both_stages_and_survives_restart(search):
+    source = search()
+    config = source.as_dict()
+    runtime = config.pop('runtime')
+    config['system']['search_space'] = {'active': 'index 1', 'frozen': 'index 0'}
+    original = copy.deepcopy((config, runtime))
+
+    def build():
+        obj = create_exploration(copy.deepcopy(config))
+        obj.directory = source.directory
+        obj.register_worker(create_worker(copy.deepcopy(runtime)))
+        return obj
+
+    obj = build()
+    assert obj._minimum_runtime()['executor']['parameters']['stop']['fmax'] == .1
+    obj.run()
+    build().run()
+    assert (config, runtime) == original
+    policy = obj.population_config.search_space
+    for candidate in obj.get_minimised_candidates():
+        assert policy.select(candidate) == [1]
+        assert policy.select(candidate, 'frozen') == [0]
+        assert candidate.positions[0].tolist() == [4., 5., 5.]
+    saved = obj.as_dict()
+    runtime = saved.pop('runtime')
+    rebuilt = create_exploration(saved)
+    rebuilt.register_worker(create_worker(runtime))
+    assert rebuilt.as_dict() == obj.as_dict()
+
+
+def test_sa_search_space_rejects_different_stage_constraints(search, monkeypatch):
+    source = search()
+    config = source.as_dict()
+    runtime = config.pop('runtime')
+    config['system']['search_space'] = {'active': 'index 1', 'frozen': 'index 0'}
+    config['strategy']['simulation']['parameters']['setup']['constraint'] = 'index 1'
+    obj = create_exploration(config)
+    obj.directory = source.directory
+    obj.register_worker(create_worker(runtime))
+    monkeypatch.setattr(obj, '_evaluate_stage', lambda *a, **kw: pytest.fail('Calculation started'))
+    with pytest.raises(ValueError, match='inconsistent'):
+        obj.run()
