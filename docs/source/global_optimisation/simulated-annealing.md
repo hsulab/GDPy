@@ -103,14 +103,23 @@ strategy:
     - [600, 300]
   convergence:
     generation: 1
-  minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+  simulation:
+    provider: ase
+    method: md
+    parameters:
+      setup:
+        ensemble:
+          method: nvt
+        timestep: 1.0
+        regulator:
+          name: berendsen
+          parameters:
+            Tdamp: 100.0
+      stop:
+        steps: 100
+      output:
+        trajectory:
+          period: 10
 ```
 
 `runtime.yaml`:
@@ -120,25 +129,11 @@ potential:
   provider: emt
 executor:
   provider: ase
-  method: md
+  method: min
   parameters:
-    setup:
-      ensemble:
-        method: nvt
-        temperature: 600.0
-      timestep: 1.0
-      velocities:
-        initialize: if_missing
-        remove_rotation: false
-      regulator:
-        name: berendsen
-        parameters:
-          Tdamp: 100.0
     stop:
-      steps: 100
-    output:
-      trajectory:
-        period: 10
+      steps: 1000
+      fmax: 0.05
 ```
 
 Run from the directory containing these files:
@@ -171,14 +166,20 @@ strategy:
     - [1200, 300]
     - [900, 200]
     - [600, 100]
-  minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+  simulation:
+    provider: ase
+    method: md
+    parameters:
+      setup:
+        ensemble:
+          method: nvt
+        timestep: 1.0
+        regulator:
+          name: berendsen
+          parameters:
+            Tdamp: 100.0
+      stop:
+        steps: 100
   convergence:
     generation: 3
 ```
@@ -192,54 +193,27 @@ the list length. An empty list with generation 0 performs only initial
 minimisation. Ranges may repeat or start hotter than the previous generation;
 each generation is an independent annealing attempt from selected minima.
 
-The separate runtime supplies one potential, an ordinary `md` executor, its
-scheduler, and dispatch settings. The exploration sets both temperature endpoints
-for each generation without modifying the source runtime. Use thermostatted
-NVT or NPT dynamics with a driver and thermostat that support temperature ramps.
-Omit runtime `tend`: the exploration supplies it from each pair. The MD
-`stop.steps` controls the number of integration steps over which cooling occurs.
+The main runtime supplies the potential and a `method: min` executor with
+positive `parameters.stop.steps` and `parameters.stop.fmax`. It evaluates both
+initial structures and selected cooling snapshots.
 
-`strategy.minimisation` directly defines the minimisation runtime, without a
-`runtime` wrapper. Its `executor` must use `method: min`, with positive `parameters.stop.steps` and
-`parameters.stop.fmax`. The optional `strategy.selection` determines which MD
-snapshots enter this minimisation stage.
+`strategy.simulation` contains only the MD executor protocol: `provider`,
+`method: md`, and `parameters`. Use thermostatted NVT or NPT dynamics; NPT
+also requires ensemble pressure. Omit ensemble temperature and `tend`:
+`strategy.temperatures` supplies the starting and final targets per generation.
+MD `stop.steps` controls the cooling duration.
 
-Omit `minimisation.potential` to inherit the MD potential, or supply a complete
-potential definition to override it. The minimisation runtime evaluates both
-generation 0 and all selected snapshots, so population ranking always uses
-its energy surface. The MD runtime remains unchanged.
+Both stages share the main runtime's potential, scheduler, and dispatch settings.
+Use `dispatch.worker: batch` and separate candidate directories. Modifiers and
+simulation-specific runtime overrides are unsupported.
 
-Put minimisation scheduling settings in `minimisation.scheduler`; the default is
-direct execution, independent of the MD scheduler. Dispatch settings inherit
-from the MD runtime and can be overridden through `minimisation.dispatch`.
-Minimisation uses the batch worker with separate candidate directories;
-`dispatch.worker: single` and `dispatch.share_workdir: true` are unsupported.
-Modifiers remain unsupported for both runtimes.
-There is no `native/simulated_annealing` compute executor.
-
-For example, add a separate potential and batch size under the minimisation
-runtime (alongside its required executor):
-
-```yaml
-minimisation:
-  potential:
-    provider: emt
-  executor:
-    provider: ase
-    method: min
-    parameters:
-      stop:
-        steps: 1000
-        fmax: 0.05
-  scheduler:
-    provider: direct
-  dispatch:
-    batch_size: 4
-```
+To migrate, move the old `strategy.minimisation` settings into the main runtime
+and move its former MD executor into `strategy.simulation`, removing ensemble
+temperature. Start a new working directory after migration.
 
 ### snapshot selection
 
-`strategy.selection` is optional and sits alongside `strategy.minimisation`.
+`strategy.selection` is optional and sits alongside `strategy.simulation`.
 Omitting it uses `{method: locate, indices: "-1", group_by: "axis 0"}`, selecting
 the last saved snapshot of each successful cooling trajectory. Generation 0
 bypasses selection and minimises all initial structures.
@@ -264,14 +238,23 @@ strategy:
     period: 2
     include_last: true
     group_by: "axis 0"
-  minimisation:
-    executor:
-      provider: ase
-      method: min
-      parameters:
-        stop:
-          steps: 1000
-          fmax: 0.05
+  simulation:
+    provider: ase
+    method: md
+    parameters:
+      setup:
+        ensemble:
+          method: nvt
+        timestep: 1.0
+        regulator:
+          name: berendsen
+          parameters:
+            Tdamp: 100.0
+      stop:
+        steps: 100
+      output:
+        trajectory:
+          period: 10
 ```
 
 Use `selection: {method: locate, indices: ":"}` for every saved snapshot.
@@ -345,11 +328,6 @@ Each generation also snapshots its inputs. Restart with the same configuration
 and directory: selected parents and random seeds are reused, queued calculations
 are polled, and already recorded endpoints are not duplicated.
 Keep `inputs.xyz` when restarting: it avoids rebuilding or reselecting the inputs.
-Remove the older `strategy.minimisation.runtime` wrapper: put `executor`,
-`potential`, `dispatch`, and `scheduler` directly under `strategy.minimisation`.
-Move any executor-level scheduler to `strategy.minimisation.scheduler`. Omit `minimisation.potential` to retain
-the inherited MD potential. Older population SA checkpoints require a fresh
-directory for the snapshot-selection format.
 Changes to the configuration require a fresh directory.
 Rerunning a completed search regenerates the final results from the database
 without repeating simulations. Existing `population.xyz` files from older runs

@@ -284,14 +284,15 @@ MC no longer requires an evaluator block. HMC accepts executor lists
 directly under `parameters.setup`; descendants inherit the outer potential and
 modifiers. Child `scheduler` settings remain independent and default to direct.
 
-Population SA remains under `gdp explore`. Supply an ordinary MD runtime and
-put its per-generation `[start, end]` cooling ranges in `strategy.temperatures`. Put the full
-minimisation executor definition in `strategy.minimisation.executor`; the minimisation runtime inherits
-the MD potential unless `strategy.minimisation.potential` is supplied. Generation 0 is initial minimisation, and cooling range entry
-N-1 applies to generation N. Each pair must satisfy `start > end > 0`. Omit MD
-`tend`; the exploration supplies both endpoints for linear cooling within each
-generation. The experimental `native/simulated_annealing` executor was removed.
-Its inputs and checkpoints require migration and a fresh run directory.
+Population SA remains under `gdp explore`. Supply a minimisation runtime
+(`executor.method: min`) and put the MD executor protocol under
+`strategy.simulation` (`provider`, `method: md`, and `parameters`). Both stages
+share the runtime's potential, scheduler, and dispatch settings. Put per-generation
+`[start, end]` cooling ranges in `strategy.temperatures`; omit ensemble temperature
+and `tend` from the simulation protocol. Generation 0 is initial minimisation,
+and cooling range N-1 applies to generation N. Each pair requires `start > end > 0`.
+Move former `strategy.minimisation` settings into the main runtime and start a
+fresh working directory. There is no `native/simulated_annealing` executor.
 
 
 ## unified md and monte carlo ensembles
