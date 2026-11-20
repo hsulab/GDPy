@@ -6,7 +6,7 @@ system:
   builders:
     init:
       method: random_structure_improved
-      substrates: ../../assets/alpha_alumina111_ortho.xyz
+      substrates: ../assets/alpha_alumina111_ortho.xyz
       composition:
         Cu: 4
       region:
@@ -22,20 +22,13 @@ system:
   generation:
     total_size: 2
 strategy:
-  method: genetic_algorithm
-  convergence:
-    generation: 1
+  method: basin_hopping
   operators:
-    crossover:
-      method: cut_and_splice
-    mutation:
-      method: rattle
-  reproduction:
-    size: 2
-    mutation_probability: 0.5
-  mutation:
-    size: 0
-  completion:
-    builder_proportions:
-      - builder: init
-        proportion: 1.0
+    - method: move
+      particles: [Cu]
+      temperature: 500.0
+      max_disp: 0.8
+      covalent_ratio: [0.6, 2.0]
+      max_random_attempts: 100
+      probability: 1.0
+  steps_per_chain: 8

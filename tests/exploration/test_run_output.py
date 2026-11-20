@@ -250,7 +250,7 @@ def test_cli_sa_runtime_error(tmp_path, monkeypatch, output, debug):
     from gdpx import main
 
     source = Path(__file__).resolve().parents[2] / (
-        'examples/global_optimisation/explorations/simulated_annealing/cu8.yaml'
+        'examples/global_optimisation/simulated_annealing/cu8.yaml'
     )
     monkeypatch.chdir(source.parent)
     runtime = tmp_path / 'runtime.yaml'

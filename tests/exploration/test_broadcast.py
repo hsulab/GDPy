@@ -69,7 +69,7 @@ def test_composition_replaces_entire_mapping(capture):
 def test_ga_implicit_broadcast_is_flattened_inside_explicit_sweep(monkeypatch):
     from gdpx.exploration.genetic_algorithm import engine
     monkeypatch.setattr(engine, 'GeneticAlgorithmEngine', lambda **kw: SimpleNamespace(params=kw))
-    source = parse_input_file(EXAMPLES / 'explorations/genetic_algorithm/cu7ni6.yaml')
+    source = parse_input_file(EXAMPLES / 'genetic_algorithm/cu7ni6.yaml')
     source['strategy']['objective'] = {
         'target': 'formation_energy', 'chemical_potentials': {'Cu': [-3, -2], 'Ni': -4},
     }
@@ -80,7 +80,7 @@ def test_ga_implicit_broadcast_is_flattened_inside_explicit_sweep(monkeypatch):
 
 
 def test_real_composition_example_serializes_resolved_recipes():
-    source = parse_input_file(EXAMPLES / 'explorations/basin_hopping/cu_ni_compositions.yaml')
+    source = parse_input_file(EXAMPLES / 'basin_hopping/cu_ni_compositions.yaml')
     runtime = parse_input_file(EXAMPLES / 'runtimes/emt.yaml')
     results = create_exploration(source)
     assert len(results) == 2

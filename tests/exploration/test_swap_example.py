@@ -12,7 +12,7 @@ EXAMPLE_PATH = (
     Path(__file__).resolve().parents[2]
     / "examples"
     / "global_optimisation"
-    / "explorations/genetic_algorithm/cu7ni6.yaml"
+    / "genetic_algorithm/cu7ni6.yaml"
 )
 
 

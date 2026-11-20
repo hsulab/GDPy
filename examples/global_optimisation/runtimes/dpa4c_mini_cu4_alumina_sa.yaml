@@ -3,7 +3,7 @@ potential:
   backend: ase
   parameters:
     # Export DPA4C-mini for the execution device; see the DeepMD guide.
-    model: ../../../../models/dpa4c-mini.pt2
+    model: ../../../models/dpa4c-mini.pt2
 executor:
   provider: ase
   method: md

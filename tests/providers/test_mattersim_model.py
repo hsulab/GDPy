@@ -77,7 +77,7 @@ def test_water_cluster_example_and_small_mattersim_runtime():
         Path(__file__).parents[2]
         / "examples"
         / "global_optimisation"
-        / "explorations/genetic_algorithm/water4.yaml"
+        / "genetic_algorithm/water4.yaml"
     )
     with path.open() as stream:
         config = yaml.safe_load(stream)

@@ -14,7 +14,7 @@ from gdpx.providers.ase.driver import AseDriver
 
 def setup_search(tmp_path, monkeypatch):
     examples = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
-    monkeypatch.chdir(examples / "explorations/simulated_annealing")
+    monkeypatch.chdir(examples / "simulated_annealing")
     config = yaml.safe_load(Path("cu8.yaml").read_text())
     runtime = yaml.safe_load((examples / "runtimes/emt_sa.yaml").read_text())
     runtime["executor"]["parameters"]["stop"]["steps"] = 1

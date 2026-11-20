@@ -99,10 +99,10 @@ def test_population_cycles_resume_and_retain_minima(tmp_path, monkeypatch, bound
     import yaml
     from pathlib import Path
     from gdpx.exploration.persist.database import GlobalOptimisationDatabase
-    monkeypatch.chdir(Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations/simulated_annealing")
+    monkeypatch.chdir(Path(__file__).resolve().parents[2] / "examples/global_optimisation/simulated_annealing")
     config = yaml.safe_load(Path("cu8.yaml").read_text())
     assert "runtime" not in config
-    runtime = yaml.safe_load(Path("../../runtimes/emt_sa.yaml").read_text())
+    runtime = yaml.safe_load(Path("../runtimes/emt_sa.yaml").read_text())
     md = runtime["executor"]["parameters"]
     md["stop"]["steps"] = 1
     md["output"]["trajectory"]["period"] = 1
@@ -263,7 +263,7 @@ def test_population_defaults_generation_count_and_preserves_surface(monkeypatch)
     import copy
     import yaml
     root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
-    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    monkeypatch.chdir(root / "simulated_annealing")
     recipe = yaml.safe_load(Path("cu8.yaml").read_text())
     recipe["strategy"].pop("convergence")
     recipe["strategy"]["temperatures"] = [[600, 300], [900, 200], [600, 300]]
@@ -293,7 +293,7 @@ def test_population_pending_generation_resumes(tmp_path, monkeypatch, stage):
     from gdpx.execution.schedulers.direct import DirectScheduler
     from gdpx.exploration.persist.database import GlobalOptimisationDatabase
     root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
-    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    monkeypatch.chdir(root / "simulated_annealing")
     recipe = yaml.safe_load(Path("cu8.yaml").read_text())
     recipe["strategy"]["temperatures"] = [[450, 150]]
     recipe["strategy"]["convergence"] = {"generation": 1}
@@ -345,7 +345,7 @@ def test_population_cools_within_each_generation(tmp_path, monkeypatch, thermost
     from gdpx.providers.configuration import resolve_executor_parameters
 
     root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
-    monkeypatch.chdir(root / "explorations/simulated_annealing")
+    monkeypatch.chdir(root / "simulated_annealing")
     recipe = yaml.safe_load(Path("cu8.yaml").read_text())
     recipe["strategy"]["temperatures"] = [[600, 300], [900, 100]]
     recipe["strategy"]["convergence"] = {"generation": 2}

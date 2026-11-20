@@ -2,7 +2,7 @@ potential:
   provider: deepmd
   backend: ase
   parameters:
-    model: ../../../../models/dpa4c-foundation.pt2
+    model: ../../../models/dpa4c-foundation.pt2
 executor:
   provider: ase
   method: md

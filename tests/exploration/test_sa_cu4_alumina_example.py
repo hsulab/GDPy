@@ -15,16 +15,16 @@ from gdpx.structures.groups import evaluate_constraint_expression
 
 
 ROOT = Path(__file__).resolve().parents[2]
-EXAMPLES = ROOT / "examples/global_optimisation/explorations/simulated_annealing"
+EXAMPLES = ROOT / "examples/global_optimisation/simulated_annealing"
 
 
 def test_cu4_alumina_sa_example(tmp_path, monkeypatch):
     monkeypatch.chdir(EXAMPLES)
     recipe = yaml.safe_load((EXAMPLES / "cu4_alumina111.yaml").read_text())
-    runtime = yaml.safe_load((EXAMPLES / "../../runtimes/dpa4c_mini_cu4_alumina_sa.yaml").read_text())
+    runtime = yaml.safe_load((EXAMPLES / "../runtimes/dpa4c_mini_cu4_alumina_sa.yaml").read_text())
     assert runtime["potential"] == {
         "provider": "deepmd", "backend": "ase",
-        "parameters": {"model": "../../../../models/dpa4c-mini.pt2"},
+        "parameters": {"model": "../../../models/dpa4c-mini.pt2"},
     }
     engine = create_exploration(recipe)
     engine.directory = tmp_path

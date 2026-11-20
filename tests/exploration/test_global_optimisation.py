@@ -15,7 +15,7 @@ from gdpx.exploration.genetic_algorithm.selection import GeneticParentSelector
 from gdpx.exploration.genetic_algorithm.generation import GeneticGenerationManager
 from gdpx.exploration.population.population import compute_population_fitness
 
-EXAMPLES = Path(__file__).resolve().parents[2] / "examples/global_optimisation/explorations"
+EXAMPLES = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
 
 
 def config(method="genetic_algorithm"):

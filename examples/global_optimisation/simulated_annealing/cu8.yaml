@@ -14,7 +14,7 @@ system:
   builders:
     init:
       method: read_stru
-      fname: ../../assets/cu8_seeds.xyz
+      fname: ../assets/cu8_seeds.xyz
 strategy:
   method: simulated_annealing
   convergence:

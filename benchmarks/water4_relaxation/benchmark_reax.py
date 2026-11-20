@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2] / "examples/global_optimisation"
-    recipe = yaml.safe_load((root / "explorations/genetic_algorithm/water4.yaml").read_text())
+    recipe = yaml.safe_load((root / "genetic_algorithm/water4.yaml").read_text())
     settings = dict(recipe["population"]["builders"]["random"])
     settings.pop("method")
     frames = RandomStructureImprovedModifier(

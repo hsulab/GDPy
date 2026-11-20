@@ -6,7 +6,7 @@ system:
   builders:
     init:
       method: random_structure_improved
-      substrates: ../../assets/cu111_p2x2_2layer.xyz
+      substrates: ../assets/cu111_p2x2_2layer.xyz
       composition:
         Cu: 1:4
         O: 1:4
