@@ -1,0 +1,71 @@
+/* File headers use the standard code-block/literalinclude :caption: option. */
+.literal-block-wrapper {
+  position: relative;
+  border: 1px solid var(--color-background-border);
+  border-radius: .25rem;
+  margin: 1rem 0;
+}
+
+.literal-block-wrapper .code-block-caption {
+  align-items: baseline;
+  padding: .65rem 3rem .65rem 1rem;
+  text-align: left;
+  color: var(--color-foreground-secondary);
+  font-family: var(--font-stack--monospace);
+}
+
+.literal-block-wrapper .caption-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.literal-block-wrapper .code-block-caption::before {
+  content: "</>";
+  color: var(--color-brand-primary);
+  font-weight: bold;
+  margin-right: .75rem;
+  white-space: nowrap;
+}
+
+.literal-block-wrapper:has(> .highlight-yaml) .code-block-caption::before {
+  content: "YML";
+}
+
+.literal-block-wrapper:has(> .highlight-python) .code-block-caption::before {
+  content: "Py";
+}
+
+.literal-block-wrapper:has(> .highlight-json) .code-block-caption::before {
+  content: "{}";
+}
+
+.literal-block-wrapper:has(> .highlight-markdown) .code-block-caption::before {
+  content: "M↓";
+}
+
+.literal-block-wrapper:has(> :is(.highlight-shell, .highlight-bash, .highlight-console)) .code-block-caption::before {
+  content: ">_";
+}
+
+.literal-block-wrapper > div[class^="highlight-"] {
+  margin-bottom: 0;
+}
+
+/* Anchor the existing copy control to the file header, preserving its target. */
+.literal-block-wrapper .highlight {
+  position: static;
+}
+
+.literal-block-wrapper button.copybtn {
+  top: .5rem;
+  right: .5rem;
+  opacity: 1;
+  color: var(--color-foreground-secondary);
+  background: var(--color-code-background);
+  border-color: var(--color-background-border);
+}
+
+.literal-block-wrapper button.copybtn:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+}
