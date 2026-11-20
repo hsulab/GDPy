@@ -1,3 +1,4 @@
+import builtins
 import sys
 from types import SimpleNamespace
 
@@ -46,3 +47,22 @@ def test_lammps_without_plumed_is_quiet(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("units", ["metal", "real"])
+def test_plain_lammps_does_not_import_plumed(monkeypatch, units):
+    original_import = builtins.__import__
+
+    def reject_plumed(name, *args, **kwargs):
+        if name == "plumed" or name.startswith("gdpx.providers.plumed.calculators"):
+            pytest.fail("Plain LAMMPS must not import the PLUMED calculator")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", reject_plumed)
+    driver = object.__new__(LmpDriver)
+    calc = SimpleNamespace(units=units)
+
+    result, params = driver._canonicalise_calculator(calc, {})
+
+    assert result is calc
+    assert params == {"units": units}

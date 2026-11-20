@@ -42,17 +42,19 @@ class LmpDriver(BaseDriver):
     def _canonicalise_calculator(self, calc, params: dict):
         units = "metal"
         new_calc, new_params = calc, params
-        try:
-            from gdpx.providers.plumed.calculators.plumed2 import Plumed
+        if isinstance(calc, LinearCombinationCalculator):
+            try:
+                from gdpx.providers.plumed.calculators.plumed2 import Plumed
 
-            if isinstance(calc, LinearCombinationCalculator):
                 assert len(calc.calcs) == 2, "Number of calculators should be 2."
                 if isinstance(calc.calcs[0], Lammps) and isinstance(calc.calcs[1], Plumed):
                     new_calc = calc.calcs[0]
                     new_params = copy.deepcopy(params)
                     new_params["plumed"] = "".join(calc.calcs[1].input)
                     units = calc.calcs[0].units
-        except ImportError:
+            except ImportError:
+                units = calc.units
+        else:
             units = calc.units
         new_params.update(units=units)
         return new_calc, new_params
