@@ -11,6 +11,7 @@ import numpy as np
 
 from gdpx import config
 from gdpx.bootstrap import bootstrap_registries
+from gdpx.version import version_line
 from gdpx.utils.parser import parse_input_file
 from gdpx.utils.strconv import dictionary_to_string
 
@@ -250,6 +251,7 @@ def _main():
     if args.subcommand != "explore":
         for line in config.LOGO_LINES:
             config._print(line)
+        config._print(version_line())
 
     # Set the number of processors
     config.NJOBS = args.n_jobs

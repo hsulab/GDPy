@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=80", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdpx"
-version = "0.1.0"
+dynamic = ["version"]
 dependencies = [
   "ase>=3.27",
   "h5py>=3.7.0",
@@ -56,6 +56,8 @@ tace = ["tace @ git+https://github.com/xvzemin/tace.git@90e241bc9c74f7ed5c1e0be4
 # Prophet extras require Python >=3.11; kernels additionally require a CUDA toolchain.
 prophet = ["prophet-mlip @ git+https://github.com/kairosmaterial/prophet.git@62bc2769fa83214fd564c7df263ee254e73fc6e9"]
 prophet-kernel = ["prophet-mlip[kernel] @ git+https://github.com/kairosmaterial/prophet.git@62bc2769fa83214fd564c7df263ee254e73fc6e9"]
+
+[tool.setuptools_scm]
 
 [tool.pyright]
 include = [

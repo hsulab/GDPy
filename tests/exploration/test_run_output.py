@@ -233,12 +233,14 @@ def test_cli_framing_and_random_state(tmp_path, monkeypatch, output, debug, inva
 
 def test_other_commands_keep_boilerplate(tmp_path, monkeypatch, output):
     from gdpx import main
+    monkeypatch.setattr(main, 'version_line', lambda: 'version: 0.1.1.dev3+gabcdef12')
     monkeypatch.setattr(main, 'bootstrap_registries', lambda **kw: None)
     monkeypatch.setattr(config, 'GRNG', config.GRNG)
     monkeypatch.setattr(sys, 'argv', ['gdp', '-d', str(tmp_path), '--log', '', '-rs', '12'])
     main.main()
     text = output.getvalue()
     assert config.LOGO_LINES[0] in text
+    assert text.index('version: 0.1.1.dev3+gabcdef12') > text.index(config.LOGO_LINES[-2])
     assert text.count('GLOBAL RANDOM SEED : 12') == 2
     assert text.count('bit_generator') == 2
     assert '─ exploration ' not in text
